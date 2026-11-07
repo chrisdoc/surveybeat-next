@@ -1,0 +1,18 @@
+<pasted_content id="afa3">
+Device authorization initiated. Please visit the following URL and enter the code:
+
+https://github.com/login/device
+
+Code: 2B0F-9383
+
+
+After completing authorization in your browser, press 'y' to continue. [y/n]: y
+Error: Authentication failed
+
+Caused by:
+    0: Failed to persist access token
+    1: Platform secure storage failure: zbus error: org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.secrets was not provided by any .service files
+    2: zbus error: org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.secrets was not provided by any .service files
+    3: org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.secrets was not provided by any .service files
+ubuntu@oracle:~/surveybeat-next$
+</pasted_content id="afa3">
