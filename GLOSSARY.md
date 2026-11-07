@@ -12,6 +12,10 @@ _Avoid_: Tenant, company, account, workspace
 A human in an Organization, who may exist before ever signing in (imported or invited).
 _Avoid_: User, employee, respondent
 
+**Organization admin**:
+A Person who administers an Organization: its Teams, Leads, and People. Being an admin gives no access to any Team's Results.
+_Avoid_: Owner, superuser, account admin
+
 **Team**:
 A named group of People, optionally nested inside another Team.
 _Avoid_: Group, squad, department (a department is just a parent Team)
