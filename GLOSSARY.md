@@ -85,7 +85,7 @@ The fact that a member answered a Round, held apart from what they answered.
 _Avoid_: Completion, response (ambiguous)
 
 **Submission**:
-The set of Answers given in one Round by one respondent. In anonymous Rounds it carries no Person.
+The set of Answers given in one Round by one respondent. In anonymous Rounds it carries no Person and no time.
 _Avoid_: Response, entry, reply
 
 **Answer**:
