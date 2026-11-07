@@ -1,0 +1,47 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "01M6VFSM4A1SYTWDDGP4AYKQ40",
+  "session_id": "be0511f8-da1f-48f4-b51a-91f855f8e7eb",
+  "strategy": "manual-commit",
+  "created_at": "2026-11-07T17:09:47.997914159Z",
+  "branch": "t3/r1-06-pulse-editor",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "apps/web/src/app/Pulses.tsx",
+    "packages/cloudflare/src/PulseHandlers.ts",
+    "packages/cloudflare/src/PulseTestRoutes.ts",
+    "packages/cloudflare/src/PulsesApi.test.ts",
+    "packages/cloudflare/src/SqlPulses.ts",
+    "packages/domain/src/pulses/Editor.test.ts",
+    "packages/domain/src/pulses/Editor.ts",
+    "packages/domain/src/pulses/Pulse.ts",
+    "packages/domain/src/pulses/PulseFlow.ts",
+    "packages/domain/src/pulses/Question.ts",
+    "packages/domain/src/pulses/Template.ts"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-5-5",
+  "turn_id": "69841732c26e",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 116,
+    "cache_creation_tokens": 247865,
+    "cache_read_tokens": 10953597,
+    "output_tokens": 97668,
+    "api_call_count": 58
+  },
+  "redaction": {
+    "replacements": 5,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 4,
+      "key_context": 1,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
