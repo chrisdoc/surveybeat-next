@@ -1,0 +1,11 @@
+{
+  "name": "@surveybeat/infra",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@surveybeat/api": "workspace:*",
+    "@surveybeat/cloudflare": "workspace:*",
+    "@surveybeat/domain": "workspace:*",
+    "@surveybeat/emails": "workspace:*"
+  }
+}

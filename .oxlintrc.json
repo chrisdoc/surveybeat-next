@@ -1,0 +1,46 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "react"],
+  "jsPlugins": ["./tools/oxlint-plugin-surveybeat/index.js"],
+  "categories": {
+    "correctness": "error"
+  },
+  "rules": {
+    "typescript/no-floating-promises": "error",
+    "typescript/no-misused-promises": "error",
+    "typescript/no-explicit-any": "error",
+    "typescript/consistent-type-assertions": [
+      "error",
+      {
+        "assertionStyle": "never"
+      }
+    ],
+    "surveybeat/domain-boundary": "error"
+  },
+  "overrides": [
+    {
+      "files": ["apps/web/src/**/*.{ts,tsx}"],
+      "excludeFiles": ["**/*.test.ts", "apps/web/src/messages/**"],
+      "rules": {
+        "surveybeat/no-literal-ui-text": "error"
+      }
+    },
+    {
+      "files": ["**/*.test.ts"],
+      "rules": {
+        "typescript/consistent-type-assertions": "off"
+      }
+    }
+  ],
+  "ignorePatterns": [
+    "**/dist/**",
+    "**/dist-types/**",
+    "**/node_modules/**",
+    "tools/oxlint-plugin-surveybeat/fixtures/**",
+    ".agents/**",
+    ".claude/**",
+    ".entire/**",
+    ".factory/**",
+    ".opencode/**"
+  ]
+}

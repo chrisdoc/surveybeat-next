@@ -1,0 +1,24 @@
+{
+  "name": "@surveybeat/web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "@base-ui/react": "catalog:",
+    "@surveybeat/api": "workspace:*",
+    "@surveybeat/domain": "workspace:*",
+    "effect": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "tailwindcss": "catalog:",
+    "vite": "catalog:"
+  }
+}

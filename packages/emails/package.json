@@ -1,0 +1,11 @@
+{
+  "name": "@surveybeat/emails",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@surveybeat/domain": "workspace:*"
+  }
+}

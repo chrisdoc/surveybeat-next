@@ -1,0 +1,16 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "printWidth": 110,
+  "ignorePatterns": [
+    "pnpm-lock.yaml",
+    "*.md",
+    ".cloudflare/**",
+    "docs/**",
+    "tools/oxlint-plugin-surveybeat/fixtures/**",
+    ".agents/**",
+    ".claude/**",
+    ".entire/**",
+    ".factory/**",
+    ".opencode/**"
+  ]
+}
