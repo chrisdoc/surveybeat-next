@@ -1,0 +1,49 @@
+Act as the implementation sub-agent for this task.
+
+Fix security-review findings on open PR #54 ("R1 03: Sign-in with AuthKit and Organization creation") in chrisdoc/surveybeat-next. Work on the PR's existing branch `t3/r1-03-sign-in`: `git fetch origin && git switch -c r1-03-fixes origin/t3/r1-03-sign-in`. Push the result back to `origin t3/r1-03-sign-in` (a fast-forward, no force) so it lands on PR #54. Read `gh pr view 54`, `gh issue view 37 --comments`, docs/adr/0002, and the PR's ADR 0010 first. The code lives mainly in `packages/domain/src/people/SignInFlow.ts`, `packages/domain/src/people/Identity.ts`, `packages/cloudflare/src/auth/AuthHandlers.ts`, `packages/cloudflare/src/auth/WorkosIdentityProvider.ts`, and the D1 migration `packages/cloudflare/d1-migrations/0003_people_index.sql`. This is security-sensitive code, so keep each change minimal and test it.
+
+## Must fix
+1. **MEDIUM 1, a removed creator is re-granted admin.**
+   - Where: `SignInFlow.ts` around `finishCreation` and `unfinishedClaim` (about lines 147-182 and 231-232).
+   - What goes wrong: a claim never closes. `unfinishedClaim` treats it as unfinished whenever its Organization isn't among the user's candidates, so a REMOVED creator re-enters `finishCreation`. That re-writes `person_index`, calls `ensureMembership(..., "admin")` (which reactivates or re-creates the WorkOS admin membership), and returns SignedIn with `organizationAdmin: true` without calling `activePerson`. `POST /auth/organization` also finishes a claim before checking member, allowlist, and verified email.
+   - Fix:
+     - Add `completed_at` to `organization_claim` in a NEW migration, not by editing 0003 (keep its numbering consistent with the existing d1-migrations).
+     - Finish only claims that aren't completed, and mark them completed in the same step.
+     - After `createWithAdmin`, call `activePerson` and return Forbidden or Unauthenticated if the creator is gone.
+     - Test: claim, finish, mark the Person removed (use the existing fake or test route), then `/auth/session` and `POST /auth/organization` must not call `ensureMembership` again and must not return admin.
+2. **MEDIUM 2, removal from the session's Organization ends the whole session.**
+   - Where: `SignInFlow.ts` (about lines 75-77) and `WorkosIdentityProvider.ts` (about lines 119-134), which picks `organizations[0]`.
+   - What goes wrong: if the token's WorkOS organization maps to an Organization where the user has no active Person, the result is Unauthenticated and the cookie is cleared, so the user loops on 401.
+   - Fix:
+     - In that case, return `member: none` and refresh the session with no organization, which leads to the picker or "not part of an Organization".
+     - Deny the session itself only for D1 revocation.
+     - Avoid blindly picking `organizations[0]`: prefer an Organization where the user has an active Person.
+     - Test both paths.
+
+## Should fix (low severity, cheap)
+3. **Logout error handling.**
+   - Where: `AuthHandlers.ts` (about lines 162 and 167).
+   - What goes wrong: a foreign Origin and `AuthUnavailable` from `signOut` both go through `Effect.orDie`, which gives a 500.
+   - Fix:
+     - Map a foreign Origin to 403 and `AuthUnavailable` to 503.
+     - On 503, still record the revocation in D1 if possible, and always expire the cookie.
+     - Also call WorkOS `userManagement.revokeSession({ sessionId })` at logout, in addition to the D1 deny list, and update ADR 0010's wording to match.
+     - Tests for each case.
+4. **Unicode email normalisation.** `Identity.ts` (about line 24) uses `toLowerCase`, which maps U+212A (the Kelvin sign) to `k`. Apply NFKC before lower-casing, and refuse addresses that are still non-ASCII after that for LINKING, though they may sign in. Test the Kelvin-sign case.
+5. **Missing tests:**
+   - an expired-and-revoked session that refreshes and then still gets 401;
+   - a callback with a missing state cookie or a missing `code`;
+   - logout with an expired token;
+   - the `organization_selection_required` path.
+6. **`GET /auth/session` side effects.** Add a short comment and an ADR 0010 note that its side effects (linking, membership creation) are idempotent, user-entitled, and safe under a cross-site top-level GET. Don't restructure it.
+
+## Out of scope
+Don't touch the unauthenticated walking-skeleton `/orgs` endpoints. They're tracked on issue #49 for before production.
+
+## Validation and shipping
+- `pnpm install --frozen-lockfile`, `typecheck`, `typecheck:effect`, `format:check`, `lint`, `test`, `test:privacy` all pass.
+- Commit, as one or a few focused commits, with messages ending:
+  `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`
+- Push to `origin HEAD:t3/r1-03-sign-in` (fast-forward).
+- Don't merge. Don't open a new PR.
+- Last line: PR https://github.com/chrisdoc/surveybeat-next/pull/54, head <SHA>, checks and reviews <state>.
