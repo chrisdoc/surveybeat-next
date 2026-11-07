@@ -1,0 +1,98 @@
+== POST /orgs
+{"id":"dffb2c97a80ae73be802573119f60a3c","name":"Acme"}
+== GET /orgs/dffb2c97a80ae73be802573119f60a3c
+{"id":"dffb2c97a80ae73be802573119f60a3c","name":"Acme"} [200]
+== GET missing
+{"_tag":"OrganizationNotFound","id":"00000000000000000000000000000000"} [404]
+== schema (WITHOUT ROWID? rowid select must fail)
+{
+    "master": [
+        {
+            "name": "__alchemy_migrations",
+            "sql": "CREATE TABLE \"__alchemy_migrations\" (\n  id INTEGER PRIMARY KEY,\n  hash text NOT NULL,\n  created_at numeric,\n  name text,\n  applied_at TEXT\n)"
+        },
+        {
+            "name": "alarm_log",
+            "sql": "CREATE TABLE alarm_log (n INTEGER PRIMARY KEY AUTOINCREMENT, fired_at INTEGER NOT NULL, retry_count INTEGER NOT NULL)"
+        },
+        {
+            "name": "audit",
+            "sql": "CREATE TABLE audit (n INTEGER PRIMARY KEY AUTOINCREMENT, event TEXT NOT NULL)"
+        },
+        {
+            "name": "dlq_log",
+            "sql": "CREATE TABLE dlq_log (n INTEGER PRIMARY KEY AUTOINCREMENT, body TEXT NOT NULL, attempts INTEGER NOT NULL)"
+        },
+        {
+            "name": "effect_sql_migrations",
+            "sql": "CREATE TABLE \"effect_sql_migrations\" (\n  migration_id integer PRIMARY KEY NOT NULL,\n  created_at datetime NOT NULL DEFAULT current_timestamp,\n  name VARCHAR(255) NOT NULL\n)"
+        },
+        {
+            "name": "organization",
+            "sql": "CREATE TABLE organization (\n  id BLOB NOT NULL PRIMARY KEY,\n  name TEXT NOT NULL\n) WITHOUT ROWID"
+        },
+        {
+            "name": "sqlite_sequence",
+            "sql": "CREATE TABLE sqlite_sequence(name,seq)"
+        }
+    ],
+    "pragmaTableListOrganization": [
+        {
+            "schema": "main",
+            "name": "organization",
+            "type": "table",
+            "ncol": 2,
+            "wr": 1,
+            "strict": 0
+        }
+    ],
+    "selectRowid": {
+        "ok": false,
+        "error": [
+            "Failed to execute statement",
+            "Failed to execute statement",
+            "no such column: rowid at offset 7: SQLITE_ERROR"
+        ]
+    },
+    "effectMigrations": [
+        {
+            "migration_id": 1,
+            "created_at": "2026-11-07 08:07:29",
+            "name": "audit"
+        },
+        {
+            "migration_id": 2,
+            "created_at": "2026-11-07 08:07:29",
+            "name": "alarm_and_dlq"
+        }
+    ],
+    "alchemyMigrations": [
+        {
+            "name": "0001_organization.sql"
+        }
+    ]
+}
+== transaction rollback
+{"result":{"failed":"boom"},"before":{"organizations":1,"audit":1},"after":{"organizations":1,"audit":1},"leakedRow":null}
+== arm alarm (3 s); it re-arms once for +30 s
+{"armedInMs":3000}
+alarm log after 6 s:
+[{"n":1,"fired_at":1794038854397,"retry_count":0}]
+== queue: ok message, then a failing one that must reach the DLQ consumer
+{"sent":{"id":"ok1","fail":false}}
+{"sent":{"id":"bad1","fail":true}}
+DLQ rows:
+[{"n":1,"body":"{\"id\":\"bad1\",\"fail\":true}","attempts":1}]
+alarm log after 36 s (expect 2 rows, then no more):
+[{"n":1,"fired_at":1794038854397,"retry_count":0},{"n":2,"fired_at":1794038884397,"retry_count":0}]
+== submission worker
+HTTP/2 202 
+date: Sat, 07 Nov 2026 08:08:29 GMT
+content-type: application/json
+content-length: 11
+report-to: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=Tui032rKurzpSRCXZe%2FZvjqEdsHC3PhX3xEP%2BK4U3Ns%2BlhUdS2Zepcq6qrHDLfgmOYkUShx2nNWHLCr4em3uIYNy747B2AAZcAYG%2F%2Fsyljg5JmYg0fMg2QUFu1nODL5CtRDSoTYeu%2Fq8VRwk2dRlQR72GhVVA77IYGW8P6Mip7qFoNci7QdCWAwQ5LVOERLuSleFtjJdwaL%2FeCE%3D"}]}
+nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+server: cloudflare
+cf-ray: a56ad9ad8bf9dbbd-FRA
+== cold-start timing (first request is only cold if the isolate was idle)
+total=0.065736s connect=0.002430s ttfb=0.065666s

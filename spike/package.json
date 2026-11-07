@@ -1,0 +1,17 @@
+{
+  "name": "spike",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -b",
+    "lint": "oxlint --type-aware",
+    "fmt:check": "oxfmt --check ."
+  },
+  "devDependencies": {
+    "@effect/tsgo": "catalog:",
+    "oxfmt": "catalog:",
+    "oxlint": "catalog:",
+    "oxlint-tsgolint": "catalog:",
+    "typescript": "catalog:"
+  }
+}
