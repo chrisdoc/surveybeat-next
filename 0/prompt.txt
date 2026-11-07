@@ -1,0 +1,30 @@
+Act as the implementation sub-agent for this task.
+
+Implement GitHub issue #39, "R1 05: Email sending: EmailSender, Queue consumer, send states, base template", in chrisdoc/surveybeat-next. This is production code. You are in your own git worktree, cut from origin/main, which contains slices 01 and 02: the pnpm workspace, the packages, the oxlint plugin, CI, and an Alchemy v2 stack with per-PR preview stages.
+
+## First
+- `gh issue view 39 --comments` gives the acceptance criteria. Follow them exactly.
+- Create branch `t3/r1-05-email` from origin/main.
+- Read GLOSSARY.md, docs/adr/0006-organization-object-owns-round-lifecycle.md (send states and the lease), docs/adr/0008-workspace-layout-and-toolchain.md, docs/research/cloudflare-email-sending.md, docs/research/alchemy-cloudflare-coverage.md (the Email row: `Cloudflare.Email.SendingSubdomain`, `SendEmail`), docs/infra.md, infra/alchemy.run.ts, and packages/cloudflare/src/*.
+
+## Key constraints
+- An `EmailSender` interface in `packages/domain` (pure Effect, no Cloudflare imports; the oxlint boundary rule enforces this). The Cloudflare Email Sending adapter goes in `packages/cloudflare`.
+- The sending subdomain is `notify.surveybeat.app`, provisioned with Alchemy for production only. PR stages and personal stages must not provision a real sending subdomain or send real email unless explicitly configured. Use an adapter that records messages, or Alchemy's local `.eml` output, and document how a PR stage behaves.
+- Do NOT touch the apex SPF, DMARC, MX, SES, Clerk, or mail-server records on surveybeat.app. Only Alchemy-managed records for `notify.` may be added.
+- The send-state machine is `pending → sending → sent | failed(reason)`, with a lease. The consumer checks the state first. Clear provider rejections retry a few times, then become `failed`. An expired lease with no outcome becomes `failed: unknown` and is NEVER resent automatically. Where the send-state rows live: Invitations live in the Organization DO later (slice 08), so design the state machine as a domain module plus a DO-backed adapter, and keep it reusable for any transactional email.
+- `packages/emails`: React Email (exact pin, and respect pnpm's minimumReleaseAge; never add minimumReleaseAgeExclude). It has a base layout with light and dark mode plus a plain-text part, and the "You've been added to <Team> by <Lead>" template, using the message catalog pattern from `apps/web/src/messages` where it makes sense. Snapshot tests for every template.
+- Bounce and complaint events: implement them if Alchemy can express the event subscription. Otherwise document the workaround in the PR.
+- Postmark is only a documented fallback. Don't build it.
+- No `any`, and no `as` outside tests. Pin exact versions in the pnpm catalog.
+
+## Validation
+`pnpm install --frozen-lockfile`, `pnpm typecheck`, `pnpm typecheck:effect`, `pnpm format:check`, `pnpm lint`, `pnpm test` all pass. Domain tests cover the state machine, including a duplicate delivery and an expired lease. Snapshot tests cover every template.
+
+## Shipping
+Commit on `t3/r1-05-email` with a succinct message ending with:
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+Push it, and open a PR to main titled "R1 05: Email sending" with a body that says "Closes #39. Part of #34.", lists what changed and any decision taken, and ends with:
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+Wait for the PR's `check` and `deploy` jobs. If either fails, fix it and push again. Do not merge. Last line: PR <full URL>, head <SHA>, checks and reviews <state>.

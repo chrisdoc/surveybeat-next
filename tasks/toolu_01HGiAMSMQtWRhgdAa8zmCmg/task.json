@@ -1,0 +1,23 @@
+{
+  "tool_use_id": "toolu_01HGiAMSMQtWRhgdAa8zmCmg",
+  "agent_id": "a35e06754a5be819b",
+  "subagent_type": "web-fetch",
+  "task_description": "Fetch CF email event schema",
+  "files": [
+    "packages/domain/src/index.ts",
+    "packages/emails/package.json",
+    "packages/emails/src/index.ts",
+    "packages/emails/tsconfig.json",
+    "pnpm-lock.yaml",
+    "pnpm-workspace.yaml"
+  ],
+  "token_usage": {
+    "input_tokens": 4,
+    "cache_creation_tokens": 12703,
+    "cache_read_tokens": 4116,
+    "output_tokens": 3141,
+    "api_call_count": 2
+  },
+  "started_at": "2026-11-07T11:11:18.866469411Z",
+  "completed_at": "2026-11-07T11:11:18.866690333Z"
+}
