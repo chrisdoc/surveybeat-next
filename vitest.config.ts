@@ -6,14 +6,14 @@ export default defineConfig({
       {
         test: {
           name: "unit",
-          include: ["{packages,apps,tools}/**/*.test.ts"],
+          include: ["{packages,apps,tools,infra}/**/*.test.ts"],
           exclude: ["**/*.privacy.test.ts", "**/node_modules/**", "**/dist/**"],
         },
       },
       {
         test: {
           name: "privacy",
-          include: ["{packages,apps,tools}/**/*.privacy.test.ts"],
+          include: ["{packages,apps,tools,infra}/**/*.privacy.test.ts"],
           exclude: ["**/node_modules/**", "**/dist/**"],
         },
       },
