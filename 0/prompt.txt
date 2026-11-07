@@ -1,0 +1,1 @@
+i setup git remote and yes lets use github issues
