@@ -10,6 +10,7 @@
     "@effect/sql-sqlite-do": "catalog:",
     "@surveybeat/api": "workspace:*",
     "@surveybeat/domain": "workspace:*",
+    "@surveybeat/emails": "workspace:*",
     "alchemy": "catalog:",
     "effect": "catalog:"
   },

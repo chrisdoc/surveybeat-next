@@ -1,8 +1,19 @@
 import * as Cloudflare from "@alchemy.run/cloudflare";
 import { SqliteClient } from "@effect/sql-sqlite-do";
+import {
+  defaultSendPolicy,
+  type DeliveryEventKind,
+  type EmailAddress,
+  makeSendStore,
+  type SendId,
+  type SendOutcome,
+  type TransactionalEmail,
+} from "@surveybeat/domain";
 import * as Effect from "effect/Effect";
+import * as Option from "effect/Option";
 import * as Reactivity from "effect/reactivity/Reactivity";
 import * as Scope from "effect/Scope";
+import { makeSqlSendRepository } from "./SqlSendRepository.ts";
 
 /**
  * Relative to the directory Alchemy runs in, which is the repository root (`pnpm infra:deploy`, `pnpm test`).
@@ -12,7 +23,8 @@ const migrationsDirectory = "packages/cloudflare/migrations";
 
 /**
  * The Organization Durable Object (ADR 0006): one object per Organization, SQLite storage.
- * Methods return plain data. The Main Worker maps it to the domain schemas.
+ * Methods return plain data (no `Option`), because they cross the RPC boundary.
+ * The Main Worker maps it to the domain schemas.
  */
 export default class Organization extends Cloudflare.DurableObject<Organization>()(
   "Organization",
@@ -33,6 +45,9 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
 
       yield* migrations.apply().pipe(Effect.orDie);
 
+      // Transactional email: the domain's SendStore on this object's `email_send` table.
+      const sends = makeSendStore(makeSqlSendRepository(sql), defaultSendPolicy);
+
       return {
         create: (id: string, name: string) =>
           sql
@@ -44,6 +59,17 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
             Effect.map((rows) => rows[0] ?? null),
             Effect.orDie,
           ),
+
+        createEmailSend: (id: SendId, recipient: EmailAddress, email: TransactionalEmail) =>
+          sends.create(id, recipient, email),
+        getEmailSend: (id: SendId) => sends.get(id).pipe(Effect.map(Option.getOrNull)),
+        claimEmailSend: (id: SendId, now: number) => sends.claim(id, now),
+        settleEmailSend: (id: SendId, attempt: number, outcome: SendOutcome, now: number) =>
+          sends.settle(id, attempt, outcome, now).pipe(Effect.map(Option.getOrNull)),
+        abandonEmailSend: (id: SendId, now: number) =>
+          sends.abandon(id, now).pipe(Effect.map(Option.getOrNull)),
+        recordEmailDeliveryEvent: (id: SendId, kind: DeliveryEventKind, code: string | null, now: number) =>
+          sends.recordDeliveryEvent(id, kind, code, now).pipe(Effect.map(Option.getOrNull)),
       };
     });
   }),

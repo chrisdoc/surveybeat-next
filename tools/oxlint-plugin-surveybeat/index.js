@@ -73,9 +73,12 @@ const isTextLiteral = (node) =>
 const noLiteralUiText = {
   meta: {
     type: "problem",
-    docs: { description: "user-facing text in the web entries must come from the message catalog" },
+    docs: {
+      description: "user-facing text in the web entries and emails must come from the message catalog",
+    },
     messages: {
-      literal: "User-facing text must come from the message catalog (apps/web/src/messages).",
+      literal:
+        "User-facing text must come from the message catalog (apps/web/src/messages, packages/emails/src/messages).",
     },
     schema: [],
   },

@@ -5,6 +5,8 @@ packages:
   - infra
 allowBuilds:
   workerd: true
+  # react-email ships its preview CLI with esbuild; only its components and render are used.
+  esbuild: false
 catalog:
   alchemy: 2.0.0-beta.85
   "@alchemy.run/cloudflare": 2.0.0-beta.85
@@ -28,3 +30,4 @@ catalog:
   "@types/react": 19.3.0
   "@types/react-dom": 19.3.0
   "@types/node": 26.6.6
+  react-email: 6.11.6
