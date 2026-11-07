@@ -1,11 +1,25 @@
 import {
   AuthUnavailable,
   CreateOrganization,
+  EmailAddress,
   Forbidden,
+  LastAdmin,
+  LastLead,
+  MinimumGroupSize,
   Organization,
   OrganizationId,
   OrganizationNotFound,
+  OrganizationSettings,
+  PersonId,
+  PersonNotFound,
   SessionState,
+  TeamDetail,
+  TeamId,
+  TeamName,
+  TeamNameTaken,
+  TeamNotFound,
+  TeamSummary,
+  TimeZone,
   Unauthenticated,
 } from "@surveybeat/domain";
 import { Schema } from "effect";
@@ -64,5 +78,93 @@ export class AuthApiGroup extends HttpApiGroup.make("auth")
   )
   .prefix("/auth") {}
 
+/**
+ * Every directory call needs a session in an Organization (`Forbidden` also covers "not in one"),
+ * and any of them may meet a rule. `AuthUnavailable`: WorkOS could not be reached; repeat the call.
+ */
+const directoryErrors = [
+  Unauthenticated,
+  Forbidden,
+  AuthUnavailable,
+  TeamNotFound,
+  PersonNotFound,
+  LastLead,
+  LastAdmin,
+  TeamNameTaken,
+] as const;
+const teamParams = { teamId: TeamId };
+const memberParams = { teamId: TeamId, personId: PersonId };
+
+/**
+ * Teams, Leads, members, and Organization settings, for the signed-in Person's Organization
+ * (never one named in the URL). The permission table in `@surveybeat/domain` decides each call
+ * from the Organization's Durable Object. No endpoint returns Result data. Changes answer 204 and
+ * the app reads the view again, since a change can end the caller's own access to it.
+ */
+export class DirectoryApiGroup extends HttpApiGroup.make("directory")
+  .add(
+    HttpApiEndpoint.get("listTeams", "/teams", {
+      success: Schema.Array(TeamSummary),
+      error: directoryErrors,
+    }),
+    HttpApiEndpoint.post("createTeam", "/teams", {
+      payload: Schema.Struct({ name: TeamName, timeZone: TimeZone, leadEmail: EmailAddress }),
+      success: TeamDetail,
+      error: directoryErrors,
+    }),
+    HttpApiEndpoint.get("getTeam", "/teams/:teamId", {
+      params: teamParams,
+      success: TeamDetail,
+      error: directoryErrors,
+    }),
+    HttpApiEndpoint.patch("updateTeam", "/teams/:teamId", {
+      params: teamParams,
+      payload: Schema.Struct({ name: TeamName, timeZone: TimeZone }),
+      error: directoryErrors,
+    }),
+    HttpApiEndpoint.post("addMember", "/teams/:teamId/members", {
+      params: teamParams,
+      payload: Schema.Struct({ email: EmailAddress }),
+      error: directoryErrors,
+    }),
+    HttpApiEndpoint.delete("removeMember", "/teams/:teamId/members/:personId", {
+      params: memberParams,
+      error: directoryErrors,
+    }),
+    HttpApiEndpoint.post("assignLead", "/teams/:teamId/leads", {
+      params: teamParams,
+      payload: Schema.Struct({ email: EmailAddress }),
+      error: directoryErrors,
+    }),
+    HttpApiEndpoint.delete("removeLead", "/teams/:teamId/leads/:personId", {
+      params: memberParams,
+      error: directoryErrors,
+    }),
+    HttpApiEndpoint.get("getSettings", "/organization", {
+      success: OrganizationSettings,
+      error: directoryErrors,
+    }),
+    HttpApiEndpoint.patch("updateSettings", "/organization", {
+      payload: Schema.Struct({ minimumGroupSize: MinimumGroupSize }),
+      error: directoryErrors,
+    }),
+    HttpApiEndpoint.put("grantAdmin", "/organization/admins/:personId", {
+      params: { personId: PersonId },
+      error: directoryErrors,
+    }),
+    HttpApiEndpoint.delete("revokeAdmin", "/organization/admins/:personId", {
+      params: { personId: PersonId },
+      error: directoryErrors,
+    }),
+    HttpApiEndpoint.delete("removePerson", "/organization/people/:personId", {
+      params: { personId: PersonId },
+      error: directoryErrors,
+    }),
+  )
+  .prefix("/api") {}
+
 /** The HttpApi declaration shared by the server and the clients. */
-export class SurveyBeatApi extends HttpApi.make("surveybeat").add(OrganizationsApiGroup).add(AuthApiGroup) {}
+export class SurveyBeatApi extends HttpApi.make("surveybeat")
+  .add(OrganizationsApiGroup)
+  .add(AuthApiGroup)
+  .add(DirectoryApiGroup) {}

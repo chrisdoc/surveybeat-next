@@ -2,6 +2,7 @@ import {
   AuthUnavailable,
   type CodeExchange,
   IdentityProvider,
+  type OrganizationRole,
   identityOf,
   type ProviderSession,
   SessionId,
@@ -143,6 +144,15 @@ export const workosIdentityProvider = (config: WorkosConfig) => {
       ),
     );
 
+  /** The user's membership in the organization, whatever its status. */
+  const membershipOf = (userId: string, organizationId: string) =>
+    call(() => users.listOrganizationMemberships({ userId, organizationId })).pipe(
+      Effect.map((memberships) => memberships.data[0]),
+    );
+
+  const setRole = (membershipId: string, role: OrganizationRole) =>
+    call(() => users.updateOrganizationMembership(membershipId, { roleSlug: role })).pipe(Effect.asVoid);
+
   return IdentityProvider.of({
     authorizationUrl: ({ redirectUri, state }) =>
       users.getAuthorizationUrl({ provider: "authkit", clientId: config.clientId, redirectUri, state }),
@@ -234,8 +244,7 @@ export const workosIdentityProvider = (config: WorkosConfig) => {
 
     ensureMembership: (userId, organizationId, role) =>
       Effect.gen(function* () {
-        const memberships = yield* call(() => users.listOrganizationMemberships({ userId, organizationId }));
-        const existing = memberships.data[0];
+        const existing = yield* membershipOf(userId, organizationId);
         if (existing === undefined) {
           yield* call(() =>
             users
@@ -245,8 +254,31 @@ export const workosIdentityProvider = (config: WorkosConfig) => {
                 throw error;
               }),
           );
-        } else if (existing.status === "inactive") {
+          return;
+        }
+        if (existing.status === "inactive") {
           yield* call(() => users.reactivateOrganizationMembership(existing.id));
+        }
+        if (existing.role.slug !== role) yield* setRole(existing.id, role);
+      }),
+
+    setMembershipRole: (userId, organizationId, role) =>
+      Effect.gen(function* () {
+        const existing = yield* membershipOf(userId, organizationId);
+        if (existing !== undefined && existing.role.slug !== role) yield* setRole(existing.id, role);
+      }),
+
+    deactivateMembership: (userId, organizationId) =>
+      Effect.gen(function* () {
+        const existing = yield* membershipOf(userId, organizationId);
+        if (existing?.status === "active" || existing?.status === "pending") {
+          yield* call(() =>
+            users.deactivateOrganizationMembership(existing.id).catch((error: unknown) => {
+              // Deactivated or deleted since we looked: what deactivating wants.
+              if (isRefusal(error)) return undefined;
+              throw error;
+            }),
+          );
         }
       }),
   });

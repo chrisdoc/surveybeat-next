@@ -4,6 +4,7 @@ import { Form } from "@base-ui/react/form";
 import type { OrganizationSummary } from "@surveybeat/domain";
 import { type ReactNode, useEffect, useState } from "react";
 import { message } from "../messages/index.ts";
+import { SettingsScreen, Shell, TeamScreen, TeamsScreen, useRoute } from "./Directory.tsx";
 import { chooseOrganization, createOrganization, loadSession, type View } from "./session.ts";
 
 const buttonClass = "rounded bg-black px-4 py-2 text-white disabled:opacity-50";
@@ -116,6 +117,32 @@ function ChooseOrganization({
   );
 }
 
+/** Teams, a Team, or the Organization settings, by the URL hash. */
+function SignedIn({
+  organization,
+  organizationAdmin,
+}: {
+  readonly organization: string;
+  readonly organizationAdmin: boolean;
+}) {
+  const route = useRoute();
+  return (
+    <Shell
+      title={message("signedIn.title", { organization })}
+      organizationAdmin={organizationAdmin}
+      signOut={<SignOut />}
+    >
+      {route._tag === "Team" ? (
+        <TeamScreen key={route.id} id={route.id} />
+      ) : route._tag === "Settings" && organizationAdmin ? (
+        <SettingsScreen />
+      ) : (
+        <TeamsScreen organizationAdmin={organizationAdmin} />
+      )}
+    </Shell>
+  );
+}
+
 /** The app entry: the sign-in screens until a session is in an Organization. */
 export function App() {
   const [view, setView] = useState<View | undefined>(undefined);
@@ -147,11 +174,6 @@ export function App() {
     case "ChooseOrganization":
       return <ChooseOrganization organizations={view.organizations} onDone={setView} />;
     case "SignedIn":
-      return (
-        <Screen title={message("signedIn.title", { organization: view.organization.name })}>
-          <p className="mt-2 text-gray-600">{message("app.placeholder")}</p>
-          <SignOut />
-        </Screen>
-      );
+      return <SignedIn organization={view.organization.name} organizationAdmin={view.organizationAdmin} />;
   }
 }

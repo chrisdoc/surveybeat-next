@@ -56,18 +56,43 @@ test(
 );
 
 test(
-  "keeps the creator as an active Person, idempotently, and never lets another user take them over",
+  "keeps the creator active, links People added by email at sign-in, and denies a removed one",
   Effect.gen(function* () {
     const { url } = yield* stack;
     const run = crypto.randomUUID();
     const response = yield* Effect.promise(() => fetch(`${url}/__test/people?run=${run}`));
+    assert.strictEqual(response.status, 200);
     const body: unknown = yield* Effect.promise(() => response.json());
+    const none = { _id: "Option", _tag: "None" };
+    const some = (value: unknown) => ({ _id: "Option", _tag: "Some", value });
+    const eve = `added-1-${run}`;
+    const ada = `added-2-${run}`;
+    const acme = { id: `people-${run}`, name: "Acme" };
     assert.deepStrictEqual(body, {
-      adaActive: { _id: "Option", _tag: "Some", value: `admin-${run}` },
-      eveActive: { _id: "Option", _tag: "None" },
+      adminActive: some({ personId: `admin-${run}`, organizationAdmin: true }),
+      eveActiveBeforeAdded: none,
       relinkSameUser: true,
       takeOverByOtherUser: false,
       linkMissingPerson: false,
+      // Added by email: the D1 index offers the Person to that email until it is linked.
+      unlinked: [{ organization: acme, personId: eve, linked: false }],
+      eveSignIn: { _tag: "SignedIn", organization: acme, personId: eve, organizationAdmin: false },
+      adaSignIn: { _tag: "SignedIn", organization: acme, personId: ada, organizationAdmin: false },
+      linked: {
+        eveActive: some({ personId: eve, organizationAdmin: false }),
+        eveIndexed: [{ organization: acme, personId: eve, linked: true }],
+        eveUnlinkedAfter: [],
+      },
+      removed: { adaActive: none, adaIndexed: [], adaSignInAgain: { _tag: "NotInOrganization" } },
+      // Ada's Membership ended with her removal; Eve, the Lead, stays.
+      roster: [{ personId: eve, email: "eve@example.com", role: "lead" }],
+      // WorkOS memberships only once each signs in, and Ada's deactivated on removal (ADR 0010).
+      workosCalls: [
+        `ensure user_eve_${run} member`,
+        `ensure user_ada_${run} member`,
+        `deactivate user_ada_${run}`,
+      ],
+      queued: [`added-membership-1-${run}`, `added-membership-2-${run}`],
     });
   }),
 );

@@ -1,18 +1,28 @@
 import * as Cloudflare from "@alchemy.run/cloudflare";
 import { SqliteClient } from "@effect/sql-sqlite-do";
 import {
+  type CommandResult,
+  decide,
   defaultSendPolicy,
   type DeliveryEventKind,
+  type DirectoryCommand,
   type EmailAddress,
+  type FollowUp,
   makeSendStore,
+  type PersonId,
   type SendId,
   type SendOutcome,
+  settingsView,
+  type TeamId,
+  teamsView,
+  teamView,
   type TransactionalEmail,
 } from "@surveybeat/domain";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Reactivity from "effect/reactivity/Reactivity";
 import * as Scope from "effect/Scope";
+import { makeSqlDirectory } from "./SqlDirectory.ts";
 import { makeSqlSendRepository } from "./SqlSendRepository.ts";
 
 /**
@@ -47,6 +57,18 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
 
       // Transactional email: the domain's SendStore on this object's `email_send` table.
       const sends = makeSendStore(makeSqlSendRepository(sql), defaultSendPolicy);
+      // People, Teams, and Memberships: the domain decides, this object loads and applies.
+      const directory = makeSqlDirectory(sql, sends);
+
+      /** Only sends still waiting go back to the queue; one already sent or failed stays as it is. */
+      const pendingOnly = (followUps: ReadonlyArray<FollowUp>) =>
+        Effect.filter(followUps, (step) =>
+          step._tag === "QueueEmail"
+            ? sends
+                .get(step.sendId)
+                .pipe(Effect.map((record) => record._tag === "Some" && record.value.state._tag === "Pending"))
+            : Effect.succeed(true),
+        );
 
       return {
         create: (id: string, name: string) =>
@@ -60,7 +82,8 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
             .withTransaction(
               Effect.all([
                 sql`INSERT INTO organization (id, name) VALUES (${id}, ${name}) ON CONFLICT (id) DO NOTHING`,
-                sql`INSERT INTO person (id, email, workos_user_id) VALUES (${personId}, ${email}, ${workosUserId})
+                sql`INSERT INTO person (id, email, workos_user_id, organization_admin)
+                    VALUES (${personId}, ${email}, ${workosUserId}, 1)
                     ON CONFLICT (id) DO NOTHING`,
               ]),
             )
@@ -88,13 +111,44 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
             )
             .pipe(Effect.orDie),
 
-        /** The per-request check: the user's Person here, unless removed. */
+        /** The per-request check: the user's Person here, unless removed, and whether they are an admin. */
         activePerson: (workosUserId: string) =>
-          sql<{ id: string }>`
-            SELECT id FROM person WHERE workos_user_id = ${workosUserId} AND removed_at IS NULL`.pipe(
-            Effect.map((rows) => rows[0]?.id ?? null),
+          sql<{ id: string; organization_admin: number }>`
+            SELECT id, organization_admin FROM person
+             WHERE workos_user_id = ${workosUserId} AND removed_at IS NULL`.pipe(
+            Effect.map((rows) => {
+              const row = rows[0];
+              return row === undefined
+                ? null
+                : { id: row.id, organizationAdmin: row.organization_admin === 1 };
+            }),
             Effect.orDie,
           ),
+
+        /**
+         * One directory command by `actorId`: authorized from this object's data and applied in the
+         * same transaction, so nothing can change in between.
+         */
+        runDirectoryCommand: (actorId: PersonId, command: DirectoryCommand, now: number) =>
+          sql
+            .withTransaction(
+              Effect.gen(function* () {
+                const decision = decide(yield* directory.load, actorId, command, now);
+                if (decision._tag === "Rejected") return decision satisfies CommandResult;
+                yield* directory.apply(decision.changes);
+                return {
+                  _tag: "Accepted",
+                  followUps: yield* pendingOnly(decision.followUps),
+                } satisfies CommandResult;
+              }),
+            )
+            .pipe(Effect.orDie),
+        viewTeams: (actorId: PersonId) =>
+          directory.load.pipe(Effect.map((state) => teamsView(state, actorId))),
+        viewTeam: (actorId: PersonId, teamId: TeamId) =>
+          directory.load.pipe(Effect.map((state) => teamView(state, actorId, teamId))),
+        viewSettings: (actorId: PersonId) =>
+          directory.load.pipe(Effect.map((state) => settingsView(state, actorId))),
 
         get: (id: string) =>
           sql<{ id: string; name: string }>`SELECT id, name FROM organization WHERE id = ${id}`.pipe(

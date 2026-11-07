@@ -25,3 +25,9 @@ test("the login redirect reaches the AuthKit domain", async ({ page }) => {
   await page.goto("/auth/login");
   await expect(page).toHaveURL(/^https:\/\/[^/]+\.authkit\.app\/(?!redirect-uri-invalid)/);
 });
+
+test("the directory API refuses a visitor without a session", async ({ request }) => {
+  for (const path of ["/api/teams", "/api/organization"]) {
+    expect((await request.get(path)).status(), `GET ${path}`).toBe(401);
+  }
+});
