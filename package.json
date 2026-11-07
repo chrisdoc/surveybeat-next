@@ -8,8 +8,10 @@
     "lint": "oxlint --type-aware",
     "format": "oxfmt .",
     "format:check": "oxfmt --check .",
-    "test": "vitest run",
-    "test:privacy": "vitest run --passWithNoTests --project privacy",
+    "test": "vitest run --project unit",
+    "test:privacy": "vitest run --project privacy",
+    "test:e2e": "pnpm --filter @surveybeat/infra test:e2e",
+    "test:preview-privacy": "node infra/tests/privacy/canary-sweep.ts",
     "infra:deploy": "alchemy deploy infra/alchemy.run.ts",
     "infra:destroy": "alchemy destroy infra/alchemy.run.ts",
     "check:observability": "node infra/scripts/check-observability.ts"
