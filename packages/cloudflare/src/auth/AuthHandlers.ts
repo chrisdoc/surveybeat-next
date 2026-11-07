@@ -55,7 +55,7 @@ const randomToken = () =>
   );
 
 /** This Worker's origin, from the URL Cloudflare received (it is absolute on Workers). */
-const requestOrigin = Effect.map(HttpServerRequest, (request) =>
+export const requestOrigin = Effect.map(HttpServerRequest, (request) =>
   URL.canParse(request.originalUrl)
     ? new URL(request.originalUrl).origin
     : Option.match(toURL(request), { onNone: () => "http://localhost", onSome: (url) => url.origin }),
@@ -81,7 +81,7 @@ const expireSessionCookie = HttpEffect.appendPreResponseHandler((_request, respo
  * State-changing requests must come from our own pages. `SameSite=Lax` already keeps the cookie
  * off cross-site POSTs; this also refuses same-site ones from other subdomains.
  */
-const requireSameOrigin = Effect.gen(function* () {
+export const requireSameOrigin = Effect.gen(function* () {
   const request = yield* HttpServerRequest;
   const origin = request.headers.origin;
   if (origin !== undefined && origin !== (yield* requestOrigin)) return yield* new Forbidden();
@@ -95,6 +95,17 @@ const authenticated = Effect.gen(function* () {
     Effect.tapError((error) => (error._tag === "Unauthenticated" ? expireSessionCookie : Effect.void)),
     Effect.map((checked) => ({ sealed: sealed.value, checked })),
   );
+});
+
+/**
+ * The Person the request is signed in as, after the per-request check (ADR 0010). A refreshed
+ * session is written back. Signed in but not in an Organization (or removed from it): `Forbidden`.
+ */
+export const currentMember = Effect.gen(function* () {
+  const { sealed, checked } = yield* authenticated;
+  if (sealedChanged(sealed, checked.session)) yield* setSessionCookie(checked.session.sealed);
+  if (Option.isNone(checked.member)) return yield* new Forbidden();
+  return checked.member.value;
 });
 
 /** Answers the state, writing the session back when a refresh or an Organization switch changed it. */

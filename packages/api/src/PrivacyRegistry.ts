@@ -41,4 +41,38 @@ export const privacyRegistry: { readonly [K in EndpointKey<typeof SurveyBeatApi>
     _tag: "NoResultData",
     why: "returns the sign-in state in the chosen Organization",
   },
+  "directory.listTeams": {
+    _tag: "NoResultData",
+    why: "returns Team ids, names, time zones, and the caller's role",
+  },
+  "directory.createTeam": {
+    _tag: "NoResultData",
+    why: "returns the new Team's roster: emails, roles, start dates",
+  },
+  "directory.getTeam": {
+    _tag: "NoResultData",
+    why: "returns a Team's active roster (emails, roles, start dates) and what the caller may do",
+  },
+  "directory.updateTeam": {
+    _tag: "NoResultData",
+    why: "renames a Team or changes its time zone; no content",
+  },
+  "directory.addMember": { _tag: "NoResultData", why: "adds a member by email; no content" },
+  "directory.removeMember": { _tag: "NoResultData", why: "ends a Membership; no content" },
+  "directory.assignLead": { _tag: "NoResultData", why: "assigns a Lead by email; no content" },
+  "directory.removeLead": { _tag: "NoResultData", why: "ends a Lead's lead Membership; no content" },
+  "directory.getSettings": {
+    _tag: "NoResultData",
+    why: "returns the Organization's name, minimum group size, and People with their admin flag",
+  },
+  "directory.updateSettings": { _tag: "NoResultData", why: "sets the minimum group size; no content" },
+  "directory.grantAdmin": { _tag: "NoResultData", why: "makes a Person an Organization admin; no content" },
+  "directory.revokeAdmin": {
+    _tag: "NoResultData",
+    why: "ends a Person's Organization admin role; no content",
+  },
+  "directory.removePerson": {
+    _tag: "NoResultData",
+    why: "removes a Person from the Organization; no content",
+  },
 };

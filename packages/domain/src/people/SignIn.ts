@@ -64,7 +64,10 @@ export const SessionState = Schema.Union([
   Schema.TaggedStruct("SignedIn", {
     organization: OrganizationSummary,
     personId: PersonId,
-    /** WorkOS's org-level `admin` role. It grants no access to any Team's Results (ADR 0003). */
+    /**
+     * An Organization admin, as its Durable Object holds them (the WorkOS `admin` role is kept in
+     * step). It grants no access to any Team's Results (ADR 0003).
+     */
     organizationAdmin: Schema.Boolean,
   }),
   Schema.TaggedStruct("ChooseOrganization", { organizations: Schema.Array(OrganizationSummary) }),

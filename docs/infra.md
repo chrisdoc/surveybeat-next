@@ -51,6 +51,10 @@ The smoke test checks that WorkOS accepts the stage's authorization URL and that
 
 **Per-request check.** The access token is verified locally (JWKS cached per isolate) and refreshed when it expired. Then the session must not be in D1's `revoked_session`, and when the token is scoped to an Organization, the user's Person in its Durable Object must be active (ADR 0010). Sign-out writes `revoked_session` before redirecting to WorkOS's logout, so a copied cookie stops working at once.
 
+**Organization admins** are held in the Organization's Durable Object (`person.organization_admin`), not read from the token's role claim, which can be minutes old. The WorkOS `admin` role is kept in step when an admin is granted or revoked, and set at each sign-in from the Durable Object.
+
+**Teams and People** (`/api/*`, `packages/cloudflare/src/DirectoryHandlers.ts`, rules in `packages/domain/src/people/Directory.ts`, permissions in `Permissions.ts`). The Durable Object authorizes and commits each change in one transaction, then the Worker puts the D1 index, WorkOS, and the email queue in step. Removing a Person marks them removed in the Durable Object (the per-request check denies them at once), deletes their `person_index` row, then deactivates their WorkOS organization membership. If WorkOS cannot be reached the call answers 503 and repeating it finishes the removal.
+
 **D1 index** (`d1-migrations/0003_people_index.sql`): `organization_index` (Organization ↔ WorkOS organization, name), `person_index` (WorkOS user → Persons; email → Organizations for Persons not yet linked; emails normalised), `organization_claim` (one created Organization per WorkOS user, which makes creation idempotent), and `revoked_session`.
 
 ## Workers Logs are sampled at 1%

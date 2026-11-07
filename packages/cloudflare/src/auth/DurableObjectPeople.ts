@@ -1,4 +1,4 @@
-import { normaliseEmail, OrganizationPeople, PersonId } from "@surveybeat/domain";
+import { normaliseEmail, OrganizationDirectory, OrganizationPeople, PersonId } from "@surveybeat/domain";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import type { Organizations } from "../EmailDelivery.ts";
@@ -23,6 +23,22 @@ export const durableObjectPeople = (organizations: Organizations) =>
         .getByName(organizationId)
         .activePerson(userId)
         .pipe(
-          Effect.map((id) => Option.map(Option.fromNullishOr(id), (personId) => PersonId.make(personId))),
+          Effect.map((row) =>
+            Option.map(Option.fromNullishOr(row), ({ id, organizationAdmin }) => ({
+              personId: PersonId.make(id),
+              organizationAdmin,
+            })),
+          ),
         ),
+  });
+
+/** `OrganizationDirectory` on the same objects: each decides and commits its own changes. */
+export const durableObjectDirectory = (organizations: Organizations) =>
+  OrganizationDirectory.of({
+    run: (organizationId, actorId, command, now) =>
+      organizations.getByName(organizationId).runDirectoryCommand(actorId, command, now),
+    teams: (organizationId, actorId) => organizations.getByName(organizationId).viewTeams(actorId),
+    team: (organizationId, actorId, teamId) =>
+      organizations.getByName(organizationId).viewTeam(actorId, teamId),
+    settings: (organizationId, actorId) => organizations.getByName(organizationId).viewSettings(actorId),
   });
