@@ -1,12 +1,12 @@
 {
   "extends": "../tsconfig.base.json",
   "compilerOptions": {
-    "rootDir": "src",
+    "rootDir": ".",
     "outDir": "dist",
     "tsBuildInfoFile": "dist/.tsbuildinfo",
-    "types": []
+    "types": ["node"]
   },
-  "include": ["src"],
+  "include": ["alchemy.run.ts", "scripts"],
   "references": [
     { "path": "../packages/domain" },
     { "path": "../packages/api" },

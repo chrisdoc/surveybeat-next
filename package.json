@@ -9,11 +9,16 @@
     "format": "oxfmt .",
     "format:check": "oxfmt --check .",
     "test": "vitest run",
-    "test:privacy": "vitest run --passWithNoTests --project privacy"
+    "test:privacy": "vitest run --passWithNoTests --project privacy",
+    "infra:deploy": "alchemy deploy infra/alchemy.run.ts",
+    "infra:destroy": "alchemy destroy infra/alchemy.run.ts",
+    "check:observability": "node infra/scripts/check-observability.ts"
   },
   "devDependencies": {
+    "@effect/platform-node": "catalog:",
     "@effect/tsgo": "catalog:",
     "@effect/vitest": "catalog:",
+    "alchemy": "catalog:",
     "oxfmt": "catalog:",
     "oxlint": "catalog:",
     "oxlint-tsgolint": "catalog:",

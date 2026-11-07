@@ -3,9 +3,17 @@
   "private": true,
   "type": "module",
   "dependencies": {
+    "@alchemy.run/cloudflare": "catalog:",
+    "@effect/platform-node": "catalog:",
     "@surveybeat/api": "workspace:*",
     "@surveybeat/cloudflare": "workspace:*",
     "@surveybeat/domain": "workspace:*",
-    "@surveybeat/emails": "workspace:*"
+    "@surveybeat/emails": "workspace:*",
+    "alchemy": "catalog:",
+    "effect": "catalog:"
+  },
+  "devDependencies": {
+    "@effect/vitest": "catalog:",
+    "@types/node": "catalog:"
   }
 }

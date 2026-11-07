@@ -1,0 +1,64 @@
+name: Preview
+
+# One stage per pull request: `pr-<number>`, on pr-<number>.app.surveybeat.app and
+# pr-<number>.submit.surveybeat.app. Destroyed when the pull request closes.
+# Alchemy state lives in the Cloudflare state store (see docs/infra.md for the one-time bootstrap).
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+
+permissions:
+  contents: read
+
+# One run per pull request at a time, and never cancel a running deploy or destroy.
+concurrency:
+  group: preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+env:
+  STAGE: pr-${{ github.event.pull_request.number }}
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+jobs:
+  deploy:
+    # Fork pull requests get no secrets.
+    if: github.event.action != 'closed' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build the web app
+        run: pnpm --filter @surveybeat/web build
+      - name: Deploy the stage
+        run: pnpm exec alchemy deploy infra/alchemy.run.ts --stage "$STAGE" --yes --no-input
+      - name: Read back the Submission Worker's deployed settings
+        run: pnpm check:observability --stage "$STAGE"
+      - name: Smoke test
+        run: node infra/scripts/smoke.ts "https://$STAGE.app.surveybeat.app" "https://$STAGE.submit.surveybeat.app"
+
+  destroy:
+    if: github.event.action == 'closed' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      # The head commit, because the merge ref is gone once the pull request is merged.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @surveybeat/web build
+      - name: Destroy the stage
+        run: pnpm exec alchemy destroy infra/alchemy.run.ts --stage "$STAGE" --yes --no-input
