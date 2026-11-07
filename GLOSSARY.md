@@ -38,6 +38,10 @@ _Avoid_: Revision, edit
 A theme a Question measures, such as workload or psychological safety, used to group scores.
 _Avoid_: Category, topic, factor
 
+**Template**:
+A ready-made starting set of Questions, grouped by Dimension, that a Lead copies to create a Pulse. The Pulse does not change when its Template changes.
+_Avoid_: Preset, blueprint
+
 **Pulse**:
 A recurring check-in for one Team: an ordered set of Question versions, a cadence, an answer window, an anonymity mode, and a distribution (invitation or link).
 _Avoid_: Survey, questionnaire, form
