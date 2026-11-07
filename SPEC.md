@@ -120,7 +120,7 @@ Requirements are grouped by the loop step they serve. Section 8 sequences them i
 - Optional rotation. A pulse can have a fixed core set of questions plus a rotating set, where each round asks one or two different questions. This covers more topics without making each round longer.
 - Cadence uses each member's local time zone. Monday 9:00 means 9:00 for each recipient. A lead can skip a round (for holidays) or pause a pulse.
 - Channels are email, Slack, and Microsoft Teams. Each member picks their preferred channel. Email is the fallback for everyone.
-- The first question can be answered directly from the message. In email, each rating value is a link that records the answer and opens the remaining questions. In Slack and Teams, the message has interactive buttons and, where the platform allows it, a modal for the rest.
+- The first question can be answered directly from the message. In email, each rating value is a link that opens the answer page with that value chosen; the answer is saved when the member confirms it there, because email security scanners open every link (ADR 0007). In Slack and Teams, the message has interactive buttons and, where the platform allows it, a modal for the rest.
 - Reminders go only to members who have not answered, and there are at most two per round. A member can turn reminders off.
 - A shareable link remains available for teams that do not use invitations. A link round cannot compute a response rate and cannot guarantee one answer per person. The UI says so.
 
