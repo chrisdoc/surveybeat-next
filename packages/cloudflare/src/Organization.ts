@@ -54,6 +54,48 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
             .withTransaction(sql`INSERT INTO organization (id, name) VALUES (${id}, ${name})`)
             .pipe(Effect.as({ id, name }), Effect.orDie),
 
+        /** Idempotent: the Organization and its creator as its first Person (an Organization admin in WorkOS). */
+        createWithAdmin: (id: string, name: string, personId: string, email: string, workosUserId: string) =>
+          sql
+            .withTransaction(
+              Effect.all([
+                sql`INSERT INTO organization (id, name) VALUES (${id}, ${name}) ON CONFLICT (id) DO NOTHING`,
+                sql`INSERT INTO person (id, email, workos_user_id) VALUES (${personId}, ${email}, ${workosUserId})
+                    ON CONFLICT (id) DO NOTHING`,
+              ]),
+            )
+            .pipe(Effect.asVoid, Effect.orDie),
+
+        /**
+         * Links a Person to a WorkOS user: only an active Person with exactly this (normalised)
+         * email, not linked to someone else, and only if the user has no other Person here.
+         */
+        linkPerson: (personId: string, workosUserId: string, email: string) =>
+          sql
+            .withTransaction(
+              Effect.gen(function* () {
+                const other = yield* sql<{ id: string }>`
+                  SELECT id FROM person WHERE workos_user_id = ${workosUserId} AND id <> ${personId}`;
+                if (other.length > 0) return false;
+                yield* sql`
+                  UPDATE person SET workos_user_id = ${workosUserId}
+                   WHERE id = ${personId} AND email = ${email} AND removed_at IS NULL AND workos_user_id IS NULL`;
+                const linked = yield* sql<{ id: string }>`
+                  SELECT id FROM person
+                   WHERE id = ${personId} AND workos_user_id = ${workosUserId} AND removed_at IS NULL`;
+                return linked.length > 0;
+              }),
+            )
+            .pipe(Effect.orDie),
+
+        /** The per-request check: the user's Person here, unless removed. */
+        activePerson: (workosUserId: string) =>
+          sql<{ id: string }>`
+            SELECT id FROM person WHERE workos_user_id = ${workosUserId} AND removed_at IS NULL`.pipe(
+            Effect.map((rows) => rows[0]?.id ?? null),
+            Effect.orDie,
+          ),
+
         get: (id: string) =>
           sql<{ id: string; name: string }>`SELECT id, name FROM organization WHERE id = ${id}`.pipe(
             Effect.map((rows) => rows[0] ?? null),

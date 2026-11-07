@@ -1,3 +1,4 @@
+import "./auth/localTestSecrets.ts";
 import * as Cloudflare from "@alchemy.run/cloudflare";
 import * as Test from "@alchemy.run/test/Vitest";
 import { SurveyBeatApi } from "@surveybeat/api";
@@ -51,5 +52,36 @@ test(
         .pipe(Effect.flip);
       assert.strictEqual(error._tag, "OrganizationNotFound");
     }
+  }),
+);
+
+test(
+  "keeps the creator as an active Person, idempotently, and never lets another user take them over",
+  Effect.gen(function* () {
+    const { url } = yield* stack;
+    const run = crypto.randomUUID();
+    const response = yield* Effect.promise(() => fetch(`${url}/__test/people?run=${run}`));
+    const body: unknown = yield* Effect.promise(() => response.json());
+    assert.deepStrictEqual(body, {
+      adaActive: { _id: "Option", _tag: "Some", value: `admin-${run}` },
+      eveActive: { _id: "Option", _tag: "None" },
+      relinkSameUser: true,
+      takeOverByOtherUser: false,
+      linkMissingPerson: false,
+    });
+  }),
+);
+
+test(
+  "reads its sign-in bindings: a request without a session is unauthenticated, and login goes to AuthKit",
+  Effect.gen(function* () {
+    const { url } = yield* stack;
+    const session = yield* Effect.promise(() => fetch(`${url}/auth/session`));
+    assert.strictEqual(session.status, 401);
+    const login = yield* Effect.promise(() => fetch(`${url}/auth/login`, { redirect: "manual" }));
+    assert.strictEqual(login.status, 302);
+    const location = new URL(login.headers.get("location") ?? "");
+    assert.strictEqual(location.searchParams.get("client_id"), "client_local_adapter_tests");
+    assert.strictEqual(location.searchParams.get("redirect_uri"), `${url}/auth/callback`);
   }),
 );

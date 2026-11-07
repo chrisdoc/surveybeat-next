@@ -37,10 +37,19 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Build the web app
         run: pnpm --filter @surveybeat/web build
+      # Sign-in secrets (WorkOS SurveyBeat Staging), bound to the Main Worker as Worker secrets.
       - name: Deploy the stage
         run: pnpm exec alchemy deploy infra/alchemy.run.ts --stage "$STAGE" --yes --no-input
+        env:
+          WORKOS_API_KEY: ${{ secrets.WORKOS_API_KEY }}
+          WORKOS_CLIENT_ID: ${{ secrets.WORKOS_CLIENT_ID }}
+          ORG_CREATION_ALLOWLIST: ${{ secrets.ORG_CREATION_ALLOWLIST }}
+      # Also checks that WORKOS_API_KEY belongs to the Staging environment that holds the redirect URIs.
       - name: Smoke test
         run: node infra/scripts/smoke.ts "https://$STAGE.app.surveybeat.app" "https://$STAGE.submit.surveybeat.app"
+        env:
+          WORKOS_API_KEY: ${{ secrets.WORKOS_API_KEY }}
+          WORKOS_CLIENT_ID: ${{ secrets.WORKOS_CLIENT_ID }}
 
   # Preview-stage privacy checks (privacy suite design, issue #25): A7 on the deployed stage.
   # The read-back runs on every PR. The canary sweep is required only when a PR touches what the
@@ -123,3 +132,8 @@ jobs:
       - run: pnpm --filter @surveybeat/web build
       - name: Destroy the stage
         run: pnpm exec alchemy destroy infra/alchemy.run.ts --stage "$STAGE" --yes --no-input
+        # Evaluating the stack reads the Main Worker's secrets, even to destroy it.
+        env:
+          WORKOS_API_KEY: ${{ secrets.WORKOS_API_KEY }}
+          WORKOS_CLIENT_ID: ${{ secrets.WORKOS_CLIENT_ID }}
+          ORG_CREATION_ALLOWLIST: ${{ secrets.ORG_CREATION_ALLOWLIST }}

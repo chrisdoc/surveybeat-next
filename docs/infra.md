@@ -14,6 +14,8 @@ A new custom hostname takes about a minute to get its certificate, so the first 
 
 ```sh
 pnpm --filter @surveybeat/web build        # the Main Worker serves apps/web/dist
+# Sign-in secrets, read at deploy (and destroy) time. Use the WorkOS SurveyBeat Staging values.
+export WORKOS_API_KEY=sk_test_... WORKOS_CLIENT_ID=client_... ORG_CREATION_ALLOWLIST=you@example.com
 pnpm infra:deploy --stage dev-yourname     # `alchemy deploy infra/alchemy.run.ts`
 pnpm infra:destroy --stage dev-yourname
 CLOUDFLARE_API_TOKEN=... CLOUDFLARE_ACCOUNT_ID=... pnpm check:observability --stage dev-yourname
@@ -23,10 +25,33 @@ E2E_BASE_URL=<main-url> pnpm test:e2e      # once: pnpm --filter @surveybeat/inf
 
 ## Preview stages in CI
 
-`.github/workflows/preview.yml` deploys `pr-<number>` on every push to a pull request, smoke tests the stage, and destroys it when the pull request closes. It needs the repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. Fork pull requests are skipped. After the deploy, two jobs run against the stage:
+`.github/workflows/preview.yml` deploys `pr-<number>` on every push to a pull request, smoke tests the stage, and destroys it when the pull request closes. It needs the repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`, plus the sign-in secrets `WORKOS_API_KEY`, `WORKOS_CLIENT_ID`, and `ORG_CREATION_ALLOWLIST` (below). Fork pull requests are skipped. After the deploy, two jobs run against the stage:
 
 - `preview-privacy` reads back the Submission Worker's settings (below) on every PR. When the PR touches `packages/cloudflare`, `infra`, the answer entry (`apps/web/answer.html`, `src/answer`, `src/messages`, `vite.config.ts`), the dependency pins or this workflow, it also runs the canary sweep (`infra/tests/privacy/canary-sweep.ts`).
 - `e2e` runs the Playwright tests in `infra/tests/e2e/` (the SPEC §7 flow, which grows with the slices).
+
+## Sign-in (WorkOS AuthKit)
+
+The Main Worker handles `/auth/login`, `/auth/callback`, and `/auth/logout` with `@workos-inc/node`'s workerd build, and the app calls `/auth/session`, `/auth/organization`, and `/auth/organization/choose` (`packages/cloudflare/src/auth/`, flow in `packages/domain/src/people/SignInFlow.ts`).
+
+| Binding | Source |
+| --- | --- |
+| `WORKOS_API_KEY`, `WORKOS_CLIENT_ID`, `ORG_CREATION_ALLOWLIST` | The deploying shell's environment (GitHub secrets in CI), bound as Worker secrets. The allowlist is comma-separated emails that may create an Organization, matched case-insensitively and only when WorkOS verified the email. |
+| `WORKOS_COOKIE_PASSWORD` | Generated per stage by Alchemy (`Random`, 32 bytes as hex) and kept in its state. Destroying a stage discards it. |
+
+**WorkOS environments.** `pr-*` and personal stages use **SurveyBeat Staging** (`environment_01M6TXKPTEY2HWYAEFC0XMMVB2`, AuthKit domain `straightforward-mouse-82-staging.authkit.app`). Production (`environment_01M6TXKQ8G5Q9ASGGJCQE1FAFH`) is for slice 15 and does not have the `admin` role yet. Staging has:
+
+- redirect URIs `https://pr-*.app.surveybeat.app/auth/callback`, `https://*.chrisdoc.workers.dev/auth/callback`, `http://localhost:5173/auth/callback`. Wildcards work: WorkOS sends `pr-52` to the hosted page and a host outside the list to `/redirect-uri-invalid` (checked on 2026-11-07);
+- logout URIs `https://pr-*.app.surveybeat.app/` (default), `https://*.chrisdoc.workers.dev/`, `http://localhost:5173/`, set with `workos authkit logout-uris set --environment-id environment_01M6TXKPTEY2HWYAEFC0XMMVB2`;
+- the roles `member` (default) and `admin` (Organization admin, created with `workos role create`).
+
+The smoke test checks that WorkOS accepts the stage's authorization URL and that `WORKOS_API_KEY` belongs to the client's environment: a key from another environment deploys fine and only fails at the first real sign-in.
+
+**Session cookie.** `__Host-surveybeat-session` holds the WorkOS sealed session: `HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/`, no `Domain`, 30 days. `__Host-surveybeat-auth-state` holds the OAuth `state` for 10 minutes. POSTs with an `Origin` other than the stage's own are refused.
+
+**Per-request check.** The access token is verified locally (JWKS cached per isolate) and refreshed when it expired. Then the session must not be in D1's `revoked_session`, and when the token is scoped to an Organization, the user's Person in its Durable Object must be active (ADR 0010). Sign-out writes `revoked_session` before redirecting to WorkOS's logout, so a copied cookie stops working at once.
+
+**D1 index** (`d1-migrations/0003_people_index.sql`): `organization_index` (Organization ↔ WorkOS organization, name), `person_index` (WorkOS user → Persons; email → Organizations for Persons not yet linked; emails normalised), `organization_claim` (one created Organization per WorkOS user, which makes creation idempotent), and `revoked_session`.
 
 ## Workers Logs are sampled at 1%
 

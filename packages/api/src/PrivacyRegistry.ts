@@ -26,4 +26,19 @@ export type EndpointPrivacy =
 export const privacyRegistry: { readonly [K in EndpointKey<typeof SurveyBeatApi>]: EndpointPrivacy } = {
   "organizations.create": { _tag: "NoResultData", why: "returns the Organization's id and name" },
   "organizations.getById": { _tag: "NoResultData", why: "returns the Organization's id and name" },
+  "auth.login": { _tag: "NoResultData", why: "redirects to the AuthKit hosted sign-in page" },
+  "auth.callback": { _tag: "NoResultData", why: "sets the session cookie and redirects to the app" },
+  "auth.logout": { _tag: "NoResultData", why: "clears the session cookie and redirects to WorkOS logout" },
+  "auth.session": {
+    _tag: "NoResultData",
+    why: "returns the sign-in state: Organization ids and names, a Person id, and the admin flag",
+  },
+  "auth.createOrganization": {
+    _tag: "NoResultData",
+    why: "returns the sign-in state of the new Organization's admin",
+  },
+  "auth.chooseOrganization": {
+    _tag: "NoResultData",
+    why: "returns the sign-in state in the chosen Organization",
+  },
 };
