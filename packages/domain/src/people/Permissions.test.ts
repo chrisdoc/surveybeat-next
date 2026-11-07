@@ -45,6 +45,9 @@ const TABLE: { readonly [A in Action]: ReadonlyArray<Who> } = {
   "team.assignLead": ["admin", "adminLead"],
   "team.removeLead": ["admin", "adminLead"],
   "team.viewResults": ["adminLead", "lead", "member", "viewer"],
+  "team.viewPulses": ["admin", "adminLead", "lead"],
+  "team.createPulse": ["admin", "adminLead", "lead"],
+  "team.editPulse": ["admin", "adminLead", "lead"],
 };
 
 const isTeamAction = (action: Action): action is TeamAction => action.startsWith("team.");

@@ -79,6 +79,7 @@ export const TeamAbilities = Schema.Struct({
   update: Schema.Boolean,
   manageLeads: Schema.Boolean,
   manageMembers: Schema.Boolean,
+  managePulses: Schema.Boolean,
   viewResults: Schema.Boolean,
 });
 export type TeamAbilities = typeof TeamAbilities.Type;

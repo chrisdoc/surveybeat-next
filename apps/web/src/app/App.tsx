@@ -5,6 +5,7 @@ import type { OrganizationSummary } from "@surveybeat/domain";
 import { type ReactNode, useEffect, useState } from "react";
 import { message } from "../messages/index.ts";
 import { SettingsScreen, Shell, TeamScreen, TeamsScreen, useRoute } from "./Directory.tsx";
+import { PulseScreen, PulsesScreen } from "./Pulses.tsx";
 import { chooseOrganization, createOrganization, loadSession, type View } from "./session.ts";
 
 const buttonClass = "rounded bg-black px-4 py-2 text-white disabled:opacity-50";
@@ -134,6 +135,10 @@ function SignedIn({
     >
       {route._tag === "Team" ? (
         <TeamScreen key={route.id} id={route.id} />
+      ) : route._tag === "Pulses" ? (
+        <PulsesScreen key={route.teamId} teamId={route.teamId} />
+      ) : route._tag === "Pulse" ? (
+        <PulseScreen key={route.pulseId} teamId={route.teamId} pulseId={route.pulseId} />
       ) : route._tag === "Settings" && organizationAdmin ? (
         <SettingsScreen />
       ) : (

@@ -30,7 +30,10 @@ export type TeamAction =
   | "team.removeMember"
   | "team.assignLead"
   | "team.removeLead"
-  | "team.viewResults";
+  | "team.viewResults"
+  | "team.viewPulses"
+  | "team.createPulse"
+  | "team.editPulse";
 
 export type Action = OrganizationAction | TeamAction;
 
@@ -65,6 +68,10 @@ export const PERMISSIONS: { readonly [A in Action]: ReadonlyArray<Grantee> } = {
   "team.assignLead": ["admin"],
   "team.removeLead": ["admin"],
   "team.viewResults": ["lead", "member", "viewer"],
+  // A Pulse's Questions and settings hold no Result data, so admins set them up like the roster.
+  "team.viewPulses": ["admin", "lead"],
+  "team.createPulse": ["admin", "lead"],
+  "team.editPulse": ["admin", "lead"],
 };
 
 /** Whether `actor` may do `action` to `resource`. */

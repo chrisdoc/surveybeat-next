@@ -376,7 +376,9 @@ describe("Organization admins", () => {
     });
     expect(teamView(world.state, ADMIN, platform)).toMatchObject({
       _tag: "Viewed",
-      value: { may: { update: true, manageLeads: true, manageMembers: true, viewResults: false } },
+      value: {
+        may: { update: true, manageLeads: true, manageMembers: true, managePulses: true, viewResults: false },
+      },
     });
   });
 });
@@ -392,7 +394,15 @@ describe("views for non-admins", () => {
 
     expect(teamsView(world.state, grace)).toMatchObject({ value: [{ name: "Platform", yourRole: "lead" }] });
     expect(teamView(world.state, grace, platform)).toMatchObject({
-      value: { may: { update: false, manageLeads: false, manageMembers: true, viewResults: true } },
+      value: {
+        may: {
+          update: false,
+          manageLeads: false,
+          manageMembers: true,
+          managePulses: true,
+          viewResults: true,
+        },
+      },
     });
     expect(teamsView(world.state, ada)).toMatchObject({ value: [{ name: "Platform", yourRole: "member" }] });
     expect(teamView(world.state, ada, platform)).toEqual({

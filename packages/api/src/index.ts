@@ -6,12 +6,26 @@ import {
   LastAdmin,
   LastLead,
   MinimumGroupSize,
+  NewPulseQuestion,
+  OrderMismatch,
   Organization,
   OrganizationId,
   OrganizationNotFound,
   OrganizationSettings,
   PersonId,
   PersonNotFound,
+  PulseDetail,
+  PulseFull,
+  PulseId,
+  PulseList,
+  PulseNeedsAQuestion,
+  PulseNotFound,
+  PulseSettings,
+  QuestionAlreadyInPulse,
+  QuestionContent,
+  QuestionHasAnswers,
+  QuestionId,
+  QuestionNotFound,
   SessionState,
   TeamDetail,
   TeamId,
@@ -88,6 +102,18 @@ const directoryErrors = [
   AuthUnavailable,
   TeamNotFound,
   PersonNotFound,
+  PulseDetail,
+  PulseFull,
+  PulseId,
+  PulseList,
+  PulseNeedsAQuestion,
+  PulseNotFound,
+  PulseSettings,
+  QuestionAlreadyInPulse,
+  QuestionContent,
+  QuestionHasAnswers,
+  QuestionId,
+  QuestionNotFound,
   LastLead,
   LastAdmin,
   TeamNameTaken,
@@ -163,8 +189,79 @@ export class DirectoryApiGroup extends HttpApiGroup.make("directory")
   )
   .prefix("/api") {}
 
+const pulseErrors = [
+  Unauthenticated,
+  Forbidden,
+  AuthUnavailable,
+  TeamNotFound,
+  PulseNotFound,
+  QuestionNotFound,
+  QuestionAlreadyInPulse,
+  QuestionHasAnswers,
+  PulseNeedsAQuestion,
+  PulseFull,
+  OrderMismatch,
+] as const;
+const pulseParams = { teamId: TeamId, pulseId: PulseId };
+const questionParams = { teamId: TeamId, pulseId: PulseId, questionId: QuestionId };
+
+/**
+ * The Pulse editor: a Team's Pulses, their settings, and their Questions, for the Team's Leads and
+ * Organization admins (the permission table decides). Every change answers with the Pulse as the
+ * editor shows it, with its estimated answer time and warnings. No endpoint returns Result data.
+ */
+export class PulsesApiGroup extends HttpApiGroup.make("pulses")
+  .add(
+    HttpApiEndpoint.get("listPulses", "/teams/:teamId/pulses", {
+      params: teamParams,
+      success: PulseList,
+      error: pulseErrors,
+    }),
+    HttpApiEndpoint.post("createPulse", "/teams/:teamId/pulses", {
+      params: teamParams,
+      success: PulseDetail,
+      error: pulseErrors,
+    }),
+    HttpApiEndpoint.get("getPulse", "/teams/:teamId/pulses/:pulseId", {
+      params: pulseParams,
+      success: PulseDetail,
+      error: pulseErrors,
+    }),
+    HttpApiEndpoint.put("updatePulseSettings", "/teams/:teamId/pulses/:pulseId/settings", {
+      params: pulseParams,
+      payload: PulseSettings,
+      success: PulseDetail,
+      error: pulseErrors,
+    }),
+    HttpApiEndpoint.post("addQuestion", "/teams/:teamId/pulses/:pulseId/questions", {
+      params: pulseParams,
+      payload: NewPulseQuestion,
+      success: PulseDetail,
+      error: pulseErrors,
+    }),
+    HttpApiEndpoint.put("editQuestion", "/teams/:teamId/pulses/:pulseId/questions/:questionId", {
+      params: questionParams,
+      payload: QuestionContent,
+      success: PulseDetail,
+      error: pulseErrors,
+    }),
+    HttpApiEndpoint.delete("removeQuestion", "/teams/:teamId/pulses/:pulseId/questions/:questionId", {
+      params: questionParams,
+      success: PulseDetail,
+      error: pulseErrors,
+    }),
+    HttpApiEndpoint.put("reorderQuestions", "/teams/:teamId/pulses/:pulseId/order", {
+      params: pulseParams,
+      payload: Schema.Struct({ order: Schema.Array(QuestionId) }),
+      success: PulseDetail,
+      error: pulseErrors,
+    }),
+  )
+  .prefix("/api") {}
+
 /** The HttpApi declaration shared by the server and the clients. */
 export class SurveyBeatApi extends HttpApi.make("surveybeat")
   .add(OrganizationsApiGroup)
   .add(AuthApiGroup)
-  .add(DirectoryApiGroup) {}
+  .add(DirectoryApiGroup)
+  .add(PulsesApiGroup) {}

@@ -88,7 +88,7 @@ describe("an Organization admin", () => {
       body: {
         team: { name: "Platform", timeZone: "Europe/Berlin", yourRole: null },
         roster: [{ email: "grace@example.com", role: "lead" }],
-        may: { update: true, manageLeads: true, manageMembers: true, viewResults: false },
+        may: { update: true, manageLeads: true, manageMembers: true, managePulses: true, viewResults: false },
       },
     });
     const grace = personIdOf(world, acme.id, "grace@example.com");

@@ -6,6 +6,7 @@ import {
   MinimumGroupSize,
   type OrganizationSettings,
   PersonId,
+  PulseId,
   type TeamDetail,
   TeamId,
   type TeamSummary,
@@ -17,21 +18,29 @@ import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { formatDate, message } from "../messages/index.ts";
 import { call, type Failure, type Outcome } from "./directory.ts";
 
-const buttonClass = "rounded bg-black px-4 py-2 text-white disabled:opacity-50";
-const inputClass = "mt-1 w-full rounded border px-3 py-2";
+export const buttonClass = "rounded bg-black px-4 py-2 text-white disabled:opacity-50";
+export const inputClass = "mt-1 w-full rounded border px-3 py-2";
 
 export type Route =
   | { readonly _tag: "Teams" }
   | { readonly _tag: "Team"; readonly id: TeamId }
+  | { readonly _tag: "Pulses"; readonly teamId: TeamId }
+  | { readonly _tag: "Pulse"; readonly teamId: TeamId; readonly pulseId: PulseId }
   | { readonly _tag: "Settings" };
 
 const decodeTeamId = Schema.decodeUnknownOption(TeamId);
+const decodePulseId = Schema.decodeUnknownOption(PulseId);
 
 const parseRoute = (hash: string): Route => {
   if (hash === "#/settings") return { _tag: "Settings" };
-  const match = /^#\/teams\/([^/]+)$/.exec(hash);
+  const match = /^#\/teams\/([^/]+)(?:\/(pulses)(?:\/([^/]+))?)?$/.exec(hash);
   const id = match?.[1] === undefined ? Option.none() : decodeTeamId(decodeURIComponent(match[1]));
-  return Option.isSome(id) ? { _tag: "Team", id: id.value } : { _tag: "Teams" };
+  if (Option.isNone(id)) return { _tag: "Teams" };
+  if (match?.[2] === undefined) return { _tag: "Team", id: id.value };
+  const pulseId = match[3] === undefined ? Option.none() : decodePulseId(decodeURIComponent(match[3]));
+  return Option.isSome(pulseId)
+    ? { _tag: "Pulse", teamId: id.value, pulseId: pulseId.value }
+    : { _tag: "Pulses", teamId: id.value };
 };
 
 /** The page, from the URL hash, so Back and bookmarks work without a router. */
@@ -45,7 +54,10 @@ export function useRoute(): Route {
   return parseRoute(hash);
 }
 
-const teamHref = (id: TeamId) => `#/teams/${encodeURIComponent(id)}`;
+export const teamHref = (id: TeamId) => `#/teams/${encodeURIComponent(id)}`;
+export const pulsesHref = (teamId: TeamId) => `${teamHref(teamId)}/pulses`;
+export const pulseHref = (teamId: TeamId, pulseId: PulseId) =>
+  `${pulsesHref(teamId)}/${encodeURIComponent(pulseId)}`;
 
 /** The signed-in frame: heading, navigation, and sign out. */
 export function Shell({
@@ -78,7 +90,7 @@ export function Shell({
   );
 }
 
-const failureMessage = (failure: Failure) => {
+const failureMessage = (failure: Failure): string => {
   switch (failure) {
     case "Unauthenticated":
       return message("error.Unauthenticated");
@@ -92,6 +104,16 @@ const failureMessage = (failure: Failure) => {
       return message("error.LastAdmin");
     case "TeamNameTaken":
       return message("error.TeamNameTaken");
+    case "QuestionAlreadyInPulse":
+      return message("error.QuestionAlreadyInPulse");
+    case "QuestionHasAnswers":
+      return message("error.QuestionHasAnswers");
+    case "PulseNeedsAQuestion":
+      return message("error.PulseNeedsAQuestion");
+    case "PulseFull":
+      return message("error.PulseFull");
+    case "OrderMismatch":
+      return message("error.OrderMismatch");
     case "Invalid":
       return message("error.Invalid");
     case "Unavailable":
@@ -101,7 +123,7 @@ const failureMessage = (failure: Failure) => {
 
 const roleName = (role: TeamSummary["yourRole"]) => (role === null ? "" : message(`role.${role}`));
 
-function Problem({ failure }: { readonly failure: Failure | undefined }) {
+export function Problem({ failure }: { readonly failure: Failure | undefined }) {
   return failure === undefined ? null : (
     <p role="alert" className="mt-2 text-red-700">
       {failureMessage(failure)}
@@ -109,13 +131,13 @@ function Problem({ failure }: { readonly failure: Failure | undefined }) {
   );
 }
 
-type Loaded<A> =
+export type Loaded<A> =
   | { readonly _tag: "Loading" }
   | { readonly _tag: "Loaded"; readonly value: A }
   | { readonly _tag: "Failed"; readonly failure: Failure };
 
 /** Loads a view, and again after every change (a change can end the caller's own access). */
-function useView<A>(load: () => Promise<Outcome<A>>) {
+export function useView<A>(load: () => Promise<Outcome<A>>) {
   const [state, setState] = useState<Loaded<A>>({ _tag: "Loading" });
   const reload = useCallback(() => {
     void load().then((outcome) => {
@@ -129,7 +151,7 @@ function useView<A>(load: () => Promise<Outcome<A>>) {
 }
 
 /** Runs one change at a time; `after` runs when it worked, otherwise the failure shows. */
-function useChange() {
+export function useChange() {
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<Failure | undefined>(undefined);
   const change = <A,>(run: () => Promise<Outcome<A>>, after: (value: A) => void) => {
@@ -146,9 +168,9 @@ function useChange() {
 }
 
 /** A failed decode of what was typed, reported like a refusal from the server. */
-const invalid = (): Promise<Outcome<never>> => Promise.resolve({ ok: false, failure: "Invalid" });
+export const invalid = (): Promise<Outcome<never>> => Promise.resolve({ ok: false, failure: "Invalid" });
 
-function TextField({
+export function TextField({
   label,
   value,
   onChange,
@@ -157,7 +179,7 @@ function TextField({
   readonly label: string;
   readonly value: string;
   readonly onChange: (value: string) => void;
-  readonly type?: "text" | "email" | "number";
+  readonly type?: "text" | "email" | "number" | "time";
 }) {
   return (
     <Field.Root>
@@ -387,6 +409,11 @@ export function TeamScreen({ id }: { readonly id: TeamId }) {
           </p>
           {view.value.team.yourRole === null ? (
             <p className="mt-2 text-sm text-gray-600">{message("team.noResultsAccess")}</p>
+          ) : null}
+          {view.value.may.managePulses ? (
+            <a href={pulsesHref(id)} className="mt-4 inline-block underline">
+              {message("team.pulses")}
+            </a>
           ) : null}
           {view.value.may.update ? <RenameTeam detail={view.value} onChanged={reload} /> : null}
           <h3 className="mt-6 text-lg font-medium">{message("team.roster")}</h3>

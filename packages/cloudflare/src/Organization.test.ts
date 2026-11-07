@@ -110,3 +110,79 @@ test(
     assert.strictEqual(location.searchParams.get("redirect_uri"), `${url}/auth/callback`);
   }),
 );
+
+test(
+  "stores the question library and Pulses: create from the Template, edit, and read back in order",
+  Effect.gen(function* () {
+    const { url } = yield* stack;
+    const run = crypto.randomUUID();
+    const response = yield* Effect.promise(() => fetch(`${url}/__test/pulses?run=${run}`));
+    assert.strictEqual(response.status, 200);
+    const body = (yield* Effect.promise(() => response.json())) as {
+      results: unknown;
+      view: { _tag: string; value: Record<string, unknown> & { questions: Array<Record<string, unknown>> } };
+      list: unknown;
+      first: string;
+      rest: Array<string>;
+    };
+    assert.deepStrictEqual(body.results, {
+      created: "Accepted",
+      createdAgain: "Accepted",
+      removed: "Accepted",
+      reordered: "Accepted",
+      addedBack: "Accepted",
+      addedWritten: "Accepted",
+      edited: "Accepted",
+      settings: "Accepted",
+      reorderMismatch: "OrderMismatch",
+    });
+    const pulseId = `pulse-${run}`;
+    const { view } = body;
+    assert.strictEqual(view._tag, "Viewed");
+    assert.deepStrictEqual(view.value["settings"], {
+      name: "Friday check-in",
+      cadence: { _tag: "Weekly", day: "friday", time: "15:30" },
+      answerWindowDays: 6,
+      reminders: 0,
+      anonymityMode: "anonymous",
+      distribution: "invitation",
+    });
+    const written = `written-${run}`;
+    assert.deepStrictEqual(
+      view.value.questions.map((question) => question["questionId"]),
+      [...[...body.rest].reverse(), `again-${run}`, written],
+    );
+    assert.strictEqual(body.first, `${pulseId}.workload-manageable`);
+    assert.deepStrictEqual(view.value.questions.at(-2)?.["templateKey"], "workload-manageable");
+    // The edit rewrote the written Question's first and only version.
+    assert.deepStrictEqual(view.value.questions.at(-1), {
+      questionId: written,
+      versionId: `${written}.1`,
+      templateKey: null,
+      text: "How was the offsite?",
+      dimension: "recognition",
+      type: { _tag: "Rating", lowLabel: "Poor", highLabel: "Great", comment: true },
+      hasAnswers: false,
+      estimatedSeconds: 6,
+    });
+    assert.deepStrictEqual(view.value["warnings"], [
+      { _tag: "NoOneTap" },
+      { _tag: "TeamBelowMinimumGroupSize", members: 1, minimumGroupSize: 4 },
+    ]);
+    assert.deepStrictEqual(body.list, {
+      _tag: "Viewed",
+      value: {
+        team: { id: `team-${run}`, name: "Platform", timeZone: "Europe/Berlin", yourRole: null },
+        pulses: [
+          {
+            id: pulseId,
+            name: "Friday check-in",
+            cadence: { _tag: "Weekly", day: "friday", time: "15:30" },
+            questionCount: 7,
+            estimatedSeconds: 70,
+          },
+        ],
+      },
+    });
+  }),
+);

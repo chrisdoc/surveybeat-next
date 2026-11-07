@@ -4,6 +4,8 @@ import type { Identity, PersonId, SessionId, WorkosOrganizationId, WorkosUserId 
 import type { OrganizationId } from "./Organization.ts";
 import type { MembershipId, TeamId } from "./Team.ts";
 import type { AuthUnavailable, OrganizationSummary, PersonCandidate, Unauthenticated } from "./SignIn.ts";
+import type { PulseId } from "../pulses/Pulse.ts";
+import type { QuestionId } from "../pulses/Question.ts";
 
 /** A verified session from the identity provider, and the sealed cookie value that carries it. */
 export interface ProviderSession {
@@ -203,6 +205,8 @@ export interface NewIdsShape {
   readonly personId: Effect.Effect<PersonId>;
   readonly teamId: Effect.Effect<TeamId>;
   readonly membershipId: Effect.Effect<MembershipId>;
+  readonly pulseId: Effect.Effect<PulseId>;
+  readonly questionId: Effect.Effect<QuestionId>;
 }
 
 export class NewIds extends Context.Service<NewIds, NewIdsShape>()("@surveybeat/domain/NewIds") {}
