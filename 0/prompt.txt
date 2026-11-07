@@ -1,0 +1,37 @@
+Act as the implementation sub-agent for this task.
+
+Implement GitHub issue #37, "R1 03: Sign-in with AuthKit and Organization creation", in chrisdoc/surveybeat-next. This is production code and security-sensitive (sessions, account linking), so be careful and explicit. You're in your own git worktree. Check it's at origin/main (`git fetch origin && git log -1 origin/main`), which holds slices 01, 02, 05, and 14: the workspace, the packages, the oxlint plugin, an Alchemy v2 stack with `pr-<n>` preview stages, email sending (EmailSender, send states, React Email), and the privacy suite (`pnpm test:privacy`, the endpoint privacy registry in `packages/api/src/PrivacyRegistry.ts`, preview-privacy and e2e jobs).
+
+## First
+- Run `gh issue view 37 --comments`. It has the acceptance criteria and two setup comments (secrets, WorkOS project and environment ids, redirect URIs). Follow them exactly.
+- Create branch `t3/r1-03-sign-in` from origin/main.
+- Read GLOSSARY.md, docs/adr/0002-people-join-by-being-added.md, docs/adr/0003-organization-admin-sees-no-results.md, docs/adr/0008, docs/research/workos-authkit-workers.md (the key reference: the `@workos-inc/node` workerd build, sealed sessions, refresh, revocation catch, self-serve org creation), docs/infra.md, infra/alchemy.run.ts, and packages/cloudflare/src/*.
+
+## Key requirements (also in #37)
+- AuthKit hosted UI: the six-digit email code, Google, Microsoft. The Main Worker handles `/auth/login`, `/auth/callback`, and `/auth/logout`, with a sealed session cookie (HttpOnly, Secure, SameSite=Lax), refresh, and logout. Use `@workos-inc/node` (exact pin; respect pnpm minimumReleaseAge and never add minimumReleaseAgeExclude), constructed per isolate from `env`.
+- **Per-request session check:** local JWT verification plus our own deny check (revoked session, Person removed, Membership ended). Access tokens last about 5 minutes. SPEC §6.2: don't use KV for sessions that must be revoked at once. Decide where the deny list lives (D1 or the Organization DO) and record why.
+- **First sign-in with no matching Person:**
+  - an email on the allowlist (`ORG_CREATION_ALLOWLIST` secret, comma-separated, read per stage) sees "Create an Organization" (name only). This is idempotent per WorkOS user (double submits and retries create exactly one), and the creator becomes the Organization admin, with WorkOS org role `admin`;
+  - anyone else sees "You're not part of an Organization yet".
+- **Linking:** a WorkOS user links to a Person only by an exact match on a VERIFIED email. An unverified email never links. A verified email that matches Persons in several Organizations gets an Organization picker.
+- **D1 global index** (`packages/cloudflare/d1-migrations/`): WorkOS user → Persons, and email → Organizations for Persons not yet linked. Design the schema. Tokens and emails are case-normalised. No survey content.
+- Secrets reach Workers through Alchemy (`Config.Redacted`), and in CI through the GitHub secrets `WORKOS_API_KEY`, `WORKOS_CLIENT_ID`, `ORG_CREATION_ALLOWLIST`. Wire them into `.github/workflows/preview.yml`. Also generate a cookie-sealing password per stage (Alchemy `Random`, or a secret).
+- **Verify the WorkOS key on the first preview deploy:** the redirect URIs are configured ONLY on the SurveyBeat Staging environment, so if the key belongs to another environment, sign-in fails. Add a smoke check that the authorization URL for the stage is accepted, or explain how you verified it.
+- Configure WorkOS logout URIs for the same hosts with `workos authkit logout-uris set --environment-id REDACTED ...` (the CLI is logged in on this host). Also report whether Email code, Google, and Microsoft are enabled. If the CLI can't show this, say so and don't guess.
+- The web app gets minimal screens: Sign in, Create an Organization, Not part of an Organization, and the Organization picker. Use the message catalog, Tailwind, and Base UI. TanStack Router may be added now if needed (exact pin).
+- New endpoints are classified in `privacyRegistry` (none return Result data).
+
+## Tests
+- API tests for every first-sign-in branch (allowlisted, not allowlisted, existing Person by verified email, unverified email never links, several Organizations → picker), idempotent creation, and revocation taking effect on the next request.
+- WorkOS is faked behind a domain interface in unit tests. No `any`, and no `as` outside tests.
+- Extend the Playwright e2e at least to "the login redirect reaches the AuthKit domain".
+
+## Validation
+`pnpm install --frozen-lockfile`, `typecheck`, `typecheck:effect`, `format:check`, `lint`, `test`, `test:privacy` all pass.
+
+## Shipping
+- Commit on `t3/r1-03-sign-in` with a succinct message ending with:
+  `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`
+- Push, and open a PR to main titled "R1 03: Sign-in with AuthKit and Organization creation". The body says "Closes #37. Part of #34.", lists the changes and the decisions (the deny-list location, the D1 schema, the cookie settings), and ends with:
+  `🤖 Generated with [Claude Code](https://claude.com/claude-code)`
+- Do not merge. Last line: PR <full URL>, head <SHA>, checks and reviews <state>.
