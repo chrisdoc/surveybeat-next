@@ -2,7 +2,7 @@ import type * as Cloudflare from "@alchemy.run/cloudflare";
 import {
   EmailAddress,
   normaliseEmail,
-  type OrganizationClaim,
+  type ClaimStatus,
   OrganizationId,
   PeopleIndex,
   type PersonCandidate,
@@ -25,6 +25,7 @@ const ClaimRow = Schema.Struct({
   organization_id: OrganizationId,
   name: Schema.String,
   admin_person_id: PersonId,
+  completed_at: Schema.NullOr(Schema.Finite),
 });
 
 const decodeRows = <S extends Schema.Top & { readonly DecodingServices: never }>(schema: S) =>
@@ -36,13 +37,14 @@ const toCandidate = (row: typeof CandidateRow.Type): PersonCandidate => ({
   linked: row.linked === 1,
 });
 
-const toClaim = (row: typeof ClaimRow.Type): OrganizationClaim => ({
+const toClaim = (row: typeof ClaimRow.Type): ClaimStatus => ({
   organization: { id: row.organization_id, name: row.name },
   adminPersonId: row.admin_person_id,
+  completed: row.completed_at !== null,
 });
 
 /**
- * `PeopleIndex` on the stage's D1 database (`d1-migrations/0003_people_index.sql`). D1 has one
+ * `PeopleIndex` on the stage's D1 database (`d1-migrations/0003_people_index.sql`, `0004_…`). D1 has one
  * primary and read replication is off, so a write (a revoked session) is seen by the next read.
  * Built inside a handler, like the other D1 adapters.
  */
@@ -69,7 +71,8 @@ export const d1PeopleIndex = (db: Cloudflare.D1.QueryDatabaseClient) =>
     const claimOf = (userId: string) =>
       run(
         all(
-          "SELECT organization_id, name, admin_person_id FROM organization_claim WHERE workos_user_id = ?",
+          `SELECT organization_id, name, admin_person_id, completed_at
+             FROM organization_claim WHERE workos_user_id = ?`,
           userId,
         ).pipe(Effect.flatMap(decodeRows(ClaimRow))),
       ).pipe(Effect.map((rows) => Option.map(Option.fromNullishOr(rows[0]), toClaim)));
@@ -175,6 +178,13 @@ export const d1PeopleIndex = (db: Cloudflare.D1.QueryDatabaseClient) =>
         ),
 
       claimOf,
+
+      completeClaim: (userId, now) =>
+        write(
+          "UPDATE organization_claim SET completed_at = ? WHERE workos_user_id = ? AND completed_at IS NULL",
+          now,
+          userId,
+        ),
 
       revokeSession: (sessionId, now) =>
         write(

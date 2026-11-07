@@ -12,6 +12,7 @@ import {
   sealedChanged,
   type SessionOutcome,
   sessionState,
+  signInWithCode,
   signOut,
   Unauthenticated,
 } from "@surveybeat/domain";
@@ -140,9 +141,7 @@ export const authHandlers = <R>({ services, allowlist }: AuthHandlerOptions<R>) 
             if (query.code === undefined || expected === undefined || query.state !== expected) {
               return yield* back(`${home}?signin=failed`);
             }
-            const session = yield* (yield* IdentityProvider)
-              .authenticateWithCode(query.code)
-              .pipe(Effect.option);
+            const session = yield* signInWithCode(query.code).pipe(Effect.option);
             if (Option.isNone(session)) return yield* back(`${home}?signin=failed`);
             return yield* back(home).pipe(
               Effect.flatMap(
@@ -159,23 +158,26 @@ export const authHandlers = <R>({ services, allowlist }: AuthHandlerOptions<R>) 
       .handle("logout", () =>
         provide(
           Effect.gen(function* () {
-            yield* requireSameOrigin.pipe(Effect.orDie);
+            // 403, cookie kept: another site must not be able to sign the user out.
+            yield* requireSameOrigin;
+            // From here the cookie goes whatever happens, also on a 503 from WorkOS.
+            yield* expireSessionCookie;
             const home = `${yield* requestOrigin}/`;
             const sealed = yield* sealedFromRequest;
             const logoutUrl = Option.isNone(sealed)
               ? Option.none<string>()
-              : yield* signOut(sealed.value, home).pipe(Effect.orDie);
-            return yield* HttpServerResponse.redirect(
+              : yield* signOut(sealed.value, home);
+            return HttpServerResponse.redirect(
               Option.getOrElse(logoutUrl, () => home),
-              {
-                status: 303,
-              },
-            ).pipe(HttpServerResponse.expireCookie(SESSION_COOKIE, cookieOptions), Effect.orDie);
+              { status: 303 },
+            );
           }),
         ),
       )
       .handle("session", () =>
         provide(
+          // Its side effects (linking, WorkOS membership) are idempotent and only what the user is
+          // entitled to, so a cross-site top-level GET is harmless (ADR 0010).
           Effect.gen(function* () {
             const { sealed, checked } = yield* authenticated;
             return yield* sessionState(checked, yield* allowlist).pipe(

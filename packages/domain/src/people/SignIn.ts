@@ -23,7 +23,7 @@ export type SignInDecision =
 
 /**
  * The Persons a user may enter as: every Person linked to them, plus, only when the identity
- * provider verified their email, the not-yet-linked Persons with exactly that email (ADR 0002).
+ * provider verified their email and it is plain ASCII, the not-yet-linked Persons with exactly that email (ADR 0002).
  * At most one per Organization, preferring the linked one.
  */
 export const candidatesFor = (
@@ -33,7 +33,7 @@ export const candidatesFor = (
 ): ReadonlyArray<PersonCandidate> => {
   const byOrganization = new Map<OrganizationId, PersonCandidate>();
   for (const candidate of linked) byOrganization.set(candidate.organization.id, candidate);
-  if (identity.emailVerified) {
+  if (identity.emailMatchable) {
     for (const candidate of unlinkedWithEmail) {
       if (!byOrganization.has(candidate.organization.id)) {
         byOrganization.set(candidate.organization.id, candidate);

@@ -101,6 +101,26 @@ describe("AuthKit redirect flow", () => {
     expect(world.workos.codes.has(code)).toBe(true);
   });
 
+  it("refuses a callback with no state cookie, without exchanging the code", async () => {
+    const { world, browser } = setup();
+    const code = world.workos.addUser("ada@example.com");
+    const callback = await browser.get(
+      `/auth/callback?${new URLSearchParams({ code, state: "s" }).toString()}`,
+    );
+    expect(callback.headers.get("location")).toBe(`${ORIGIN}/?signin=failed`);
+    expect(browser.cookies.has(SESSION_COOKIE)).toBe(false);
+    expect(world.workos.codes.has(code)).toBe(true);
+  });
+
+  it("refuses a callback with no code", async () => {
+    const { browser } = setup();
+    const login = await browser.get("/auth/login");
+    const state = new URL(login.headers.get("location") ?? "").searchParams.get("state") ?? "";
+    const callback = await browser.get(`/auth/callback?${new URLSearchParams({ state }).toString()}`);
+    expect(callback.headers.get("location")).toBe(`${ORIGIN}/?signin=failed`);
+    expect(browser.cookies.has(SESSION_COOKIE)).toBe(false);
+  });
+
   it("answers 401 without a session", async () => {
     const { browser } = setup();
     expect((await browser.session()).status).toBe(401);
@@ -190,6 +210,20 @@ describe("creating an Organization is idempotent per WorkOS user", () => {
     expect(world.durable.organizations.size).toBe(1);
   });
 
+  it("enters a finished Organization on a later sign-in, without creating it again", async () => {
+    const { world, browser, newBrowser } = setup("ops@example.com");
+    const code = world.workos.addUser("ops@example.com");
+    const userId = world.workos.codes.get(code);
+    await browser.signIn(code);
+    await browser.post("/auth/organization", { name: "Acme" });
+    expect(world.workos.createOrganizationCalls).toBe(1);
+
+    const later = newBrowser();
+    await later.signIn(world.workos.newCode(userId));
+    expect((await later.session()).body).toMatchObject({ _tag: "SignedIn", organizationAdmin: true });
+    expect(world.workos.createOrganizationCalls).toBe(1);
+  });
+
   it("finishes an interrupted creation on the next session check", async () => {
     const { world, browser } = setup("ops@example.com");
     await browser.signIn(world.workos.addUser("ops@example.com"));
@@ -199,6 +233,44 @@ describe("creating an Organization is idempotent per WorkOS user", () => {
       _tag: "SignedIn",
       organization: { name: "Acme" },
     });
+  });
+});
+
+describe("a creator removed from their Organization", () => {
+  const removeCreator = (world: SignInWorld) => {
+    const [claim] = [...world.index.claims.values()];
+    if (claim === undefined) throw new Error("no claim");
+    const person = world.durable.person(claim.organization.id, claim.adminPersonId);
+    if (person === undefined) throw new Error("no creator");
+    person.removed = true;
+  };
+
+  it("is not made admin again by the session check or another create", async () => {
+    const { world, browser } = setup("ops@example.com");
+    await browser.signIn(world.workos.addUser("ops@example.com"));
+    expect((await browser.post("/auth/organization", { name: "Acme" })).status).toBe(200);
+    removeCreator(world);
+    const calls = world.workos.ensureMembershipCalls;
+
+    // Still signed in, but no longer in the Organization the session points at.
+    expect(await browser.session()).toEqual({ status: 200, body: { _tag: "NotInOrganization" } });
+    expect((await browser.post("/auth/organization", { name: "Acme again" })).status).toBe(403);
+    expect(await browser.session()).toEqual({ status: 200, body: { _tag: "NotInOrganization" } });
+    expect(world.workos.ensureMembershipCalls).toBe(calls);
+    expect(world.workos.organizations.size).toBe(1);
+  });
+
+  it("closes a creation interrupted before the removal, without making them admin", async () => {
+    const { world, browser } = setup("ops@example.com");
+    await browser.signIn(world.workos.addUser("ops@example.com"));
+    world.workos.failCreateOrganization = 1;
+    expect((await browser.post("/auth/organization", { name: "Acme" })).status).toBe(503);
+    removeCreator(world);
+
+    expect((await browser.post("/auth/organization", { name: "Acme" })).status).toBe(403);
+    expect(await browser.session()).toEqual({ status: 200, body: { _tag: "NotInOrganization" } });
+    expect(world.workos.ensureMembershipCalls).toBe(0);
+    expect([...world.index.claims.values()][0]?.completed).toBe(true);
   });
 });
 
@@ -239,6 +311,18 @@ describe("linking a WorkOS user to a Person", () => {
     world.addPerson(acme.id, "ada@example.com");
     await browser.signIn(world.workos.addUser("ada+work@example.com"));
     expect((await browser.session()).body).toEqual({ _tag: "NotInOrganization" });
+  });
+
+  it("never links a non-ASCII email that only normalises to the Person's", async () => {
+    const { world, browser } = setup("kate@example.com");
+    const acme = world.addOrganization("Acme");
+    const personId = world.addPerson(acme.id, "kate@example.com");
+    // U+212A KELVIN SIGN lower-cases to an ASCII `k`.
+    await browser.signIn(world.workos.addUser("\u212aate@example.com"));
+
+    expect((await browser.session()).body).toEqual({ _tag: "NotInOrganization" });
+    expect(world.durable.person(acme.id, personId)?.workosUserId).toBeNull();
+    expect(world.workos.memberships.size).toBe(0);
   });
 
   it("offers an Organization picker when the email matches Persons in several Organizations", async () => {
@@ -306,14 +390,43 @@ describe("the per-request session check", () => {
     expect((await replay.session()).status).toBe(401);
   });
 
-  it("denies the session on the next request once the Person is removed from the Organization", async () => {
+  it("drops a removed Person from the Organization on the next request, but keeps the session", async () => {
     const { world, browser, acme, personId } = await signedIn();
     const person = world.durable.person(acme.id, personId);
     if (person === undefined) throw new Error("no person");
     person.removed = true;
-    const denied = await browser.get("/auth/session");
-    expect(denied.status).toBe(401);
-    expect(browser.cookies.has(SESSION_COOKIE)).toBe(false);
+    expect(await browser.session()).toEqual({ status: 200, body: { _tag: "NotInOrganization" } });
+    expect(browser.cookies.has(SESSION_COOKIE)).toBe(true);
+  });
+
+  it("offers the Organizations a removed Person still belongs to", async () => {
+    const { world, browser } = setup();
+    const acme = world.addOrganization("Acme");
+    const globex = world.addOrganization("Globex");
+    const acmePerson = world.addPerson(acme.id, "ada@example.com");
+    const globexPerson = world.addPerson(globex.id, "ada@example.com");
+    await browser.signIn(world.workos.addUser("ada@example.com"));
+    await browser.post("/auth/organization/choose", { organizationId: acme.id });
+    const person = world.durable.person(acme.id, acmePerson);
+    if (person === undefined) throw new Error("no person");
+    person.removed = true;
+
+    expect((await browser.session()).body).toMatchObject({ _tag: "ChooseOrganization" });
+    const chosen = await browser.post("/auth/organization/choose", { organizationId: globex.id });
+    expect(await chosen.json()).toMatchObject({ _tag: "SignedIn", personId: globexPerson });
+  });
+
+  it("denies a revoked session even after its expired access token is refreshed", async () => {
+    const { world, browser, newBrowser } = await signedIn();
+    const stolen = browser.cookies.get(SESSION_COOKIE) ?? "";
+    world.workos.failRevokeSession = true; // only our deny list stands between the copy and access
+    await browser.fetch("/auth/logout", { method: "POST", headers: { origin: ORIGIN } });
+    world.workos.expire(stolen);
+
+    const replay = newBrowser();
+    replay.cookies.set(SESSION_COOKIE, stolen);
+    expect((await replay.session()).status).toBe(401);
+    expect(replay.cookies.has(SESSION_COOKIE)).toBe(false);
   });
 
   it("refreshes an expired access token and writes the rotated cookie", async () => {
@@ -333,6 +446,77 @@ describe("the per-request session check", () => {
     world.workos.expire(sealed);
     world.workos.sessions.delete(sealed);
     expect((await browser.session()).status).toBe(401);
+  });
+
+  it("prefers, when WorkOS asks for an organization at sign-in, one the user is still a Person in", async () => {
+    const { world, browser, newBrowser } = setup();
+    const acme = world.addOrganization("Acme");
+    const globex = world.addOrganization("Globex");
+    const acmePerson = world.addPerson(acme.id, "ada@example.com");
+    const globexPerson = world.addPerson(globex.id, "ada@example.com");
+    const code = world.workos.addUser("ada@example.com");
+    const userId = world.workos.codes.get(code);
+    await browser.signIn(code);
+    for (const organization of [acme, globex]) {
+      await browser.post("/auth/organization/choose", { organizationId: organization.id });
+    }
+    expect(world.workos.memberships.has(`${userId}/${acme.workos}`)).toBe(true);
+    const person = world.durable.person(acme.id, acmePerson);
+    if (person === undefined) throw new Error("no person");
+    person.removed = true;
+
+    world.workos.requireOrganizationSelection = true;
+    const next = newBrowser();
+    await next.signIn(world.workos.newCode(userId));
+    expect((await next.session()).body).toMatchObject({
+      _tag: "SignedIn",
+      organization: { id: globex.id },
+      personId: globexPerson,
+    });
+  });
+
+  it("signs out with 403 and keeps the cookie when the request comes from another origin", async () => {
+    const { world, browser } = await signedIn();
+    const logout = await browser.fetch("/auth/logout", {
+      method: "POST",
+      headers: { origin: "https://pr-1.submit.surveybeat.app" },
+    });
+    expect(logout.status).toBe(403);
+    expect(browser.cookies.has(SESSION_COOKIE)).toBe(true);
+    expect(world.index.revoked.size).toBe(0);
+    expect(world.workos.revokedSessions.size).toBe(0);
+  });
+
+  it("revokes the session at WorkOS too on sign-out", async () => {
+    const { world, browser } = await signedIn();
+    await browser.fetch("/auth/logout", { method: "POST", headers: { origin: ORIGIN } });
+    expect([...world.index.revoked]).toEqual([...world.workos.revokedSessions]);
+    expect(world.workos.revokedSessions.size).toBe(1);
+  });
+
+  it("signs out a session whose access token expired", async () => {
+    const { world, browser } = await signedIn();
+    world.workos.expire(browser.cookies.get(SESSION_COOKIE) ?? "");
+    const logout = await browser.fetch("/auth/logout", { method: "POST", headers: { origin: ORIGIN } });
+    expect(logout.status).toBe(303);
+    expect(logout.headers.get("location")).toMatch(
+      /^https:\/\/auth\.example\.test\/logout\?session_id=session_/,
+    );
+    expect(browser.cookies.has(SESSION_COOKIE)).toBe(false);
+    expect(world.index.revoked.size).toBe(1);
+    expect(world.workos.revokedSessions.size).toBe(1);
+  });
+
+  it("answers 503 when WorkOS cannot revoke, after denying the session and dropping the cookie", async () => {
+    const { world, browser, newBrowser } = await signedIn();
+    const stolen = browser.cookies.get(SESSION_COOKIE) ?? "";
+    world.workos.failRevokeSession = true;
+    const logout = await browser.fetch("/auth/logout", { method: "POST", headers: { origin: ORIGIN } });
+    expect(logout.status).toBe(503);
+    expect(browser.cookies.has(SESSION_COOKIE)).toBe(false);
+    const replay = newBrowser();
+    replay.cookies.set(SESSION_COOKIE, stolen);
+    expect((await replay.session()).status).toBe(401);
   });
 
   it("refuses state-changing requests from another origin", async () => {

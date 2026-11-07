@@ -104,11 +104,52 @@ describe("D1 PeopleIndex", () => {
           concurrency: "unbounded",
         },
       );
-      assert.deepStrictEqual(a, first);
-      assert.deepStrictEqual(b, first);
-      assert.deepStrictEqual(yield* index.claimOf(ada), Option.some(first));
+      const open = { ...first, completed: false };
+      assert.deepStrictEqual(a, open);
+      assert.deepStrictEqual(b, open);
+      assert.deepStrictEqual(yield* index.claimOf(ada), Option.some(open));
     }),
   );
+
+  it.effect("closes a claim for good once it is completed", () =>
+    Effect.gen(function* () {
+      const index = yield* makeIndex();
+      const claim = { organization: acme, adminPersonId: PersonId.make("admin-1") };
+      yield* index.claimOrganization(ada, claim);
+      yield* index.completeClaim(ada, 1);
+      yield* index.completeClaim(ada, 2);
+      const closed = { ...claim, completed: true };
+      assert.deepStrictEqual(yield* index.claimOf(ada), Option.some(closed));
+      assert.deepStrictEqual(yield* index.claimOrganization(ada, claim), closed);
+    }),
+  );
+
+  it("closes, when migrating, the claims whose creator was already linked", () => {
+    const sqlite = new DatabaseSync(":memory:");
+    const files = readdirSync(migrations).sort();
+    const before = files.filter((file) => file < "0004");
+    for (const file of before) sqlite.exec(readFileSync(new URL(file, migrations), "utf8"));
+    sqlite.exec(`
+      INSERT INTO organization_claim VALUES ('user_done', 'org-done', 'Done', 'admin-done');
+      INSERT INTO organization_claim VALUES ('user_open', 'org-open', 'Open', 'admin-open');
+      INSERT INTO person_index VALUES ('org-done', 'admin-done', 'done@example.com', 'user_done');
+    `);
+    for (const file of files.filter((file) => !before.includes(file))) {
+      sqlite.exec(readFileSync(new URL(file, migrations), "utf8"));
+    }
+    const rows = sqlite
+      .prepare(
+        "SELECT workos_user_id, completed_at IS NOT NULL AS completed FROM organization_claim ORDER BY 1",
+      )
+      .all();
+    assert.deepStrictEqual(
+      rows.map((row) => ({ ...row })),
+      [
+        { workos_user_id: "user_done", completed: 1 },
+        { workos_user_id: "user_open", completed: 0 },
+      ],
+    );
+  });
 
   it.effect("records revoked sessions", () =>
     Effect.gen(function* () {

@@ -25,6 +25,18 @@ export type SessionCheck =
 
 export type OrganizationRole = "admin" | "member";
 
+/** What exchanging the callback's code gave. */
+export type CodeExchange =
+  | { readonly _tag: "Authenticated"; readonly session: ProviderSession }
+  /** The user has several WorkOS memberships and must pick one before a session exists. */
+  | {
+      readonly _tag: "OrganizationSelectionRequired";
+      readonly pendingAuthenticationToken: Redacted.Redacted<string>;
+      /** The user WorkOS authenticated, when it says. */
+      readonly userId: Option.Option<WorkosUserId>;
+      readonly organizations: ReadonlyArray<WorkosOrganizationId>;
+    };
+
 /**
  * WorkOS AuthKit behind a domain interface. The adapter is `@workos-inc/node`'s workerd build;
  * tests use a fake. Every call that reaches WorkOS maps transient failures to `AuthUnavailable`.
@@ -35,6 +47,11 @@ export interface IdentityProviderShape {
   /** Exchanges the callback's code. Fails `Unauthenticated` for a bad or used code. */
   readonly authenticateWithCode: (
     code: string,
+  ) => Effect.Effect<CodeExchange, Unauthenticated | AuthUnavailable>;
+  /** Finishes an exchange that needed an organization picked. */
+  readonly authenticateWithOrganizationSelection: (
+    pendingAuthenticationToken: Redacted.Redacted<string>,
+    organization: WorkosOrganizationId,
   ) => Effect.Effect<ProviderSession, Unauthenticated | AuthUnavailable>;
   /** Verifies the access token locally (JWKS), with no network call once the keys are cached. */
   readonly authenticate: (sealed: Redacted.Redacted<string>) => Effect.Effect<SessionCheck, AuthUnavailable>;
@@ -45,6 +62,8 @@ export interface IdentityProviderShape {
   ) => Effect.Effect<ProviderSession, Unauthenticated | AuthUnavailable>;
   /** Where to send the browser to end the WorkOS session too. */
   readonly logoutUrl: (sessionId: SessionId, returnTo: string) => string;
+  /** Ends the WorkOS session, so its refresh token stops working. Idempotent. */
+  readonly revokeSession: (sessionId: SessionId) => Effect.Effect<void, AuthUnavailable>;
   /** Idempotent per `externalId`: a retry returns the organization the first call created. */
   readonly createOrganization: (
     name: string,
@@ -66,6 +85,11 @@ export class IdentityProvider extends Context.Service<IdentityProvider, Identity
 export interface OrganizationClaim {
   readonly organization: OrganizationSummary;
   readonly adminPersonId: PersonId;
+}
+
+/** A claim as the index holds it. A completed claim is never finished again. */
+export interface ClaimStatus extends OrganizationClaim {
+  readonly completed: boolean;
 }
 
 /**
@@ -104,8 +128,10 @@ export interface PeopleIndexShape {
   readonly claimOrganization: (
     userId: WorkosUserId,
     proposed: OrganizationClaim,
-  ) => Effect.Effect<OrganizationClaim>;
-  readonly claimOf: (userId: WorkosUserId) => Effect.Effect<Option.Option<OrganizationClaim>>;
+  ) => Effect.Effect<ClaimStatus>;
+  readonly claimOf: (userId: WorkosUserId) => Effect.Effect<Option.Option<ClaimStatus>>;
+  /** Closes the user's claim. Idempotent: the first completion time is kept. */
+  readonly completeClaim: (userId: WorkosUserId, now: number) => Effect.Effect<void>;
   readonly revokeSession: (sessionId: SessionId, now: number) => Effect.Effect<void>;
   readonly isSessionRevoked: (sessionId: SessionId) => Effect.Effect<boolean>;
 }

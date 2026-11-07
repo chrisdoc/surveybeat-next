@@ -43,7 +43,10 @@ export class AuthApiGroup extends HttpApiGroup.make("auth")
       query: { code: Schema.optional(Schema.String), state: Schema.optional(Schema.String) },
       success: HttpApiSchema.Empty(302),
     }),
-    HttpApiEndpoint.post("logout", "/logout", { success: HttpApiSchema.Empty(303) }),
+    HttpApiEndpoint.post("logout", "/logout", {
+      success: HttpApiSchema.Empty(303),
+      error: [Forbidden, AuthUnavailable],
+    }),
     HttpApiEndpoint.get("session", "/session", {
       success: SessionState,
       error: [Unauthenticated, AuthUnavailable],

@@ -1,11 +1,12 @@
 import { SurveyBeatApi } from "@surveybeat/api";
 import {
   AuthUnavailable,
-  EmailAddress,
+  type ClaimStatus,
+  type CodeExchange,
   IdentityProvider,
+  identityOf,
   NewIds,
   normaliseEmail,
-  type OrganizationClaim,
   OrganizationCreationAllowlist,
   OrganizationId,
   OrganizationPeople,
@@ -60,9 +61,17 @@ export class FakeWorkos {
   readonly sessions = new Map<string, FakeSession>();
   readonly organizations = new Map<OrganizationId, { id: WorkosOrganizationId; name: string }>();
   readonly memberships = new Map<string, OrganizationRole>();
+  /** WorkOS sessions ended by `revokeSession`: their refresh token no longer works. */
+  readonly revokedSessions = new Set<SessionId>();
+  private readonly pending = new Map<string, WorkosUserId>();
   createOrganizationCalls = 0;
+  ensureMembershipCalls = 0;
   /** Fail the next N `createOrganization` calls as if WorkOS were down. */
   failCreateOrganization = 0;
+  /** Fail `revokeSession` as if WorkOS were down. */
+  failRevokeSession = false;
+  /** Ask a user with several memberships to pick one at the code exchange, as AuthKit may. */
+  requireOrganizationSelection = false;
   private counter = 0;
 
   addUser(email: string, emailVerified = true): string {
@@ -70,6 +79,14 @@ export class FakeWorkos {
     this.users.set(id, { id, email, emailVerified });
     const code = `code_${this.counter}`;
     this.codes.set(code, id);
+    return code;
+  }
+
+  /** Another sign-in for an existing user. */
+  newCode(userId: WorkosUserId | undefined): string {
+    if (userId === undefined || !this.users.has(userId)) throw new Error("no such user");
+    const code = `code_${++this.counter}`;
+    this.codes.set(code, userId);
     return code;
   }
 
@@ -90,11 +107,7 @@ export class FakeWorkos {
     return {
       sealed: Redacted.make(sealed),
       sessionId: session.sessionId,
-      identity: {
-        userId: user.id,
-        email: EmailAddress.make(normaliseEmail(user.email)),
-        emailVerified: user.emailVerified,
-      },
+      identity: identityOf(user.id, user.email, user.emailVerified),
       workosOrganizationId: session.workosOrganizationId,
       role: Option.flatMap(session.workosOrganizationId, (organization) =>
         Option.fromNullishOr(this.memberships.get(`${user.id}/${organization}`)),
@@ -116,7 +129,34 @@ export class FakeWorkos {
         const userId = this.codes.get(code);
         if (userId === undefined) return Effect.fail(new Unauthenticated());
         this.codes.delete(code);
-        return Effect.succeed(this.issue(userId, SessionId.make(`session_${++this.counter}`), Option.none()));
+        const organizations = [...this.memberships.keys()]
+          .filter((key) => key.startsWith(`${userId}/`))
+          .map((key) => WorkosOrganizationId.make(key.slice(userId.length + 1)));
+        if (this.requireOrganizationSelection && organizations.length > 1) {
+          const token = `pending_${++this.counter}`;
+          this.pending.set(token, userId);
+          return Effect.succeed<CodeExchange>({
+            _tag: "OrganizationSelectionRequired",
+            pendingAuthenticationToken: Redacted.make(token),
+            userId: Option.some(userId),
+            organizations,
+          });
+        }
+        return Effect.succeed<CodeExchange>({
+          _tag: "Authenticated",
+          session: this.issue(userId, SessionId.make(`session_${++this.counter}`), Option.none()),
+        });
+      }),
+    authenticateWithOrganizationSelection: (token, organization) =>
+      Effect.suspend(() => {
+        const userId = this.pending.get(Redacted.value(token));
+        if (userId === undefined || !this.memberships.has(`${userId}/${organization}`)) {
+          return Effect.fail(new Unauthenticated());
+        }
+        this.pending.delete(Redacted.value(token));
+        return Effect.succeed(
+          this.issue(userId, SessionId.make(`session_${++this.counter}`), Option.some(organization)),
+        );
       }),
     authenticate: (sealed) =>
       Effect.sync(() => {
@@ -128,7 +168,9 @@ export class FakeWorkos {
     refresh: (sealed, organization) =>
       Effect.suspend(() => {
         const session = this.sessions.get(Redacted.value(sealed));
-        if (session === undefined) return Effect.fail(new Unauthenticated());
+        if (session === undefined || this.revokedSessions.has(session.sessionId)) {
+          return Effect.fail(new Unauthenticated());
+        }
         const target = Option.orElse(organization, () => session.workosOrganizationId);
         if (Option.isSome(target) && !this.memberships.has(`${session.userId}/${target.value}`)) {
           return Effect.fail(new Unauthenticated());
@@ -139,6 +181,12 @@ export class FakeWorkos {
       }),
     logoutUrl: (sessionId, returnTo) =>
       `https://auth.example.test/logout?${new URLSearchParams({ session_id: sessionId, return_to: returnTo }).toString()}`,
+    revokeSession: (sessionId) =>
+      Effect.suspend(() => {
+        if (this.failRevokeSession) return Effect.fail(new AuthUnavailable());
+        this.revokedSessions.add(sessionId);
+        return Effect.void;
+      }),
     createOrganization: (name, externalId) =>
       Effect.suspend(() => {
         this.createOrganizationCalls++;
@@ -154,6 +202,7 @@ export class FakeWorkos {
       }),
     ensureMembership: (userId, organization, role) =>
       Effect.sync(() => {
+        this.ensureMembershipCalls++;
         const key = `${userId}/${organization}`;
         if (!this.memberships.has(key)) this.memberships.set(key, role);
       }),
@@ -166,7 +215,7 @@ export class MemoryIndex {
     string,
     { organizationId: OrganizationId; personId: PersonId; email: string; userId: WorkosUserId | null }
   >();
-  readonly claims = new Map<WorkosUserId, OrganizationClaim>();
+  readonly claims = new Map<WorkosUserId, ClaimStatus>();
   readonly revoked = new Set<SessionId>();
 
   private candidate(organizationId: OrganizationId, personId: PersonId, linked: boolean): PersonCandidate {
@@ -225,10 +274,16 @@ export class MemoryIndex {
       Effect.sync(() => {
         const existing = this.claims.get(userId);
         if (existing !== undefined) return existing;
-        this.claims.set(userId, proposed);
-        return proposed;
+        const claim = { ...proposed, completed: false };
+        this.claims.set(userId, claim);
+        return claim;
       }),
     claimOf: (userId) => Effect.sync(() => Option.fromNullishOr(this.claims.get(userId))),
+    completeClaim: (userId) =>
+      Effect.sync(() => {
+        const claim = this.claims.get(userId);
+        if (claim !== undefined) this.claims.set(userId, { ...claim, completed: true });
+      }),
     revokeSession: (sessionId) => Effect.sync(() => void this.revoked.add(sessionId)),
     isSessionRevoked: (sessionId) => Effect.sync(() => this.revoked.has(sessionId)),
   });

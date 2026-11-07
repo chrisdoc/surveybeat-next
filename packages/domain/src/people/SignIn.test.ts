@@ -1,13 +1,36 @@
 import { describe, expect, it } from "@effect/vitest";
-import { EmailAddress } from "../email/Email.ts";
-import { type Identity, OrganizationCreationAllowlist, PersonId, WorkosUserId } from "./Identity.ts";
+import {
+  type Identity,
+  identityOf,
+  normaliseEmail,
+  OrganizationCreationAllowlist,
+  PersonId,
+  WorkosUserId,
+} from "./Identity.ts";
 import { OrganizationId } from "./Organization.ts";
 import { candidatesFor, decideSignIn, type PersonCandidate } from "./SignIn.ts";
 
-const identity = (emailVerified: boolean, email = "ada@example.com"): Identity => ({
-  userId: WorkosUserId.make("user_1"),
-  email: EmailAddress.make(email),
-  emailVerified,
+const identity = (emailVerified: boolean, email = "ada@example.com"): Identity =>
+  identityOf(WorkosUserId.make("user_1"), email, emailVerified);
+
+/** U+212A KELVIN SIGN: lower-cases (and NFKC-normalises) to an ASCII `k`. */
+const KELVIN = "\u212a";
+
+describe("email matching", () => {
+  it("normalises case, whitespace, and compatibility forms", () => {
+    expect(normaliseEmail(" Ada@Example.COM ")).toBe("ada@example.com");
+    expect(normaliseEmail("\uff41da@example.com")).toBe("ada@example.com");
+  });
+
+  it("lets a non-ASCII address sign in but never match by email, even when verified", () => {
+    const kelvin = identity(true, `${KELVIN}ate@example.com`);
+    expect(kelvin.email).toBe("kate@example.com");
+    expect(kelvin.emailMatchable).toBe(false);
+    expect(candidatesFor(kelvin, [], [candidate("Acme", false)])).toEqual([]);
+    expect(decideSignIn(kelvin, [], new OrganizationCreationAllowlist("kate@example.com"))._tag).toBe(
+      "NotInOrganization",
+    );
+  });
 });
 
 const candidate = (organization: string, linked: boolean): PersonCandidate => ({

@@ -1,8 +1,8 @@
 import {
   AuthUnavailable,
-  EmailAddress,
+  type CodeExchange,
   IdentityProvider,
-  normaliseEmail,
+  identityOf,
   type ProviderSession,
   SessionId,
   type SessionCheck,
@@ -76,11 +76,7 @@ const toSession = (
 ): ProviderSession => ({
   sealed: Redacted.make(sealed),
   sessionId: SessionId.make(claims.sessionId),
-  identity: {
-    userId: WorkosUserId.make(claims.user.id),
-    email: EmailAddress.make(normaliseEmail(claims.user.email)),
-    emailVerified: claims.user.emailVerified,
-  },
+  identity: identityOf(WorkosUserId.make(claims.user.id), claims.user.email, claims.user.emailVerified),
   workosOrganizationId: Option.map(Option.fromNullishOr(claims.organizationId), (id) =>
     WorkosOrganizationId.make(id),
   ),
@@ -107,6 +103,11 @@ export const workosIdentityProvider = (config: WorkosConfig) => {
       ),
     );
 
+  const sealedResponse = (response: { readonly sealedSession?: string | undefined }) =>
+    response.sealedSession === undefined
+      ? Effect.fail(new AuthUnavailable())
+      : verified(response.sealedSession);
+
   const authenticateWithCode = (code: string) =>
     authCall(async () => {
       try {
@@ -116,30 +117,29 @@ export const workosIdentityProvider = (config: WorkosConfig) => {
           session: { sealSession: true, cookiePassword },
         });
       } catch (error) {
-        // A user with several WorkOS memberships may be asked to pick one. Take the first; our own
-        // Organization picker switches with a refresh afterwards.
-        const organization =
-          error instanceof AuthenticationException ? error.rawData.organizations?.[0] : undefined;
+        // A user with several WorkOS memberships may be asked to pick one. The sign-in flow picks
+        // (`signInWithCode`), since only it knows where the user is still a Person.
         if (
           error instanceof AuthenticationException &&
           error.code === "organization_selection_required" &&
-          error.pendingAuthenticationToken !== undefined &&
-          organization !== undefined
+          error.pendingAuthenticationToken !== undefined
         ) {
-          return await users.authenticateWithOrganizationSelection({
-            clientId: config.clientId,
-            pendingAuthenticationToken: error.pendingAuthenticationToken,
-            organizationId: organization.id,
-            session: { sealSession: true, cookiePassword },
-          });
+          return {
+            _tag: "OrganizationSelectionRequired",
+            pendingAuthenticationToken: Redacted.make(error.pendingAuthenticationToken),
+            userId: Option.map(Option.fromNullishOr(error.rawData.user?.id), (id) => WorkosUserId.make(id)),
+            organizations: (error.rawData.organizations ?? []).map((organization) =>
+              WorkosOrganizationId.make(organization.id),
+            ),
+          } satisfies CodeExchange;
         }
         throw error;
       }
     }).pipe(
-      Effect.flatMap((response) =>
-        response.sealedSession === undefined
-          ? Effect.fail(new AuthUnavailable())
-          : verified(response.sealedSession),
+      Effect.flatMap((response): Effect.Effect<CodeExchange, AuthUnavailable> =>
+        "_tag" in response
+          ? Effect.succeed(response)
+          : Effect.map(sealedResponse(response), (session) => ({ _tag: "Authenticated", session })),
       ),
     );
 
@@ -148,6 +148,16 @@ export const workosIdentityProvider = (config: WorkosConfig) => {
       users.getAuthorizationUrl({ provider: "authkit", clientId: config.clientId, redirectUri, state }),
 
     authenticateWithCode,
+
+    authenticateWithOrganizationSelection: (pendingAuthenticationToken, organizationId) =>
+      authCall(() =>
+        users.authenticateWithOrganizationSelection({
+          clientId: config.clientId,
+          pendingAuthenticationToken: Redacted.value(pendingAuthenticationToken),
+          organizationId,
+          session: { sealSession: true, cookiePassword },
+        }),
+      ).pipe(Effect.flatMap(sealedResponse)),
 
     authenticate: (sealed) =>
       Effect.tryPromise({
@@ -186,6 +196,15 @@ export const workosIdentityProvider = (config: WorkosConfig) => {
       ),
 
     logoutUrl: (sessionId, returnTo) => users.getLogoutUrl({ sessionId, returnTo }),
+
+    revokeSession: (sessionId) =>
+      call(() =>
+        users.revokeSession({ sessionId }).catch((error: unknown) => {
+          // Already ended or unknown: what revoking wants.
+          if (isRefusal(error)) return undefined;
+          throw error;
+        }),
+      ).pipe(Effect.asVoid),
 
     createOrganization: (name, externalId) => {
       const byExternalId = call(() =>

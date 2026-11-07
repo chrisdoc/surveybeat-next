@@ -1,5 +1,5 @@
 import { Clock, Effect, Option, Redacted } from "effect";
-import type { OrganizationCreationAllowlist, PersonId } from "./Identity.ts";
+import type { OrganizationCreationAllowlist, PersonId, WorkosOrganizationId } from "./Identity.ts";
 import type { OrganizationId } from "./Organization.ts";
 import {
   candidatesFor,
@@ -11,6 +11,7 @@ import {
   Unauthenticated,
 } from "./SignIn.ts";
 import {
+  type ClaimStatus,
   IdentityProvider,
   NewIds,
   type OrganizationClaim,
@@ -44,7 +45,9 @@ export interface SessionOutcome {
  * 2. our own deny check: the session is not revoked (D1), and when the token is scoped to an
  *    Organization, the user's Person there is still active (its Durable Object).
  * The JWT only proves who the caller is; step 2 is what makes revocation immediate even though an
- * access token stays valid until it expires.
+ * access token stays valid until it expires. Only a revoked session is refused outright: a user
+ * removed from the token's Organization keeps the session, with no member, so they get the picker
+ * or "not part of an Organization" rather than a sign-in loop.
  */
 export const checkSession = Effect.fnUntraced(function* (sealed: Redacted.Redacted<string>) {
   const identityProvider = yield* IdentityProvider;
@@ -73,8 +76,10 @@ export const checkSession = Effect.fnUntraced(function* (sealed: Redacted.Redact
   if (Option.isNone(organization)) return { session, member: Option.none() } satisfies CheckedSession;
 
   const person = yield* people.activePerson(organization.value.id, session.identity.userId);
-  // Removed from the Organization (or never a Person there): the session is no longer good for it.
-  if (Option.isNone(person)) return yield* new Unauthenticated();
+  // Removed from the Organization (or never a Person there): the session is no longer good for it,
+  // but still is for the user. WorkOS keeps a refreshed session in its organization, so the token
+  // stays as it is and nothing trusts its organization: only `member` grants access.
+  if (Option.isNone(person)) return { session, member: Option.none() } satisfies CheckedSession;
   return {
     session,
     member: Option.some({ organization: organization.value, personId: person.value }),
@@ -97,8 +102,8 @@ const candidatesOf = Effect.fnUntraced(function* (session: ProviderSession) {
   const [linked, unlinked] = yield* Effect.all(
     [
       index.linkedPersons(identity.userId),
-      // An unverified email never links (ADR 0002), so it is not even looked up.
-      identity.emailVerified ? index.unlinkedPersons(identity.email) : Effect.succeed([]),
+      // An unverified or non-ASCII email never links (ADR 0002), so it is not even looked up.
+      identity.emailMatchable ? index.unlinkedPersons(identity.email) : Effect.succeed([]),
     ],
     { concurrency: "unbounded" },
   );
@@ -140,9 +145,10 @@ const enter = Effect.fnUntraced(function* (session: ProviderSession, candidate: 
 });
 
 /**
- * Finishes creating a claimed Organization. Safe to run any number of times, from any point a
- * previous run stopped at: each step is idempotent, and their order means a crash leaves nothing
- * that a later run cannot complete.
+ * Finishes creating a claimed Organization, then closes the claim so it is never finished again
+ * (a creator removed later must not be made admin by it). Safe to run any number of times, from
+ * any point a previous run stopped at: each step is idempotent, and their order means a crash
+ * leaves nothing that a later run cannot complete.
  */
 const finishCreation = Effect.fnUntraced(function* (session: ProviderSession, claim: OrganizationClaim) {
   const identityProvider = yield* IdentityProvider;
@@ -156,6 +162,13 @@ const finishCreation = Effect.fnUntraced(function* (session: ProviderSession, cl
     email: identity.email,
     userId: identity.userId,
   });
+  // `createWithAdmin` does nothing once the Organization exists, so a creator removed since the
+  // claim stays removed: close the claim and refuse.
+  const person = yield* people.activePerson(organization.id, identity.userId);
+  if (Option.isNone(person)) {
+    yield* index.completeClaim(identity.userId, yield* Clock.currentTimeMillis);
+    return yield* new Forbidden();
+  }
   const workosOrganizationId = yield* identityProvider.createOrganization(organization.name, organization.id);
   yield* index.putOrganization(organization, Option.some(workosOrganizationId));
   yield* index.putPerson({
@@ -165,26 +178,27 @@ const finishCreation = Effect.fnUntraced(function* (session: ProviderSession, cl
     userId: Option.some(identity.userId),
   });
   yield* identityProvider.ensureMembership(identity.userId, workosOrganizationId, "admin");
+  yield* index.completeClaim(identity.userId, yield* Clock.currentTimeMillis);
   const refreshed = yield* identityProvider.refresh(session.sealed, Option.some(workosOrganizationId));
-  return signedIn(refreshed, { organization, personId: adminPersonId });
+  return signedIn(refreshed, { organization, personId: person.value });
 });
 
-/** A creation this user started and that has not reached their session yet. */
-const unfinishedClaim = Effect.fnUntraced(function* (
+/** A creation this user may still finish: started, not completed, and still allowlisted. */
+const isUnfinished = (
+  claim: Option.Option<ClaimStatus>,
   session: ProviderSession,
-  candidates: ReadonlyArray<PersonCandidate>,
-) {
-  const claim = yield* (yield* PeopleIndex).claimOf(session.identity.userId);
-  return Option.filter(
-    claim,
-    (claimed) => !candidates.some((candidate) => candidate.organization.id === claimed.organization.id),
-  );
-});
+  allowlist: OrganizationCreationAllowlist,
+): claim is Option.Some<ClaimStatus> =>
+  Option.isSome(claim) && !claim.value.completed && allowlist.allows(session.identity);
 
 /**
  * `GET /auth/session`: where the user stands. A user with exactly one Person enters (and is linked
  * on first sign-in); several get the Organization picker; none get "Create an Organization" or
  * "You're not part of an Organization yet".
+ *
+ * A GET with side effects (linking, WorkOS membership, finishing an open claim), on purpose: each
+ * is idempotent and is only what this user is entitled to anyway, so a cross-site top-level GET
+ * (which carries the `SameSite=Lax` cookie) can at most do early what their next visit would do.
  */
 export const sessionState = Effect.fnUntraced(function* (
   checked: CheckedSession,
@@ -193,11 +207,10 @@ export const sessionState = Effect.fnUntraced(function* (
   const { session } = checked;
   if (Option.isSome(checked.member)) return signedIn(session, checked.member.value);
 
-  const candidates = yield* candidatesOf(session);
-  const claim = yield* unfinishedClaim(session, candidates);
-  if (Option.isSome(claim)) return yield* finishCreation(session, claim.value);
+  const claim = yield* (yield* PeopleIndex).claimOf(session.identity.userId);
+  if (isUnfinished(claim, session, allowlist)) return yield* finishCreation(session, claim.value);
 
-  const decision = decideSignIn(session.identity, candidates, allowlist);
+  const decision = decideSignIn(session.identity, yield* candidatesOf(session), allowlist);
   switch (decision._tag) {
     case "Enter":
       return yield* enter(session, decision.candidate);
@@ -210,14 +223,27 @@ export const sessionState = Effect.fnUntraced(function* (
         },
       } satisfies SessionOutcome;
     case "CreateOrganization":
+      // One Organization per creator: a user whose claim is closed cannot create another.
+      return {
+        session,
+        state: { _tag: Option.isSome(claim) ? "NotInOrganization" : "CreateOrganization" },
+      } satisfies SessionOutcome;
     case "NotInOrganization":
       return { session, state: { _tag: decision._tag } } satisfies SessionOutcome;
   }
 });
 
+/** Finishes an open claim; a closed one is only entered like any Organization, if still a Person there. */
+const finishOrEnter = (session: ProviderSession, claim: ClaimStatus) =>
+  claim.completed
+    ? enter(session, { organization: claim.organization, personId: claim.adminPersonId, linked: true })
+    : finishCreation(session, claim);
+
 /**
- * `POST /auth/organization`: "Create an Organization" (name only). Idempotent per WorkOS user: the
- * first claim wins, and a double submit or retry finishes that same Organization.
+ * `POST /auth/organization`: "Create an Organization" (name only). Only for a verified,
+ * allowlisted email with no Organization in the session. Idempotent per WorkOS user: the first
+ * claim wins, a retry finishes that same Organization, and a double submit after it was finished
+ * enters it as its (still active) Person.
  */
 export const createOrganization = Effect.fnUntraced(function* (
   checked: CheckedSession,
@@ -228,10 +254,11 @@ export const createOrganization = Effect.fnUntraced(function* (
   const ids = yield* NewIds;
   const { session } = checked;
 
-  const existing = yield* index.claimOf(session.identity.userId);
-  if (Option.isSome(existing)) return yield* finishCreation(session, existing.value);
+  if (Option.isSome(checked.member) || !allowlist.allows(session.identity)) return yield* new Forbidden();
 
-  if (Option.isSome(checked.member)) return yield* new Forbidden();
+  const existing = yield* index.claimOf(session.identity.userId);
+  if (Option.isSome(existing)) return yield* finishOrEnter(session, existing.value);
+
   const decision = decideSignIn(session.identity, yield* candidatesOf(session), allowlist);
   if (decision._tag !== "CreateOrganization") return yield* new Forbidden();
 
@@ -239,7 +266,7 @@ export const createOrganization = Effect.fnUntraced(function* (
     organization: { id: yield* ids.organizationId, name },
     adminPersonId: yield* ids.personId,
   });
-  return yield* finishCreation(session, claim);
+  return yield* finishOrEnter(session, claim);
 });
 
 /** `POST /auth/organization/choose`: the Organization picker. Only an offered Organization can be entered. */
@@ -255,8 +282,43 @@ export const chooseOrganization = Effect.fnUntraced(function* (
 });
 
 /**
+ * `GET /auth/callback`: exchanges the code for a session. When WorkOS needs one of the user's
+ * organizations picked, this takes one where they still have an active Person, so a membership
+ * left over from a removal is not chosen; the first otherwise (the per-request check then treats
+ * the session as having no Organization).
+ */
+export const signInWithCode = Effect.fnUntraced(function* (code: string) {
+  const identityProvider = yield* IdentityProvider;
+  const index = yield* PeopleIndex;
+  const people = yield* OrganizationPeople;
+
+  const exchange = yield* identityProvider.authenticateWithCode(code);
+  if (exchange._tag === "Authenticated") return exchange.session;
+  const [first] = exchange.organizations;
+  if (first === undefined) return yield* new Unauthenticated();
+
+  let chosen: WorkosOrganizationId = first;
+  if (Option.isSome(exchange.userId)) {
+    for (const workosOrganizationId of exchange.organizations) {
+      const organization = yield* index.organizationByWorkos(workosOrganizationId);
+      if (Option.isNone(organization)) continue;
+      if (Option.isSome(yield* people.activePerson(organization.value.id, exchange.userId.value))) {
+        chosen = workosOrganizationId;
+        break;
+      }
+    }
+  }
+  return yield* identityProvider.authenticateWithOrganizationSelection(
+    exchange.pendingAuthenticationToken,
+    chosen,
+  );
+});
+
+/**
  * `POST /auth/logout`: denies the session at once (the access token would otherwise stay valid
- * for minutes) and returns the WorkOS logout URL, or none when there was no live session.
+ * for minutes), ends it at WorkOS so its refresh token stops working, and returns the WorkOS
+ * logout URL, or none when there was no live session. The deny-list row is written first, so it
+ * is in place even when WorkOS cannot be reached (`AuthUnavailable`).
  */
 export const signOut = Effect.fnUntraced(function* (sealed: Redacted.Redacted<string>, returnTo: string) {
   const identityProvider = yield* IdentityProvider;
@@ -275,6 +337,7 @@ export const signOut = Effect.fnUntraced(function* (sealed: Redacted.Redacted<st
   if (Option.isNone(session)) return Option.none<string>();
 
   yield* index.revokeSession(session.value.sessionId, yield* Clock.currentTimeMillis);
+  yield* identityProvider.revokeSession(session.value.sessionId);
   return Option.some(identityProvider.logoutUrl(session.value.sessionId, returnTo));
 });
 
