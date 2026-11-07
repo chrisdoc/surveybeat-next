@@ -1,15 +1,28 @@
 import * as Cloudflare from "@alchemy.run/cloudflare";
-import { Organization as OrganizationModel, OrganizationId, OrganizationNotFound } from "@surveybeat/domain";
+import {
+  EmailSender,
+  Organization as OrganizationModel,
+  OrganizationId,
+  OrganizationNotFound,
+} from "@surveybeat/domain";
 import { SurveyBeatApi } from "@surveybeat/api";
+import { EmailTemplatesLive } from "@surveybeat/emails";
 import { Stack } from "alchemy/Stack";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
 import * as Stream from "effect/Stream";
+import { HttpServerRequest } from "effect/http/HttpServerRequest";
 import * as Etag from "effect/http/Etag";
 import * as HttpPlatform from "effect/http/HttpPlatform";
 import * as HttpRouter from "effect/http/HttpRouter";
 import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
+import { capturingEmailSender } from "./CapturingEmailSender.ts";
+import { cloudflareEmailSender } from "./CloudflareEmailSender.ts";
+import { Database } from "./Database.ts";
+import { EmailEvents, EmailQueue, EmailQueueDlq, SendEmail, sendsRealEmail } from "./Email.ts";
+import { handleDeadLetter, handleDeliveryEvent, handleSendMessage } from "./EmailDelivery.ts";
+import { emailTestRoutes, isTestStage, TEST_ROUTES } from "./EmailTestRoutes.ts";
 import { hostnameFor } from "./Hostnames.ts";
 import Organization from "./Organization.ts";
 import { Jobs, JobsDlq, type JobMessage } from "./Queues.ts";
@@ -50,7 +63,10 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
     return {
       main: import.meta.url,
       // The API routes always reach the Worker. Any other path is a static asset.
-      assets: { directory: assetsDirectory, runWorkerFirst: ["/orgs", "/orgs/*"] },
+      assets: {
+        directory: assetsDirectory,
+        runWorkerFirst: ["/orgs", "/orgs/*", ...(isTestStage(stack.stage) ? [TEST_ROUTES] : [])],
+      },
       ...(hostname === undefined ? {} : { domain: hostname }),
     };
   }),
@@ -69,6 +85,43 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
     yield* Cloudflare.Queues.consumeQueueMessages<JobMessage>(jobsDlq, (stream) =>
       Stream.runForEach(stream, () => Effect.logError("JOB_DEAD_LETTERED")),
     );
+
+    // Transactional email. Production sends through Cloudflare Email Sending; every other stage
+    // records the messages in D1 and binds no `send_email` at all (docs/infra.md).
+    const { stage } = yield* Stack;
+    const database = yield* Cloudflare.D1.QueryDatabase(yield* Database);
+    const emailQueue = yield* EmailQueue;
+    const emailDlq = yield* EmailQueueDlq;
+    const sendClient = sendsRealEmail(stage) ? yield* Cloudflare.Email.Send(yield* SendEmail) : undefined;
+
+    yield* Cloudflare.Queues.consumeQueueMessages(
+      emailQueue,
+      // Retries cover leases held by another delivery and rejections waiting for their next attempt.
+      { batchSize: 10, maxRetries: 10, deadLetterQueue: emailDlq },
+      (stream) =>
+        Effect.gen(function* () {
+          const sender =
+            sendClient === undefined
+              ? yield* capturingEmailSender(database)
+              : yield* cloudflareEmailSender(sendClient);
+          yield* Stream.runForEach(stream, (message) =>
+            handleSendMessage(organizations, database, message),
+          ).pipe(Effect.provideService(EmailSender, sender), Effect.provide(EmailTemplatesLive));
+        }),
+    );
+    yield* Cloudflare.Queues.consumeQueueMessages(emailDlq, (stream) =>
+      Stream.runForEach(stream, (message) => handleDeadLetter(organizations, message)),
+    );
+
+    // Bounces and complaints, from the event subscription on the sending subdomain (infra/alchemy.run.ts).
+    if (sendsRealEmail(stage)) {
+      yield* Cloudflare.Queues.consumeQueueMessages(
+        yield* EmailEvents,
+        { batchSize: 10, maxRetries: 5 },
+        (stream) =>
+          Stream.runForEach(stream, (message) => handleDeliveryEvent(organizations, database, message)),
+      );
+    }
 
     const group = HttpApiBuilder.group(SurveyBeatApi, "organizations", (handlers) =>
       handlers
@@ -96,6 +149,26 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
       ),
     );
 
-    return { fetch: api };
-  }).pipe(Effect.provide(Cloudflare.Queues.EventSourceLive)),
+    if (!isTestStage(stage)) return { fetch: api };
+    const testRoutes = emailTestRoutes(
+      organizations,
+      yield* Cloudflare.Queues.WriteQueue(emailQueue),
+      database,
+    );
+    return {
+      fetch: Effect.gen(function* () {
+        const request = yield* HttpServerRequest;
+        return request.url.split("?")[0] === TEST_ROUTES ? yield* testRoutes : yield* api;
+      }),
+    };
+  }).pipe(
+    Effect.provide(
+      Layer.mergeAll(
+        Cloudflare.Queues.EventSourceLive,
+        Cloudflare.D1.QueryDatabaseBinding,
+        Cloudflare.Email.SendBinding,
+        Cloudflare.Queues.WriteQueueBinding,
+      ),
+    ),
+  ),
 ) {}

@@ -162,5 +162,5 @@ What each one needs from a Worker. All of them work with `fetch` alone, and none
 
 - Size of the starting daily quota: not public, ask Cloudflare.
 - GA date and SLA: none announced as of 2026-11-07.
-- Alchemy support for Email Sending event subscriptions: not documented. Check, or write a small custom resource.
+- Alchemy support for Email Sending event subscriptions: settled on 2026-11-07. `Cloudflare.Queues.Subscription` accepts `source: { type: "email.sending", zoneId, domain }` in 2.0.0-beta.85 (src: `cf/Queues/Subscription.ts`). See `docs/infra.md`, "Email".
 - Whether Cloudflare will offer dedicated IPs or pools for transactional mail: not documented.

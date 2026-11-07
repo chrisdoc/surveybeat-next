@@ -26,6 +26,12 @@
       }
     },
     {
+      "files": ["packages/emails/src/**/*.tsx"],
+      "rules": {
+        "surveybeat/no-literal-ui-text": "error"
+      }
+    },
+    {
       "files": ["**/*.test.ts"],
       "rules": {
         "typescript/consistent-type-assertions": "off"

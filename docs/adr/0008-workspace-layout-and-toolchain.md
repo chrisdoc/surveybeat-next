@@ -8,7 +8,7 @@
 | --- | --- | --- |
 | `packages/domain` | Schemas and services by concept (`people/`, `pulses/`, `rounds/`, `answering/`, `results/`, `actions/`, `privacy/`), schedule and Result calculations | `effect` only |
 | `packages/api` | The HttpApi declaration shared by server and client | `domain` |
-| `packages/cloudflare` | Adapters (Organization DO, D1, Queue consumer, `EmailSender`, alarm scheduler) and the two Worker entries: the main Worker and the Submission Worker | `domain`, `api`, Alchemy runtime |
+| `packages/cloudflare` | Adapters (Organization DO, D1, Queue consumer, `EmailSender`, alarm scheduler) and the two Worker entries: the main Worker and the Submission Worker | `domain`, `api`, `emails` (the Queue consumer renders email), Alchemy runtime |
 | `apps/web` | One Vite 8 project with two entries: the app (React, TanStack Router, Base UI) and the answer page (no React, no HttpApi client: plain `fetch` plus shared Schemas) | `api`, `domain` (Schemas) |
 | `packages/emails` | Email templates | `domain` |
 | `infra` | The Alchemy stack and stages (`pr-<n>`, `staging`, `production`) | everything |

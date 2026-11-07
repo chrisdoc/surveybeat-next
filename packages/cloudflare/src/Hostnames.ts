@@ -1,4 +1,6 @@
 export const ZONE = "surveybeat.app";
+/** The `surveybeat.app` zone. Not a secret: it appears in every zone API URL. */
+export const ZONE_ID = "228eec30edf283bf8eb7a628283720f1";
 
 /**
  * The custom hostname a Worker is served on in a stage, or undefined for workers.dev.
