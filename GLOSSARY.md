@@ -96,6 +96,10 @@ _Avoid_: Response, value
 A random secret held only by a member's browser that lets them change their anonymous Submission.
 _Avoid_: Token (that is the Invitation's)
 
+**Contributor**:
+A Submission counted toward one shown aggregate, because it gave that Question (or that Dimension's Questions) a value. The minimum group size counts Contributors per aggregate.
+_Avoid_: Respondent, responder
+
 ## Understanding and acting
 
 **Result**:
