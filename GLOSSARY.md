@@ -110,6 +110,10 @@ _Avoid_: Report, analytics, stats
 How much a Team's score for one Question or Dimension usually moves from one Round to the next, judged from the Team's own history. A change well beyond it is shown as larger than usual.
 _Avoid_: Significance, noise threshold, variance
 
+**Redaction**:
+Replacing names of the Organization's People, contact details, handles, and links in a comment with placeholders before anyone can read it.
+_Avoid_: Anonymization, scrubbing, masking
+
 **Comment theme**:
 A machine-written summary of a group of comments, with a label, sentiment, count, and redacted quotes.
 _Avoid_: Cluster, topic, insight
