@@ -70,13 +70,14 @@ const get = async (path: string, token: string): Promise<unknown> => {
   return response.json();
 };
 
-/** The Submission Worker of a stage, found by the tags Alchemy puts on it. */
-const findSubmissionWorker = async (
+/** A Worker of a stage by its id in the stack (e.g. `Submission`), found by the tags Alchemy puts on it. */
+export const findWorker = async (
   accountId: string,
   token: string,
   stage: string,
+  logicalId: string,
 ): Promise<WorkerSettings> => {
-  const wanted = ["alchemy:stack:Surveybeat", `alchemy:stage:${stage}`, "alchemy:id:Submission"];
+  const wanted = ["alchemy:stack:Surveybeat", `alchemy:stage:${stage}`, `alchemy:id:${logicalId}`];
   for (let page = 1; ; page++) {
     const body = Schema.decodeUnknownSync(Page)(
       await get(`/accounts/${accountId}/workers/workers?per_page=100&page=${page}`, token),
@@ -88,7 +89,7 @@ const findSubmissionWorker = async (
       return Schema.decodeUnknownSync(One)(detail).result;
     }
     if (page >= (body.result_info?.total_pages ?? 1)) {
-      throw new Error(`No Submission Worker found for stage ${stage}`);
+      throw new Error(`No ${logicalId} Worker found for stage ${stage}`);
     }
   }
 };
@@ -104,7 +105,7 @@ const main = async (): Promise<number> => {
     );
     return 2;
   }
-  const worker = await findSubmissionWorker(accountId, token, stage);
+  const worker = await findWorker(accountId, token, stage, "Submission");
   console.log(
     JSON.stringify(
       {

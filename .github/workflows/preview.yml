@@ -39,10 +39,71 @@ jobs:
         run: pnpm --filter @surveybeat/web build
       - name: Deploy the stage
         run: pnpm exec alchemy deploy infra/alchemy.run.ts --stage "$STAGE" --yes --no-input
-      - name: Read back the Submission Worker's deployed settings
-        run: pnpm check:observability --stage "$STAGE"
       - name: Smoke test
         run: node infra/scripts/smoke.ts "https://$STAGE.app.surveybeat.app" "https://$STAGE.submit.surveybeat.app"
+
+  # Preview-stage privacy checks (privacy suite design, issue #25): A7 on the deployed stage.
+  # The read-back runs on every PR. The canary sweep is required only when a PR touches what the
+  # Submission path is built from; on any other PR the step passes without running.
+  preview-privacy:
+    needs: deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Read back the Submission Worker's deployed settings
+        run: pnpm check:observability --stage "$STAGE"
+      - name: Does this PR touch the Submission path?
+        id: paths
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          changed=$(git diff --name-only "$BASE_SHA...$HEAD_SHA")
+          echo "$changed"
+          if echo "$changed" | grep -qE '^(packages/cloudflare/|infra/|apps/web/(answer\.html|vite\.config\.ts|src/answer/|src/messages/)|pnpm-workspace\.yaml|pnpm-lock\.yaml|\.github/workflows/preview\.yml)'; then
+            echo "required=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "required=false" >> "$GITHUB_OUTPUT"
+            echo "No Submission path changes: the canary sweep is not required for this PR."
+          fi
+      - name: Canary sweep with a positive control
+        if: steps.paths.outputs.required == 'true'
+        run: pnpm test:preview-privacy --stage "$STAGE" "https://$STAGE.app.surveybeat.app" "https://$STAGE.submit.surveybeat.app"
+
+  # The SPEC §7 end-to-end flow on the PR stage. It grows as the slices land.
+  e2e:
+    needs: deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Install Chromium
+        run: pnpm --filter @surveybeat/infra exec playwright install --with-deps chromium
+      - name: End-to-end tests
+        run: pnpm test:e2e
+        env:
+          E2E_BASE_URL: https://${{ env.STAGE }}.app.surveybeat.app
+      - if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-traces
+          path: test-results/e2e
+          retention-days: 7
 
   destroy:
     if: github.event.action == 'closed' && github.event.pull_request.head.repo.full_name == github.repository

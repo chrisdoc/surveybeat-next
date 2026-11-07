@@ -5,3 +5,4 @@ coverage
 *.tsbuildinfo
 dist-types
 .cloudflare/
+test-results

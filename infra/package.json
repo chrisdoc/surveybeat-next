@@ -2,6 +2,9 @@
   "name": "@surveybeat/infra",
   "private": true,
   "type": "module",
+  "scripts": {
+    "test:e2e": "playwright test --config tests/e2e/playwright.config.ts"
+  },
   "dependencies": {
     "@alchemy.run/cloudflare": "catalog:",
     "@effect/platform-node": "catalog:",
@@ -14,6 +17,7 @@
   },
   "devDependencies": {
     "@effect/vitest": "catalog:",
+    "@playwright/test": "catalog:",
     "@types/node": "catalog:"
   }
 }
