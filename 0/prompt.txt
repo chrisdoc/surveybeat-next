@@ -1,0 +1,67 @@
+Act as the implementation sub-agent for this task.
+
+Implement GitHub issue #38, "R1 04: People, Teams, roles, and Organization settings", in chrisdoc/surveybeat-next. This is production code. You're in your own git worktree. Run `git fetch origin` and branch `t3/r1-04-people-teams` from origin/main. Main holds slices 01, 02, 03, 05, and 14:
+- the workspace and an Alchemy stack with `pr-<n>` preview stages;
+- AuthKit sign-in with the Organization DO's Person table, the D1 people index, and ADR 0010;
+- email sending (EmailSender, send states, React Email, with the "You've been added" template from slice 05);
+- the privacy suite (`pnpm test:privacy`, an endpoint privacy registry in `packages/api/src/PrivacyRegistry.ts`, preview-privacy and e2e jobs).
+
+## Read first
+- `gh issue view 38 --comments` for the acceptance criteria, plus a comment with follow-ups from slice 03.
+- GLOSSARY.md (Organization admin, Person, Team, Membership, Lead), docs/adr/0002, 0003, 0004, 0010, docs/infra.md.
+- The existing code in `packages/domain/src/people/`, `packages/cloudflare/src/` (the Organization DO, auth, email), and `packages/emails`.
+
+## Scope (summary; #38 is binding)
+- An Organization admin can create and rename Teams, assign and remove Leads, and add and remove People. **Being an admin gives no access to any Team's Results** (ADR 0003).
+- A Lead or admin adds members by email. That creates a Person (email only, no WorkOS user yet) and a Membership. It sends "You've been added to <Team> by <Lead>" through the slice-05 EmailSender and send states: captured in D1 on non-production stages, not sent.
+- Rules:
+  - the last Lead can't be removed;
+  - removing a member ends their Membership on that date, and the Person and their history stay;
+  - Teams don't nest;
+  - the roles are lead and member (viewer is modelled but unused).
+- Removing a Person:
+  - keep the D1 `person_index` in step;
+  - deactivate their WorkOS organization membership;
+  - make sure the session check denies them through the DO (ADR 0010).
+
+  Ended Memberships join the same DO check.
+- **The permission function** `(person, action, resource)` lives in one place in `packages/domain` and is tested as a table (SPEC §5.6). Authorize from the Organization DO's data, not cached token claims, for admin actions.
+- Team time zone: an IANA name, validated.
+- The Organization setting for the minimum group size: N ≥ 3, default 4. Store it now. (Rounds store the N they closed under later, per ADR 0004.)
+- Minimal web screens using the message catalog, Tailwind, and Base UI: Teams list, Team detail (members and Leads, add by email, remove), and Organization settings (N, admins).
+- Classify every new endpoint in `privacyRegistry`. None of them return Result data.
+- Add the local-workerd test that slice 03 couldn't write: create a not-yet-linked Person by email, then sign in with that verified email, and check it links.
+
+## Tests
+- The permission table test.
+- Domain tests: the last-Lead rule, Membership end dates, and that removal keeps history.
+- API tests for every endpoint and role, including that an admin without a Membership can't read Team-scoped data beyond what admin actions need.
+- Extend the e2e where it's cheap.
+- No `any`, and no `as` outside tests. Exact pins, and respect pnpm's minimumReleaseAge (never add minimumReleaseAgeExclude).
+
+## Validation
+`pnpm install --frozen-lockfile`, `typecheck`, `typecheck:effect`, `format:check`, `lint`, `test`, and `test:privacy` all pass.
+
+## Shipping
+- Commit on `t3/r1-04-people-teams` with a succinct message ending with:
+  Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+- Push it, and open a PR to main titled "R1 04: People, Teams, roles, and Organization settings". The body says "Closes #38. Part of #34.", lists the changes and the decisions (especially the permission table and how removal reaches WorkOS and D1), and ends with:
+  🤖 Generated with [Claude Code](https://claude.com/claude-code)
+- Don't merge.
+- Last line: PR <full URL>, head <SHA>, checks and reviews <state>.
+
+---
+
+Continue where you left off.
+
+---
+
+<cross-session-message from="uds:/run/user/1001/cc-socks/3329906.sock" from-name="SurveyBeat Release 1 Build Readiness" from-mode="bypass">
+Yes, that was a helper I (the orchestrating session) started, because your task had been reported as failed on the rate limit. It has stopped, and nothing else from me will touch t3-3e4e3f3d. You own the worktree and all of R1 04, the web included. The state it left behind:
+- It reverted its own web edits: it deleted its `apps/web/src/app/Directory.tsx` and `directory.ts` and removed the duplicate `directory.*` catalog keys it had added. If your `Directory.tsx` was overwritten, it's gone now. `App.tsx` imports `./Directory.tsx`, so re-create yours.
+- It ran `pnpm oxfmt .` once at 16:37. That only changed formatting in your domain and cloudflare files, not behaviour.
+- It checked your backend before the web edits: `typecheck` passed, `test` passed with 297, `test:privacy` passed with 9, and `Organization.test.ts` passed on workerd with 4.
+- If you want its versions of the screens as a reference, they're in /tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-3d1b8867/d7ec3863-2582-41b3-9302-ff88c17032e8/scratchpad/mine/. Using them is optional.
+
+Please finish as briefed: full validation, commit, push `t3/r1-04-people-teams`, open the PR (don't merge), and report the PR URL.
+</cross-session-message>

@@ -1,0 +1,69 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "01M6VE8A5867GYX3SZ1ZHWWHS0",
+  "strategy": "manual-commit",
+  "branch": "t3/r1-04-people-teams",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "apps/web/src/app/App.tsx",
+    "apps/web/src/app/Directory.tsx",
+    "apps/web/src/app/directory.ts",
+    "apps/web/src/messages/catalog.ts",
+    "packages/api/src/PrivacyRegistry.ts",
+    "packages/api/src/index.ts",
+    "packages/cloudflare/migrations/0004_teams.sql",
+    "packages/cloudflare/src/DirectoryApi.test.ts",
+    "packages/cloudflare/src/DirectoryHandlers.ts",
+    "packages/cloudflare/src/MainWorker.ts",
+    "packages/cloudflare/src/Organization.test.ts",
+    "packages/cloudflare/src/Organization.ts",
+    "packages/cloudflare/src/SqlDirectory.ts",
+    "packages/cloudflare/src/auth/AuthHandlers.ts",
+    "packages/cloudflare/src/auth/D1PeopleIndex.ts",
+    "packages/cloudflare/src/auth/DurableObjectPeople.ts",
+    "packages/cloudflare/src/auth/PeopleTestRoutes.ts",
+    "packages/cloudflare/src/auth/SignIn.test.ts",
+    "packages/cloudflare/src/auth/WorkosIdentityProvider.ts",
+    "packages/cloudflare/src/auth/testing.ts",
+    "packages/domain/src/people/Directory.test.ts",
+    "packages/domain/src/people/Directory.ts",
+    "packages/domain/src/people/DirectoryFlow.ts",
+    "packages/domain/src/people/Permissions.test.ts",
+    "packages/domain/src/people/Permissions.ts",
+    "packages/domain/src/people/SignIn.ts",
+    "packages/domain/src/people/SignInFlow.ts",
+    "packages/domain/src/people/SignInPorts.ts",
+    "packages/domain/src/people/Team.ts",
+    "packages/domain/src/people/index.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 174,
+    "cache_creation_tokens": 555751,
+    "cache_read_tokens": 18633009,
+    "output_tokens": 133732,
+    "api_call_count": 86
+  },
+  "redaction": {
+    "replacements": 41,
+    "layers": {
+      "betterleaks": 22,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 3,
+      "credentialed_uri": 0,
+      "entropy": 16,
+      "key_context": 2,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
