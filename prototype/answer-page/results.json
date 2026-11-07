@@ -1,0 +1,513 @@
+{
+ "sizes": {
+  "A": {
+   "jsRaw": 77557,
+   "js": 25641,
+   "css": 618,
+   "html": 1293,
+   "htmlRaw": 3316,
+   "inlineCss": 618
+  },
+  "A-nos": {
+   "jsRaw": 3203,
+   "js": 1558,
+   "css": 618,
+   "html": 1295,
+   "htmlRaw": 3320,
+   "inlineCss": 618
+  },
+  "B": {
+   "jsRaw": 99233,
+   "js": 33924,
+   "css": 624,
+   "html": 257,
+   "htmlRaw": 363,
+   "inlineCss": 0
+  },
+  "B-nos": {
+   "jsRaw": 24528,
+   "js": 9843,
+   "css": 624,
+   "html": 258,
+   "htmlRaw": 371,
+   "inlineCss": 0
+  },
+  "C": {
+   "jsRaw": 297583,
+   "js": 92986,
+   "css": 624,
+   "html": 259,
+   "htmlRaw": 363,
+   "inlineCss": 0
+  },
+  "C-nos": {
+   "jsRaw": 222841,
+   "js": 69118,
+   "css": 624,
+   "html": 258,
+   "htmlRaw": 371,
+   "inlineCss": 0
+  },
+  "D": {
+   "jsRaw": 339207,
+   "js": 107129,
+   "css": 771,
+   "html": 254,
+   "htmlRaw": 363,
+   "inlineCss": 0
+  },
+  "D-nos": {
+   "jsRaw": 264401,
+   "js": 83087,
+   "css": 771,
+   "html": 258,
+   "htmlRaw": 371,
+   "inlineCss": 0
+  }
+ },
+ "lh": {
+  "A": [
+   {
+    "fcp": 634.624,
+    "lcp": 1192.872,
+    "tbt": 1,
+    "tti": 1192.8720000000003,
+    "si": 634.624,
+    "bench": 1224.5,
+    "throttling": "simulate",
+    "form": "mobile"
+   },
+   {
+    "fcp": 615.835,
+    "lcp": 1121.505,
+    "tbt": 0,
+    "tti": 1121.505,
+    "si": 615.835,
+    "bench": 1341.5,
+    "throttling": "simulate",
+    "form": "mobile"
+   },
+   {
+    "fcp": 617.618,
+    "lcp": 1119.854,
+    "tbt": 12,
+    "tti": 1119.854,
+    "si": 617.618,
+    "bench": 1356,
+    "throttling": "simulate",
+    "form": "mobile"
+   },
+   {
+    "fcp": 605.42,
+    "lcp": 1118.26,
+    "tbt": 16,
+    "tti": 1118.26,
+    "si": 605.42,
+    "bench": 1364.5,
+    "throttling": "simulate",
+    "form": "mobile"
+   },
+   {
+    "fcp": 634.193,
+    "lcp": 1100.579,
+    "tbt": 0,
+    "tti": 1100.579,
+    "si": 634.193,
+    "bench": 1362.5,
+    "throttling": "simulate",
+    "form": "mobile"
+   }
+  ],
+  "B": [
+   {
+    "fcp": 760.0229999999999,
+    "lcp": 1418.0345,
+    "tbt": 9,
+    "tti": 1418.0345000000002,
+    "si": 760.0229999999999,
+    "bench": 1356.5,
+    "throttling": "simulate",
+    "form": "mobile"
+   },
+   {
+    "fcp": 762.8610000000001,
+    "lcp": 1263.2915,
+    "tbt": 0,
+    "tti": 1263.2915,
+    "si": 762.8610000000001,
+    "bench": 1335,
+    "throttling": "simulate",
+    "form": "mobile"
+   },
+   {
+    "fcp": 761.213,
+    "lcp": 1320.8195,
+    "tbt": 0,
+    "tti": 1320.8195,
+    "si": 761.213,
+    "bench": 1308.5,
+    "throttling": "simulate",
+    "form": "mobile"
+   },
+   {
+    "fcp": 764.4670000000001,
+    "lcp": 1360.7005000000001,
+    "tbt": 13,
+    "tti": 1360.7005000000001,
+    "si": 764.4670000000001,
+    "bench": 1338,
+    "throttling": "simulate",
+    "form": "mobile"
+   },
+   {
+    "fcp": 767.154,
+    "lcp": 1345.731,
+    "tbt": 0,
+    "tti": 1345.731,
+    "si": 767.154,
+    "bench": 1334.5,
+    "throttling": "simulate",
+    "form": "mobile"
+   }
+  ],
+  "C": [
+   {
+    "fcp": 774.76,
+    "lcp": 1609.1399999999999,
+    "tbt": 0,
+    "tti": 1609.1399999999999,
+    "si": 774.76,
+    "bench": 1348.5,
+    "throttling": "simulate",
+    "form": "mobile"
+   },
+   {
+    "fcp": 780.7539999999999,
+    "lcp": 1608.1309999999999,
+    "tbt": 0,
+    "tti": 1608.1309999999999,
+    "si": 780.7539999999999,
+    "bench": 1329,
+    "throttling": "simulate",
+    "form": "mobile"
+   },
+   {
+    "fcp": 774.1590000000001,
+    "lcp": 1613.2385000000002,
+    "tbt": 16,
+    "tti": 1613.2385000000004,
+    "si": 774.1590000000001,
+    "bench": 1363,
+    "throttling": "simulate",
+    "form": "mobile"
+   },
+   {
+    "fcp": 790.894,
+    "lcp": 1606.341,
+    "tbt": 0,
+    "tti": 1606.341,
+    "si": 790.894,
+    "bench": 1352,
+    "throttling": "simulate",
+    "form": "mobile"
+   },
+   {
+    "fcp": 777.1890000000001,
+    "lcp": 1602.7835,
+    "tbt": 0,
+    "tti": 1602.7835,
+    "si": 777.1890000000001,
+    "bench": 1363,
+    "throttling": "simulate",
+    "form": "mobile"
+   }
+  ],
+  "D": [
+   {
+    "fcp": 779.3699999999999,
+    "lcp": 1883.0549999999998,
+    "tbt": 32,
+    "tti": 1883.0549999999998,
+    "si": 808.2358811004887,
+    "bench": 1329.5,
+    "throttling": "simulate",
+    "form": "mobile"
+   },
+   {
+    "fcp": 778.923,
+    "lcp": 1900.3845000000001,
+    "tbt": 27,
+    "tti": 1900.3845000000001,
+    "si": 789.8092575957533,
+    "bench": 1343.5,
+    "throttling": "simulate",
+    "form": "mobile"
+   },
+   {
+    "fcp": 778.3889999999999,
+    "lcp": 1890.5835,
+    "tbt": 30,
+    "tti": 1890.5835,
+    "si": 915.865744060135,
+    "bench": 1344.5,
+    "throttling": "simulate",
+    "form": "mobile"
+   },
+   {
+    "fcp": 779.642,
+    "lcp": 1913.463,
+    "tbt": 42,
+    "tti": 1913.4630000000002,
+    "si": 910.7439119785308,
+    "bench": 1363,
+    "throttling": "simulate",
+    "form": "mobile"
+   },
+   {
+    "fcp": 775.6410000000001,
+    "lcp": 1908.4615000000001,
+    "tbt": 29,
+    "tti": 1908.4615000000001,
+    "si": 909.8186599353792,
+    "bench": 1343,
+    "throttling": "simulate",
+    "form": "mobile"
+   }
+  ]
+ },
+ "pw": {
+  "A": [
+   {
+    "fcp": 292,
+    "lcp": 760,
+    "meaningful": 755.1999998092651,
+    "reqBeforeFcp": 1,
+    "reqTotal": 3,
+    "ttfb": 18,
+    "hash": "",
+    "clickToScreen2": 192.80000019073486,
+    "fetchRtt": 179.2999997138977
+   },
+   {
+    "fcp": 284,
+    "lcp": 744,
+    "meaningful": 739.3000001907349,
+    "reqBeforeFcp": 1,
+    "reqTotal": 3,
+    "ttfb": 5,
+    "hash": "",
+    "clickToScreen2": 200.90000009536743,
+    "fetchRtt": 186.09999990463257
+   },
+   {
+    "fcp": 288,
+    "lcp": 792,
+    "meaningful": 785.1000003814697,
+    "reqBeforeFcp": 1,
+    "reqTotal": 3,
+    "ttfb": 3.3000001907348633,
+    "hash": "",
+    "clickToScreen2": 197.39999961853027,
+    "fetchRtt": 186.90000009536743
+   },
+   {
+    "fcp": 260,
+    "lcp": 752,
+    "meaningful": 745.4000000953674,
+    "reqBeforeFcp": 1,
+    "reqTotal": 3,
+    "ttfb": 4.900000095367432,
+    "hash": "",
+    "clickToScreen2": 187.10000038146973,
+    "fetchRtt": 174.5
+   },
+   {
+    "fcp": 260,
+    "lcp": 772,
+    "meaningful": 765.2999997138977,
+    "reqBeforeFcp": 1,
+    "reqTotal": 3,
+    "ttfb": 3.6999998092651367,
+    "hash": "",
+    "clickToScreen2": 190,
+    "fetchRtt": 165
+   }
+  ],
+  "B": [
+   {
+    "fcp": 660,
+    "lcp": 816,
+    "meaningful": 811.4000000953674,
+    "reqBeforeFcp": 3,
+    "reqTotal": 4,
+    "ttfb": 5.099999904632568,
+    "hash": "",
+    "clickToScreen2": 190.5,
+    "fetchRtt": 171.5
+   },
+   {
+    "fcp": 648,
+    "lcp": 1064,
+    "meaningful": 1058.5,
+    "reqBeforeFcp": 3,
+    "reqTotal": 4,
+    "ttfb": 2.4000000953674316,
+    "hash": "",
+    "clickToScreen2": 194.40000009536743,
+    "fetchRtt": 174.09999990463257
+   },
+   {
+    "fcp": 672,
+    "lcp": 820,
+    "meaningful": 815,
+    "reqBeforeFcp": 3,
+    "reqTotal": 4,
+    "ttfb": 4.400000095367432,
+    "hash": "",
+    "clickToScreen2": 211.90000009536743,
+    "fetchRtt": 185.30000019073486
+   },
+   {
+    "fcp": 672,
+    "lcp": 824,
+    "meaningful": 816.2999997138977,
+    "reqBeforeFcp": 3,
+    "reqTotal": 4,
+    "ttfb": 4.799999713897705,
+    "hash": "",
+    "clickToScreen2": 206.30000019073486,
+    "fetchRtt": 181.09999990463257
+   },
+   {
+    "fcp": 660,
+    "lcp": 824,
+    "meaningful": 817.5,
+    "reqBeforeFcp": 3,
+    "reqTotal": 4,
+    "ttfb": 4.300000190734863,
+    "hash": "",
+    "clickToScreen2": 185.59999990463257,
+    "fetchRtt": 164.19999980926514
+   }
+  ],
+  "C": [
+   {
+    "fcp": 1112,
+    "lcp": 1312,
+    "meaningful": 1304.3000001907349,
+    "reqBeforeFcp": 3,
+    "reqTotal": 4,
+    "ttfb": 4.099999904632568,
+    "hash": "",
+    "clickToScreen2": 198.40000009536743,
+    "fetchRtt": 172.2000002861023
+   },
+   {
+    "fcp": 1048,
+    "lcp": 1256,
+    "meaningful": 1252,
+    "reqBeforeFcp": 3,
+    "reqTotal": 4,
+    "ttfb": 4.099999904632568,
+    "hash": "",
+    "clickToScreen2": 207.80000019073486,
+    "fetchRtt": 181.59999990463257
+   },
+   {
+    "fcp": 1052,
+    "lcp": 1264,
+    "meaningful": 1263,
+    "reqBeforeFcp": 3,
+    "reqTotal": 4,
+    "ttfb": 3.5999999046325684,
+    "hash": "",
+    "clickToScreen2": 204,
+    "fetchRtt": 179.09999990463257
+   },
+   {
+    "fcp": 1044,
+    "lcp": 1252,
+    "meaningful": 1253.9000000953674,
+    "reqBeforeFcp": 3,
+    "reqTotal": 4,
+    "ttfb": 2.9000000953674316,
+    "hash": "",
+    "clickToScreen2": 207.59999990463257,
+    "fetchRtt": 172.7000002861023
+   },
+   {
+    "fcp": 1076,
+    "lcp": 1304,
+    "meaningful": 1293.4000000953674,
+    "reqBeforeFcp": 3,
+    "reqTotal": 4,
+    "ttfb": 6,
+    "hash": "",
+    "clickToScreen2": 200,
+    "fetchRtt": 175.40000009536743
+   }
+  ],
+  "D": [
+   {
+    "fcp": 1220,
+    "lcp": 1388,
+    "meaningful": 1389.8000001907349,
+    "reqBeforeFcp": 3,
+    "reqTotal": 4,
+    "ttfb": 4.800000190734863,
+    "hash": "",
+    "clickToScreen2": 228.7000002861023,
+    "fetchRtt": 168.30000019073486
+   },
+   {
+    "fcp": 1220,
+    "lcp": 1388,
+    "meaningful": 1385.5,
+    "reqBeforeFcp": 3,
+    "reqTotal": 4,
+    "ttfb": 4.700000286102295,
+    "hash": "",
+    "clickToScreen2": 241.89999961853027,
+    "fetchRtt": 180.2000002861023
+   },
+   {
+    "fcp": 1212,
+    "lcp": 1360,
+    "meaningful": 1356.1999998092651,
+    "reqBeforeFcp": 3,
+    "reqTotal": 4,
+    "ttfb": 3.9000000953674316,
+    "hash": "",
+    "clickToScreen2": 255.60000038146973,
+    "fetchRtt": 177
+   },
+   {
+    "fcp": 1292,
+    "lcp": 1424,
+    "meaningful": 1421.6999998092651,
+    "reqBeforeFcp": 3,
+    "reqTotal": 4,
+    "ttfb": 4.599999904632568,
+    "hash": "",
+    "clickToScreen2": 241.90000009536743,
+    "fetchRtt": 174.80000019073486
+   },
+   {
+    "fcp": 1244,
+    "lcp": 1440,
+    "meaningful": 1437.0999999046326,
+    "reqBeforeFcp": 3,
+    "reqTotal": 4,
+    "ttfb": 3.1999998092651367,
+    "hash": "",
+    "clickToScreen2": 254.5,
+    "fetchRtt": 180.10000038146973
+   }
+  ]
+ },
+ "meta": {
+  "runs": 5,
+  "delay": 150,
+  "date": "2026-11-07T08:29:27.197Z"
+ }
+}

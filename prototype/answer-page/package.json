@@ -1,0 +1,28 @@
+{
+  "name": "answer-page-prototype",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "dev": "node scripts/build.mjs && node server.mjs",
+    "serve": "node server.mjs",
+    "measure": "node scripts/measure.mjs",
+    "measure:report": "node scripts/measure.mjs --report-only"
+  },
+  "dependencies": {
+    "@base-ui/react": "1.9.0",
+    "@preact/signals": "latest",
+    "effect": "4.1.2",
+    "preact": "latest",
+    "react": "^19",
+    "react-dom": "^19"
+  },
+  "devDependencies": {
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "lighthouse": "^13",
+    "playwright-core": "latest",
+    "typescript": "^5.9",
+    "vite": "^8"
+  }
+}
