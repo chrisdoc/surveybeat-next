@@ -30,6 +30,8 @@
 
 `vitest-pool-workers` is not used, and there is no hand-edited wrangler config.
 
+**Answer entry (measured in the answer-page prototype, 2026-11-07).** The answer entry is prerendered static HTML with inline CSS and a small plain TypeScript controller, with no React, Preact, or Base UI. Measured with Lighthouse mobile (slow 4G, 4× CPU), the time until the Question text appears was 1.12 s with this approach, 1.35 s with Preact, 1.61 s with React, and 1.90 s with React plus Base UI. The token request starts from an inline script in `<head>`, and Effect Schema (23.5 KB gzip) loads after first paint. Budget: JS ≤ 10 KB gzip on the critical path, CSS ≤ 2 KB inline, HTML ≤ 8 KB, 1 request before first paint and 2 before the Question text. A Lighthouse CI gate checks FCP ≤ 800 ms, LCP ≤ 1.3 s, and TBT ≤ 50 ms.
+
 ## Considered Options
 
 - **TypeScript 5.9 or 6.** Rejected: 7.0.2 is npm `latest`, Effect recommends it, and Alchemy is built against it. 6.0 is the end of the JavaScript-based compiler line. Our tools (oxc, Vite/rolldown, Vitest) don't depend on the old compiler API.
