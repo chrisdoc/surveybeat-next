@@ -3,6 +3,12 @@ import { SqliteClient } from "@effect/sql-sqlite-do";
 import {
   type CommandResult,
   decide,
+  decidePulse,
+  type PulseCommand,
+  type PulseCommandResult,
+  type PulseId,
+  pulsesView,
+  pulseView,
   defaultSendPolicy,
   type DeliveryEventKind,
   type DirectoryCommand,
@@ -23,6 +29,7 @@ import * as Option from "effect/Option";
 import * as Reactivity from "effect/reactivity/Reactivity";
 import * as Scope from "effect/Scope";
 import { makeSqlDirectory } from "./SqlDirectory.ts";
+import { makeSqlPulses } from "./SqlPulses.ts";
 import { makeSqlSendRepository } from "./SqlSendRepository.ts";
 
 /**
@@ -59,6 +66,9 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
       const sends = makeSendStore(makeSqlSendRepository(sql), defaultSendPolicy);
       // People, Teams, and Memberships: the domain decides, this object loads and applies.
       const directory = makeSqlDirectory(sql, sends);
+      // The question library and Pulses, decided against the directory (roles, Teams, N).
+      const pulses = makeSqlPulses(sql);
+      const both = Effect.all([directory.load, pulses.load]);
 
       /** Only sends still waiting go back to the queue; one already sent or failed stays as it is. */
       const pendingOnly = (followUps: ReadonlyArray<FollowUp>) =>
@@ -149,6 +159,24 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
           directory.load.pipe(Effect.map((state) => teamView(state, actorId, teamId))),
         viewSettings: (actorId: PersonId) =>
           directory.load.pipe(Effect.map((state) => settingsView(state, actorId))),
+
+        /** One Pulse editor command by `actorId`, authorized and applied in one transaction. */
+        runPulseCommand: (actorId: PersonId, command: PulseCommand, now: number) =>
+          sql
+            .withTransaction(
+              Effect.gen(function* () {
+                const [people, library] = yield* both;
+                const decision = decidePulse(people, library, actorId, command, now);
+                if (decision._tag === "Rejected") return decision satisfies PulseCommandResult;
+                yield* pulses.apply(decision.changes);
+                return { _tag: "Accepted" } satisfies PulseCommandResult;
+              }),
+            )
+            .pipe(Effect.orDie),
+        viewPulses: (actorId: PersonId, teamId: TeamId) =>
+          both.pipe(Effect.map(([people, library]) => pulsesView(people, library, actorId, teamId))),
+        viewPulse: (actorId: PersonId, teamId: TeamId, pulseId: PulseId) =>
+          both.pipe(Effect.map(([people, library]) => pulseView(people, library, actorId, teamId, pulseId))),
 
         get: (id: string) =>
           sql<{ id: string; name: string }>`SELECT id, name FROM organization WHERE id = ${id}`.pipe(

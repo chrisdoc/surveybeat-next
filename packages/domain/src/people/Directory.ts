@@ -483,7 +483,8 @@ export const applyChanges = (
     }
   }, state);
 
-const summaryOf = (team: TeamRecord, actor: Actor): TeamSummary => ({
+/** A Team as a list shows it to `actor`. */
+export const teamSummaryOf = (team: TeamRecord, actor: Actor): TeamSummary => ({
   id: team.id,
   name: team.name,
   timeZone: team.timeZone,
@@ -501,7 +502,7 @@ export const teamsView = (state: DirectoryState, actorId: PersonId): Viewed<Read
   const teams = state.teams.filter(
     (team) => listAll || can(actor.value, "team.view", { _tag: "Team", teamId: team.id }),
   );
-  return { _tag: "Viewed", value: [...teams].sort(byName).map((team) => summaryOf(team, actor.value)) };
+  return { _tag: "Viewed", value: [...teams].sort(byName).map((team) => teamSummaryOf(team, actor.value)) };
 };
 
 const ROLE_ORDER: Readonly<Record<MembershipRole, number>> = { lead: 0, member: 1, viewer: 2 };
@@ -526,12 +527,13 @@ export const teamView = (state: DirectoryState, actorId: PersonId, teamId: TeamI
   return {
     _tag: "Viewed",
     value: {
-      team: summaryOf(team, actor.value),
+      team: teamSummaryOf(team, actor.value),
       roster,
       may: {
         update: can(actor.value, "team.update", resource),
         manageLeads: can(actor.value, "team.assignLead", resource),
         manageMembers: can(actor.value, "team.addMember", resource),
+        managePulses: can(actor.value, "team.editPulse", resource),
         viewResults: can(actor.value, "team.viewResults", resource),
       },
     },

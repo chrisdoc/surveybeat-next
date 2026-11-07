@@ -1,6 +1,16 @@
 import { SurveyBeatApi } from "@surveybeat/api";
 import {
   applyChanges,
+  applyPulseChanges,
+  decidePulse,
+  EMPTY_PULSE_STATE,
+  OrganizationPulses,
+  PulseId,
+  type PulseCommandResult,
+  type PulseState,
+  pulsesView,
+  pulseView,
+  QuestionId,
   AuthUnavailable,
   type ClaimStatus,
   type CommandResult,
@@ -47,6 +57,7 @@ import * as HttpRouter from "effect/http/HttpRouter";
 import * as HttpServer from "effect/http/HttpServer";
 import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
 import { directoryHandlers } from "../DirectoryHandlers.ts";
+import { pulseHandlers } from "../PulseHandlers.ts";
 import { authHandlers } from "./AuthHandlers.ts";
 
 /**
@@ -323,9 +334,10 @@ export class MemoryIndex {
   });
 }
 
-/** One Organization's object: its directory state and its sends. */
+/** One Organization's object: its directory state, its question library and Pulses, and its sends. */
 interface MemoryOrganization {
   state: DirectoryState;
+  pulses: PulseState;
   readonly sends: Map<SendId, { readonly recipient: EmailAddress; readonly email: TransactionalEmail }>;
 }
 
@@ -342,6 +354,7 @@ export class MemoryOrganizations {
     // The real object answers an empty directory for an id nothing created.
     return {
       state: { organizationName: "", minimumGroupSize: 4, people: [], teams: [], memberships: [] },
+      pulses: EMPTY_PULSE_STATE,
       sends: new Map(),
     };
   }
@@ -366,6 +379,7 @@ export class MemoryOrganizations {
             teams: [],
             memberships: [],
           },
+          pulses: EMPTY_PULSE_STATE,
           sends: new Map(),
         });
       }),
@@ -422,6 +436,29 @@ export class MemoryOrganizations {
       Effect.sync(() => settingsView(this.organization(organizationId).state, actorId)),
   });
 
+  /** The question library and Pulses, decided and applied as the real object does in SQL. */
+  readonly pulses = OrganizationPulses.of({
+    run: (organizationId, actorId, command, now) =>
+      Effect.sync((): PulseCommandResult => {
+        const organization = this.organizations.get(organizationId);
+        if (organization === undefined) return { _tag: "Rejected", rejection: { _tag: "Forbidden" } };
+        const decision = decidePulse(organization.state, organization.pulses, actorId, command, now);
+        if (decision._tag === "Rejected") return decision;
+        organization.pulses = applyPulseChanges(organization.pulses, decision.changes);
+        return { _tag: "Accepted" };
+      }),
+    pulses: (organizationId, actorId, teamId) =>
+      Effect.sync(() => {
+        const organization = this.organization(organizationId);
+        return pulsesView(organization.state, organization.pulses, actorId, teamId);
+      }),
+    pulse: (organizationId, actorId, teamId, pulseId) =>
+      Effect.sync(() => {
+        const organization = this.organization(organizationId);
+        return pulseView(organization.state, organization.pulses, actorId, teamId, pulseId);
+      }),
+  });
+
   person(organizationId: OrganizationId, personId: PersonId): PersonRecord | undefined {
     return this.organizations.get(organizationId)?.state.people.find((person) => person.id === personId);
   }
@@ -470,6 +507,7 @@ export class SignInWorld {
     this.index.organizations.set(id, { name, workos });
     this.durable.organizations.set(id, {
       state: { organizationName: name, minimumGroupSize: 4, people: [], teams: [], memberships: [] },
+      pulses: EMPTY_PULSE_STATE,
       sends: new Map(),
     });
     return { id, name, workos };
@@ -502,6 +540,7 @@ export class SignInWorld {
       Context.add(PeopleIndex, this.index.service),
       Context.add(OrganizationPeople, this.durable.service),
       Context.add(OrganizationDirectory, this.durable.directory),
+      Context.add(OrganizationPulses, this.durable.pulses),
       Context.add(EmailOutbox, this.outbox.service),
       Context.add(
         NewIds,
@@ -510,6 +549,8 @@ export class SignInWorld {
           personId: Effect.sync(() => PersonId.make(`added-${++this.ids}`)),
           teamId: Effect.sync(() => TeamId.make(`team-${++this.ids}`)),
           membershipId: Effect.sync(() => MembershipId.make(`membership-${++this.ids}`)),
+          pulseId: Effect.sync(() => PulseId.make(`pulse-${++this.ids}`)),
+          questionId: Effect.sync(() => QuestionId.make(`question-${++this.ids}`)),
         }),
       ),
     );
@@ -522,7 +563,12 @@ export class SignInWorld {
     );
     const { handler } = HttpRouter.toWebHandler(
       HttpApiBuilder.layer(SurveyBeatApi).pipe(
-        Layer.provide([auth, organizations, directoryHandlers(Effect.succeed(services))]),
+        Layer.provide([
+          auth,
+          organizations,
+          directoryHandlers(Effect.succeed(services)),
+          pulseHandlers(Effect.succeed(services)),
+        ]),
         Layer.provide(HttpServer.layerServices),
       ),
     );

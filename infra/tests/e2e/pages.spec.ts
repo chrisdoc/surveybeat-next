@@ -26,8 +26,8 @@ test("the login redirect reaches the AuthKit domain", async ({ page }) => {
   await expect(page).toHaveURL(/^https:\/\/[^/]+\.authkit\.app\/(?!redirect-uri-invalid)/);
 });
 
-test("the directory API refuses a visitor without a session", async ({ request }) => {
-  for (const path of ["/api/teams", "/api/organization"]) {
+test("the directory and Pulse APIs refuse a visitor without a session", async ({ request }) => {
+  for (const path of ["/api/teams", "/api/organization", "/api/teams/t/pulses", "/api/teams/t/pulses/p"]) {
     expect((await request.get(path)).status(), `GET ${path}`).toBe(401);
   }
 });

@@ -75,4 +75,36 @@ export const privacyRegistry: { readonly [K in EndpointKey<typeof SurveyBeatApi>
     _tag: "NoResultData",
     why: "removes a Person from the Organization; no content",
   },
+  "pulses.listPulses": {
+    _tag: "NoResultData",
+    why: "returns a Team's Pulses: names, cadences, Question counts, and estimated answer times",
+  },
+  "pulses.createPulse": {
+    _tag: "NoResultData",
+    why: "returns the new Pulse's settings and Template Questions, the estimate, and the editor's warnings",
+  },
+  "pulses.getPulse": {
+    _tag: "NoResultData",
+    why: "returns a Pulse's settings and Questions, the estimate, and the editor's warnings (the Team's member count against N, never Answers)",
+  },
+  "pulses.updatePulseSettings": {
+    _tag: "NoResultData",
+    why: "sets a Pulse's name, cadence, answer window, and reminders; returns the Pulse as the editor shows it",
+  },
+  "pulses.addQuestion": {
+    _tag: "NoResultData",
+    why: "adds a Question to a Pulse; returns the Pulse as the editor shows it",
+  },
+  "pulses.editQuestion": {
+    _tag: "NoResultData",
+    why: "rewrites a Question without Answers; returns the Pulse as the editor shows it (hasAnswers is a flag, not Answer data)",
+  },
+  "pulses.removeQuestion": {
+    _tag: "NoResultData",
+    why: "takes a Question out of a Pulse; returns the Pulse as the editor shows it",
+  },
+  "pulses.reorderQuestions": {
+    _tag: "NoResultData",
+    why: "reorders a Pulse's Questions; returns the Pulse as the editor shows it",
+  },
 };

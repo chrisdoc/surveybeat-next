@@ -12,6 +12,9 @@ import {
   Organization as OrganizationModel,
   OrganizationId,
   OrganizationNotFound,
+  OrganizationPulses,
+  PulseId,
+  QuestionId,
   TeamId,
 } from "@surveybeat/domain";
 import { SurveyBeatApi } from "@surveybeat/api";
@@ -32,7 +35,11 @@ import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
 import { authBindings, authSettings } from "./auth/AuthConfig.ts";
 import { authHandlers } from "./auth/AuthHandlers.ts";
 import { d1PeopleIndex } from "./auth/D1PeopleIndex.ts";
-import { durableObjectDirectory, durableObjectPeople } from "./auth/DurableObjectPeople.ts";
+import {
+  durableObjectDirectory,
+  durableObjectPeople,
+  durableObjectPulses,
+} from "./auth/DurableObjectPeople.ts";
 import { PEOPLE_TEST_ROUTE, peopleTestRoutes } from "./auth/PeopleTestRoutes.ts";
 import { workosIdentityProvider } from "./auth/WorkosIdentityProvider.ts";
 import { capturingEmailSender } from "./CapturingEmailSender.ts";
@@ -50,6 +57,8 @@ import {
 import { handleDeadLetter, handleDeliveryEvent, handleSendMessage } from "./EmailDelivery.ts";
 import { emailTestRoutes, isTestStage, TEST_ROUTES } from "./EmailTestRoutes.ts";
 import { hostnameFor } from "./Hostnames.ts";
+import { pulseHandlers } from "./PulseHandlers.ts";
+import { PULSES_TEST_ROUTE, pulseTestRoutes } from "./PulseTestRoutes.ts";
 import Organization from "./Organization.ts";
 import { Jobs, JobsDlq, type JobMessage } from "./Queues.ts";
 
@@ -97,7 +106,7 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
           "/orgs/*",
           "/auth/*",
           "/api/*",
-          ...(isTestStage(stack.stage) ? [TEST_ROUTES, PEOPLE_TEST_ROUTE] : []),
+          ...(isTestStage(stack.stage) ? [TEST_ROUTES, PEOPLE_TEST_ROUTE, PULSES_TEST_ROUTE] : []),
         ],
       },
       env: yield* authBindings,
@@ -183,6 +192,7 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
     );
     const people = durableObjectPeople(organizations);
     const directory = durableObjectDirectory(organizations);
+    const pulses = durableObjectPulses(organizations);
     const emailWrites = yield* Cloudflare.Queues.WriteQueue(emailQueue);
     const services = Effect.gen(function* () {
       const runtime = yield* Effect.context<RuntimeContext>();
@@ -200,6 +210,7 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
         Context.add(PeopleIndex, yield* d1PeopleIndex(database)),
         Context.add(OrganizationPeople, people),
         Context.add(OrganizationDirectory, directory),
+        Context.add(OrganizationPulses, pulses),
         Context.add(EmailOutbox, outbox),
         Context.add(
           NewIds,
@@ -208,6 +219,8 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
             personId: Effect.sync(() => PersonId.make(randomId())),
             teamId: Effect.sync(() => TeamId.make(randomId())),
             membershipId: Effect.sync(() => MembershipId.make(randomId())),
+            pulseId: Effect.sync(() => PulseId.make(randomId())),
+            questionId: Effect.sync(() => QuestionId.make(randomId())),
           }),
         ),
       );
@@ -216,7 +229,7 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
 
     const api = yield* HttpRouter.toHttpEffect(
       HttpApiBuilder.layer(SurveyBeatApi).pipe(
-        Layer.provide([group, auth, directoryHandlers(services)]),
+        Layer.provide([group, auth, directoryHandlers(services), pulseHandlers(services)]),
         Layer.provide([Etag.layer, HttpPlatformStub, Path.layer]),
       ),
     );
@@ -229,6 +242,7 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
         const path = request.url.split("?")[0];
         if (path === TEST_ROUTES) return yield* testRoutes;
         if (path === PEOPLE_TEST_ROUTE) return yield* peopleTestRoutes(organizations, database);
+        if (path === PULSES_TEST_ROUTE) return yield* pulseTestRoutes(organizations);
         return yield* api;
       }),
     };
