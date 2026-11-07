@@ -1,3 +1,4 @@
+import "./auth/localTestSecrets.ts";
 import * as Cloudflare from "@alchemy.run/cloudflare";
 import * as Test from "@alchemy.run/test/Vitest";
 import { assert } from "@effect/vitest";

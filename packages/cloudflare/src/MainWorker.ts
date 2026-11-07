@@ -1,6 +1,11 @@
 import * as Cloudflare from "@alchemy.run/cloudflare";
 import {
   EmailSender,
+  IdentityProvider,
+  NewIds,
+  OrganizationPeople,
+  PeopleIndex,
+  PersonId,
   Organization as OrganizationModel,
   OrganizationId,
   OrganizationNotFound,
@@ -8,6 +13,7 @@ import {
 import { SurveyBeatApi } from "@surveybeat/api";
 import { EmailTemplatesLive } from "@surveybeat/emails";
 import { Stack } from "alchemy/Stack";
+import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
@@ -17,6 +23,12 @@ import * as Etag from "effect/http/Etag";
 import * as HttpPlatform from "effect/http/HttpPlatform";
 import * as HttpRouter from "effect/http/HttpRouter";
 import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
+import { authBindings, authSettings } from "./auth/AuthConfig.ts";
+import { authHandlers } from "./auth/AuthHandlers.ts";
+import { d1PeopleIndex } from "./auth/D1PeopleIndex.ts";
+import { durableObjectPeople } from "./auth/DurableObjectPeople.ts";
+import { PEOPLE_TEST_ROUTE, peopleTestRoutes } from "./auth/PeopleTestRoutes.ts";
+import { workosIdentityProvider } from "./auth/WorkosIdentityProvider.ts";
 import { capturingEmailSender } from "./CapturingEmailSender.ts";
 import { cloudflareEmailSender } from "./CloudflareEmailSender.ts";
 import { Database } from "./Database.ts";
@@ -41,12 +53,13 @@ const HttpPlatformStub = Layer.succeed(HttpPlatform.HttpPlatform, {
   fileWebResponse: () => Effect.die("HttpPlatform.fileWebResponse not supported"),
 });
 
-const newOrganizationId = () =>
-  OrganizationId.make(
-    Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) => byte.toString(16).padStart(2, "0")).join(
-      "",
-    ),
+/** 32 random hex characters. */
+const randomId = () =>
+  Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) => byte.toString(16).padStart(2, "0")).join(
+    "",
   );
+
+const newOrganizationId = () => OrganizationId.make(randomId());
 
 /** Ids we mint are 32 hex characters. Anything else cannot exist, so no Durable Object is woken for it. */
 const isOrganizationId = (id: string) => /^[0-9a-f]{32}$/.test(id);
@@ -65,8 +78,14 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
       // The API routes always reach the Worker. Any other path is a static asset.
       assets: {
         directory: assetsDirectory,
-        runWorkerFirst: ["/orgs", "/orgs/*", ...(isTestStage(stack.stage) ? [TEST_ROUTES] : [])],
+        runWorkerFirst: [
+          "/orgs",
+          "/orgs/*",
+          "/auth/*",
+          ...(isTestStage(stack.stage) ? [TEST_ROUTES, PEOPLE_TEST_ROUTE] : []),
+        ],
       },
+      env: yield* authBindings,
       ...(hostname === undefined ? {} : { domain: hostname }),
     };
   }),
@@ -142,9 +161,32 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
         ),
     );
 
+    // Sign-in. The WorkOS client is built once per isolate (it caches the JWKS), the D1 index per request.
+    const settings = yield* Effect.cached(authSettings);
+    const identityProvider = yield* Effect.cached(
+      Effect.map(settings, ({ workos }) => workosIdentityProvider(workos)),
+    );
+    const people = durableObjectPeople(organizations);
+    const auth = authHandlers({
+      allowlist: Effect.map(settings, ({ allowlist }) => allowlist),
+      services: Effect.gen(function* () {
+        return Context.make(IdentityProvider, yield* identityProvider).pipe(
+          Context.add(PeopleIndex, yield* d1PeopleIndex(database)),
+          Context.add(OrganizationPeople, people),
+          Context.add(
+            NewIds,
+            NewIds.of({
+              organizationId: Effect.sync(newOrganizationId),
+              personId: Effect.sync(() => PersonId.make(randomId())),
+            }),
+          ),
+        );
+      }),
+    });
+
     const api = yield* HttpRouter.toHttpEffect(
       HttpApiBuilder.layer(SurveyBeatApi).pipe(
-        Layer.provide(group),
+        Layer.provide([group, auth]),
         Layer.provide([Etag.layer, HttpPlatformStub, Path.layer]),
       ),
     );
@@ -158,7 +200,10 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
     return {
       fetch: Effect.gen(function* () {
         const request = yield* HttpServerRequest;
-        return request.url.split("?")[0] === TEST_ROUTES ? yield* testRoutes : yield* api;
+        const path = request.url.split("?")[0];
+        if (path === TEST_ROUTES) return yield* testRoutes;
+        if (path === PEOPLE_TEST_ROUTE) return yield* peopleTestRoutes(organizations);
+        return yield* api;
       }),
     };
   }).pipe(

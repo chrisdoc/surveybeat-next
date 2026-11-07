@@ -11,6 +11,7 @@
     "@surveybeat/api": "workspace:*",
     "@surveybeat/domain": "workspace:*",
     "@surveybeat/emails": "workspace:*",
+    "@workos-inc/node": "catalog:",
     "alchemy": "catalog:",
     "effect": "catalog:"
   },
