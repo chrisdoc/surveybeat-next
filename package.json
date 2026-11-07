@@ -1,0 +1,27 @@
+{
+  "name": "surveybeat",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -b",
+    "typecheck:effect": "effect-tsgo tsc -b",
+    "lint": "oxlint --type-aware",
+    "format": "oxfmt .",
+    "format:check": "oxfmt --check .",
+    "test": "vitest run",
+    "test:privacy": "vitest run --passWithNoTests --project privacy"
+  },
+  "devDependencies": {
+    "@effect/tsgo": "catalog:",
+    "@effect/vitest": "catalog:",
+    "oxfmt": "catalog:",
+    "oxlint": "catalog:",
+    "oxlint-tsgolint": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "packageManager": "pnpm@12.18.0"
+}

@@ -1,0 +1,10 @@
+{
+  "name": "oxlint-plugin-surveybeat",
+  "private": true,
+  "type": "module",
+  "main": "index.js",
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "oxlint": "catalog:"
+  }
+}
