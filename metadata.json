@@ -1,0 +1,41 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "01M6XX9C0ARY11BTHMJW9NZYHM",
+  "strategy": "manual-commit",
+  "branch": "t3/r1-04-followups",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "apps/web/src/messages/catalog.ts",
+    "docs/adr/0003-organization-admin-sees-no-results.md",
+    "infra/scripts/smoke.ts",
+    "packages/api/src/index.ts",
+    "packages/cloudflare/src/DirectoryApi.test.ts",
+    "packages/domain/src/people/Directory.test.ts",
+    "packages/domain/src/people/Directory.ts",
+    "packages/domain/src/people/DirectoryFlow.ts",
+    "packages/domain/src/people/Team.ts",
+    "packages/domain/src/pulses/Template.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "redaction": {
+    "replacements": 21,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 3,
+      "credentialed_uri": 0,
+      "entropy": 18,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
