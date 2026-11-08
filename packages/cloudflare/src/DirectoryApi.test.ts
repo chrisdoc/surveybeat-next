@@ -166,7 +166,7 @@ describe("an Organization admin", () => {
   });
 
   it("removes a Person: Memberships end, the index forgets them, WorkOS deactivates them, the next request denies them", async () => {
-    const { world, acme, admin, member, teamId, personId } = await setup();
+    const { world, acme, admin, lead, member, teamId, personId } = await setup();
     const ada = personId("ada@example.com");
     expect(world.workos.memberships.has(`${userIdOf(world, "ada@example.com")}/${acme.workos}`)).toBe(true);
 
@@ -186,6 +186,17 @@ describe("an Organization admin", () => {
     // Their still-valid access token no longer gets them in: the Durable Object says no.
     expect(await member.session()).toEqual({ status: 200, body: { _tag: "NotInOrganization" } });
     expect((await member.call("GET", "/api/teams")).status).toBe(403);
+
+    // Only an admin can restore a removed Person; a Lead gets 403 PersonWasRemoved.
+    expect(
+      await lead.call("POST", `/api/teams/${teamId}/members`, { email: "ada@example.com" }),
+    ).toMatchObject({
+      status: 403,
+      body: { _tag: "PersonWasRemoved" },
+    });
+    expect(
+      (await admin.call("POST", `/api/teams/${teamId}/members`, { email: "ada@example.com" })).status,
+    ).toBe(204);
   });
 
   it("finishes a removal on retry when WorkOS was down, with the Person already denied", async () => {
@@ -202,22 +213,38 @@ describe("an Organization admin", () => {
     expect(world.workos.inactiveMemberships.size).toBe(1);
   });
 
-  it("refuses to remove a Team's last Lead or the last admin", async () => {
-    const { admin, adminId, personId } = await setup();
+  it("refuses to remove a Team's last Lead, revoke the last admin, or remove yourself", async () => {
+    const { admin, adminId, personId, lead, member } = await setup();
     expect(
       await admin.call("DELETE", `/api/organization/people/${personId("grace@example.com")}`),
     ).toMatchObject({
       status: 409,
       body: { _tag: "LastLead" },
     });
-    expect(await admin.call("DELETE", `/api/organization/people/${adminId}`)).toMatchObject({
-      status: 409,
-      body: { _tag: "LastAdmin" },
-    });
     expect(await admin.call("DELETE", `/api/organization/admins/${adminId}`)).toMatchObject({
       status: 409,
       body: { _tag: "LastAdmin" },
     });
+    // Removing yourself from the Organization is forbidden for admins, Leads, and members.
+    expect(await admin.call("DELETE", `/api/organization/people/${adminId}`)).toMatchObject({
+      status: 403,
+      body: { _tag: "Forbidden" },
+    });
+    expect(
+      (await lead.call("DELETE", `/api/organization/people/${personId("grace@example.com")}`)).status,
+    ).toBe(403);
+    expect(
+      (await member.call("DELETE", `/api/organization/people/${personId("ada@example.com")}`)).status,
+    ).toBe(403);
+  });
+
+  it("allows an admin to add themselves to a Team, visibly in the roster with start date", async () => {
+    const { admin, lead, teamId } = await setup();
+    expect(
+      (await admin.call("POST", `/api/teams/${teamId}/members`, { email: "admin@example.com" })).status,
+    ).toBe(204);
+    const teamRoster = await roster(lead, teamId);
+    expect(teamRoster).toContain("member admin@example.com");
   });
 
   it("reads and sets the minimum group size, at least 3 and 4 by default", async () => {

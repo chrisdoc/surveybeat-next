@@ -140,6 +140,7 @@ export const catalog = {
   "error.LastLead": "A Team needs at least one Lead. Assign another Lead first.",
   "error.LastAdmin": "The Organization needs at least one admin. Make someone else admin first.",
   "error.TeamNameTaken": "A Team with that name already exists.",
+  "error.PersonWasRemoved": "This person was removed from the Organization. Ask an admin.",
   "error.QuestionAlreadyInPulse": "This Pulse already asks that Question.",
   "error.QuestionHasAnswers": "This Question has answers, so it can't be edited.",
   "error.PulseNeedsAQuestion": "A Pulse needs at least one Question.",

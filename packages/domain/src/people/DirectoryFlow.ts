@@ -11,6 +11,7 @@ import {
   LastLead,
   type OrganizationSettings,
   PersonNotFound,
+  PersonWasRemoved,
   type TeamDetail,
   type TeamId,
   TeamNameTaken,
@@ -62,7 +63,14 @@ export class EmailOutbox extends Context.Service<
   { readonly queue: (organizationId: OrganizationId, sendId: SendId) => Effect.Effect<void> }
 >()("@surveybeat/domain/EmailOutbox") {}
 
-export type DirectoryError = Forbidden | TeamNotFound | PersonNotFound | LastLead | LastAdmin | TeamNameTaken;
+export type DirectoryError =
+  | Forbidden
+  | TeamNotFound
+  | PersonNotFound
+  | PersonWasRemoved
+  | LastLead
+  | LastAdmin
+  | TeamNameTaken;
 
 const fail = (rejection: DirectoryRejection): Effect.Effect<never, DirectoryError> => {
   switch (rejection._tag) {
@@ -72,6 +80,8 @@ const fail = (rejection: DirectoryRejection): Effect.Effect<never, DirectoryErro
       return Effect.fail(new TeamNotFound());
     case "PersonNotFound":
       return Effect.fail(new PersonNotFound());
+    case "PersonWasRemoved":
+      return Effect.fail(new PersonWasRemoved());
     case "LastLead":
       return Effect.fail(new LastLead({ teamId: rejection.teamId }));
     case "LastAdmin":
