@@ -28,11 +28,14 @@ describe("surveybeat/domain-boundary", () => {
     ["packages/domain/src/bad-cloudflare.ts", "cloudflare:workers"],
     ["packages/domain/src/bad-alchemy.ts", "alchemy"],
     ["packages/domain/src/bad-alchemy-run.ts", "@alchemy.run/cloudflare"],
+    ["packages/domain/src/bad-foldkit.ts", "foldkit"],
     ["packages/api/src/bad.ts", "cloudflare:workers"],
+    ["packages/api/src/bad-foldkit.ts", "foldkit"],
     ["apps/web/src/answer/bad-react.ts", "react"],
     ["apps/web/src/answer/bad-react-dom.ts", "react-dom/client"],
     ["apps/web/src/answer/bad-base-ui.ts", "@base-ui/react/button"],
     ["apps/web/src/answer/bad-client.ts", "@surveybeat/api"],
+    ["apps/web/src/answer/bad-foldkit.ts", "foldkit"],
   ])("fails on %s", (file, source) => {
     const diagnostics = lint(file);
     expect(diagnostics).toHaveLength(1);
@@ -40,15 +43,15 @@ describe("surveybeat/domain-boundary", () => {
     expect(diagnostics[0]?.message).toContain(`'${source}'`);
   });
 
-  it.each(["packages/domain/src/good.ts", "apps/web/src/app/good-react.tsx"])("passes on %s", (file) => {
+  it.each(["packages/domain/src/good.ts", "apps/web/src/app/good-foldkit.ts"])("passes on %s", (file) => {
     expect(lint(file)).toHaveLength(0);
   });
 });
 
 describe("surveybeat/no-literal-ui-text", () => {
   it.each([
-    ["apps/web/src/app/bad-text.tsx", 2],
-    ["apps/web/src/app/bad-text-expression.tsx", 1],
+    ["apps/web/src/app/bad-text.ts", 2],
+    ["apps/web/src/app/bad-text-expression.ts", 1],
     ["apps/web/src/answer/bad-text.ts", 1],
   ])("fails on %s", (file, count) => {
     const diagnostics = lint(file);
@@ -57,6 +60,6 @@ describe("surveybeat/no-literal-ui-text", () => {
   });
 
   it("passes on text that comes from elsewhere", () => {
-    expect(lint("apps/web/src/app/good-text.tsx")).toHaveLength(0);
+    expect(lint("apps/web/src/app/good-text.ts")).toHaveLength(0);
   });
 });
