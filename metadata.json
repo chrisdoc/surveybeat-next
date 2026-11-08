@@ -1,0 +1,49 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "01M6Y1NSHWA2NQFH5MS2Z65EZY",
+  "strategy": "manual-commit",
+  "branch": "t3/r1-06b-foldkit",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "apps/web/index.html",
+    "apps/web/src/app/App.scene.test.ts",
+    "apps/web/src/app/App.story.test.ts",
+    "apps/web/src/app/App.ts",
+    "apps/web/src/app/App.tsx",
+    "apps/web/src/app/Directory.tsx",
+    "apps/web/src/app/Pulses.tsx",
+    "apps/web/src/app/api.ts",
+    "apps/web/src/app/components.ts",
+    "apps/web/src/app/directory.ts",
+    "apps/web/src/app/main.ts",
+    "apps/web/src/app/main.tsx",
+    "apps/web/src/app/pulses.ts",
+    "apps/web/src/app/routes.ts",
+    "apps/web/src/app/session.ts",
+    "apps/web/tsconfig.json",
+    "apps/web/vite.config.ts",
+    "docs/adr/0008-workspace-layout-and-toolchain.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "redaction": {
+    "replacements": 12,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 12,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
