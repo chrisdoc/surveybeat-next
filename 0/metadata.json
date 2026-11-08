@@ -1,0 +1,47 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "01M6XYZXZ6ZQMXAJ0TH2ADPGN2",
+  "session_id": "d8df01be-c70b-404f-a577-0216f119ea67",
+  "strategy": "manual-commit",
+  "created_at": "2026-11-08T16:13:58.153505313Z",
+  "branch": "t3/r1-07-round-engine",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "packages/api/src/PrivacyRegistry.ts",
+    "packages/api/src/index.ts",
+    "packages/cloudflare/migrations/0006_rounds.sql",
+    "packages/cloudflare/src/MainWorker.ts",
+    "packages/cloudflare/src/Organization.test.ts",
+    "packages/cloudflare/src/Organization.ts",
+    "packages/cloudflare/src/RoundHandlers.ts",
+    "packages/cloudflare/src/RoundTestRoutes.ts",
+    "packages/cloudflare/src/SqlRounds.ts",
+    "packages/cloudflare/src/auth/DurableObjectPeople.ts",
+    "packages/cloudflare/src/auth/testing.ts",
+    "packages/domain/src/index.ts",
+    "packages/domain/src/people/Permissions.test.ts",
+    "packages/domain/src/people/Permissions.ts",
+    "packages/domain/src/rounds/Lifecycle.test.ts",
+    "packages/domain/src/rounds/Lifecycle.ts",
+    "packages/domain/src/rounds/Round.ts",
+    "packages/domain/src/rounds/RoundFlow.ts",
+    "packages/domain/src/rounds/index.ts"
+  ],
+  "agent": "Antigravity",
+  "model": "",
+  "turn_id": "5ca206ea0ef5",
+  "redaction": {
+    "replacements": 37,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 37,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
