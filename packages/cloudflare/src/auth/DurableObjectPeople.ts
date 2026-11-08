@@ -3,6 +3,7 @@ import {
   OrganizationDirectory,
   OrganizationPeople,
   OrganizationPulses,
+  OrganizationRounds,
   PersonId,
 } from "@surveybeat/domain";
 import * as Effect from "effect/Effect";
@@ -58,4 +59,15 @@ export const durableObjectPulses = (organizations: Organizations) =>
       organizations.getByName(organizationId).viewPulses(actorId, teamId),
     pulse: (organizationId, actorId, teamId, pulseId) =>
       organizations.getByName(organizationId).viewPulse(actorId, teamId, pulseId),
+  });
+
+/** `OrganizationRounds` on the same objects: the Round lifecycle engine and schedule table. */
+export const durableObjectRounds = (organizations: Organizations) =>
+  OrganizationRounds.of({
+    run: (organizationId, actorId, command, now) =>
+      organizations.getByName(organizationId).runRoundCommand(actorId, command, now),
+    rounds: (organizationId, actorId, teamId, pulseId) =>
+      organizations.getByName(organizationId).viewRounds(actorId, teamId, pulseId),
+    round: (organizationId, actorId, teamId, roundId) =>
+      organizations.getByName(organizationId).viewRound(actorId, teamId, roundId),
   });

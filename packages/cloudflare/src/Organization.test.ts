@@ -186,3 +186,27 @@ test(
     });
   }),
 );
+
+test(
+  "Round lifecycle engine: alarm points at earliest due job, next Round is never duplicated, and jobs are idempotent",
+  Effect.gen(function* () {
+    const { url } = yield* stack;
+    const run = crypto.randomUUID();
+    const response = yield* Effect.promise(() => fetch(`${url}/__test/rounds?run=${run}`));
+    assert.strictEqual(response.status, 200);
+    const body = (yield* Effect.promise(() => response.json())) as {
+      initialAlarm: unknown;
+      earliestDue1: unknown;
+      alarmPointsToEarliest1: boolean;
+      notDuplicated: boolean;
+      openIdempotent: boolean;
+      closeIdempotent: boolean;
+      alarmPointsToEarliest2: boolean;
+    };
+    assert.strictEqual(body.alarmPointsToEarliest1, true);
+    assert.strictEqual(body.notDuplicated, true);
+    assert.strictEqual(body.openIdempotent, true);
+    assert.strictEqual(body.closeIdempotent, true);
+    assert.strictEqual(body.alarmPointsToEarliest2, true);
+  }),
+);

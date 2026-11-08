@@ -27,6 +27,13 @@ import {
   QuestionHasAnswers,
   QuestionId,
   QuestionNotFound,
+  InvalidRoundState,
+  RoundDetail,
+  RoundId,
+  RoundList,
+  RoundNotFound,
+  RoundNotOpen,
+  WeekOutOfRange,
   SessionState,
   TeamDetail,
   TeamId,
@@ -261,9 +268,74 @@ export class PulsesApiGroup extends HttpApiGroup.make("pulses")
   )
   .prefix("/api") {}
 
+const roundErrors = [
+  Unauthenticated,
+  Forbidden,
+  AuthUnavailable,
+  TeamNotFound,
+  PulseNotFound,
+  RoundNotFound,
+  RoundNotOpen,
+  InvalidRoundState,
+  WeekOutOfRange,
+] as const;
+
+/**
+ * Rounds and lifecycle controls: listing Rounds for a Pulse, viewing a Round, skipping weeks,
+ * pausing and resuming Pulses, closing early, and cancelling. Authorized through the permission table.
+ * No endpoint returns Result data.
+ */
+export class RoundsApiGroup extends HttpApiGroup.make("rounds")
+  .add(
+    HttpApiEndpoint.get("listRounds", "/teams/:teamId/pulses/:pulseId/rounds", {
+      params: { teamId: TeamId, pulseId: PulseId },
+      success: RoundList,
+      error: roundErrors,
+    }),
+    HttpApiEndpoint.get("getRound", "/teams/:teamId/rounds/:roundId", {
+      params: { teamId: TeamId, roundId: RoundId },
+      success: RoundDetail,
+      error: roundErrors,
+    }),
+    HttpApiEndpoint.post("skipWeek", "/teams/:teamId/pulses/:pulseId/skip", {
+      params: { teamId: TeamId, pulseId: PulseId },
+      payload: Schema.Struct({ plannedOpenDate: Schema.String }),
+      success: Schema.Void,
+      error: roundErrors,
+    }),
+    HttpApiEndpoint.post("unskipWeek", "/teams/:teamId/pulses/:pulseId/unskip", {
+      params: { teamId: TeamId, pulseId: PulseId },
+      payload: Schema.Struct({ plannedOpenDate: Schema.String }),
+      success: Schema.Void,
+      error: roundErrors,
+    }),
+    HttpApiEndpoint.post("pausePulse", "/teams/:teamId/pulses/:pulseId/pause", {
+      params: { teamId: TeamId, pulseId: PulseId },
+      success: Schema.Void,
+      error: roundErrors,
+    }),
+    HttpApiEndpoint.post("resumePulse", "/teams/:teamId/pulses/:pulseId/resume", {
+      params: { teamId: TeamId, pulseId: PulseId },
+      success: Schema.Void,
+      error: roundErrors,
+    }),
+    HttpApiEndpoint.post("closeRoundEarly", "/teams/:teamId/rounds/:roundId/close", {
+      params: { teamId: TeamId, roundId: RoundId },
+      success: RoundDetail,
+      error: roundErrors,
+    }),
+    HttpApiEndpoint.post("cancelRound", "/teams/:teamId/rounds/:roundId/cancel", {
+      params: { teamId: TeamId, roundId: RoundId },
+      success: RoundDetail,
+      error: roundErrors,
+    }),
+  )
+  .prefix("/api") {}
+
 /** The HttpApi declaration shared by the server and the clients. */
 export class SurveyBeatApi extends HttpApi.make("surveybeat")
   .add(OrganizationsApiGroup)
   .add(AuthApiGroup)
   .add(DirectoryApiGroup)
-  .add(PulsesApiGroup) {}
+  .add(PulsesApiGroup)
+  .add(RoundsApiGroup) {}

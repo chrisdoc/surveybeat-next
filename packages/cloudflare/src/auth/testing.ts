@@ -5,6 +5,7 @@ import {
   decidePulse,
   EMPTY_PULSE_STATE,
   OrganizationPulses,
+  OrganizationRounds,
   PulseId,
   type PulseCommandResult,
   type PulseState,
@@ -58,6 +59,7 @@ import * as HttpServer from "effect/http/HttpServer";
 import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
 import { directoryHandlers } from "../DirectoryHandlers.ts";
 import { pulseHandlers } from "../PulseHandlers.ts";
+import { roundHandlers } from "../RoundHandlers.ts";
 import { authHandlers } from "./AuthHandlers.ts";
 
 /**
@@ -459,6 +461,14 @@ export class MemoryOrganizations {
       }),
   });
 
+  readonly rounds = OrganizationRounds.of({
+    run: (_organizationId, _actorId, _command, _now) => Effect.succeed({ _tag: "Accepted" }),
+    rounds: (_organizationId, _actorId, _teamId, pulseId) =>
+      Effect.succeed({ _tag: "Viewed", value: { pulseId, rounds: [] } }),
+    round: (_organizationId, _actorId, _teamId, _roundId) =>
+      Effect.succeed({ _tag: "Rejected", rejection: { _tag: "RoundNotFound" } }),
+  });
+
   person(organizationId: OrganizationId, personId: PersonId): PersonRecord | undefined {
     return this.organizations.get(organizationId)?.state.people.find((person) => person.id === personId);
   }
@@ -541,6 +551,7 @@ export class SignInWorld {
       Context.add(OrganizationPeople, this.durable.service),
       Context.add(OrganizationDirectory, this.durable.directory),
       Context.add(OrganizationPulses, this.durable.pulses),
+      Context.add(OrganizationRounds, this.durable.rounds),
       Context.add(EmailOutbox, this.outbox.service),
       Context.add(
         NewIds,
@@ -568,6 +579,7 @@ export class SignInWorld {
           organizations,
           directoryHandlers(Effect.succeed(services)),
           pulseHandlers(Effect.succeed(services)),
+          roundHandlers(Effect.succeed(services)),
         ]),
         Layer.provide(HttpServer.layerServices),
       ),
