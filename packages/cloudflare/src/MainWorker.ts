@@ -2,6 +2,7 @@ import * as Cloudflare from "@alchemy.run/cloudflare";
 import {
   EmailOutbox,
   EmailSender,
+  hashToken,
   IdentityProvider,
   MembershipId,
   OrganizationDirectory,
@@ -25,10 +26,12 @@ import { Stack } from "alchemy/Stack";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 import { HttpServerRequest } from "effect/http/HttpServerRequest";
+import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as Etag from "effect/http/Etag";
 import * as HttpPlatform from "effect/http/HttpPlatform";
 import * as HttpRouter from "effect/http/HttpRouter";
@@ -110,7 +113,11 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
           "/orgs/*",
           "/auth/*",
           "/api/*",
-          ...(isTestStage(stack.stage) ? [TEST_ROUTES, PEOPLE_TEST_ROUTE, PULSES_TEST_ROUTE] : []),
+          "/delivery",
+          "/delivery/*",
+          ...(isTestStage(stack.stage)
+            ? [TEST_ROUTES, PEOPLE_TEST_ROUTE, PULSES_TEST_ROUTE, ROUNDS_TEST_ROUTE]
+            : []),
         ],
       },
       env: yield* authBindings,
@@ -259,18 +266,234 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
       ),
     );
 
-    if (!isTestStage(stage)) return { fetch: api };
-    const testRoutes = emailTestRoutes(organizations, emailWrites, database);
+    const renderDeliveryPage = (token: string): string => `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Change delivery time · SurveyBeat</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #f8fafc; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 1rem; }
+    .card { background: #1e293b; padding: 2rem; border-radius: 0.75rem; max-width: 420px; width: 100%; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+    h1 { font-size: 1.25rem; font-weight: 600; margin-top: 0; }
+    p { color: #94a3b8; font-size: 0.875rem; line-height: 1.5; }
+    label { display: block; font-size: 0.875rem; font-weight: 500; margin-bottom: 0.5rem; }
+    select, button { width: 100%; padding: 0.625rem; border-radius: 0.375rem; font-size: 0.875rem; box-sizing: border-box; }
+    select { background: #0f172a; border: 1px solid #334155; color: #f8fafc; margin-bottom: 1.25rem; }
+    button { background: #3b82f6; color: white; border: none; font-weight: 500; cursor: pointer; }
+    button:hover { background: #2563eb; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Change delivery time</h1>
+    <p>We'll deliver your check-ins and reminders at your local time.</p>
+    <form method="POST" action="/delivery">
+      <input type="hidden" name="token" value="${token}" />
+      <label for="timeZone">Time zone</label>
+      <select name="timeZone" id="timeZone" required>
+        <option value="Europe/Berlin">Europe/Berlin</option>
+        <option value="Europe/London">Europe/London</option>
+        <option value="America/New_York">America/New_York</option>
+        <option value="America/Chicago">America/Chicago</option>
+        <option value="America/Denver">America/Denver</option>
+        <option value="America/Los_Angeles">America/Los_Angeles</option>
+        <option value="Asia/Tokyo">Asia/Tokyo</option>
+        <option value="UTC">UTC</option>
+      </select>
+      <button type="submit">Save preference</button>
+    </form>
+    <script>
+      try {
+        const userTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        if (userTz) {
+          const sel = document.getElementById("timeZone");
+          let found = false;
+          for (let i = 0; i < sel.options.length; i++) {
+            if (sel.options[i].value === userTz) { sel.selectedIndex = i; found = true; break; }
+          }
+          if (!found) {
+            const opt = document.createElement("option");
+            opt.value = userTz;
+            opt.text = userTz;
+            opt.selected = true;
+            sel.prepend(opt);
+          }
+        }
+      } catch (e) {}
+    </script>
+  </div>
+</body>
+</html>`;
+
+    const renderDeliverySuccessPage = (timeZone: string): string => `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Delivery preference updated · SurveyBeat</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #f8fafc; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 1rem; }
+    .card { background: #1e293b; padding: 2rem; border-radius: 0.75rem; max-width: 420px; width: 100%; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+    h1 { font-size: 1.25rem; font-weight: 600; margin-top: 0; color: #34d399; }
+    p { color: #94a3b8; font-size: 0.875rem; line-height: 1.5; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Preferences updated</h1>
+    <p>Your delivery time zone has been set to <strong>${timeZone}</strong>.</p>
+  </div>
+</body>
+</html>`;
+
+    const renderUnsubscribePage = (token: string): string => `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Turn off reminders · SurveyBeat</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #f8fafc; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 1rem; }
+    .card { background: #1e293b; padding: 2rem; border-radius: 0.75rem; max-width: 420px; width: 100%; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+    h1 { font-size: 1.25rem; font-weight: 600; margin-top: 0; }
+    p { color: #94a3b8; font-size: 0.875rem; line-height: 1.5; }
+    button { width: 100%; padding: 0.625rem; border-radius: 0.375rem; font-size: 0.875rem; box-sizing: border-box; background: #ef4444; color: white; border: none; font-weight: 500; cursor: pointer; }
+    button:hover { background: #dc2626; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Turn off reminders</h1>
+    <p>You will no longer receive reminders for this Pulse check-in.</p>
+    <form method="POST" action="/api/reminders/unsubscribe">
+      <input type="hidden" name="t" value="${token}" />
+      <button type="submit">Turn off reminders</button>
+    </form>
+  </div>
+</body>
+</html>`;
+
+    const JsonRecord = Schema.Record(Schema.String, Schema.String);
+    const decodeJsonRecord = Schema.decodeUnknownOption(JsonRecord);
+
+    const parseRequestBody = (req: HttpServerRequest): Effect.Effect<Record<string, string>> =>
+      Effect.gen(function* () {
+        const text = yield* req.text.pipe(Effect.orDie);
+        const contentType = req.headers["content-type"] ?? "";
+        if (contentType.includes("application/json")) {
+          try {
+            const parsed = Option.getOrElse(decodeJsonRecord(JSON.parse(text)), (): Record<string, string> => ({}));
+            return { ...parsed };
+          } catch {
+            return {};
+          }
+        }
+        const params = new URLSearchParams(text);
+        const result: Record<string, string> = {};
+        for (const [k, v] of params.entries()) {
+          result[k] = v;
+        }
+        return result;
+      });
+
+    const testRoutes = isTestStage(stage)
+      ? emailTestRoutes(organizations, emailWrites, database)
+      : undefined;
+
     return {
       fetch: Effect.gen(function* () {
         const request = yield* HttpServerRequest;
         const path = request.url.split("?")[0];
-        if (path === TEST_ROUTES) return yield* testRoutes;
-        if (path === PEOPLE_TEST_ROUTE) return yield* peopleTestRoutes(organizations, database);
-        if (path === PULSES_TEST_ROUTE) return yield* pulseTestRoutes(organizations);
-        if (path === ROUNDS_TEST_ROUTE) return yield* roundTestRoutes(organizations);
+
+        if (path === "/delivery") {
+          if (request.method === "HEAD") {
+            return HttpServerResponse.empty({ status: 200 });
+          }
+          if (request.method === "GET") {
+            const url = new URL(request.url, "https://app.surveybeat.app");
+            const token = url.searchParams.get("token") ?? "";
+            return HttpServerResponse.html(renderDeliveryPage(token));
+          }
+          if (request.method === "POST") {
+            const body = yield* parseRequestBody(request);
+            const token = body["token"] ?? "";
+            const timeZone = body["timeZone"] ?? "";
+            if (!token || !timeZone) {
+              return HttpServerResponse.text("Missing token or timeZone", { status: 400 });
+            }
+            const tokenHash = yield* Effect.promise(() => hashToken(token));
+            const row = yield* database
+              .prepare(
+                "SELECT organization_id, round_id, person_id, pulse_id FROM invitation_index WHERE token_hash = ?",
+              )
+              .bind(tokenHash)
+              .first<{ organization_id: string; round_id: string; person_id: string; pulse_id: string }>()
+              .pipe(Effect.orDie);
+            if (row === null) {
+              return HttpServerResponse.text("Invitation link not found or expired", { status: 404 });
+            }
+            yield* organizations
+              .getByName(row.organization_id)
+              .setPersonTimeZone(row.person_id, timeZone)
+              .pipe(Effect.orDie);
+            const acceptHeader = request.headers["accept"] ?? "";
+            if (acceptHeader.includes("application/json")) {
+              return yield* HttpServerResponse.json({ ok: true, timeZone }).pipe(Effect.orDie);
+            }
+            return HttpServerResponse.html(renderDeliverySuccessPage(timeZone));
+          }
+          return HttpServerResponse.empty({ status: 405 });
+        }
+
+        if (path === "/api/reminders/unsubscribe") {
+          if (request.method === "HEAD") {
+            return HttpServerResponse.empty({ status: 200 });
+          }
+          if (request.method === "GET") {
+            const url = new URL(request.url, "https://app.surveybeat.app");
+            const token = url.searchParams.get("t") ?? "";
+            return HttpServerResponse.html(renderUnsubscribePage(token));
+          }
+          if (request.method === "POST") {
+            const url = new URL(request.url, "https://app.surveybeat.app");
+            let token = url.searchParams.get("t");
+            if (!token) {
+              const body = yield* parseRequestBody(request);
+              token = body["t"] ?? body["token"] ?? null;
+            }
+            if (!token) {
+              return HttpServerResponse.text("Missing token", { status: 400 });
+            }
+            const tokenHash = yield* Effect.promise(() => hashToken(token));
+            const row = yield* database
+              .prepare(
+                "SELECT organization_id, round_id, person_id, pulse_id FROM invitation_index WHERE token_hash = ?",
+              )
+              .bind(tokenHash)
+              .first<{ organization_id: string; round_id: string; person_id: string; pulse_id: string }>()
+              .pipe(Effect.orDie);
+            if (row === null) {
+              return HttpServerResponse.text("Invitation link not found or expired", { status: 404 });
+            }
+            yield* organizations
+              .getByName(row.organization_id)
+              .optOutReminders(row.pulse_id, row.person_id)
+              .pipe(Effect.orDie);
+            return HttpServerResponse.text("Unsubscribed from reminders.");
+          }
+          return HttpServerResponse.empty({ status: 405 });
+        }
+
+        if (isTestStage(stage)) {
+          if (path === TEST_ROUTES && testRoutes) return yield* testRoutes;
+          if (path === PEOPLE_TEST_ROUTE) return yield* peopleTestRoutes(organizations, database);
+          if (path === PULSES_TEST_ROUTE) return yield* pulseTestRoutes(organizations);
+          if (path === ROUNDS_TEST_ROUTE) return yield* roundTestRoutes(organizations, database);
+        }
+
         return yield* api;
-      }),
+      }).pipe(Effect.orDie),
     };
   }).pipe(
     Effect.provide(

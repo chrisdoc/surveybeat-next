@@ -200,13 +200,84 @@ test(
       alarmPointsToEarliest1: boolean;
       notDuplicated: boolean;
       openIdempotent: boolean;
+      hasFailedInv: boolean;
+      resendSuccess: boolean;
+      resendCountIncremented: boolean;
       closeIdempotent: boolean;
       alarmPointsToEarliest2: boolean;
     };
     assert.strictEqual(body.alarmPointsToEarliest1, true);
     assert.strictEqual(body.notDuplicated, true);
     assert.strictEqual(body.openIdempotent, true);
+    assert.strictEqual(body.hasFailedInv, true);
+    assert.strictEqual(body.resendSuccess, true);
+    assert.strictEqual(body.resendCountIncremented, true);
     assert.strictEqual(body.closeIdempotent, true);
     assert.strictEqual(body.alarmPointsToEarliest2, true);
+  }),
+);
+
+test(
+  "Invitations, reminders, and delivery preferences: zero writes on GET/HEAD, delivery timezone change, RFC 8058 unsubscribe",
+  Effect.gen(function* () {
+    const { url } = yield* stack;
+    const run = crypto.randomUUID();
+    const roundRes = yield* Effect.promise(() => fetch(`${url}/__test/rounds?run=${run}`));
+    assert.strictEqual(roundRes.status, 200);
+    const roundData = (yield* Effect.promise(() => roundRes.json())) as {
+      testToken: string;
+      organizationId: string;
+      leadPersonId: string;
+      pulseId: string;
+    };
+    const { testToken } = roundData;
+
+    // 1. GET /delivery?token=... returns HTML (zero writes)
+    const delGet = yield* Effect.promise(() => fetch(`${url}/delivery?token=${testToken}`));
+    assert.strictEqual(delGet.status, 200);
+    const delGetHtml = yield* Effect.promise(() => delGet.text());
+    assert.include(delGetHtml, "Change delivery time");
+    assert.include(delGetHtml, "Europe/Berlin");
+
+    // 2. HEAD /delivery?token=... returns 200 (zero writes)
+    const delHead = yield* Effect.promise(() => fetch(`${url}/delivery?token=${testToken}`, { method: "HEAD" }));
+    assert.strictEqual(delHead.status, 200);
+
+    // 3. POST /delivery changes time zone in DO
+    const delPost = yield* Effect.promise(() =>
+      fetch(`${url}/delivery`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ token: testToken, timeZone: "America/New_York" }),
+      }),
+    );
+    assert.strictEqual(delPost.status, 200);
+    const delPostJson = (yield* Effect.promise(() => delPost.json())) as { ok: boolean; timeZone: string };
+    assert.strictEqual(delPostJson.ok, true);
+    assert.strictEqual(delPostJson.timeZone, "America/New_York");
+
+    // 4. GET /api/reminders/unsubscribe?t=... returns HTML (zero writes)
+    const unsubGet = yield* Effect.promise(() => fetch(`${url}/api/reminders/unsubscribe?t=${testToken}`));
+    assert.strictEqual(unsubGet.status, 200);
+    const unsubGetHtml = yield* Effect.promise(() => unsubGet.text());
+    assert.include(unsubGetHtml, "Turn off reminders");
+
+    // 5. HEAD /api/reminders/unsubscribe?t=... returns 200 (zero writes)
+    const unsubHead = yield* Effect.promise(() =>
+      fetch(`${url}/api/reminders/unsubscribe?t=${testToken}`, { method: "HEAD" }),
+    );
+    assert.strictEqual(unsubHead.status, 200);
+
+    // 6. POST /api/reminders/unsubscribe (RFC 8058 one-click): returns 200, NO redirect
+    const unsubPost = yield* Effect.promise(() =>
+      fetch(`${url}/api/reminders/unsubscribe?t=${testToken}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: "List-Unsubscribe=One-Click",
+      }),
+    );
+    assert.strictEqual(unsubPost.status, 200);
+    const unsubText = yield* Effect.promise(() => unsubPost.text());
+    assert.include(unsubText, "Unsubscribed from reminders.");
   }),
 );

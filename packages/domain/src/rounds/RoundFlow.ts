@@ -8,6 +8,7 @@ import { PulseNotFound, type PulseId } from "../pulses/Pulse.ts";
 import type { RoundCommand, RoundRejection } from "./Lifecycle.ts";
 import {
   InvalidRoundState,
+  InvitationNotFound,
   type RoundDetail,
   type RoundId,
   type RoundList,
@@ -56,7 +57,8 @@ export type RoundError =
   | RoundNotFound
   | RoundNotOpen
   | InvalidRoundState
-  | WeekOutOfRange;
+  | WeekOutOfRange
+  | InvitationNotFound;
 
 export const failRoundRejection = (rejection: RoundRejection): Effect.Effect<never, RoundError> => {
   switch (rejection._tag) {
@@ -74,6 +76,8 @@ export const failRoundRejection = (rejection: RoundRejection): Effect.Effect<nev
       return Effect.fail(new InvalidRoundState({ status: rejection.status }));
     case "WeekOutOfRange":
       return Effect.fail(new WeekOutOfRange());
+    case "InvitationNotFound":
+      return Effect.fail(new InvitationNotFound());
   }
 };
 

@@ -139,4 +139,8 @@ export const privacyRegistry: { readonly [K in EndpointKey<typeof SurveyBeatApi>
     _tag: "NoResultData",
     why: "cancels a round; returns round detail, no Results",
   },
+  "rounds.resendInvitation": {
+    _tag: "NoResultData",
+    why: "resends an invitation for a member; no content",
+  },
 };

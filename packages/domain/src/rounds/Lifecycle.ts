@@ -294,6 +294,12 @@ export type RoundCommand =
       readonly _tag: "CancelRound";
       readonly teamId: TeamId;
       readonly roundId: RoundId;
+    }
+  | {
+      readonly _tag: "ResendInvitation";
+      readonly teamId: TeamId;
+      readonly roundId: RoundId;
+      readonly personId: PersonId;
     };
 
 export type RoundRejection =
@@ -303,7 +309,55 @@ export type RoundRejection =
   | { readonly _tag: "RoundNotFound" }
   | { readonly _tag: "RoundNotOpen" }
   | { readonly _tag: "InvalidRoundState"; readonly status: RoundStatus }
-  | { readonly _tag: "WeekOutOfRange" };
+  | { readonly _tag: "WeekOutOfRange" }
+  | { readonly _tag: "InvitationNotFound" };
+
+declare const crypto: {
+  readonly getRandomValues: <T extends ArrayBufferView>(array: T) => T;
+  readonly subtle: {
+    readonly digest: (algorithm: string, data: Uint8Array) => Promise<ArrayBuffer>;
+  };
+};
+
+declare class TextEncoder {
+  encode(input?: string): Uint8Array;
+}
+
+const B64_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+
+const base64url = (bytes: Uint8Array): string => {
+  let result = "";
+  const len = bytes.length;
+  for (let i = 0; i < len; i += 3) {
+    const b0 = bytes[i] ?? 0;
+    const b1 = i + 1 < len ? (bytes[i + 1] ?? 0) : 0;
+    const b2 = i + 2 < len ? (bytes[i + 2] ?? 0) : 0;
+
+    result += B64_CHARS[(b0 >> 2) & 0x3f];
+    result += B64_CHARS[((b0 & 0x03) << 4) | ((b1 >> 4) & 0x0f)];
+    if (i + 1 < len) {
+      result += B64_CHARS[((b1 & 0x0f) << 2) | ((b2 >> 6) & 0x03)];
+    }
+    if (i + 2 < len) {
+      result += B64_CHARS[b2 & 0x3f];
+    }
+  }
+  return result;
+};
+
+/** Generates a 128-bit unguessable base64url token for an invitation (ADR 0005). */
+export const generateInvitationToken = (): string => {
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  return base64url(bytes);
+};
+
+/** Computes the hex-encoded SHA-256 hash of a token for storage and lookup. */
+export const hashToken = (token: string): Promise<string> =>
+  crypto.subtle
+    .digest("SHA-256", new TextEncoder().encode(token))
+    .then((buf: ArrayBuffer) =>
+      Array.from(new Uint8Array(buf), (b) => b.toString(16).padStart(2, "0")).join(""),
+    );
 
 export type RoundDecision<A> =
   | { readonly _tag: "Rejected"; readonly rejection: RoundRejection }

@@ -108,6 +108,18 @@ export const roundHandlers = <R>(services: Effect.Effect<Context.Context<RoundSe
             return yield* viewRound(member, params.teamId, params.roundId);
           }),
         ),
+      )
+      .handle("resendInvitation", ({ params }) =>
+        provide(
+          change(
+            Effect.succeed({
+              _tag: "ResendInvitation",
+              teamId: params.teamId,
+              roundId: params.roundId,
+              personId: params.personId,
+            }),
+          ),
+        ),
       ),
   );
 };

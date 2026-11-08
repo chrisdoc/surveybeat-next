@@ -15,9 +15,10 @@ export const capturingEmailSender = (db: Cloudflare.D1.QueryDatabaseClient) =>
       send: (message) =>
         Effect.gen(function* () {
           const messageId = `captured-${crypto.randomUUID()}`;
+          const headers = message.headers !== undefined ? JSON.stringify(message.headers) : null;
           yield* db
             .prepare(
-              "INSERT INTO captured_email (message_id, recipient, subject, html, text, captured_at) VALUES (?, ?, ?, ?, ?, ?)",
+              "INSERT INTO captured_email (message_id, recipient, subject, html, text, captured_at, headers) VALUES (?, ?, ?, ?, ?, ?, ?)",
             )
             .bind(
               messageId,
@@ -26,6 +27,7 @@ export const capturingEmailSender = (db: Cloudflare.D1.QueryDatabaseClient) =>
               message.html,
               message.text,
               yield* Clock.currentTimeMillis,
+              headers,
             )
             .run();
           return { messageId };
