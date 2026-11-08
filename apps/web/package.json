@@ -7,17 +7,15 @@
     "build": "vite build"
   },
   "dependencies": {
-    "@base-ui/react": "catalog:",
+    "@foldkit/ui": "catalog:",
     "@surveybeat/api": "workspace:*",
     "@surveybeat/domain": "workspace:*",
     "effect": "catalog:",
-    "react": "catalog:",
-    "react-dom": "catalog:"
+    "foldkit": "catalog:"
   },
   "devDependencies": {
+    "@foldkit/vite-plugin": "catalog:",
     "@tailwindcss/vite": "catalog:",
-    "@types/react": "catalog:",
-    "@types/react-dom": "catalog:",
     "tailwindcss": "catalog:",
     "vite": "catalog:"
   }

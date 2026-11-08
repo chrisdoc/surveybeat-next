@@ -9,6 +9,7 @@ const REACT = [
   /^@base-ui\/react$/,
   /^@base-ui\/react\//,
 ];
+const FOLDKIT = [/^foldkit$/, /^foldkit\//, /^@foldkit\//];
 const API_CLIENT = [
   /^@surveybeat\/api$/,
   /^@surveybeat\/api\//,
@@ -18,9 +19,9 @@ const API_CLIENT = [
 
 /** Which files are guarded, and what they must not import. */
 const ZONES = [
-  { name: "packages/domain", path: "/packages/domain/", banned: PLATFORM },
-  { name: "packages/api", path: "/packages/api/", banned: PLATFORM },
-  { name: "the answer entry", path: "/apps/web/src/answer/", banned: [...REACT, ...API_CLIENT] },
+  { name: "packages/domain", path: "/packages/domain/", banned: [...PLATFORM, ...FOLDKIT] },
+  { name: "packages/api", path: "/packages/api/", banned: [...PLATFORM, ...FOLDKIT] },
+  { name: "the answer entry", path: "/apps/web/src/answer/", banned: [...REACT, ...API_CLIENT, ...FOLDKIT] },
 ];
 
 const toPath = (filename) => filename.replaceAll("\\", "/");
@@ -30,7 +31,7 @@ const domainBoundary = {
     type: "problem",
     docs: {
       description:
-        "domain and api must not import cloudflare:* or Alchemy; the answer entry must not import React, Base UI, or the HttpApi client",
+        "domain and api must not import cloudflare:*, Alchemy, or foldkit; the answer entry must not import React, Base UI, foldkit, or the HttpApi client",
     },
     messages: {
       banned: "{{zone}} must not import '{{source}}' (ADR 0008).",
@@ -64,6 +65,17 @@ const UI_ATTRIBUTES = new Set([
   "aria-description",
   "aria-placeholder",
 ]);
+const UI_H_ATTRIBUTES = new Set([
+  "Title",
+  "Placeholder",
+  "AriaLabel",
+  "AriaDescription",
+  "AriaPlaceholder",
+  "Alt",
+  "AriaValuetext",
+  "AriaRoleDescription",
+  "LabelAttr",
+]);
 const UI_PROPERTIES = new Set(["textContent", "innerText", "title", "placeholder"]);
 const hasLetters = (text) => /\p{L}/u.test(text);
 const isTextLiteral = (node) =>
@@ -95,6 +107,29 @@ const noLiteralUiText = {
         if (value === null) return;
         if (isTextLiteral(value)) report(value);
         if (value.type === "JSXExpressionContainer" && isTextLiteral(value.expression)) report(value);
+      },
+      CallExpression: (node) => {
+        const callee = node.callee;
+        if (callee.type === "MemberExpression" && !callee.computed && callee.object.type === "Identifier") {
+          const objName = callee.object.name;
+          const propName = callee.property.name;
+          if (objName === "h" || objName === "inertHtml" || objName === "ih") {
+            if (UI_H_ATTRIBUTES.has(propName)) {
+              const arg = node.arguments[0];
+              if (arg && isTextLiteral(arg)) report(arg);
+            }
+            const children = node.arguments[1];
+            if (children) {
+              if (children.type === "ArrayExpression") {
+                for (const element of children.elements) {
+                  if (element && isTextLiteral(element)) report(element);
+                }
+              } else if (isTextLiteral(children)) {
+                report(children);
+              }
+            }
+          }
+        }
       },
       AssignmentExpression: (node) => {
         const left = node.left;
