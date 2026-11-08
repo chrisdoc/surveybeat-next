@@ -1,0 +1,44 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "01M6XXHPMASF7HJQZ60W77E3JZ",
+  "session_id": "4abfc20e-af7d-4463-9854-3d00cc0e9308",
+  "strategy": "manual-commit",
+  "created_at": "2026-11-08T15:48:35.249446385Z",
+  "branch": "t3/r1-06b-foldkit",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "apps/web/package.json",
+    "pnpm-lock.yaml",
+    "pnpm-workspace.yaml",
+    "tools/oxlint-plugin-surveybeat/fixtures/apps/web/src/answer/bad-foldkit.ts",
+    "tools/oxlint-plugin-surveybeat/fixtures/apps/web/src/app/bad-text-expression.ts",
+    "tools/oxlint-plugin-surveybeat/fixtures/apps/web/src/app/bad-text-expression.tsx",
+    "tools/oxlint-plugin-surveybeat/fixtures/apps/web/src/app/bad-text.ts",
+    "tools/oxlint-plugin-surveybeat/fixtures/apps/web/src/app/bad-text.tsx",
+    "tools/oxlint-plugin-surveybeat/fixtures/apps/web/src/app/good-foldkit.ts",
+    "tools/oxlint-plugin-surveybeat/fixtures/apps/web/src/app/good-react.tsx",
+    "tools/oxlint-plugin-surveybeat/fixtures/apps/web/src/app/good-text.ts",
+    "tools/oxlint-plugin-surveybeat/fixtures/apps/web/src/app/good-text.tsx",
+    "tools/oxlint-plugin-surveybeat/fixtures/packages/api/src/bad-foldkit.ts",
+    "tools/oxlint-plugin-surveybeat/fixtures/packages/domain/src/bad-foldkit.ts",
+    "tools/oxlint-plugin-surveybeat/index.js",
+    "tools/oxlint-plugin-surveybeat/index.test.ts"
+  ],
+  "agent": "Antigravity",
+  "model": "",
+  "turn_id": "7ff50e10e7f9",
+  "redaction": {
+    "replacements": 15,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 15,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
