@@ -447,20 +447,14 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient) => {
       return yield* getInvitation(roundId, personId);
     }).pipe(Effect.orDie);
 
-  const revokeInvitationsForRound = (
-    roundId: RoundId,
-    now: number,
-  ): Effect.Effect<ReadonlyArray<string>> =>
+  const revokeInvitationsForRound = (roundId: RoundId, now: number): Effect.Effect<ReadonlyArray<string>> =>
     Effect.gen(function* () {
       const invs = yield* getInvitations(roundId);
       yield* sql`UPDATE invitation SET status = 'revoked', updated_at = ${now} WHERE round_id = ${roundId}`;
       return invs.map((i) => i.tokenHash);
     }).pipe(Effect.orDie);
 
-  const revokeInvitationForPerson = (
-    personId: PersonId,
-    now: number,
-  ): Effect.Effect<ReadonlyArray<string>> =>
+  const revokeInvitationForPerson = (personId: PersonId, now: number): Effect.Effect<ReadonlyArray<string>> =>
     Effect.gen(function* () {
       const invs = yield* sql`SELECT * FROM invitation WHERE person_id = ${personId}`.pipe(
         Effect.flatMap(rows(InvitationRow)),
@@ -477,13 +471,17 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient) => {
         ON CONFLICT (pulse_id, person_id) DO NOTHING`.pipe(Effect.asVoid, Effect.orDie);
 
   const isOptedOut = (pulseId: PulseId, personId: PersonId): Effect.Effect<boolean> =>
-    sql<{ count: number }>`SELECT COUNT(*) as count FROM pulse_reminder_opt_out WHERE pulse_id = ${pulseId} AND person_id = ${personId}`.pipe(
+    sql<{
+      count: number;
+    }>`SELECT COUNT(*) as count FROM pulse_reminder_opt_out WHERE pulse_id = ${pulseId} AND person_id = ${personId}`.pipe(
       Effect.map((rows) => (rows[0]?.count ?? 0) > 0),
       Effect.orDie,
     );
 
   const hasAnswered = (roundId: RoundId, personId: PersonId): Effect.Effect<boolean> =>
-    sql<{ count: number }>`SELECT COUNT(*) as count FROM participation WHERE round_id = ${roundId} AND person_id = ${personId}`.pipe(
+    sql<{
+      count: number;
+    }>`SELECT COUNT(*) as count FROM participation WHERE round_id = ${roundId} AND person_id = ${personId}`.pipe(
       Effect.map((rows) => (rows[0]?.count ?? 0) > 0),
       Effect.orDie,
     );
@@ -497,7 +495,11 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient) => {
   const setPersonTimeZone = (personId: PersonId, timeZone: string): Effect.Effect<void> =>
     sql`UPDATE person SET time_zone = ${timeZone} WHERE id = ${personId}`.pipe(Effect.asVoid, Effect.orDie);
 
-  const recordParticipation = (roundId: RoundId, personId: PersonId, answeredAt: number): Effect.Effect<void> =>
+  const recordParticipation = (
+    roundId: RoundId,
+    personId: PersonId,
+    answeredAt: number,
+  ): Effect.Effect<void> =>
     sql`INSERT INTO participation (round_id, person_id, answered_at)
         VALUES (${roundId}, ${personId}, ${answeredAt})
         ON CONFLICT (round_id, person_id) DO NOTHING`.pipe(Effect.asVoid, Effect.orDie);

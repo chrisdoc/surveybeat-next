@@ -240,7 +240,9 @@ test(
     assert.include(delGetHtml, "Europe/Berlin");
 
     // 2. HEAD /delivery?token=... returns 200 (zero writes)
-    const delHead = yield* Effect.promise(() => fetch(`${url}/delivery?token=${testToken}`, { method: "HEAD" }));
+    const delHead = yield* Effect.promise(() =>
+      fetch(`${url}/delivery?token=${testToken}`, { method: "HEAD" }),
+    );
     assert.strictEqual(delHead.status, 200);
 
     // 3. POST /delivery changes time zone in DO

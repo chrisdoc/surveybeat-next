@@ -383,7 +383,10 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
         const contentType = req.headers["content-type"] ?? "";
         if (contentType.includes("application/json")) {
           try {
-            const parsed = Option.getOrElse(decodeJsonRecord(JSON.parse(text)), (): Record<string, string> => ({}));
+            const parsed = Option.getOrElse(
+              decodeJsonRecord(JSON.parse(text)),
+              (): Record<string, string> => ({}),
+            );
             return { ...parsed };
           } catch {
             return {};
@@ -397,9 +400,7 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
         return result;
       });
 
-    const testRoutes = isTestStage(stage)
-      ? emailTestRoutes(organizations, emailWrites, database)
-      : undefined;
+    const testRoutes = isTestStage(stage) ? emailTestRoutes(organizations, emailWrites, database) : undefined;
 
     return {
       fetch: Effect.gen(function* () {

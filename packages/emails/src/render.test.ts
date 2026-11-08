@@ -93,7 +93,9 @@ describe("InvitationEmail", () => {
     expect(text).toContain("Weekly Pulse");
     expect(text).toContain("Your name is never stored with your answers.");
     expect(text).toContain("https://app.surveybeat.app/a#t=test-token-123");
-    expect(text).toContain("Change when I get this: https://app.surveybeat.app/delivery?token=test-token-123");
+    expect(text).toContain(
+      "Change when I get this: https://app.surveybeat.app/delivery?token=test-token-123",
+    );
   });
 });
 
@@ -101,10 +103,14 @@ describe("ReminderEmail", () => {
   it("includes RFC 8058 List-Unsubscribe headers and opt-out link", async () => {
     const rendered = await renderEmail(examples.ReminderEmail);
     expect(rendered.headers).toBeDefined();
-    expect(rendered.headers?.["List-Unsubscribe"]).toBe("<https://app.surveybeat.app/api/reminders/unsubscribe?t=test-token-123>");
+    expect(rendered.headers?.["List-Unsubscribe"]).toBe(
+      "<https://app.surveybeat.app/api/reminders/unsubscribe?t=test-token-123>",
+    );
     expect(rendered.headers?.["List-Unsubscribe-Post"]).toBe("List-Unsubscribe=One-Click");
     expect(rendered.html).toContain("Open check-in");
     expect(rendered.html).toContain("Turn off reminders for this Pulse");
-    expect(rendered.text).toContain("Turn off reminders for this Pulse: https://app.surveybeat.app/api/reminders/unsubscribe?t=test-token-123");
+    expect(rendered.text).toContain(
+      "Turn off reminders for this Pulse: https://app.surveybeat.app/api/reminders/unsubscribe?t=test-token-123",
+    );
   });
 });

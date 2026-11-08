@@ -67,7 +67,6 @@ const randomId = (): string =>
     "",
   );
 
-
 /**
  * The Organization Durable Object (ADR 0006): one object per Organization, SQLite storage.
  * Methods return plain data (no `Option`), because they cross the RPC boundary.
@@ -301,9 +300,7 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
       const firstRatingQuestionOf = (pulse: PulseRecord, pulseState: PulseState) => {
         const firstVersionId = pulse.questions[0];
         const firstVersion =
-          firstVersionId !== undefined
-            ? pulseState.versions.find((v) => v.id === firstVersionId)
-            : undefined;
+          firstVersionId !== undefined ? pulseState.versions.find((v) => v.id === firstVersionId) : undefined;
         return firstVersion && firstVersion.content.type._tag === "Rating"
           ? {
               text: firstVersion.content.text,
@@ -360,8 +357,7 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
 
           const frozenMembers: ReadonlyArray<FrozenRoundMember> = activeMembers.map((m, idx) => {
             const tz = memberTimeZones[idx] ?? team.timeZone;
-            const sendAt =
-              instants.sends.find((s) => s.timeZone === tz)?.sendAt ?? instants.openInstant;
+            const sendAt = instants.sends.find((s) => s.timeZone === tz)?.sendAt ?? instants.openInstant;
             return {
               roundId,
               personId: m.personId,
@@ -467,7 +463,9 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
       });
       const decodeJobPayload = Schema.decodeUnknownOption(JobPayload);
 
-      const parseJobPayload = (raw: string | null): { readonly personId: string; readonly token: string } | null => {
+      const parseJobPayload = (
+        raw: string | null,
+      ): { readonly personId: string; readonly token: string } | null => {
         if (raw === null) return null;
         try {
           return Option.getOrNull(decodeJobPayload(JSON.parse(raw)));
@@ -973,7 +971,13 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
                     const newToken = generateInvitationToken();
                     const newTokenHash = yield* Effect.promise(() => hashToken(newToken));
                     const newSendId = SendId.make(randomId());
-                    yield* rounds.resendInvitation(command.roundId, command.personId, newSendId, newTokenHash, now);
+                    yield* rounds.resendInvitation(
+                      command.roundId,
+                      command.personId,
+                      newSendId,
+                      newTokenHash,
+                      now,
+                    );
 
                     const ratingQuestion = firstRatingQuestionOf(pulse, pulseState);
 
@@ -1141,14 +1145,23 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
           rounds.isOptedOut(PulseId.make(pulseId), PersonId.make(personId)),
         setPersonTimeZone: (personId: string, timeZone: string) =>
           rounds.setPersonTimeZone(PersonId.make(personId), timeZone),
-        getPersonTimeZone: (personId: string) =>
-          rounds.getPersonTimeZone(PersonId.make(personId)),
+        getPersonTimeZone: (personId: string) => rounds.getPersonTimeZone(PersonId.make(personId)),
         recordParticipation: (roundId: string, personId: string, answeredAt?: number) =>
-          rounds.recordParticipation(RoundId.make(roundId), PersonId.make(personId), answeredAt ?? Date.now()),
+          rounds.recordParticipation(
+            RoundId.make(roundId),
+            PersonId.make(personId),
+            answeredAt ?? Date.now(),
+          ),
         hasAnswered: (roundId: string, personId: string) =>
           rounds.hasAnswered(RoundId.make(roundId), PersonId.make(personId)),
         failInvitation: (roundId: string, personId: string, reason: string, now?: number) =>
-          rounds.updateInvitationStatus(RoundId.make(roundId), PersonId.make(personId), "failed", reason, now ?? Date.now()),
+          rounds.updateInvitationStatus(
+            RoundId.make(roundId),
+            PersonId.make(personId),
+            "failed",
+            reason,
+            now ?? Date.now(),
+          ),
 
         get: (id: string) =>
           sql<{ id: string; name: string }>`SELECT id, name FROM organization WHERE id = ${id}`.pipe(

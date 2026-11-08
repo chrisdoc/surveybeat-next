@@ -1,5 +1,13 @@
 import type * as Cloudflare from "@alchemy.run/cloudflare";
-import { EmailAddress, hashToken, MembershipId, PersonId, PulseId, TeamId, TimeZone } from "@surveybeat/domain";
+import {
+  EmailAddress,
+  hashToken,
+  MembershipId,
+  PersonId,
+  PulseId,
+  TeamId,
+  TimeZone,
+} from "@surveybeat/domain";
 import * as Clock from "effect/Clock";
 import * as Effect from "effect/Effect";
 import { HttpServerRequest } from "effect/http/HttpServerRequest";
@@ -17,10 +25,7 @@ export const ROUNDS_TEST_ROUTE = "/__test/rounds";
  * 4. Exactly one Invitation is created per member on open, and none duplicated on second open.
  * 5. Failed invitations appear in Lead's view and resend resets status to pending with new send.
  */
-export const roundTestRoutes = (
-  organizations: Organizations,
-  database: Cloudflare.D1.QueryDatabaseClient,
-) =>
+export const roundTestRoutes = (organizations: Organizations, database: Cloudflare.D1.QueryDatabaseClient) =>
   Effect.gen(function* () {
     const request = yield* HttpServerRequest;
     const run = new URL(request.url, "http://localhost").searchParams.get("run") ?? "";

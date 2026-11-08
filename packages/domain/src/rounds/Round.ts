@@ -127,8 +127,7 @@ export class WeekOutOfRange extends Schema.TaggedError<WeekOutOfRange, { readonl
   { httpApiStatus: 400 },
 ) {}
 
-export class InvitationNotFound extends Schema.TaggedError<InvitationNotFound, { readonly brand: unique symbol }>()(
-  "InvitationNotFound",
-  {},
-  { httpApiStatus: 404 },
-) {}
+export class InvitationNotFound extends Schema.TaggedError<
+  InvitationNotFound,
+  { readonly brand: unique symbol }
+>()("InvitationNotFound", {}, { httpApiStatus: 404 }) {}
