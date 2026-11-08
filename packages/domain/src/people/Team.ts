@@ -142,3 +142,9 @@ export class TeamNameTaken extends Schema.TaggedError<TeamNameTaken, { readonly 
   {},
   { httpApiStatus: 409 },
 ) {}
+
+/** A removed Person can be restored to the Organization only by an Organization admin. */
+export class PersonWasRemoved extends Schema.TaggedError<
+  PersonWasRemoved,
+  { readonly brand: unique symbol }
+>()("PersonWasRemoved", {}, { httpApiStatus: 403 }) {}

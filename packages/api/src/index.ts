@@ -14,6 +14,7 @@ import {
   OrganizationSettings,
   PersonId,
   PersonNotFound,
+  PersonWasRemoved,
   PulseDetail,
   PulseFull,
   PulseId,
@@ -117,6 +118,7 @@ const directoryErrors = [
   LastLead,
   LastAdmin,
   TeamNameTaken,
+  PersonWasRemoved,
 ] as const;
 const teamParams = { teamId: TeamId };
 const memberParams = { teamId: TeamId, personId: PersonId };

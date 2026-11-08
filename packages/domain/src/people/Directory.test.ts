@@ -304,19 +304,44 @@ describe("removing", () => {
     });
   });
 
-  it("restores a removed Person added back, as a plain member with their history", () => {
+  it("restores a removed Person added back, but only when an admin does it", () => {
     const world = new World();
     const platform = world.createTeam("Platform", "grace@example.com");
     world.add(ADMIN, platform, "ada@example.com");
+    const grace = world.personWith("grace@example.com");
     const ada = world.personWith("ada@example.com");
     world.ok(ADMIN, { _tag: "SetAdmin", personId: ada, organizationAdmin: true });
     world.ok(ADMIN, { _tag: "RemovePerson", personId: ada });
+
+    // A Lead adding a removed Person gets PersonWasRemoved.
+    expect(rejection(world.add(grace, platform, "ada@example.com"))).toBe("PersonWasRemoved");
+
+    // Only an admin may restore them.
     world.add(ADMIN, platform, "ada@example.com");
 
     expect(world.state.people.filter((person) => person.email === "ada@example.com")).toEqual([
       expect.objectContaining({ id: ada, removedAt: null, organizationAdmin: false }),
     ]);
     expect(world.state.memberships.filter((membership) => membership.personId === ada)).toHaveLength(2);
+  });
+
+  it("forbids removing yourself from the Organization, requiring another admin", () => {
+    const world = new World();
+    const platform = world.createTeam("Platform", "grace@example.com");
+    world.add(ADMIN, platform, "ada@example.com");
+    const grace = world.personWith("grace@example.com");
+    const ada = world.personWith("ada@example.com");
+
+    // Lead or member removing themselves is forbidden.
+    expect(rejection(world.run(grace, { _tag: "RemovePerson", personId: grace }))).toBe("Forbidden");
+    expect(rejection(world.run(ada, { _tag: "RemovePerson", personId: ada }))).toBe("Forbidden");
+
+    // Admin removing themselves is forbidden even with another admin present.
+    world.ok(ADMIN, { _tag: "SetAdmin", personId: grace, organizationAdmin: true });
+    expect(rejection(world.run(ADMIN, { _tag: "RemovePerson", personId: ADMIN }))).toBe("Forbidden");
+
+    // Another admin can remove them.
+    expect(rejection(world.run(grace, { _tag: "RemovePerson", personId: ADMIN }))).toBe("Accepted");
   });
 
   it("refuses a removed Person's own commands and views", () => {
@@ -339,7 +364,7 @@ describe("Organization admins", () => {
     expect(rejection(world.run(ADMIN, { _tag: "SetAdmin", personId: ADMIN, organizationAdmin: false }))).toBe(
       "LastAdmin",
     );
-    expect(rejection(world.run(ADMIN, { _tag: "RemovePerson", personId: ADMIN }))).toBe("LastAdmin");
+    expect(rejection(world.run(ADMIN, { _tag: "RemovePerson", personId: ADMIN }))).toBe("Forbidden");
 
     world.ok(ADMIN, { _tag: "SetAdmin", personId: grace, organizationAdmin: true });
     expect(rejection(world.run(grace, { _tag: "SetAdmin", personId: ADMIN, organizationAdmin: false }))).toBe(
@@ -380,6 +405,30 @@ describe("Organization admins", () => {
         may: { update: true, manageLeads: true, manageMembers: true, managePulses: true, viewResults: false },
       },
     });
+  });
+
+  it("allows an admin to add themselves to a Team, visibly in the roster with their start date", () => {
+    const world = new World();
+    const platform = world.createTeam("Platform", "grace@example.com");
+    const grace = world.personWith("grace@example.com");
+    world.now += DAY;
+    world.ok(ADMIN, {
+      _tag: "AddMember",
+      teamId: platform,
+      role: "member",
+      member: world.newMember("admin@example.com"),
+    });
+
+    const view = teamView(world.state, grace, platform);
+    expect(view._tag).toBe("Viewed");
+    if (view._tag === "Viewed") {
+      expect(view.value.roster).toContainEqual({
+        personId: ADMIN,
+        email: "admin@example.com",
+        role: "member",
+        since: 1_001 * DAY,
+      });
+    }
   });
 });
 

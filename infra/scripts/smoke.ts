@@ -16,7 +16,7 @@ if (mainUrl === undefined) {
   process.exit(2);
 }
 
-const ATTEMPTS = 40;
+const ATTEMPTS = 120;
 const DELAY_MS = 5000;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -32,10 +32,12 @@ const request = async (url: string, init?: RequestInit): Promise<Response> => {
     } catch (error) {
       last = error instanceof Error ? error.message : String(error);
     }
-    console.log(`${init?.method ?? "GET"} ${url}: ${last}, retrying (${attempt}/${ATTEMPTS})`);
+    console.log(
+      `${init?.method ?? "GET"} ${url}: ${last}, retrying (${attempt}/${ATTEMPTS}; for new hostnames, delays are usually TLS certificate issuance)`,
+    );
     await sleep(DELAY_MS);
   }
-  throw new Error(`${url} never became ready: ${last}`);
+  throw new Error(`${url} never became ready: ${last} (hint: the cause is usually certificate issuance)`);
 };
 
 function fail(message: string): never {

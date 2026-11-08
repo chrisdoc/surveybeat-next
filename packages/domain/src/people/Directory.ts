@@ -146,6 +146,7 @@ export type DirectoryRejection =
   | { readonly _tag: "Forbidden" }
   | { readonly _tag: "TeamNotFound" }
   | { readonly _tag: "PersonNotFound" }
+  | { readonly _tag: "PersonWasRemoved" }
   | { readonly _tag: "LastLead"; readonly teamId: TeamId }
   | { readonly _tag: "LastAdmin" }
   | { readonly _tag: "TeamNameTaken" };
@@ -237,6 +238,9 @@ const putInTeam = (
 ): Decision => {
   const email = EmailAddress.make(normaliseEmail(member.email));
   const existing = state.people.find((person) => person.email === email);
+  if (existing !== undefined && existing.removedAt !== null && !adder.organizationAdmin) {
+    return reject({ _tag: "PersonWasRemoved" });
+  }
   const person: PersonRecord = existing ?? {
     id: member.personId,
     email,
@@ -368,6 +372,7 @@ export const decide = (
 
     case "RemovePerson": {
       if (!can(allowed, "organization.removePerson", organization)) return forbidden;
+      if (command.personId === actorId) return forbidden;
       const person = state.people.find((each) => each.id === command.personId);
       if (person === undefined) return reject({ _tag: "PersonNotFound" });
       const followUps: Array<FollowUp> = [{ _tag: "UnindexPerson", personId: person.id }];

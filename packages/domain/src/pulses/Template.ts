@@ -74,7 +74,7 @@ export const WEEKLY_TEAM_HEALTH: Template = {
     {
       key: key("shout-out"),
       dimension: "recognition",
-      text: "Is there anything or anyone you would like to recognise from this week?",
+      text: "What went well this week?",
       type: { _tag: "LongText" },
     },
   ],
