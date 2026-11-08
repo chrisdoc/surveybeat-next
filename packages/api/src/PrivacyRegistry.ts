@@ -107,4 +107,36 @@ export const privacyRegistry: { readonly [K in EndpointKey<typeof SurveyBeatApi>
     _tag: "NoResultData",
     why: "reorders a Pulse's Questions; returns the Pulse as the editor shows it",
   },
+  "rounds.listRounds": {
+    _tag: "NoResultData",
+    why: "returns Round lifecycle status and timestamps; no Results",
+  },
+  "rounds.getRound": {
+    _tag: "NoResultData",
+    why: "returns Round lifecycle detail and status; no Results",
+  },
+  "rounds.skipWeek": {
+    _tag: "NoResultData",
+    why: "skips a scheduled cadence week; no content",
+  },
+  "rounds.unskipWeek": {
+    _tag: "NoResultData",
+    why: "unskips a cadence week; no content",
+  },
+  "rounds.pausePulse": {
+    _tag: "NoResultData",
+    why: "pauses a Pulse, cancelling the scheduled round; no content",
+  },
+  "rounds.resumePulse": {
+    _tag: "NoResultData",
+    why: "resumes a paused Pulse, scheduling the next round; no content",
+  },
+  "rounds.closeRoundEarly": {
+    _tag: "NoResultData",
+    why: "closes an open round early; returns round detail, no Results",
+  },
+  "rounds.cancelRound": {
+    _tag: "NoResultData",
+    why: "cancels a round; returns round detail, no Results",
+  },
 };

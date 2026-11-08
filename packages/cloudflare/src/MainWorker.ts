@@ -13,6 +13,7 @@ import {
   OrganizationId,
   OrganizationNotFound,
   OrganizationPulses,
+  OrganizationRounds,
   PulseId,
   QuestionId,
   TeamId,
@@ -39,6 +40,7 @@ import {
   durableObjectDirectory,
   durableObjectPeople,
   durableObjectPulses,
+  durableObjectRounds,
 } from "./auth/DurableObjectPeople.ts";
 import { PEOPLE_TEST_ROUTE, peopleTestRoutes } from "./auth/PeopleTestRoutes.ts";
 import { workosIdentityProvider } from "./auth/WorkosIdentityProvider.ts";
@@ -58,7 +60,9 @@ import { handleDeadLetter, handleDeliveryEvent, handleSendMessage } from "./Emai
 import { emailTestRoutes, isTestStage, TEST_ROUTES } from "./EmailTestRoutes.ts";
 import { hostnameFor } from "./Hostnames.ts";
 import { pulseHandlers } from "./PulseHandlers.ts";
+import { roundHandlers } from "./RoundHandlers.ts";
 import { PULSES_TEST_ROUTE, pulseTestRoutes } from "./PulseTestRoutes.ts";
+import { ROUNDS_TEST_ROUTE, roundTestRoutes } from "./RoundTestRoutes.ts";
 import Organization from "./Organization.ts";
 import { Jobs, JobsDlq, type JobMessage } from "./Queues.ts";
 
@@ -193,7 +197,21 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
     const people = durableObjectPeople(organizations);
     const directory = durableObjectDirectory(organizations);
     const pulses = durableObjectPulses(organizations);
+    const rounds = durableObjectRounds(organizations);
     const emailWrites = yield* Cloudflare.Queues.WriteQueue(emailQueue);
+
+    // Daily Cron repairs missing alarms across all Organizations (ADR 0006)
+    yield* Cloudflare.Workers.cron("0 0 * * *", () =>
+      Effect.gen(function* () {
+        const orgs = yield* database
+          .prepare("SELECT organization_id FROM organization_index")
+          .all<{ organization_id: string }>();
+        for (const row of orgs.results) {
+          yield* organizations.getByName(row.organization_id).repairAlarm().pipe(Effect.orDie);
+        }
+      }),
+    );
+
     const services = Effect.gen(function* () {
       const runtime = yield* Effect.context<RuntimeContext>();
       const outbox = EmailOutbox.of({
@@ -211,6 +229,7 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
         Context.add(OrganizationPeople, people),
         Context.add(OrganizationDirectory, directory),
         Context.add(OrganizationPulses, pulses),
+        Context.add(OrganizationRounds, rounds),
         Context.add(EmailOutbox, outbox),
         Context.add(
           NewIds,
@@ -229,7 +248,13 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
 
     const api = yield* HttpRouter.toHttpEffect(
       HttpApiBuilder.layer(SurveyBeatApi).pipe(
-        Layer.provide([group, auth, directoryHandlers(services), pulseHandlers(services)]),
+        Layer.provide([
+          group,
+          auth,
+          directoryHandlers(services),
+          pulseHandlers(services),
+          roundHandlers(services),
+        ]),
         Layer.provide([Etag.layer, HttpPlatformStub, Path.layer]),
       ),
     );
@@ -243,6 +268,7 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
         if (path === TEST_ROUTES) return yield* testRoutes;
         if (path === PEOPLE_TEST_ROUTE) return yield* peopleTestRoutes(organizations, database);
         if (path === PULSES_TEST_ROUTE) return yield* pulseTestRoutes(organizations);
+        if (path === ROUNDS_TEST_ROUTE) return yield* roundTestRoutes(organizations);
         return yield* api;
       }),
     };
@@ -253,6 +279,7 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
         Cloudflare.D1.QueryDatabaseBinding,
         Cloudflare.Email.SendBinding,
         Cloudflare.Queues.WriteQueueBinding,
+        Cloudflare.Workers.CronEventSourceLive,
       ),
     ),
   ),

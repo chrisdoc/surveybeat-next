@@ -33,7 +33,9 @@ export type TeamAction =
   | "team.viewResults"
   | "team.viewPulses"
   | "team.createPulse"
-  | "team.editPulse";
+  | "team.editPulse"
+  | "team.viewRounds"
+  | "team.manageRounds";
 
 export type Action = OrganizationAction | TeamAction;
 
@@ -72,6 +74,8 @@ export const PERMISSIONS: { readonly [A in Action]: ReadonlyArray<Grantee> } = {
   "team.viewPulses": ["admin", "lead"],
   "team.createPulse": ["admin", "lead"],
   "team.editPulse": ["admin", "lead"],
+  "team.viewRounds": ["admin", "lead"],
+  "team.manageRounds": ["admin", "lead"],
 };
 
 /** Whether `actor` may do `action` to `resource`. */
