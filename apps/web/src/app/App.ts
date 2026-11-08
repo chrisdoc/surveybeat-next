@@ -624,6 +624,12 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       if (request._tag === "Internal") {
         const path =
           request.url.pathname + (Option.isSome(request.url.search) ? `?${request.url.search.value}` : "");
+        if (request.url.pathname.startsWith("/auth/")) {
+          return {
+            model,
+            commands: [LoadExternalUrl({ href: path })],
+          };
+        }
         return {
           model,
           commands: [Navigate({ url: path })],

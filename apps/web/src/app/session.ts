@@ -67,9 +67,17 @@ export const signInView = <Message>(failed: boolean, h: HtmlBuilder<Message>): H
     [
       h.p([h.Class("mt-2 text-gray-600")], [message("signIn.intro")]),
       failed ? h.p([h.Role("alert"), h.Class("mt-2 text-red-700")], [message("signIn.failed")]) : null,
-      h.a(
-        [h.Href("/auth/login"), h.Role("button"), h.Class(`mt-4 inline-block ${buttonClass}`)],
-        [message("signIn.action")],
+      h.form(
+        [h.Method("get"), h.Action("/auth/login"), h.Class("mt-4")],
+        [
+          appButton(
+            {
+              text: message("signIn.action"),
+              type: "submit",
+            },
+            h,
+          ),
+        ],
       ),
     ].filter(Predicate.isNotNull),
     h,
