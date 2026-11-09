@@ -1,0 +1,68 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "01M70WPM4TDX81MWMYZMSKJNFA",
+  "strategy": "manual-commit",
+  "branch": "r1-16-design-system",
+  "checkpoints_count": 4,
+  "files_touched": [
+    "apps/web/package.json",
+    "apps/web/src/answer/style.css",
+    "apps/web/src/app/App.scene.test.ts",
+    "apps/web/src/app/App.ts",
+    "apps/web/src/app/app.css",
+    "apps/web/src/app/components.ts",
+    "apps/web/src/app/directory.ts",
+    "apps/web/src/app/pulses.ts",
+    "apps/web/src/app/results.ts",
+    "apps/web/src/app/rounds.ts",
+    "apps/web/src/app/session.ts",
+    "apps/web/src/messages/catalog.ts",
+    "packages/emails/src/AddedToTeam.tsx",
+    "packages/emails/src/InvitationEmail.tsx",
+    "packages/emails/src/Layout.tsx",
+    "packages/emails/src/Parts.tsx",
+    "packages/emails/src/ReminderEmail.tsx",
+    "packages/emails/src/ResultsReadyEmail.tsx",
+    "packages/emails/src/__snapshots__/render.test.ts.snap",
+    "packages/emails/src/render.test.ts",
+    "packages/emails/src/theme.ts",
+    "pnpm-lock.yaml"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 120,
+    "cache_creation_tokens": 154530,
+    "cache_read_tokens": 11927313,
+    "output_tokens": 81169,
+    "api_call_count": 56,
+    "subagent_tokens": {
+      "input_tokens": 102,
+      "cache_creation_tokens": 245809,
+      "cache_read_tokens": 2502626,
+      "output_tokens": 78797,
+      "api_call_count": 51
+    }
+  },
+  "redaction": {
+    "replacements": 67,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 4,
+      "credentialed_uri": 0,
+      "entropy": 51,
+      "key_context": 12,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
