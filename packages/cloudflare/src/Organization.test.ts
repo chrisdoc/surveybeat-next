@@ -204,6 +204,7 @@ test(
       resendSuccess: boolean;
       resendCountIncremented: boolean;
       closeIdempotent: boolean;
+      hasComputedResult: boolean;
       alarmPointsToEarliest2: boolean;
     };
     assert.strictEqual(body.alarmPointsToEarliest1, true);
@@ -213,6 +214,7 @@ test(
     assert.strictEqual(body.resendSuccess, true);
     assert.strictEqual(body.resendCountIncremented, true);
     assert.strictEqual(body.closeIdempotent, true);
+    assert.strictEqual(body.hasComputedResult, true);
     assert.strictEqual(body.alarmPointsToEarliest2, true);
   }),
 );
