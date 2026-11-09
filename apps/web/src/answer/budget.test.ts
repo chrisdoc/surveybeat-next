@@ -1,3 +1,4 @@
+import { execSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { gzipSync } from "node:zlib";
@@ -8,6 +9,12 @@ const distDir = resolve(import.meta.dirname, "../../dist");
 describe("answer page performance budget", () => {
   it("satisfies HTML, CSS, and JS critical path budgets", () => {
     const htmlPath = resolve(distDir, "answer.html");
+    if (!existsSync(htmlPath)) {
+      execSync("pnpm --filter @surveybeat/web build", {
+        cwd: resolve(import.meta.dirname, "../../../.."),
+        stdio: "ignore",
+      });
+    }
     expect(existsSync(htmlPath), "apps/web/dist/answer.html should exist").toBe(true);
 
     const html = readFileSync(htmlPath, "utf8");
