@@ -1,0 +1,53 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "01M70NKSQ4CWS9WNP55PHW9Z7X",
+  "strategy": "manual-commit",
+  "branch": "t3/r1-15-launch",
+  "checkpoints_count": 1,
+  "files_touched": [
+    ".github/workflows/deploy.yml",
+    "apps/web/src/app/App.scene.test.ts",
+    "apps/web/src/app/App.ts",
+    "apps/web/src/app/components.ts",
+    "apps/web/src/app/directory.ts",
+    "apps/web/src/app/routes.ts",
+    "apps/web/src/app/session.ts",
+    "apps/web/src/messages/catalog.ts",
+    "docs/infra.md",
+    "infra/alchemy.run.ts",
+    "infra/scripts/smoke.ts",
+    "infra/tests/e2e/flow.spec.ts",
+    "infra/tests/privacy/canary-sweep.ts",
+    "infra/tests/privacy/observability.test.ts",
+    "packages/api/src/PrivacyRegistry.ts",
+    "packages/api/src/index.test.ts",
+    "packages/api/src/index.ts",
+    "packages/api/src/registry.privacy.test.ts",
+    "packages/cloudflare/src/Hostnames.ts",
+    "packages/cloudflare/src/MainWorker.ts",
+    "packages/cloudflare/src/Organization.test.ts",
+    "packages/cloudflare/src/auth/testing.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "redaction": {
+    "replacements": 555,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 23,
+      "credentialed_uri": 0,
+      "entropy": 532,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
