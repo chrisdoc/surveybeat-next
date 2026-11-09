@@ -1,6 +1,5 @@
 import {
   AuthUnavailable,
-  CreateOrganization,
   EmailAddress,
   Forbidden,
   LastAdmin,
@@ -8,9 +7,7 @@ import {
   MinimumGroupSize,
   NewPulseQuestion,
   OrderMismatch,
-  Organization,
   OrganizationId,
-  OrganizationNotFound,
   OrganizationSettings,
   PersonId,
   PersonNotFound,
@@ -55,22 +52,6 @@ import {
 } from "@surveybeat/domain";
 import { Schema } from "effect";
 import { HttpApi, HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from "effect/http-api";
-
-export class OrganizationsApiGroup extends HttpApiGroup.make("organizations")
-  .add(
-    HttpApiEndpoint.post("create", "/", {
-      payload: CreateOrganization,
-      success: Organization,
-    }),
-    HttpApiEndpoint.get("getById", "/:id", {
-      params: { id: OrganizationId },
-      success: Organization,
-      error: OrganizationNotFound.pipe(
-        HttpApiSchema.asNoContent({ decode: () => new OrganizationNotFound() }),
-      ),
-    }),
-  )
-  .prefix("/orgs") {}
 
 /** The name a creator gives a new Organization: trimmed, 1 to 100 characters. */
 export const OrganizationName = Schema.String.pipe(
@@ -392,7 +373,6 @@ export class ActionsApiGroup extends HttpApiGroup.make("actions")
 
 /** The HttpApi declaration shared by the server and the clients. */
 export class SurveyBeatApi extends HttpApi.make("surveybeat")
-  .add(OrganizationsApiGroup)
   .add(AuthApiGroup)
   .add(DirectoryApiGroup)
   .add(PulsesApiGroup)

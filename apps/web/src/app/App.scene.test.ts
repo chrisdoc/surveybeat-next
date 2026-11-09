@@ -852,4 +852,34 @@ describe("App Scenes", () => {
       );
     });
   });
+
+  describe("Privacy page", () => {
+    it("renders privacy page when signed out", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(makeUrl("https://app.surveybeat.com/privacy")),
+          session: { _tag: "SignedOut", failed: false },
+        }),
+        Scene.expect(Scene.role("heading", { name: "Privacy at SurveyBeat" })).toExist(),
+        Scene.expect(Scene.role("heading", { name: "Anonymous submissions" })).toExist(),
+        Scene.expect(Scene.role("heading", { name: "Comment redaction" })).toExist(),
+        Scene.expect(Scene.role("heading", { name: "30-day point-in-time restore window" })).toExist(),
+        Scene.expect(Scene.role("heading", { name: "Changing your answers" })).toExist(),
+        Scene.expect(Scene.role("heading", { name: "Who can trigger a restore" })).toExist(),
+        Scene.expect(Scene.role("link", { name: "Back" })).toExist(),
+      );
+    });
+
+    it("renders privacy link on sign in page", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(makeUrl("https://app.surveybeat.com/")),
+          session: { _tag: "SignedOut", failed: false },
+        }),
+        Scene.expect(Scene.role("link", { name: "Privacy" })).toExist(),
+      );
+    });
+  });
 });

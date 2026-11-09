@@ -24,8 +24,6 @@ export type EndpointPrivacy =
  * listed here, and `registry.privacy.test.ts` checks the same against the runtime declaration.
  */
 export const privacyRegistry: { readonly [K in EndpointKey<typeof SurveyBeatApi>]: EndpointPrivacy } = {
-  "organizations.create": { _tag: "NoResultData", why: "returns the Organization's id and name" },
-  "organizations.getById": { _tag: "NoResultData", why: "returns the Organization's id and name" },
   "auth.login": { _tag: "NoResultData", why: "redirects to the AuthKit hosted sign-in page" },
   "auth.callback": { _tag: "NoResultData", why: "sets the session cookie and redirects to the app" },
   "auth.logout": { _tag: "NoResultData", why: "clears the session cookie and redirects to WorkOS logout" },

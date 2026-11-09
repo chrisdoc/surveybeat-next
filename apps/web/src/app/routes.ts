@@ -19,12 +19,14 @@ export const AppRoute = defineRouteUnion({
   Pulse: { teamId: TeamId, pulseId: PulseId },
   RoundResults: { teamId: TeamId, roundId: RoundId },
   Settings: {},
+  Privacy: {},
   NotFound: { path: Schema.String },
 });
 export type AppRoute = typeof AppRoute.Type;
 
 export const teamsRouter = pipe(root, mapTo(AppRoute.Teams));
 export const settingsRouter = pipe(literal("settings"), mapTo(AppRoute.Settings));
+export const privacyRouter = pipe(literal("privacy"), mapTo(AppRoute.Privacy));
 export const teamRouter = pipe(
   literal("teams"),
   slash(schemaSegment("teamId", TeamId)),
@@ -57,12 +59,14 @@ export const appRouter = oneOf(
   pulsesRouter,
   teamRouter,
   settingsRouter,
+  privacyRouter,
   teamsRouter,
 );
 export const urlToAppRoute = (url: Url): AppRoute => parseUrlWithFallback(appRouter, AppRoute.NotFound)(url);
 
 export const teamsHref = () => teamsRouter.build({});
 export const settingsHref = () => settingsRouter.build({});
+export const privacyHref = () => privacyRouter.build({});
 export const teamHref = (teamId: TeamId) => teamRouter.build({ teamId });
 export const pulsesHref = (teamId: TeamId) => pulsesRouter.build({ teamId });
 export const pulseHref = (teamId: TeamId, pulseId: PulseId) => pulseRouter.build({ teamId, pulseId });

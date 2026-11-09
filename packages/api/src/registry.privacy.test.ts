@@ -26,6 +26,6 @@ describe("privacy registry", () => {
   });
 
   it("enumerates the declaration, so the checks above are not vacuous", () => {
-    assert.include(declaredEndpoints(), "organizations.create");
+    assert.include(declaredEndpoints(), "auth.session");
   });
 });

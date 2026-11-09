@@ -14,7 +14,7 @@ import { defineTaggedUnion } from "foldkit/schema";
 import { formatDate, message } from "../messages/index.ts";
 import { Failure } from "./api.ts";
 import { type Child, appButton, problemView, screenView, signOutView, textField } from "./components.ts";
-import { pulsesHref, settingsHref, teamHref, teamsHref } from "./routes.ts";
+import { privacyHref, pulsesHref, settingsHref, teamHref, teamsHref } from "./routes.ts";
 
 export const LoadedTeams = defineTaggedUnion({
   Loading: {},
@@ -62,6 +62,7 @@ export const shellView = <Message>(
           organizationAdmin
             ? h.a([h.Href(settingsHref()), h.Class("underline")], [message("nav.settings")])
             : null,
+          h.a([h.Href(privacyHref()), h.Class("underline")], [message("nav.privacy")]),
         ].filter(Predicate.isNotNull),
       ),
       ...children,
