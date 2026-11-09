@@ -15,6 +15,7 @@ import {
   OrganizationNotFound,
   OrganizationPulses,
   OrganizationRounds,
+  OrganizationActions,
   PulseId,
   QuestionId,
   TeamId,
@@ -36,10 +37,12 @@ import * as Etag from "effect/http/Etag";
 import * as HttpPlatform from "effect/http/HttpPlatform";
 import * as HttpRouter from "effect/http/HttpRouter";
 import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
+import { actionHandlers } from "./ActionHandlers.ts";
 import { authBindings, authSettings } from "./auth/AuthConfig.ts";
 import { authHandlers } from "./auth/AuthHandlers.ts";
 import { d1PeopleIndex } from "./auth/D1PeopleIndex.ts";
 import {
+  durableObjectActions,
   durableObjectDirectory,
   durableObjectPeople,
   durableObjectPulses,
@@ -205,6 +208,7 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
     const directory = durableObjectDirectory(organizations);
     const pulses = durableObjectPulses(organizations);
     const rounds = durableObjectRounds(organizations);
+    const actions = durableObjectActions(organizations);
     const emailWrites = yield* Cloudflare.Queues.WriteQueue(emailQueue);
 
     // Daily Cron repairs missing alarms across all Organizations (ADR 0006)
@@ -237,6 +241,7 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
         Context.add(OrganizationDirectory, directory),
         Context.add(OrganizationPulses, pulses),
         Context.add(OrganizationRounds, rounds),
+        Context.add(OrganizationActions, actions),
         Context.add(EmailOutbox, outbox),
         Context.add(
           NewIds,
@@ -261,6 +266,7 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
           directoryHandlers(services),
           pulseHandlers(services),
           roundHandlers(services),
+          actionHandlers(services),
         ]),
         Layer.provide([Etag.layer, HttpPlatformStub, Path.layer]),
       ),

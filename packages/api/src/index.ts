@@ -36,6 +36,13 @@ import {
   RoundNotOpen,
   RoundResult,
   WeekOutOfRange,
+  ActionId,
+  ActionItem,
+  ActionList,
+  ActionNotFound,
+  CreateAction,
+  OwnerNotInTeam,
+  UpdateAction,
   SessionState,
   TeamDetail,
   TeamId,
@@ -345,10 +352,49 @@ export class RoundsApiGroup extends HttpApiGroup.make("rounds")
   )
   .prefix("/api") {}
 
+const actionErrors = [
+  Unauthenticated,
+  Forbidden,
+  AuthUnavailable,
+  TeamNotFound,
+  RoundNotFound,
+  ActionNotFound,
+  OwnerNotInTeam,
+  PersonNotFound,
+] as const;
+
+/**
+ * Team Actions: commitments made from Results (slice 13).
+ * Lead creates and updates actions; team members can view.
+ * The Actions list has no minimum group size.
+ */
+export class ActionsApiGroup extends HttpApiGroup.make("actions")
+  .add(
+    HttpApiEndpoint.get("listActions", "/teams/:teamId/actions", {
+      params: { teamId: TeamId },
+      success: ActionList,
+      error: actionErrors,
+    }),
+    HttpApiEndpoint.post("createAction", "/teams/:teamId/actions", {
+      params: { teamId: TeamId },
+      payload: CreateAction,
+      success: ActionItem,
+      error: actionErrors,
+    }),
+    HttpApiEndpoint.patch("updateAction", "/teams/:teamId/actions/:actionId", {
+      params: { teamId: TeamId, actionId: ActionId },
+      payload: UpdateAction,
+      success: ActionItem,
+      error: actionErrors,
+    }),
+  )
+  .prefix("/api") {}
+
 /** The HttpApi declaration shared by the server and the clients. */
 export class SurveyBeatApi extends HttpApi.make("surveybeat")
   .add(OrganizationsApiGroup)
   .add(AuthApiGroup)
   .add(DirectoryApiGroup)
   .add(PulsesApiGroup)
-  .add(RoundsApiGroup) {}
+  .add(RoundsApiGroup)
+  .add(ActionsApiGroup) {}

@@ -49,6 +49,12 @@ import {
   calculateRoundResult,
   enforceEffectiveNOnResult,
   type RoundResult,
+  ActionId,
+  type ActionItem,
+  type ActionList,
+  type CreateAction,
+  type UpdateAction,
+  type ActionViewed,
 } from "@surveybeat/domain";
 import * as Clock from "effect/Clock";
 import * as Effect from "effect/Effect";
@@ -56,6 +62,7 @@ import * as Option from "effect/Option";
 import * as Reactivity from "effect/reactivity/Reactivity";
 import * as Schema from "effect/Schema";
 import * as Scope from "effect/Scope";
+import { makeSqlActions } from "./SqlActions.ts";
 import { makeSqlDirectory } from "./SqlDirectory.ts";
 import { makeSqlPulses } from "./SqlPulses.ts";
 import { makeSqlRounds } from "./SqlRounds.ts";
@@ -119,6 +126,8 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
       const pulses = makeSqlPulses(sql);
       // Round lifecycle engine and schedule table (ADR 0006).
       const rounds = makeSqlRounds(sql);
+      // Actions committed from Results (slice 13).
+      const actions = makeSqlActions(sql);
       const both = Effect.all([directory.load, pulses.load]);
 
       /** Only sends still waiting go back to the queue; one already sent or failed stays as it is. */
@@ -390,6 +399,12 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
           yield* rounds.openRound(roundId, now, instants.closeInstant, pulse.questions, frozenMembers);
 
           const ratingQuestion = firstRatingQuestionOf(pulse, pulseState);
+          const eligibleActions = yield* actions.getEligibleActionsForRound(
+            round.teamId,
+            round.pulseId,
+            round.plannedOpenAt,
+          );
+          const emailActions = eligibleActions.slice(0, 3).map((a) => a.title);
 
           // Dispatch invitations and schedule reminders
           for (const m of frozenMembers) {
@@ -421,7 +436,7 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
               token,
               baseUrl: "https://app.surveybeat.app",
               ratingQuestion,
-              actions: [],
+              actions: emailActions,
             };
 
             if (m.sendAt <= now) {
@@ -591,6 +606,11 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
           }
 
           const ratingQuestion = firstRatingQuestionOf(pulse, pulseState);
+          const eligibleActions = yield* actions.getEligibleActionsForRound(
+            round.teamId,
+            round.pulseId,
+            round.plannedOpenAt,
+          );
 
           const invitationEmail: TransactionalEmail = {
             _tag: "InvitationEmail",
@@ -599,7 +619,7 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
             token,
             baseUrl: "https://app.surveybeat.app",
             ratingQuestion,
-            actions: [],
+            actions: eligibleActions.slice(0, 3).map((a) => a.title),
           };
 
           yield* sends.create(inv.sendId, person.email, invitationEmail);
@@ -664,6 +684,11 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
           }
 
           const ratingQuestion = firstRatingQuestionOf(pulse, pulseState);
+          const eligibleActions = yield* actions.getEligibleActionsForRound(
+            round.teamId,
+            round.pulseId,
+            round.plannedOpenAt,
+          );
 
           const reminderEmail: TransactionalEmail = {
             _tag: "ReminderEmail",
@@ -671,7 +696,7 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
             token,
             baseUrl: "https://app.surveybeat.app",
             ratingQuestion,
-            actions: [],
+            actions: eligibleActions.slice(0, 3).map((a) => a.title),
             unsubscribeUrl: `https://app.surveybeat.app/api/reminders/unsubscribe?t=${token}`,
           };
 
@@ -1169,6 +1194,11 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
                     );
 
                     const ratingQuestion = firstRatingQuestionOf(pulse, pulseState);
+                    const eligibleActions = yield* actions.getEligibleActionsForRound(
+                      round.teamId,
+                      round.pulseId,
+                      round.plannedOpenAt,
+                    );
 
                     const invitationEmail: TransactionalEmail = {
                       _tag: "InvitationEmail",
@@ -1177,7 +1207,7 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
                       token: newToken,
                       baseUrl: "https://app.surveybeat.app",
                       ratingQuestion,
-                      actions: [],
+                      actions: eligibleActions.slice(0, 3).map((a) => a.title),
                     };
 
                     yield* sends.create(newSendId, person.email, invitationEmail);
@@ -1385,6 +1415,191 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
             };
             return viewed;
           }).pipe(Effect.orDie),
+
+        listActions: (
+          actorId: PersonId,
+          teamId: TeamId,
+        ): Effect.Effect<ActionViewed<ActionList>, never, never> =>
+          Effect.gen(function* () {
+            const dirState = yield* directory.load;
+            const auth = authorizeRoundAction(dirState, actorId, "team.viewActions", teamId);
+            if (auth._tag === "Rejected") {
+              const rejected: ActionViewed<ActionList> = {
+                _tag: "Rejected",
+                rejection: { _tag: auth.rejection._tag === "TeamNotFound" ? "TeamNotFound" : "Forbidden" },
+              };
+              return rejected;
+            }
+            const team = dirState.teams.find((t) => t.id === teamId);
+            if (team === undefined) {
+              const rejected: ActionViewed<ActionList> = {
+                _tag: "Rejected",
+                rejection: { _tag: "TeamNotFound" },
+              };
+              return rejected;
+            }
+            const all = yield* actions.getActionsForTeam(teamId);
+            const viewed: ActionViewed<ActionList> = {
+              _tag: "Viewed",
+              value: {
+                teamId,
+                actions: all,
+              },
+            };
+            return viewed;
+          }).pipe(Effect.orDie),
+
+        createAction: (
+          actorId: PersonId,
+          teamId: TeamId,
+          payload: CreateAction,
+          now: number,
+        ): Effect.Effect<ActionViewed<ActionItem>, never, never> =>
+          sql
+            .withTransaction(
+              Effect.gen(function* () {
+                const dirState = yield* directory.load;
+                const auth = authorizeRoundAction(dirState, actorId, "team.createAction", teamId);
+                if (auth._tag === "Rejected") {
+                  const rejected: ActionViewed<ActionItem> = {
+                    _tag: "Rejected",
+                    rejection: {
+                      _tag: auth.rejection._tag === "TeamNotFound" ? "TeamNotFound" : "Forbidden",
+                    },
+                  };
+                  return rejected;
+                }
+                const team = dirState.teams.find((t) => t.id === teamId);
+                if (team === undefined) {
+                  const rejected: ActionViewed<ActionItem> = {
+                    _tag: "Rejected",
+                    rejection: { _tag: "TeamNotFound" },
+                  };
+                  return rejected;
+                }
+                // Check owner is an active member in team
+                const isMember = dirState.memberships.some(
+                  (m) => m.teamId === teamId && m.personId === payload.ownerId && m.endedAt === null,
+                );
+                if (!isMember) {
+                  const rejected: ActionViewed<ActionItem> = {
+                    _tag: "Rejected",
+                    rejection: { _tag: "OwnerNotInTeam" },
+                  };
+                  return rejected;
+                }
+                // Check round exists in team
+                const round = yield* rounds.getRound(payload.roundId);
+                if (round === null || round.teamId !== teamId) {
+                  const rejected: ActionViewed<ActionItem> = {
+                    _tag: "Rejected",
+                    rejection: { _tag: "RoundNotFound" },
+                  };
+                  return rejected;
+                }
+
+                const actionId = ActionId.make(randomId());
+                yield* actions.insertAction({
+                  id: actionId,
+                  teamId,
+                  roundId: payload.roundId,
+                  title: payload.title,
+                  ownerId: payload.ownerId,
+                  dueDate: payload.dueDate ?? null,
+                  dimension: payload.dimension ?? null,
+                  status: "committed",
+                  createdAt: now,
+                  updatedAt: now,
+                  doneAt: null,
+                });
+
+                const item = yield* actions.getActionItem(actionId);
+                const viewed: ActionViewed<ActionItem> = {
+                  _tag: "Viewed",
+                  value: item!,
+                };
+                return viewed;
+              }),
+            )
+            .pipe(Effect.orDie),
+
+        updateAction: (
+          actorId: PersonId,
+          teamId: TeamId,
+          actionId: ActionId,
+          payload: UpdateAction,
+          now: number,
+        ): Effect.Effect<ActionViewed<ActionItem>, never, never> =>
+          sql
+            .withTransaction(
+              Effect.gen(function* () {
+                const dirState = yield* directory.load;
+                const auth = authorizeRoundAction(dirState, actorId, "team.updateAction", teamId);
+                if (auth._tag === "Rejected") {
+                  const rejected: ActionViewed<ActionItem> = {
+                    _tag: "Rejected",
+                    rejection: {
+                      _tag: auth.rejection._tag === "TeamNotFound" ? "TeamNotFound" : "Forbidden",
+                    },
+                  };
+                  return rejected;
+                }
+                const team = dirState.teams.find((t) => t.id === teamId);
+                if (team === undefined) {
+                  const rejected: ActionViewed<ActionItem> = {
+                    _tag: "Rejected",
+                    rejection: { _tag: "TeamNotFound" },
+                  };
+                  return rejected;
+                }
+                const existing = yield* actions.getAction(actionId);
+                if (existing === null || existing.teamId !== teamId) {
+                  const rejected: ActionViewed<ActionItem> = {
+                    _tag: "Rejected",
+                    rejection: { _tag: "ActionNotFound" },
+                  };
+                  return rejected;
+                }
+
+                if (payload.ownerId !== undefined) {
+                  const isMember = dirState.memberships.some(
+                    (m) => m.teamId === teamId && m.personId === payload.ownerId && m.endedAt === null,
+                  );
+                  if (!isMember) {
+                    const rejected: ActionViewed<ActionItem> = {
+                      _tag: "Rejected",
+                      rejection: { _tag: "OwnerNotInTeam" },
+                    };
+                    return rejected;
+                  }
+                }
+
+                let newDoneAt: number | null = existing.doneAt;
+                if (payload.status === "done" && existing.status !== "done") {
+                  newDoneAt = now;
+                } else if (payload.status !== undefined && payload.status !== "done") {
+                  newDoneAt = null;
+                }
+
+                yield* actions.updateAction(actionId, {
+                  title: payload.title ?? existing.title,
+                  ownerId: payload.ownerId ?? existing.ownerId,
+                  dueDate: payload.dueDate !== undefined ? payload.dueDate : existing.dueDate,
+                  dimension: payload.dimension !== undefined ? payload.dimension : existing.dimension,
+                  status: payload.status ?? existing.status,
+                  updatedAt: now,
+                  doneAt: newDoneAt,
+                });
+
+                const item = yield* actions.getActionItem(actionId);
+                const viewed: ActionViewed<ActionItem> = {
+                  _tag: "Viewed",
+                  value: item!,
+                };
+                return viewed;
+              }),
+            )
+            .pipe(Effect.orDie),
 
         recomputeResult: (roundId: string) =>
           Effect.gen(function* () {
