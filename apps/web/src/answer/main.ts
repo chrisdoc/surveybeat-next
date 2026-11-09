@@ -33,7 +33,7 @@ interface ActionData {
 interface RoundContextData {
   readonly roundId: string;
   readonly pulseName: string;
-  readonly anonymityStatement: string;
+  readonly minimumGroupSize: number;
   readonly questions: ReadonlyArray<QuestionData>;
   readonly actions: ReadonlyArray<ActionData>;
   readonly closeTime: number;
@@ -118,7 +118,7 @@ function parseRoundContext(data: unknown): RoundContextData | null {
   if (typeof data !== "object" || data === null) return null;
   if (!("roundId" in data) || typeof data.roundId !== "string") return null;
   if (!("pulseName" in data) || typeof data.pulseName !== "string") return null;
-  if (!("anonymityStatement" in data) || typeof data.anonymityStatement !== "string") return null;
+  if (!("minimumGroupSize" in data) || typeof data.minimumGroupSize !== "number") return null;
   if (!("closeTime" in data) || typeof data.closeTime !== "number") return null;
   if (!("state" in data) || typeof data.state !== "string") return null;
   if (!("hasAnswered" in data) || typeof data.hasAnswered !== "boolean") return null;
@@ -189,7 +189,7 @@ function parseRoundContext(data: unknown): RoundContextData | null {
   return {
     roundId: data.roundId,
     pulseName: data.pulseName,
-    anonymityStatement: data.anonymityStatement,
+    minimumGroupSize: data.minimumGroupSize,
     questions,
     actions,
     closeTime: data.closeTime,
@@ -254,11 +254,6 @@ const scaleKeys: ReadonlyArray<ScaleKey> = [
 async function run(): Promise<void> {
   document.title = message("answer.title");
 
-  const anonEl = document.getElementById("anon");
-  if (anonEl instanceof HTMLElement) {
-    anonEl.textContent = message("answer.anonymity");
-  }
-
   const saveBtn = document.getElementById("save");
 
   // Read preselected value
@@ -314,6 +309,12 @@ async function run(): Promise<void> {
   if (context === null) {
     showError(message("answer.error"));
     return;
+  }
+
+  // What the lead will and will not see needs the Team's N, so it waits for the context.
+  const anonEl = document.getElementById("anon");
+  if (anonEl instanceof HTMLElement) {
+    anonEl.textContent = message("answer.anonymity", { n: context.minimumGroupSize });
   }
 
   // Trigger dynamic schema validation after first paint (keeps Effect Schema off critical path)

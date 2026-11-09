@@ -1,10 +1,14 @@
 import type * as Cloudflare from "@alchemy.run/cloudflare";
 import {
   deliver,
+  deriveInvitationToken,
   type DeliveryEventKind,
   type EmailAddress,
   type EmailSender,
   type EmailTemplates,
+  importInvitationTokenKey,
+  type InvitationTokenRef,
+  InvitationTokens,
   OrganizationId,
   SendId,
   type SendState,
@@ -13,8 +17,11 @@ import {
 } from "@surveybeat/domain";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import * as Clock from "effect/Clock";
+import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
+import * as Redacted from "effect/Redacted";
 import * as Schema from "effect/Schema";
 import { EmailSendRequested } from "./Email.ts";
 import type Organization from "./Organization.ts";
@@ -34,6 +41,20 @@ export const organizationSendStore = (organization: OrganizationStub) =>
     recordDeliveryEvent: (id, kind, code, now) =>
       organization.recordEmailDeliveryEvent(id, kind, code, now).pipe(Effect.map(Option.fromNullishOr)),
   });
+
+/**
+ * Derives Invitation tokens with the stage's `INVITATION_TOKEN_KEY` (`auth/AuthConfig.ts`). The Queue
+ * consumer needs them only to render an email, so no token is ever persisted. A missing key is a
+ * deploy bug, so it dies.
+ */
+export const InvitationTokensLive = Layer.effect(
+  InvitationTokens,
+  Effect.gen(function* () {
+    const secret = yield* Config.Redacted("INVITATION_TOKEN_KEY");
+    const key = yield* Effect.promise(() => importInvitationTokenKey(Redacted.value(secret)));
+    return { derive: (ref: InvitationTokenRef) => Effect.promise(() => deriveInvitationToken(key, ref)) };
+  }).pipe(Effect.orDie),
+);
 
 /**
  * Creates a send and asks the consumer to deliver it. Idempotent per `sendId`. If the enqueue

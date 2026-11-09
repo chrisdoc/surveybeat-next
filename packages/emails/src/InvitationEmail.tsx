@@ -1,7 +1,16 @@
-import type { InvitationEmail as InvitationEmailData } from "@surveybeat/domain";
+import type { InvitationEmailWithToken as InvitationEmailData } from "@surveybeat/domain";
 import { Button, Heading, Link, Section, Text } from "react-email";
 import { colors, Layout, textLayout } from "./Layout.tsx";
 import { message } from "./messages/index.ts";
+
+/**
+ * What the lead will and will not see (SPEC 5.2). Rows stored before N was carried hold the finished
+ * statement instead; they render verbatim.
+ */
+const anonymityStatement = (email: InvitationEmailData): string =>
+  email.minimumGroupSize === undefined
+    ? (email.anonymityStatement ?? "")
+    : message("invitation.anonymity", { n: email.minimumGroupSize });
 
 export const subject = (email: InvitationEmailData): string =>
   message("invitation.subject", { pulse: email.pulseName });
@@ -27,7 +36,7 @@ export function InvitationEmailComponent({ email }: { email: InvitationEmailData
         className="sb-muted"
         style={{ color: colors.muted, fontSize: "14px", lineHeight: "20px", margin: "0 0 20px" }}
       >
-        {email.anonymityStatement}
+        {anonymityStatement(email)}
       </Text>
 
       {email.ratingQuestion && (
@@ -150,7 +159,7 @@ export const text = (email: InvitationEmailData): string => {
     [
       email.pulseName,
       "",
-      email.anonymityStatement,
+      anonymityStatement(email),
       "",
       ...ratingLines,
       `${message("invitation.openCheckIn")}: ${openUrl}`,

@@ -174,6 +174,13 @@ test(
       closeIdempotent: boolean;
       hasComputedResult: boolean;
       alarmPointsToEarliest2: boolean;
+      tokenDerivedMatchesHash: boolean;
+      tokenNotPersistedAfterOpen: boolean;
+      resendTokenDerivedMatchesHash: boolean;
+      tokenNotPersistedAfterResend: boolean;
+      renderedText: string;
+      token0: string;
+      organizationId: string;
     };
     assert.strictEqual(body.alarmPointsToEarliest1, true);
     assert.strictEqual(body.notDuplicated, true);
@@ -184,7 +191,19 @@ test(
     assert.strictEqual(body.closeIdempotent, true);
     assert.strictEqual(body.hasComputedResult, true);
     assert.strictEqual(body.alarmPointsToEarliest2, true);
+
+    // Invitation tokens are derived, never stored (issue 42): the hash validates the derived token, and
+    // no job payload or send content holds it, neither after opening nor after a Resend.
+    assert.strictEqual(body.tokenDerivedMatchesHash, true);
+    assert.strictEqual(body.tokenNotPersistedAfterOpen, true);
+    assert.strictEqual(body.resendTokenDerivedMatchesHash, true);
+    assert.strictEqual(body.tokenNotPersistedAfterResend, true);
+
+    // The Queue consumer derives the same token when it renders the email, so the link still works.
+    assert.include(body.renderedText, `/a#t=${body.token0}`);
+    assert.include(body.renderedText, "at least 4 people");
   }),
+  { timeout: 120_000 },
 );
 
 test(

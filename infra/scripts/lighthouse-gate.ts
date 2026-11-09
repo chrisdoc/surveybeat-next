@@ -40,7 +40,7 @@ async function main() {
           JSON.stringify({
             roundId: "round-test-1",
             pulseName: "Weekly Pulse",
-            anonymityStatement: "Your name is never stored with your answers.",
+            minimumGroupSize: 4,
             questions: [
               {
                 id: "q-1",

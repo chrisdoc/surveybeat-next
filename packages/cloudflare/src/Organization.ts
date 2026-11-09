@@ -12,6 +12,7 @@ import {
   defaultSendPolicy,
   type DeliveryEventKind,
   type DirectoryCommand,
+  type DirectoryState,
   type EmailAddress,
   type FollowUp,
   makeSendStore,
@@ -27,8 +28,11 @@ import {
   calculateReminders,
   calculateResultsReadyDeliveryTime,
   calculateRoundInstants,
-  generateInvitationToken,
+  deriveInvitationToken,
   hashToken,
+  importInvitationTokenKey,
+  type InvitationTokenRef,
+  type StoredEmail,
   nextEightWeeksCadenceDates,
   nextWeekdayDate,
   parseDateIso,
@@ -57,8 +61,10 @@ import {
   type ActionViewed,
 } from "@surveybeat/domain";
 import * as Clock from "effect/Clock";
+import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
+import * as Redacted from "effect/Redacted";
 import * as Reactivity from "effect/reactivity/Reactivity";
 import * as Schema from "effect/Schema";
 import * as Scope from "effect/Scope";
@@ -73,6 +79,9 @@ import { makeSqlSendRepository } from "./SqlSendRepository.ts";
  * It must be a literal: the same expression runs again inside the bundle, where `import.meta.url` differs.
  */
 const migrationsDirectory = "packages/cloudflare/migrations";
+
+/** Origin used in email links when the stage has no custom hostname (never delivered for real). */
+const fallbackAppOrigin = "https://app.invalid";
 
 const randomId = (): string =>
   Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) => byte.toString(16).padStart(2, "0")).join(
@@ -108,6 +117,22 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
     // Inner phase: runs once per object activation, before any method is exposed.
     return Effect.gen(function* () {
       const state = yield* Cloudflare.DurableObjectState;
+
+      // The app's public origin, bound by the Main Worker from the stage (`MainWorker.ts`). Stages without
+      // a custom hostname live on workers.dev, whose URL is not known at declaration time. They never send
+      // real email (docs/infra.md), so their links fall back to a reserved .invalid origin (the email schema requires https) rather than production.
+      const appOrigin = yield* Config.String("APP_ORIGIN").pipe(
+        Config.withDefault(fallbackAppOrigin),
+        Effect.orDie,
+      );
+
+      // Invitation tokens are derived from this key, never stored (issue 42): only their hashes are.
+      const invitationKey = yield* Config.Redacted("INVITATION_TOKEN_KEY").pipe(
+        Effect.flatMap((secret) => Effect.promise(() => importInvitationTokenKey(Redacted.value(secret)))),
+        Effect.orDie,
+      );
+      const tokenOf = (ref: InvitationTokenRef) =>
+        Effect.promise(() => deriveInvitationToken(invitationKey, ref));
 
       // Pass `storage` (not just `db`) so `withTransaction` uses `storage.transaction()`.
       const scope = yield* Scope.make();
@@ -154,6 +179,18 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
           }
         }).pipe(Effect.orDie);
 
+      /** Active Members and Leads of a Team with the time zone each receives at: their own, else the Team's. */
+      const activeMembersWithTimeZones = (dirState: DirectoryState, teamId: TeamId, teamTimeZone: string) =>
+        Effect.gen(function* () {
+          const activeMembers = dirState.memberships.filter(
+            (m) => m.teamId === teamId && m.endedAt === null && (m.role === "lead" || m.role === "member"),
+          );
+          const memberTimeZones = yield* Effect.forEach(activeMembers, (m) =>
+            rounds.getPersonTimeZone(m.personId).pipe(Effect.map((tz) => tz ?? teamTimeZone)),
+          );
+          return { activeMembers, memberTimeZones };
+        });
+
       /** Schedules the next Round for a Pulse, keyed by (pulse_id, planned_open_date). */
       const scheduleNextRound = (pulseId: PulseId, teamId: TeamId, now: number) =>
         Effect.gen(function* () {
@@ -169,11 +206,7 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
           const team = dirState.teams.find((t) => t.id === teamId);
           if (team === undefined) return;
 
-          const activeMembers = dirState.memberships.filter(
-            (m) => m.teamId === teamId && m.endedAt === null && (m.role === "lead" || m.role === "member"),
-          );
-          // Seam: Person time zone override if it exists; otherwise Team time zone.
-          const memberTimeZones = activeMembers.map(() => team.timeZone);
+          const { memberTimeZones } = yield* activeMembersWithTimeZones(dirState, teamId, team.timeZone);
           const skipped = yield* rounds.getSkippedWeeks(pulseId);
 
           const dtf = new Intl.DateTimeFormat("en-US", {
@@ -271,13 +304,11 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
           const team = dirState.teams.find((t) => t.id === scheduled.teamId);
           if (team === undefined) return;
 
-          const activeMembers = dirState.memberships.filter(
-            (m) =>
-              m.teamId === scheduled.teamId &&
-              m.endedAt === null &&
-              (m.role === "lead" || m.role === "member"),
+          const { memberTimeZones } = yield* activeMembersWithTimeZones(
+            dirState,
+            scheduled.teamId,
+            team.timeZone,
           );
-          const memberTimeZones = activeMembers.map(() => team.timeZone);
 
           const dtf = new Intl.DateTimeFormat("en-US", {
             timeZone: team.timeZone,
@@ -367,13 +398,10 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
             return;
           }
 
-          const activeMembers = dirState.memberships.filter(
-            (m) =>
-              m.teamId === round.teamId && m.endedAt === null && (m.role === "lead" || m.role === "member"),
-          );
-
-          const memberTimeZones = yield* Effect.forEach(activeMembers, (m) =>
-            rounds.getPersonTimeZone(m.personId).pipe(Effect.map((tz) => tz ?? team.timeZone)),
+          const { activeMembers, memberTimeZones } = yield* activeMembersWithTimeZones(
+            dirState,
+            round.teamId,
+            team.timeZone,
           );
 
           const instants = calculateRoundInstants(
@@ -411,8 +439,11 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
             const person = dirState.people.find((p) => p.id === m.personId);
             if (person === undefined || person.removedAt !== null) continue;
 
-            const token = generateInvitationToken();
-            const tokenHash = yield* Effect.promise(() => hashToken(token));
+            // Generation 0 is the Invitation as opened; only its hash is stored.
+            const invitation = { roundId, personId: m.personId, generation: 0 };
+            const tokenHash = yield* tokenOf(invitation).pipe(
+              Effect.flatMap((token) => Effect.promise(() => hashToken(token))),
+            );
             const sendId = SendId.make(randomId());
 
             yield* rounds.insertInvitations([
@@ -432,9 +463,9 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
             const invitationEmail: TransactionalEmail = {
               _tag: "InvitationEmail",
               pulseName: pulse.settings.name,
-              anonymityStatement: "Your name is never stored with your answers.",
-              token,
-              baseUrl: "https://app.surveybeat.app",
+              minimumGroupSize: dirState.minimumGroupSize,
+              invitation,
+              baseUrl: appOrigin,
               ratingQuestion,
               actions: emailActions,
             };
@@ -448,7 +479,7 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
                 type: "send",
                 dueAt: m.sendAt,
                 status: "pending",
-                payload: JSON.stringify({ personId: m.personId, token }),
+                payload: JSON.stringify({ personId: m.personId }),
                 createdAt: now,
                 completedAt: null,
               });
@@ -468,7 +499,7 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
                 type: "remind",
                 dueAt: remindAt,
                 status: "pending",
-                payload: JSON.stringify({ personId: m.personId, token }),
+                payload: JSON.stringify({ personId: m.personId }),
                 createdAt: now,
                 completedAt: null,
               });
@@ -492,9 +523,11 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
           yield* scheduleNextRound(round.pulseId, round.teamId, now);
         });
 
+      // Jobs name only the Person: the token is derived when the job runs. Jobs scheduled before tokens
+      // were derived also hold their random `token`; they use it as is, since it matches the stored hash.
       const InvitationJobPayload = Schema.Struct({
         personId: Schema.String,
-        token: Schema.String,
+        token: Schema.optionalKey(Schema.String),
       });
       const decodeInvitationJobPayload = Schema.decodeUnknownOption(InvitationJobPayload);
 
@@ -507,7 +540,7 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
 
       const parseJobPayload = (
         raw: string | null,
-      ): { readonly personId: string; readonly token: string } | null => {
+      ): { readonly personId: string; readonly token?: string } | null => {
         if (raw === null) return null;
         try {
           return Option.getOrNull(decodeInvitationJobPayload(JSON.parse(raw)));
@@ -520,7 +553,7 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
         raw: string | null,
       ):
         | { readonly kind: "resultsReady"; readonly personId: string; readonly roundId: string }
-        | { readonly personId: string; readonly token: string }
+        | { readonly personId: string; readonly token?: string }
         | null => {
         if (raw === null) return null;
         try {
@@ -574,7 +607,7 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
               _tag: "ResultsReadyEmail",
               pulseName: pulse.settings.name,
               teamName: team?.name ?? pulse.settings.name,
-              resultsUrl: `https://app.surveybeat.app/teams/${round.teamId}/rounds/${roundId}`,
+              resultsUrl: `${appOrigin}/teams/${round.teamId}/rounds/${roundId}`,
               responseRatePercent,
             };
 
@@ -590,7 +623,7 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
             return;
           }
 
-          const { personId, token } = payload;
+          const { personId } = payload;
           const [dirState, pulseState] = yield* both;
           const pulse = pulseState.pulses.find((p) => p.id === round.pulseId);
           const person = dirState.people.find((p) => p.id === personId);
@@ -612,15 +645,22 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
             round.plannedOpenAt,
           );
 
-          const invitationEmail: TransactionalEmail = {
-            _tag: "InvitationEmail",
+          const common = {
             pulseName: pulse.settings.name,
-            anonymityStatement: "Your name is never stored with your answers.",
-            token,
-            baseUrl: "https://app.surveybeat.app",
+            minimumGroupSize: dirState.minimumGroupSize,
+            baseUrl: appOrigin,
             ratingQuestion,
             actions: eligibleActions.slice(0, 3).map((a) => a.title),
           };
+          const invitationEmail: StoredEmail =
+            payload.token === undefined
+              ? {
+                  _tag: "InvitationEmail",
+                  ...common,
+                  invitation: { roundId, personId, generation: inv.resendCount },
+                }
+              : // A job scheduled before tokens were derived: its token is in the job already.
+                { _tag: "InvitationEmail", ...common, token: payload.token };
 
           yield* sends.create(inv.sendId, person.email, invitationEmail);
           yield* rounds.markJobCompleted(jobId, now);
@@ -650,7 +690,7 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
             return;
           }
 
-          const { personId, token } = payload;
+          const { personId } = payload;
           const pid = PersonId.make(personId);
 
           // Skipped if member has answered
@@ -683,6 +723,13 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
             return;
           }
 
+          // A revoked Invitation (Round cancelled) gets no reminder; a Resend moves it to a new generation.
+          const inv = yield* rounds.getInvitation(roundId, pid);
+          if (inv === null || inv.status === "revoked") {
+            yield* rounds.markJobCompleted(jobId, now);
+            return;
+          }
+
           const ratingQuestion = firstRatingQuestionOf(pulse, pulseState);
           const eligibleActions = yield* actions.getEligibleActionsForRound(
             round.teamId,
@@ -690,15 +737,26 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
             round.plannedOpenAt,
           );
 
-          const reminderEmail: TransactionalEmail = {
-            _tag: "ReminderEmail",
+          const common = {
             pulseName: pulse.settings.name,
-            token,
-            baseUrl: "https://app.surveybeat.app",
+            baseUrl: appOrigin,
             ratingQuestion,
             actions: eligibleActions.slice(0, 3).map((a) => a.title),
-            unsubscribeUrl: `https://app.surveybeat.app/api/reminders/unsubscribe?t=${token}`,
           };
+          const reminderEmail: StoredEmail =
+            payload.token === undefined
+              ? {
+                  _tag: "ReminderEmail",
+                  ...common,
+                  invitation: { roundId, personId, generation: inv.resendCount },
+                }
+              : // A job scheduled before tokens were derived: its token is in the job already.
+                {
+                  _tag: "ReminderEmail",
+                  ...common,
+                  token: payload.token,
+                  unsubscribeUrl: `${appOrigin}/api/reminders/unsubscribe?t=${payload.token}`,
+                };
 
           const sendId = SendId.make(randomId());
           yield* sends.create(sendId, person.email, reminderEmail);
@@ -1182,8 +1240,15 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
                       } satisfies RoundCommandResult;
                     }
 
-                    const newToken = generateInvitationToken();
-                    const newTokenHash = yield* Effect.promise(() => hashToken(newToken));
+                    // A Resend moves to the next generation, so the old link stops working.
+                    const invitation = {
+                      roundId: command.roundId,
+                      personId: command.personId,
+                      generation: inv.resendCount + 1,
+                    };
+                    const newTokenHash = yield* tokenOf(invitation).pipe(
+                      Effect.flatMap((token) => Effect.promise(() => hashToken(token))),
+                    );
                     const newSendId = SendId.make(randomId());
                     yield* rounds.resendInvitation(
                       command.roundId,
@@ -1203,9 +1268,9 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
                     const invitationEmail: TransactionalEmail = {
                       _tag: "InvitationEmail",
                       pulseName: pulse.settings.name,
-                      anonymityStatement: "Your name is never stored with your answers.",
-                      token: newToken,
-                      baseUrl: "https://app.surveybeat.app",
+                      minimumGroupSize: dirState.minimumGroupSize,
+                      invitation,
+                      baseUrl: appOrigin,
                       ratingQuestion,
                       actions: eligibleActions.slice(0, 3).map((a) => a.title),
                     };
@@ -1690,8 +1755,22 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
           rounds.optOutReminders(PulseId.make(pulseId), PersonId.make(personId), now ?? Date.now()),
         isOptedOut: (pulseId: string, personId: string) =>
           rounds.isOptedOut(PulseId.make(pulseId), PersonId.make(personId)),
+        // A Round that is still Scheduled is re-timed, because the earliest member send decides when it opens.
         setPersonTimeZone: (personId: string, timeZone: string) =>
-          rounds.setPersonTimeZone(PersonId.make(personId), timeZone),
+          Effect.gen(function* () {
+            const pid = PersonId.make(personId);
+            yield* rounds.setPersonTimeZone(pid, timeZone);
+            const now = yield* Clock.currentTimeMillis;
+            const [dirState, pulseState] = yield* both;
+            const teamIds = new Set(
+              dirState.memberships
+                .filter((m) => m.personId === pid && m.endedAt === null)
+                .map((m) => m.teamId),
+            );
+            for (const pulse of pulseState.pulses) {
+              if (teamIds.has(pulse.teamId)) yield* updateScheduledRoundForPulse(pulse.id, now);
+            }
+          }),
         getPersonTimeZone: (personId: string) => rounds.getPersonTimeZone(PersonId.make(personId)),
         recordParticipation: (roundId: string, personId: string) =>
           rounds.recordParticipation(RoundId.make(roundId), PersonId.make(personId)),
@@ -1707,10 +1786,14 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
           ),
 
         getSubmissionRoundContext: (roundId: string, personId: string | null) =>
-          rounds.getSubmissionRoundContext(
-            RoundId.make(roundId),
-            personId === null ? null : PersonId.make(personId),
-          ),
+          Effect.gen(function* () {
+            const dirState = yield* directory.load;
+            return yield* rounds.getSubmissionRoundContext(
+              RoundId.make(roundId),
+              personId === null ? null : PersonId.make(personId),
+              dirState.minimumGroupSize,
+            );
+          }),
         recordFirstAnswer: (
           roundId: string,
           personId: string,
@@ -1762,7 +1845,7 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
             Effect.orDie,
           ),
 
-        createEmailSend: (id: SendId, recipient: EmailAddress, email: TransactionalEmail) =>
+        createEmailSend: (id: SendId, recipient: EmailAddress, email: StoredEmail) =>
           sends.create(id, recipient, email),
         getEmailSend: (id: SendId) => sends.get(id).pipe(Effect.map(Option.getOrNull)),
         claimEmailSend: (id: SendId, now: number) => sends.claim(id, now),

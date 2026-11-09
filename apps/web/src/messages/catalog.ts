@@ -218,7 +218,8 @@ export const catalog = {
   "answer.next": "Next",
   "answer.finish": "Finish",
   "answer.loading": "Loading your question\u2026",
-  "answer.anonymity": "Your name is never stored with your answers.",
+  "answer.anonymity":
+    "Your lead only sees combined answers from at least {n} people, never who answered what. Your name is never stored with your answers.",
   "answer.comment.label": "Want to say more?",
   "answer.comment.hint": "Optional. Names, emails and links are removed.",
   "answer.comment.disclosure":

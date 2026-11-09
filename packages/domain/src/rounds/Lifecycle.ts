@@ -360,10 +360,22 @@ export type RoundRejection =
   | { readonly _tag: "WeekOutOfRange" }
   | { readonly _tag: "InvitationNotFound" };
 
+/** An HMAC key from `importInvitationTokenKey`. The domain has no DOM or Workers types; the runtime provides the real one. */
+export interface InvitationTokenKey {
+  readonly type: string;
+}
+
 declare const crypto: {
-  readonly getRandomValues: <T extends ArrayBufferView>(array: T) => T;
   readonly subtle: {
     readonly digest: (algorithm: string, data: Uint8Array) => Promise<ArrayBuffer>;
+    readonly importKey: (
+      format: "raw",
+      keyData: Uint8Array,
+      algorithm: { readonly name: "HMAC"; readonly hash: "SHA-256" },
+      extractable: boolean,
+      usages: ReadonlyArray<"sign">,
+    ) => Promise<InvitationTokenKey>;
+    readonly sign: (algorithm: "HMAC", key: InvitationTokenKey, data: Uint8Array) => Promise<ArrayBuffer>;
   };
 };
 
@@ -393,11 +405,33 @@ const base64url = (bytes: Uint8Array): string => {
   return result;
 };
 
-/** Generates a 128-bit unguessable base64url token for an invitation (ADR 0005). */
-export const generateInvitationToken = (): string => {
-  const bytes = crypto.getRandomValues(new Uint8Array(16));
-  return base64url(bytes);
-};
+/** Which Invitation a token belongs to. `generation` is the Invitation's `resend_count`: Resend bumps it. */
+export interface InvitationTokenRef {
+  readonly roundId: string;
+  readonly personId: string;
+  readonly generation: number;
+}
+
+/** Imports the per-stage secret as an HMAC key. The secret never leaves the Worker environment. */
+export const importInvitationTokenKey = (secret: string): Promise<InvitationTokenKey> =>
+  crypto.subtle.importKey("raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, [
+    "sign",
+  ]);
+
+/**
+ * The 128-bit unguessable base64url token of an Invitation (ADR 0005, issue 42). It is derived, not
+ * stored: only its hash is persisted, and whoever needs the token (the Queue consumer rendering the
+ * email) derives it again from the key and the reference. A Resend bumps `generation`, so the old
+ * link stops working exactly as before.
+ */
+export const deriveInvitationToken = (key: InvitationTokenKey, ref: InvitationTokenRef): Promise<string> =>
+  crypto.subtle
+    .sign(
+      "HMAC",
+      key,
+      new TextEncoder().encode(`invitation:v1:${ref.roundId}:${ref.personId}:${ref.generation}`),
+    )
+    .then((mac: ArrayBuffer) => base64url(new Uint8Array(mac).slice(0, 16)));
 
 /** Computes the hex-encoded SHA-256 hash of a token for storage and lookup. */
 export const hashToken = (token: string): Promise<string> =>

@@ -1,5 +1,5 @@
 import { Context, Effect, Layer, Option, Ref, Semaphore } from "effect";
-import type { EmailAddress, SendId, TransactionalEmail } from "./Email.ts";
+import type { EmailAddress, SendId, StoredEmail } from "./Email.ts";
 import {
   abandon,
   claim,
@@ -16,7 +16,7 @@ import {
 export interface SendRecord {
   readonly id: SendId;
   readonly recipient: EmailAddress;
-  readonly email: TransactionalEmail;
+  readonly email: StoredEmail;
   readonly state: SendState;
 }
 
@@ -26,7 +26,7 @@ export type ClaimResult =
       readonly _tag: "Send";
       readonly attempt: number;
       readonly recipient: EmailAddress;
-      readonly email: TransactionalEmail;
+      readonly email: StoredEmail;
     }
   | { readonly _tag: "Wait"; readonly until: number }
   | { readonly _tag: "Finished"; readonly state: SendState }
@@ -39,11 +39,7 @@ export type ClaimResult =
  */
 export interface SendStoreShape {
   /** Idempotent: creating a send that exists returns its current state and changes nothing. */
-  readonly create: (
-    id: SendId,
-    recipient: EmailAddress,
-    email: TransactionalEmail,
-  ) => Effect.Effect<SendState>;
+  readonly create: (id: SendId, recipient: EmailAddress, email: StoredEmail) => Effect.Effect<SendState>;
   readonly get: (id: SendId) => Effect.Effect<Option.Option<SendRecord>>;
   readonly claim: (id: SendId, now: number) => Effect.Effect<ClaimResult>;
   /** The state after the outcome, or the unchanged state when `attempt` no longer held the send. */

@@ -14,6 +14,34 @@ import { PulseId, SendTime } from "../pulses/Pulse.ts";
 import { TeamId } from "../people/Team.ts";
 
 describe("Lifecycle scheduling and time engine", () => {
+  it("opens a Round at the earliest member's local cadence time when a member's zone is ahead of the Team's", () => {
+    // Team in Europe/Berlin (UTC+1), one member in Asia/Tokyo (UTC+9): Monday 09:00 is 00:00 UTC in Tokyo.
+    const sendTime = SendTime.make("09:00");
+    const withOwnZone = calculateRoundInstants(
+      "2026-11-09",
+      sendTime,
+      ["Europe/Berlin", "Asia/Tokyo"],
+      "Europe/Berlin",
+      3,
+    );
+    const teamZoneOnly = calculateRoundInstants(
+      "2026-11-09",
+      sendTime,
+      ["Europe/Berlin", "Europe/Berlin"],
+      "Europe/Berlin",
+      3,
+    );
+    const tokyoSend = Date.UTC(2026, 10, 9, 0, 0, 0);
+    const berlinSend = Date.UTC(2026, 10, 9, 8, 0, 0);
+    assert.strictEqual(withOwnZone.sends.find((s) => s.timeZone === "Asia/Tokyo")?.sendAt, tokyoSend);
+    assert.strictEqual(withOwnZone.sends.find((s) => s.timeZone === "Europe/Berlin")?.sendAt, berlinSend);
+    // The open job is due no later than the earliest send, so nobody is sent late.
+    assert.strictEqual(withOwnZone.openInstant, tokyoSend);
+    // Team-zone-only instants would open eight hours late for Tokyo.
+    assert.strictEqual(teamZoneOnly.openInstant, berlinSend);
+    assert.isBelow(withOwnZone.openInstant, teamZoneOnly.openInstant);
+  });
+
   it("calculates open and close instants for a Round spanning UTC-8 and UTC+9", () => {
     // Cadence: Monday 09:00 local time, window of 3 days.
     // Planned open date: 2026-11-09 (Monday).
@@ -289,25 +317,32 @@ describe("Lifecycle scheduling and time engine", () => {
     assert.notDeepEqual(frozenQuestions, newPulseQuestions);
   });
 
-  it.effect("generates unguessable 128-bit base64url tokens and valid SHA-256 hex hashes", () =>
+  it.effect("derives 128-bit base64url tokens deterministically per key and Invitation generation", () =>
     Effect.gen(function* () {
-      const { generateInvitationToken, hashToken } = yield* Effect.promise(() => import("./Lifecycle.ts"));
-      const token1 = generateInvitationToken();
-      const token2 = generateInvitationToken();
-      assert.strictEqual(typeof token1, "string");
-      assert.strictEqual(token1.length, 22); // 16 bytes base64url = 22 characters unpadded
-      assert.notStrictEqual(token1, token2);
-      // Valid base64url characters only
-      assert.match(token1, /^[A-Za-z0-9_-]{22}$/);
+      const { deriveInvitationToken, hashToken, importInvitationTokenKey } = yield* Effect.promise(
+        () => import("./Lifecycle.ts"),
+      );
+      const key = yield* Effect.promise(() => importInvitationTokenKey("k".repeat(32)));
+      const otherKey = yield* Effect.promise(() => importInvitationTokenKey("o".repeat(32)));
+      const ref = { roundId: "round-1", personId: "person-1", generation: 0 };
+      const token = yield* Effect.promise(() => deriveInvitationToken(key, ref));
+      assert.match(token, /^[A-Za-z0-9_-]{22}$/); // 16 bytes base64url = 22 characters unpadded
+      assert.strictEqual(yield* Effect.promise(() => deriveInvitationToken(key, ref)), token);
 
-      const hash1 = yield* Effect.promise(() => hashToken(token1));
-      const hash2 = yield* Effect.promise(() => hashToken(token1));
-      const hashOther = yield* Effect.promise(() => hashToken(token2));
+      const variants = [
+        { ...ref, generation: 1 }, // Resend: the old link stops working
+        { ...ref, personId: "person-2" },
+        { ...ref, roundId: "round-2" },
+      ];
+      for (const variant of variants) {
+        assert.notStrictEqual(yield* Effect.promise(() => deriveInvitationToken(key, variant)), token);
+      }
+      assert.notStrictEqual(yield* Effect.promise(() => deriveInvitationToken(otherKey, ref)), token);
 
-      // SHA-256 hex is 64 lower-case hex characters
-      assert.match(hash1, /^[0-9a-f]{64}$/);
-      assert.strictEqual(hash1, hash2); // deterministic
-      assert.notStrictEqual(hash1, hashOther);
+      const hash = yield* Effect.promise(() => hashToken(token));
+      assert.match(hash, /^[0-9a-f]{64}$/); // SHA-256 hex
+      assert.strictEqual(yield* Effect.promise(() => hashToken(token)), hash);
+      assert.notStrictEqual(yield* Effect.promise(() => hashToken(`${token}x`)), hash);
     }),
   );
 

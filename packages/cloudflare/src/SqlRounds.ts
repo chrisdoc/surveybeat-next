@@ -204,6 +204,8 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient) => {
         dimension: d.dimension,
         score: d.score,
         usableQuestionCount: d.usableQuestionCount,
+        // Results stored before the count was kept lack it.
+        ...(d.contributors === undefined ? {} : { contributors: d.contributors }),
         meetsMinimumGroupSize: d.meetsMinimumGroupSize,
       })),
     };
@@ -721,6 +723,7 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient) => {
   const getSubmissionRoundContext = (
     roundId: RoundId,
     personId: PersonId | null,
+    minimumGroupSize: number,
   ): Effect.Effect<SubmissionRoundContext | null> =>
     Effect.gen(function* () {
       const round = yield* getRound(roundId);
@@ -794,7 +797,7 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient) => {
       return {
         roundId,
         pulseName: round.pulseName,
-        anonymityStatement: "Your name is never stored with your answers.",
+        minimumGroupSize,
         questions: parsedQuestions,
         actions: eligibleActions.slice(0, 3).map((a) => ({ id: a.id, title: a.title })),
         closeTime: round.plannedCloseAt,

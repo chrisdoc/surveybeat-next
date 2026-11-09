@@ -60,7 +60,12 @@ import {
   SendEmail,
   sendsRealEmail,
 } from "./Email.ts";
-import { handleDeadLetter, handleDeliveryEvent, handleSendMessage } from "./EmailDelivery.ts";
+import {
+  handleDeadLetter,
+  handleDeliveryEvent,
+  handleSendMessage,
+  InvitationTokensLive,
+} from "./EmailDelivery.ts";
 import { emailTestRoutes, isTestStage, TEST_ROUTES } from "./EmailTestRoutes.ts";
 import { hostnameFor } from "./Hostnames.ts";
 import { pulseHandlers } from "./PulseHandlers.ts";
@@ -116,7 +121,11 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
             : []),
         ],
       },
-      env: yield* authBindings,
+      // The Organization Durable Object builds email links from this. Stages on workers.dev have none.
+      env: {
+        ...(yield* authBindings),
+        ...(hostname === undefined ? {} : { APP_ORIGIN: `https://${hostname}` }),
+      },
       ...(hostname === undefined ? {} : { domain: hostname }),
     };
   }),
@@ -156,7 +165,10 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
               : yield* cloudflareEmailSender(sendClient);
           yield* Stream.runForEach(stream, (message) =>
             handleSendMessage(organizations, database, message),
-          ).pipe(Effect.provideService(EmailSender, sender), Effect.provide(EmailTemplatesLive));
+          ).pipe(
+            Effect.provideService(EmailSender, sender),
+            Effect.provide(EmailTemplatesLive.pipe(Layer.provide(InvitationTokensLive))),
+          );
         }),
     );
     yield* Cloudflare.Queues.consumeQueueMessages(emailDlq, (stream) =>

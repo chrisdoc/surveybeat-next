@@ -10,6 +10,7 @@ import type { WorkosConfig } from "./WorkosIdentityProvider.ts";
  * deploy time from the environment (GitHub secrets in CI: `WORKOS_API_KEY`, `WORKOS_CLIENT_ID`,
  * `ORG_CREATION_ALLOWLIST`) and bound as Worker secrets. The cookie password is generated per
  * stage by Alchemy and kept in its state, so it survives redeploys and differs between stages.
+ * The Invitation token key is generated the same way: Invitation tokens are derived from it and never stored.
  */
 export const authBindings = Effect.gen(function* () {
   return {
@@ -17,6 +18,7 @@ export const authBindings = Effect.gen(function* () {
     WORKOS_CLIENT_ID: Config.Redacted("WORKOS_CLIENT_ID"),
     ORG_CREATION_ALLOWLIST: Config.Redacted("ORG_CREATION_ALLOWLIST"),
     WORKOS_COOKIE_PASSWORD: yield* Alchemy.makeRandom("SessionCookiePassword", { bytes: 32 }),
+    INVITATION_TOKEN_KEY: yield* Alchemy.makeRandom("InvitationTokenKey", { bytes: 32 }),
   };
 });
 
