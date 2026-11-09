@@ -45,6 +45,9 @@ import {
   type PulseRecord,
   type PulseState,
   type SubmissionAnswer,
+  calculateRoundResult,
+  enforceEffectiveNOnResult,
+  type RoundResult,
 } from "@surveybeat/domain";
 import * as Clock from "effect/Clock";
 import * as Effect from "effect/Effect";
@@ -67,6 +70,21 @@ const randomId = (): string =>
   Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) => byte.toString(16).padStart(2, "0")).join(
     "",
   );
+
+const AttemptsPayload = Schema.Struct({ attempts: Schema.Int });
+const parseAttempts = (payload: string | null): number => {
+  if (payload === null) return 0;
+  try {
+    const p: unknown = JSON.parse(payload);
+    const decoded = Schema.decodeUnknownOption(AttemptsPayload)(p);
+    return Option.match(decoded, {
+      onNone: () => 0,
+      onSome: (val) => val.attempts,
+    });
+  } catch {
+    return 0;
+  }
+};
 
 /**
  * The Organization Durable Object (ADR 0006): one object per Organization, SQLite storage.
@@ -637,21 +655,90 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
           yield* executeComputeJob(computeJobId, roundId, now);
         });
 
-      /** Idempotent DO method: computes result (stub in slice 07), moves to Ready then Shared. */
+      /** Idempotent DO method: computes Result, saves to round_result, moves to Ready then Shared. */
       const executeComputeJob = (jobId: JobId, roundId: RoundId, now: number) =>
         Effect.gen(function* () {
           const job = yield* rounds.getJob(jobId);
           if (job === null || job.status !== "pending") return;
 
           const round = yield* rounds.getRound(roundId);
-          if (round === null || round.status !== "closed") {
+          if (
+            round === null ||
+            (round.status !== "closed" && round.status !== "ready" && round.status !== "shared")
+          ) {
             yield* rounds.markJobCompleted(jobId, now);
             return;
           }
 
-          // Slice 11 stub: compute Result, transition to Ready and immediately in R1 to Shared.
-          yield* rounds.markRoundReadyAndShared(roundId, now);
-          yield* rounds.markJobCompleted(jobId, now);
+          const dirState = yield* directory.load;
+          const effectiveN = Math.max(
+            dirState.minimumGroupSize,
+            round.effectiveMinimumGroupSize ?? dirState.minimumGroupSize,
+          );
+
+          const computeEffect = Effect.gen(function* () {
+            const questions = yield* rounds.getRoundQuestionsDetailed(roundId);
+            const submissions = yield* rounds.getSubmissionsForRound(roundId);
+            const eligibleMembersCount = yield* rounds.getRoundMembersCount(roundId);
+            const pastHistory = yield* rounds.getPastRoundsResultsForPulse(
+              round.pulseId,
+              12,
+              round.plannedOpenDate,
+            );
+
+            const result = calculateRoundResult({
+              roundId,
+              pulseId: round.pulseId,
+              teamId: round.teamId,
+              status: round.status,
+              plannedOpenDate: round.plannedOpenDate,
+              closedAt: round.closedAt,
+              effectiveMinimumGroupSize: effectiveN,
+              eligibleMembersCount,
+              questions,
+              submissions,
+              pastRoundsHistory: pastHistory,
+            });
+
+            yield* rounds.saveRoundResult(roundId, result, now);
+            yield* rounds.markRoundReadyAndShared(roundId, now);
+            yield* rounds.markJobCompleted(jobId, now);
+          });
+
+          yield* computeEffect.pipe(
+            Effect.catchDefect((defect: unknown) =>
+              Effect.gen(function* () {
+                const attempts = parseAttempts(job.payload) + 1;
+
+                if (attempts >= 3) {
+                  yield* Effect.logError(
+                    `[OPERATOR_ALERT] Results computation failed repeatedly for round ${roundId}: ${String(defect)}`,
+                  );
+                  const questions = yield* rounds.getRoundQuestionsDetailed(roundId);
+                  const submissions = yield* rounds.getSubmissionsForRound(roundId);
+                  const eligibleMembersCount = yield* rounds.getRoundMembersCount(roundId);
+                  const delayedResult = calculateRoundResult({
+                    roundId,
+                    pulseId: round.pulseId,
+                    teamId: round.teamId,
+                    status: round.status,
+                    plannedOpenDate: round.plannedOpenDate,
+                    closedAt: round.closedAt,
+                    effectiveMinimumGroupSize: effectiveN,
+                    eligibleMembersCount,
+                    questions,
+                    submissions,
+                    pastRoundsHistory: [],
+                    delayed: true,
+                  });
+                  yield* rounds.saveRoundResult(roundId, delayedResult, now);
+                  yield* rounds.markJobCompleted(jobId, now);
+                } else {
+                  yield* rounds.updateJobPayload(jobId, JSON.stringify({ attempts }));
+                }
+              }),
+            ),
+          );
         });
 
       /** Processes all jobs currently due from the schedule table, then updates the alarm. */
@@ -1090,6 +1177,149 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
             };
             return viewed;
           }).pipe(Effect.orDie),
+
+        viewResults: (
+          actorId: PersonId,
+          teamId: TeamId,
+          roundId: RoundId,
+        ): Effect.Effect<RoundViewed<RoundResult>, never, never> =>
+          Effect.gen(function* () {
+            const dirState = yield* directory.load;
+            const auth = authorizeRoundAction(dirState, actorId, "team.viewResults", teamId);
+            if (auth._tag === "Rejected") {
+              const rejected: RoundViewed<RoundResult> = auth;
+              return rejected;
+            }
+
+            const team = dirState.teams.find((t) => t.id === teamId);
+            if (team === undefined) {
+              const rejected: RoundViewed<RoundResult> = {
+                _tag: "Rejected",
+                rejection: { _tag: "TeamNotFound" },
+              };
+              return rejected;
+            }
+
+            const r = yield* rounds.getRound(roundId);
+            if (r === null || r.teamId !== teamId) {
+              const rejected: RoundViewed<RoundResult> = {
+                _tag: "Rejected",
+                rejection: { _tag: "RoundNotFound" },
+              };
+              return rejected;
+            }
+
+            const effectiveN = Math.max(
+              dirState.minimumGroupSize,
+              r.effectiveMinimumGroupSize ?? dirState.minimumGroupSize,
+            );
+
+            // Rule R7: During an Open Round, only response count is returned, zero scores or comments
+            if (r.status === "scheduled" || r.status === "open") {
+              const submissions = yield* rounds.getSubmissionsForRound(roundId);
+              const eligibleMembersCount = yield* rounds.getRoundMembersCount(roundId);
+              const questions = yield* rounds.getRoundQuestionsDetailed(roundId);
+
+              const openResult = calculateRoundResult({
+                roundId,
+                pulseId: r.pulseId,
+                teamId: r.teamId,
+                status: r.status,
+                plannedOpenDate: r.plannedOpenDate,
+                closedAt: r.closedAt,
+                effectiveMinimumGroupSize: effectiveN,
+                eligibleMembersCount,
+                questions,
+                submissions,
+                pastRoundsHistory: [],
+              });
+
+              return { _tag: "Viewed", value: openResult } satisfies RoundViewed<RoundResult>;
+            }
+
+            // Closed/ready/shared round: read stored round_result
+            let storedResult = yield* rounds.getRoundResult(roundId);
+            if (storedResult === null) {
+              // Compute in place if not computed yet
+              const now = yield* Clock.currentTimeMillis;
+              const questions = yield* rounds.getRoundQuestionsDetailed(roundId);
+              const submissions = yield* rounds.getSubmissionsForRound(roundId);
+              const eligibleMembersCount = yield* rounds.getRoundMembersCount(roundId);
+              const pastHistory = yield* rounds.getPastRoundsResultsForPulse(
+                r.pulseId,
+                12,
+                r.plannedOpenDate,
+              );
+
+              storedResult = calculateRoundResult({
+                roundId,
+                pulseId: r.pulseId,
+                teamId: r.teamId,
+                status: r.status,
+                plannedOpenDate: r.plannedOpenDate,
+                closedAt: r.closedAt,
+                effectiveMinimumGroupSize: effectiveN,
+                eligibleMembersCount,
+                questions,
+                submissions,
+                pastRoundsHistory: pastHistory,
+              });
+              yield* rounds.saveRoundResult(roundId, storedResult, now);
+            }
+
+            // Apply effective N enforcement (Rule R9)
+            let resultToShow = enforceEffectiveNOnResult(storedResult, dirState.minimumGroupSize);
+
+            // Members/viewers see results without comments; only Lead sees comments behind N (ADR 0004, Issue #3)
+            const isLead = auth.actor.roles.get(teamId) === "lead";
+            if (!isLead) {
+              resultToShow = {
+                ...resultToShow,
+                comments: [],
+              };
+            }
+
+            const viewed: RoundViewed<RoundResult> = {
+              _tag: "Viewed",
+              value: resultToShow,
+            };
+            return viewed;
+          }).pipe(Effect.orDie),
+
+        recomputeResult: (roundId: string) =>
+          Effect.gen(function* () {
+            const rid = RoundId.make(roundId);
+            const r = yield* rounds.getRound(rid);
+            if (r === null) return false;
+            const dirState = yield* directory.load;
+            const effectiveN = Math.max(
+              dirState.minimumGroupSize,
+              r.effectiveMinimumGroupSize ?? dirState.minimumGroupSize,
+            );
+            const now = yield* Clock.currentTimeMillis;
+            const questions = yield* rounds.getRoundQuestionsDetailed(rid);
+            const submissions = yield* rounds.getSubmissionsForRound(rid);
+            const eligibleMembersCount = yield* rounds.getRoundMembersCount(rid);
+            const pastHistory = yield* rounds.getPastRoundsResultsForPulse(r.pulseId, 12, r.plannedOpenDate);
+
+            const result = calculateRoundResult({
+              roundId: rid,
+              pulseId: r.pulseId,
+              teamId: r.teamId,
+              status: r.status,
+              plannedOpenDate: r.plannedOpenDate,
+              closedAt: r.closedAt,
+              effectiveMinimumGroupSize: effectiveN,
+              eligibleMembersCount,
+              questions,
+              submissions,
+              pastRoundsHistory: pastHistory,
+            });
+            yield* rounds.saveRoundResult(rid, result, now);
+            return true;
+          }).pipe(Effect.orDie),
+
+        getRoundResult: (roundId: string) => rounds.getRoundResult(RoundId.make(roundId)),
 
         runDueJobs: (now?: number) => runDueJobs(now),
 

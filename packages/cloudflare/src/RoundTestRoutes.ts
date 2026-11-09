@@ -208,6 +208,9 @@ export const roundTestRoutes = (organizations: Organizations, database: Cloudfla
       .bind(testTokenHash, organizationId, roundSummary.id, leadPersonId, pulseId)
       .run();
 
+    const resultAfterClose = yield* organization.getRoundResult(roundSummary.id);
+    const hasComputedResult = resultAfterClose !== null;
+
     return yield* HttpServerResponse.json({
       initialAlarm,
       earliestDue1,
@@ -218,6 +221,7 @@ export const roundTestRoutes = (organizations: Organizations, database: Cloudfla
       resendSuccess,
       resendCountIncremented,
       closeIdempotent,
+      hasComputedResult,
       alarmPointsToEarliest2,
       testToken,
       organizationId,

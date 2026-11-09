@@ -3,13 +3,16 @@ import {
   AlreadyAnswered,
   AnonymityMode,
   AnswerWindowDays,
+  Dimension,
   Distribution,
   EmailAddress,
   type FailedInvitation,
   type FrozenRoundMember,
+  type HistoricalRoundData,
   JobId,
   PersonId,
   PulseId,
+  type QuestionInput,
   QuestionType,
   QuestionVersionId,
   redact,
@@ -18,6 +21,7 @@ import {
   RoundId,
   RoundNotOpen,
   type RoundRecord,
+  RoundResult,
   RoundStatus,
   type ScheduleJobRecord,
   ScheduleJobStatus,
@@ -154,6 +158,40 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient) => {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   });
+
+  const decodeRoundResultPayload = (payload: string): RoundResult | null => {
+    try {
+      const parsed: unknown = JSON.parse(payload);
+      const decoded = Schema.decodeUnknownOption(RoundResult)(parsed);
+      return Option.getOrNull(decoded);
+    } catch {
+      return null;
+    }
+  };
+
+  const decodeHistoricalPayload = (payload: string): HistoricalRoundData | null => {
+    const res = decodeRoundResultPayload(payload);
+    if (res === null) return null;
+    return {
+      roundId: res.roundId,
+      plannedOpenDate: res.plannedOpenDate,
+      closedAt: res.closedAt,
+      effectiveMinimumGroupSize: res.effectiveMinimumGroupSize,
+      submissionsCount: res.submissionsCount,
+      questions: res.questions.map((q) => ({
+        questionVersionId: q.questionVersionId,
+        score: q.score,
+        contributors: q.contributors,
+        meetsMinimumGroupSize: q.meetsMinimumGroupSize,
+      })),
+      dimensions: res.dimensions.map((d) => ({
+        dimension: d.dimension,
+        score: d.score,
+        usableQuestionCount: d.usableQuestionCount,
+        meetsMinimumGroupSize: d.meetsMinimumGroupSize,
+      })),
+    };
+  };
 
   const getRound = (roundId: RoundId): Effect.Effect<RoundRecord | null> =>
     sql`SELECT * FROM round WHERE id = ${roundId}`.pipe(
@@ -719,6 +757,156 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient) => {
       };
     }).pipe(Effect.orDie);
 
+  const saveRoundResult = (
+    roundId: RoundId,
+    result: RoundResult,
+    computedAt: number,
+  ): Effect.Effect<void> => {
+    const payload = JSON.stringify(result);
+    return sql`INSERT INTO round_result (round_id, computed_at, payload)
+        VALUES (${roundId}, ${computedAt}, ${payload})
+        ON CONFLICT (round_id) DO UPDATE SET computed_at = excluded.computed_at, payload = excluded.payload`.pipe(
+      Effect.asVoid,
+      Effect.orDie,
+    );
+  };
+
+  const getRoundResult = (roundId: RoundId): Effect.Effect<RoundResult | null> =>
+    sql<{ payload: string }>`SELECT payload FROM round_result WHERE round_id = ${roundId}`.pipe(
+      Effect.map((rows) => {
+        const row = rows[0];
+        if (row === undefined) return null;
+        return decodeRoundResultPayload(row.payload);
+      }),
+      Effect.orDie,
+    );
+
+  const getRoundMembersCount = (roundId: RoundId): Effect.Effect<number> =>
+    sql<{ count: number }>`SELECT count(*) as count FROM round_member WHERE round_id = ${roundId}`.pipe(
+      Effect.map((rows) => rows[0]?.count ?? 0),
+      Effect.orDie,
+    );
+
+  const getRoundQuestionsDetailed = (roundId: RoundId): Effect.Effect<ReadonlyArray<QuestionInput>> =>
+    sql<{
+      position: number;
+      id: string;
+      text: string;
+      dimension: string | null;
+      type: string;
+    }>`SELECT rq.position, qv.id, qv.text, qv.dimension, qv.type
+       FROM round_question rq
+       JOIN question_version qv ON qv.id = rq.question_version_id
+       WHERE rq.round_id = ${roundId}
+       ORDER BY rq.position ASC`.pipe(
+      Effect.map((rows) =>
+        rows.map((q) => {
+          let parsedJson: unknown = null;
+          try {
+            parsedJson = JSON.parse(q.type);
+          } catch {
+            parsedJson = null;
+          }
+          const decoded = Schema.decodeUnknownOption(QuestionType)(parsedJson);
+          const questionType = Option.getOrElse(decoded, (): QuestionType => ({
+            _tag: "Rating",
+            lowLabel: "Low",
+            highLabel: "High",
+            comment: true,
+          }));
+          const dimDecoded = Schema.decodeUnknownOption(Dimension)(q.dimension);
+          const dimension = Option.getOrNull(dimDecoded);
+
+          return {
+            id: QuestionVersionId.make(q.id),
+            position: q.position,
+            text: q.text,
+            type: questionType,
+            dimension,
+          };
+        }),
+      ),
+      Effect.orDie,
+    );
+
+  const getSubmissionsForRound = (
+    roundId: RoundId,
+  ): Effect.Effect<ReadonlyArray<{ id: string; answers: ReadonlyArray<SubmissionAnswer> }>> =>
+    Effect.gen(function* () {
+      const subRows = yield* sql<{
+        id: string;
+      }>`SELECT id FROM submission WHERE round_id = ${roundId} ORDER BY id ASC`;
+      if (subRows.length === 0) return [];
+
+      const ansRows = yield* sql<{
+        submission_id: string;
+        question_version_id: string;
+        value: number | null;
+        comment: string | null;
+      }>`SELECT a.submission_id, a.question_version_id, a.value, a.comment
+         FROM answer a
+         JOIN submission s ON s.id = a.submission_id
+         WHERE s.round_id = ${roundId}`;
+
+      const grouped = new Map<string, Array<SubmissionAnswer>>();
+      for (const ans of ansRows) {
+        let list = grouped.get(ans.submission_id);
+        if (list === undefined) {
+          list = [];
+          grouped.set(ans.submission_id, list);
+        }
+        list.push({
+          questionVersionId: QuestionVersionId.make(ans.question_version_id),
+          value: ans.value,
+          comment: ans.comment,
+        });
+      }
+
+      return subRows.map((s) => ({
+        id: s.id,
+        answers: grouped.get(s.id) ?? [],
+      }));
+    }).pipe(Effect.orDie);
+
+  const getPastRoundsResultsForPulse = (
+    pulseId: PulseId,
+    limit: number,
+    beforePlannedOpenDate?: string,
+  ): Effect.Effect<ReadonlyArray<HistoricalRoundData>> =>
+    Effect.gen(function* () {
+      const rows =
+        beforePlannedOpenDate !== undefined
+          ? yield* sql<{ payload: string }>`
+            SELECT rr.payload
+            FROM round_result rr
+            JOIN round r ON r.id = rr.round_id
+            WHERE r.pulse_id = ${pulseId}
+              AND r.planned_open_date < ${beforePlannedOpenDate}
+              AND r.status IN ('closed', 'ready', 'shared')
+            ORDER BY r.planned_open_at ASC
+            LIMIT ${limit}`
+          : yield* sql<{ payload: string }>`
+            SELECT rr.payload
+            FROM round_result rr
+            JOIN round r ON r.id = rr.round_id
+            WHERE r.pulse_id = ${pulseId}
+              AND r.status IN ('closed', 'ready', 'shared')
+            ORDER BY r.planned_open_at ASC
+            LIMIT ${limit}`;
+
+      const history: Array<HistoricalRoundData> = [];
+      for (const row of rows) {
+        const item = decodeHistoricalPayload(row.payload);
+        if (item !== null) {
+          history.push(item);
+        }
+      }
+      return history;
+    }).pipe(Effect.orDie);
+
+  const updateJobPayload = (jobId: JobId, payload: string): Effect.Effect<void> =>
+    sql`UPDATE schedule_job SET payload = ${payload} WHERE id = ${jobId}`.pipe(Effect.asVoid, Effect.orDie);
+
   return {
     getRound,
     getRoundsForPulse,
@@ -768,6 +956,14 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient) => {
     recordFirstAnswer,
     saveAnswer,
     getMyAnswers,
+    // Results
+    saveRoundResult,
+    getRoundResult,
+    getRoundMembersCount,
+    getRoundQuestionsDetailed,
+    getSubmissionsForRound,
+    getPastRoundsResultsForPulse,
+    updateJobPayload,
   };
 };
 
