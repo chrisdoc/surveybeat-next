@@ -49,7 +49,6 @@ jobs:
         env:
           WORKOS_API_KEY: ${{ secrets.WORKOS_API_KEY }}
           WORKOS_CLIENT_ID: ${{ secrets.WORKOS_CLIENT_ID }}
-          ORG_CREATION_ALLOWLIST: ${{ secrets.ORG_CREATION_ALLOWLIST }}
       - name: Smoke test
         run: node infra/scripts/smoke.ts "https://staging.app.surveybeat.app" "https://staging.submit.surveybeat.app"
         env:
@@ -129,7 +128,6 @@ jobs:
         env:
           WORKOS_API_KEY: ${{ secrets.WORKOS_API_KEY }}
           WORKOS_CLIENT_ID: ${{ secrets.WORKOS_CLIENT_ID }}
-          ORG_CREATION_ALLOWLIST: ${{ secrets.ORG_CREATION_ALLOWLIST }}
       - name: Smoke test
         run: node infra/scripts/smoke.ts "https://app.surveybeat.app" "https://submit.surveybeat.app"
         env:

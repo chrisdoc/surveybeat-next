@@ -16,7 +16,7 @@ A new custom hostname takes about a minute to get its certificate, so the first 
 ```sh
 pnpm --filter @surveybeat/web build        # the Main Worker serves apps/web/dist
 # Sign-in secrets, read at deploy (and destroy) time. Use the WorkOS SurveyBeat Staging values.
-export WORKOS_API_KEY=sk_test_... WORKOS_CLIENT_ID=client_... ORG_CREATION_ALLOWLIST=you@example.com
+export WORKOS_API_KEY=sk_test_... WORKOS_CLIENT_ID=client_...
 pnpm infra:deploy --stage dev-yourname     # `alchemy deploy infra/alchemy.run.ts`
 pnpm infra:destroy --stage dev-yourname
 CLOUDFLARE_API_TOKEN=... CLOUDFLARE_ACCOUNT_ID=... pnpm check:observability --stage dev-yourname
@@ -26,7 +26,7 @@ E2E_BASE_URL=<main-url> pnpm test:e2e      # once: pnpm --filter @surveybeat/inf
 
 ## Preview stages in CI
 
-`.github/workflows/preview.yml` deploys `pr-<number>` on every push to a pull request, smoke tests the stage, and destroys it when the pull request closes. It needs the repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`, plus the sign-in secrets `WORKOS_API_KEY`, `WORKOS_CLIENT_ID`, and `ORG_CREATION_ALLOWLIST` (below). Fork pull requests are skipped. After the deploy, two jobs run against the stage:
+`.github/workflows/preview.yml` deploys `pr-<number>` on every push to a pull request, smoke tests the stage, and destroys it when the pull request closes. It needs the repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`, plus the sign-in secrets `WORKOS_API_KEY` and `WORKOS_CLIENT_ID` (below). Fork pull requests are skipped. After the deploy, two jobs run against the stage:
 
 - `preview-privacy` reads back the Submission Worker's settings (below) on every PR. When the PR touches `packages/cloudflare`, `infra`, the answer entry (`apps/web/answer.html`, `src/answer`, `src/messages`, `vite.config.ts`), the dependency pins or this workflow, it also runs the canary sweep (`infra/tests/privacy/canary-sweep.ts`).
 - `e2e` runs the Playwright tests in `infra/tests/e2e/` (the SPEC §7 flow, which grows with the slices).
@@ -37,7 +37,8 @@ The Main Worker handles `/auth/login`, `/auth/callback`, and `/auth/logout` with
 
 | Binding | Source |
 | --- | --- |
-| `WORKOS_API_KEY`, `WORKOS_CLIENT_ID`, `ORG_CREATION_ALLOWLIST` | The deploying shell's environment (GitHub secrets in CI), bound as Worker secrets. The allowlist is comma-separated emails that may create an Organization, matched case-insensitively and only when WorkOS verified the email. |
+| `WORKOS_API_KEY`, `WORKOS_CLIENT_ID` | The deploying shell's environment, bound as Worker secrets. In CI they are GitHub secrets: the `production` environment holds the SurveyBeat Production values, and every other stage falls back to the repository secrets, which hold the Staging values. |
+| `ORG_CREATION_ALLOWLIST` | `infra/org-creation-allowlist.yaml`, the emails that may create an Organization, keyed by stage with `default` for any stage not listed. `infra/alchemy.run.ts` reads it at deploy time and it wins over the shell; a missing file, an empty list, or a malformed email fails the deploy. Bound as a Worker secret, comma-separated. Emails match case-insensitively and only when WorkOS verified them. A change takes effect at the stage's next deploy. |
 | `WORKOS_COOKIE_PASSWORD` | Generated per stage by Alchemy (`Random`, 32 bytes as hex) and kept in its state. Destroying a stage discards it. |
 
 **WorkOS environments.** `pr-*` and personal stages use **SurveyBeat Staging** (`environment_01M6TXKPTEY2HWYAEFC0XMMVB2`, AuthKit domain `straightforward-mouse-82-staging.authkit.app`). Production is **SurveyBeat Production** (`environment_01M6TXKQ8G5Q9ASGGJCQE1FAFH`). Staging has:
@@ -47,6 +48,8 @@ The Main Worker handles `/auth/login`, `/auth/callback`, and `/auth/logout` with
 - the roles `member` (default) and `admin` (Organization admin, created with `workos role create`).
 
 Production has:
+
+- sign-in methods enabled in the dashboard (a new environment allows only SSO, which shows "This account is not authorized to sign in");
 - redirect URI `https://app.surveybeat.app/auth/callback`;
 - logout URI `https://app.surveybeat.app/`;
 - the roles `member` (default) and `admin` (Organization admin).
