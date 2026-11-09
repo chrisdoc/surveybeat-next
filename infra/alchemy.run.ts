@@ -2,8 +2,11 @@ import * as Cloudflare from "@alchemy.run/cloudflare";
 import { SurveyBeatApi } from "@surveybeat/api";
 import { Database, MainWorker, ProductionEmail, SubmissionWorker } from "@surveybeat/cloudflare";
 import * as Alchemy from "alchemy";
+import * as Secrets from "alchemy/Secrets";
 import { Stack } from "alchemy/Stack";
+import * as ConfigProvider from "effect/ConfigProvider";
 import * as Effect from "effect/Effect";
+import { readAllowlistForStage } from "./orgCreationAllowlist.ts";
 
 /**
  * One stack per stage: `pr-<n>` for every pull request, later `staging` and `production`.
@@ -14,6 +17,17 @@ export default Alchemy.Stack(
   {
     providers: Cloudflare.providers(),
     state: Cloudflare.state(),
+    // The Alchemy defaults (`.env`, then the shell) plus the stage's Organization creation
+    // allowlist from `infra/org-creation-allowlist.yaml`, which wins over both: the file is the
+    // only place that decides who may create an Organization (ADR 0002).
+    secrets: ({ stage }) => [
+      Secrets.DotEnv(),
+      Secrets.ProcessEnv(),
+      ConfigProvider.layerAdd(
+        ConfigProvider.fromEnv({ env: { ORG_CREATION_ALLOWLIST: readAllowlistForStage(stage) } }),
+        { asPrimary: true },
+      ),
+    ],
   },
   Effect.gen(function* () {
     const { stage } = yield* Stack;

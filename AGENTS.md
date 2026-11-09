@@ -59,7 +59,7 @@ CI runs `typecheck:effect`, `typecheck`, `format:check`, `lint`, `test`, then th
 
 - Every Cloudflare resource is declared in `infra/alchemy.run.ts`; no dashboard edits, no wrangler config.
 - Run Alchemy from the repo root: the Organization DO migrations path (`packages/cloudflare/migrations`) is relative to the working directory. Build the web app first; the Main Worker serves `apps/web/dist`.
-- `pnpm infra:deploy --stage dev-<name>` needs `WORKOS_API_KEY`, `WORKOS_CLIENT_ID`, and `ORG_CREATION_ALLOWLIST` in the environment.
+- `pnpm infra:deploy --stage dev-<name>` needs `WORKOS_API_KEY` and `WORKOS_CLIENT_ID` in the environment. Who may create an Organization is `infra/org-creation-allowlist.yaml`, per stage.
 - Non-production stages never send real email; sends are recorded in D1's `captured_email`. Only `production` sends.
 - The Submission Worker must keep every observability channel off. `pnpm check:observability --stage <stage>` reads the deployed settings back; the canary sweep proves no logs are kept. Stage scripts need `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
 - New SQL migrations: numbered files in `packages/cloudflare/migrations` (Durable Object) or `packages/cloudflare/d1-migrations` (D1).

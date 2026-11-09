@@ -335,6 +335,9 @@ importers:
       effect:
         specifier: 'catalog:'
         version: 4.1.2
+      yaml:
+        specifier: 2.9.1
+        version: 2.9.1
     devDependencies:
       '@axe-core/playwright':
         specifier: ^4.14.0
