@@ -13,6 +13,8 @@ import {
   QuestionContent,
   QuestionId,
   type QuestionType,
+  RoundId,
+  RoundResult,
   TeamDetail,
   TeamId,
   TeamName,
@@ -50,6 +52,7 @@ import {
   pulseEditorView,
   pulsesScreenView,
 } from "./pulses.ts";
+import { LoadedResults, resultsScreenView } from "./results.ts";
 import { AppRoute, pulseHref, teamHref, urlToAppRoute } from "./routes.ts";
 import {
   chooseOrganizationView,
@@ -128,6 +131,9 @@ export const Model = Schema.Struct({
   settingsSaved: Schema.Boolean,
   settingsBusy: Schema.Boolean,
   settingsFailure: Schema.Option(Failure),
+  // Results screen
+  results: LoadedResults,
+  showTable: Schema.Record(Schema.String, Schema.Boolean),
 });
 export type Model = typeof Model.Type;
 
@@ -135,6 +141,10 @@ export type Model = typeof Model.Type;
 // MESSAGES
 // ==========================================
 
+export const OutcomeResults = Schema.Union([
+  Schema.TaggedStruct("Success", { result: RoundResult }),
+  Schema.TaggedStruct("Failure", { failure: Failure }),
+]);
 export const OutcomeTeams = Schema.Union([
   Schema.TaggedStruct("Success", { teams: Schema.Array(TeamSummary) }),
   Schema.TaggedStruct("Failure", { failure: Failure }),
@@ -231,6 +241,9 @@ export const Message = defineMessageUnion({
   SettingsWindowChanged: { days: Schema.String },
   SettingsRemindersChanged: { reminders: Schema.String },
   SubmitSettings: {},
+  // Results screen
+  GotResults: { outcome: OutcomeResults },
+  ToggleResultsTable: { key: Schema.String },
 });
 export type Message = typeof Message.Type;
 
@@ -509,6 +522,17 @@ export const ReorderQuestionsCmd = Command.define("ReorderQuestionsCmd", {
     ),
 });
 
+export const GetResultsCmd = Command.define("GetResultsCmd", {
+  args: { teamId: TeamId, roundId: RoundId },
+  messages: [Message.GotResults],
+  execute: ({ teamId, roundId }) =>
+    runApi(
+      (api) => api.rounds.getResults({ params: { teamId, roundId } }),
+      (result) => Message.GotResults({ outcome: { _tag: "Success", result } }),
+      (failure) => Message.GotResults({ outcome: { _tag: "Failure", failure } }),
+    ),
+});
+
 export const Navigate = Command.define("Navigate", {
   args: { url: Schema.String },
   messages: [Message.Navigated],
@@ -585,6 +609,8 @@ export const initialModel = (url: Url): Model => {
     settingsSaved: false,
     settingsBusy: false,
     settingsFailure: Option.none(),
+    results: { _tag: "Loading" },
+    showTable: {},
   };
 };
 
@@ -600,6 +626,8 @@ export const loadActiveRouteCommand = (route: AppRoute) => {
       return [ListPulses({ teamId: route.teamId })];
     case "Pulse":
       return [GetPulse({ teamId: route.teamId, pulseId: route.pulseId })];
+    case "RoundResults":
+      return [GetResultsCmd({ teamId: route.teamId, roundId: route.roundId })];
     case "NotFound":
       return [];
   }
@@ -653,6 +681,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         pulseDetail: { _tag: "Loading" },
         settings: { _tag: "Loading" },
         teams: { _tag: "Loading" },
+        results: { _tag: "Loading" },
       };
       if (model.session._tag === "SignedIn") {
         return {
@@ -1528,6 +1557,40 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         ],
       };
     }
+
+    // ----------------------------------------
+    // Results screen
+    // ----------------------------------------
+    case "GotResults": {
+      const { outcome } = message;
+      if (outcome._tag === "Success") {
+        return {
+          model: {
+            ...model,
+            results: { _tag: "Loaded", result: outcome.result },
+          },
+        };
+      }
+      return {
+        model: {
+          ...model,
+          results: { _tag: "Failed", failure: outcome.failure },
+        },
+      };
+    }
+
+    case "ToggleResultsTable": {
+      const current = model.showTable[message.key] ?? false;
+      return {
+        model: {
+          ...model,
+          showTable: {
+            ...model.showTable,
+            [message.key]: !current,
+          },
+        },
+      };
+    }
   }
 };
 
@@ -1767,6 +1830,19 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
           onSettingsWindowChange: (days) => Message.SettingsWindowChanged({ days }),
           onSettingsRemindersChange: (reminders) => Message.SettingsRemindersChanged({ reminders }),
           onSubmitSettings: Message.SubmitSettings(),
+        },
+        h,
+      );
+      break;
+
+    case "RoundResults":
+      screenContent = resultsScreenView(
+        {
+          results: model.results,
+          showTable: model.showTable,
+        },
+        {
+          onToggleTable: (key) => Message.ToggleResultsTable({ key }),
         },
         h,
       );

@@ -3,6 +3,7 @@ import { Clock, Duration, Effect } from "effect";
 import { TestClock } from "effect/testing";
 import {
   calculateReminders,
+  calculateResultsReadyDeliveryTime,
   calculateRoundInstants,
   localToUtc,
   nextEightWeeksCadenceDates,
@@ -325,5 +326,34 @@ describe("Lifecycle scheduling and time engine", () => {
     // 0 reminders configured returns empty
     const r0 = calculateReminders(send, 3, 0, closeFar);
     assert.deepStrictEqual(r0, []);
+  });
+
+  it("calculates results-ready delivery: right away between 08:00 and 20:00, else next 08:00", () => {
+    // 2026-11-09 in Europe/Berlin (UTC+1 in standard time, CET)
+    // 14:30 CET = 13:30 UTC -> between 08:00 and 20:00 -> returns nowMs
+    const nowDaytime = Date.UTC(2026, 10, 9, 13, 30, 0);
+    assert.strictEqual(
+      calculateResultsReadyDeliveryTime(nowDaytime, "Europe/Berlin"),
+      nowDaytime,
+      "Daytime delivery is immediate",
+    );
+
+    // 05:30 CET = 04:30 UTC -> before 08:00 -> returns today 08:00 CET = 07:00 UTC
+    const nowEarly = Date.UTC(2026, 10, 9, 4, 30, 0);
+    const expectedToday8am = Date.UTC(2026, 10, 9, 7, 0, 0);
+    assert.strictEqual(
+      calculateResultsReadyDeliveryTime(nowEarly, "Europe/Berlin"),
+      expectedToday8am,
+      "Early morning delivery waits until 08:00 today",
+    );
+
+    // 21:30 CET = 20:30 UTC -> after 20:00 -> returns tomorrow 08:00 CET = 07:00 UTC on 2026-11-10
+    const nowNight = Date.UTC(2026, 10, 9, 20, 30, 0);
+    const expectedTomorrow8am = Date.UTC(2026, 10, 10, 7, 0, 0);
+    assert.strictEqual(
+      calculateResultsReadyDeliveryTime(nowNight, "Europe/Berlin"),
+      expectedTomorrow8am,
+      "Night delivery waits until 08:00 tomorrow",
+    );
   });
 });

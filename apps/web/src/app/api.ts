@@ -59,7 +59,9 @@ export const failureOf = (error: unknown): Failure => {
     Predicate.isTagged(error, "TeamNotFound") ||
     Predicate.isTagged(error, "PersonNotFound") ||
     Predicate.isTagged(error, "PulseNotFound") ||
-    Predicate.isTagged(error, "QuestionNotFound")
+    Predicate.isTagged(error, "QuestionNotFound") ||
+    Predicate.isTagged(error, "RoundNotFound") ||
+    Predicate.isTagged(error, "ResultsNotReady")
   )
     return "NotFound";
   if (Predicate.isTagged(error, "LastLead")) return "LastLead";

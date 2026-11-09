@@ -6,6 +6,8 @@ import {
   PulseId,
   QuestionId,
   QuestionVersionId,
+  RoundId,
+  type RoundResult,
   SendTime,
   TeamId,
   TemplateQuestionKey,
@@ -508,6 +510,196 @@ describe("App Scenes", () => {
           UpdatePulseSettingsCmd,
           Message.UpdatedPulse({ outcome: { _tag: "Success", detail } }),
         ),
+      );
+    });
+  });
+
+  describe("Results screen", () => {
+    it("renders results for a closed round with scores, trends, and comments", () => {
+      const teamId = decodeTeamId("team-1");
+      const roundId = Schema.decodeSync(RoundId)("round-1");
+      const pulseId = decodePulseId("pulse-1");
+      const qvId = decodeVersionId("qv-1");
+
+      const mockResult: RoundResult = {
+        roundId,
+        pulseId,
+        teamId,
+        status: "closed",
+        plannedOpenDate: "2026-11-09",
+        closedAt: 1731140000000,
+        effectiveMinimumGroupSize: 4,
+        meetsMinimumGroupSize: true,
+        eligibleMembersCount: 8,
+        submissionsCount: 6,
+        responseRate: 0.75,
+        delayed: false,
+        questions: [
+          {
+            questionVersionId: qvId,
+            position: 0,
+            text: "How are you feeling?",
+            type: { _tag: "Rating", lowLabel: "Low", highLabel: "High", comment: true },
+            dimension: "clarity",
+            contributors: 6,
+            meetsMinimumGroupSize: true,
+            score: 4.2,
+            distribution: [
+              { option: 3, count: 1 },
+              { option: 4, count: 3 },
+              { option: 5, count: 2 },
+            ],
+            change: {
+              change: 0.4,
+              previousRoundDate: "2026-11-02",
+              previousRoundId: null,
+              highlight: {
+                isLargerThanUsual: true,
+                direction: "rise",
+                label: "Bigger change",
+                explanation: "Score rose by 0.4",
+              },
+            },
+            typicalChange: {
+              status: "buildingBaseline",
+              completedUsableRounds: 3,
+              totalRequiredUsableRounds: 6,
+              typicalChange: null,
+            },
+            trend: [
+              {
+                roundId,
+                plannedOpenDate: "2026-11-09",
+                score: 4.2,
+                contributors: 6,
+                hasGap: false,
+              },
+            ],
+          },
+        ],
+        dimensions: [
+          {
+            dimension: "clarity",
+            score: 4.2,
+            usableQuestionCount: 1,
+            totalQuestionCount: 1,
+            meetsMinimumGroupSize: true,
+            change: {
+              change: 0.4,
+              previousRoundDate: "2026-11-02",
+              previousRoundId: null,
+              matchedQuestionCount: 1,
+              currentQuestionCount: 1,
+              annotation: null,
+              highlight: null,
+            },
+            typicalChange: {
+              status: "buildingBaseline",
+              completedUsableRounds: 3,
+              totalRequiredUsableRounds: 6,
+              typicalChange: null,
+            },
+            trend: [
+              {
+                roundId,
+                plannedOpenDate: "2026-11-09",
+                score: 4.2,
+                usableQuestionCount: 1,
+                hasGap: false,
+              },
+            ],
+          },
+        ],
+        comments: [
+          {
+            questionVersionId: qvId,
+            text: "Great progress this week!",
+          },
+        ],
+      };
+
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}/rounds/${roundId}`)),
+          session: signedInAdmin,
+          results: { _tag: "Loaded", result: mockResult },
+        }),
+        Scene.expect(Scene.role("heading", { name: "Results" })).toExist(),
+        Scene.expect(Scene.text("75% response rate (6 of 8)")).toExist(),
+        Scene.expect(Scene.text("How are you feeling?")).toExist(),
+        Scene.expect(Scene.text("Great progress this week!")).toExist(),
+        // Toggle table view
+        Scene.click(Scene.role("button", { name: "Table view" })),
+        Scene.expect(Scene.role("button", { name: "Chart view" })).toExist(),
+      );
+    });
+
+    it("renders sub-N placeholder when response count is below N", () => {
+      const teamId = decodeTeamId("team-1");
+      const roundId = Schema.decodeSync(RoundId)("round-subn");
+      const pulseId = decodePulseId("pulse-1");
+
+      const mockSubNResult: RoundResult = {
+        roundId,
+        pulseId,
+        teamId,
+        status: "closed",
+        plannedOpenDate: "2026-11-09",
+        closedAt: 1731140000000,
+        effectiveMinimumGroupSize: 4,
+        meetsMinimumGroupSize: false,
+        eligibleMembersCount: 8,
+        submissionsCount: 2,
+        responseRate: 0.25,
+        delayed: false,
+        questions: [],
+        dimensions: [],
+        comments: [],
+      };
+
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}/rounds/${roundId}`)),
+          session: signedInAdmin,
+          results: { _tag: "Loaded", result: mockSubNResult },
+        }),
+        Scene.expect(Scene.text("Not enough responses to protect anonymity")).toExist(),
+      );
+    });
+
+    it("renders open notice and response count only for open round", () => {
+      const teamId = decodeTeamId("team-1");
+      const roundId = Schema.decodeSync(RoundId)("round-open");
+      const pulseId = decodePulseId("pulse-1");
+
+      const mockOpenResult: RoundResult = {
+        roundId,
+        pulseId,
+        teamId,
+        status: "open",
+        plannedOpenDate: "2026-11-09",
+        closedAt: null,
+        effectiveMinimumGroupSize: 4,
+        meetsMinimumGroupSize: true,
+        eligibleMembersCount: 8,
+        submissionsCount: 3,
+        responseRate: 0.375,
+        delayed: false,
+        questions: [],
+        dimensions: [],
+        comments: [],
+      };
+
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}/rounds/${roundId}`)),
+          session: signedInAdmin,
+          results: { _tag: "Loaded", result: mockOpenResult },
+        }),
+        Scene.expect(Scene.text("3 responses received so far.")).toExist(),
       );
     });
   });

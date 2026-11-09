@@ -467,6 +467,8 @@ export class MemoryOrganizations {
       Effect.succeed({ _tag: "Viewed", value: { pulseId, rounds: [] } }),
     round: (_organizationId, _actorId, _teamId, _roundId) =>
       Effect.succeed({ _tag: "Rejected", rejection: { _tag: "RoundNotFound" } }),
+    results: (_organizationId, _actorId, _teamId, _roundId) =>
+      Effect.succeed({ _tag: "Rejected", rejection: { _tag: "RoundNotFound" } }),
   });
 
   person(organizationId: OrganizationId, personId: PersonId): PersonRecord | undefined {

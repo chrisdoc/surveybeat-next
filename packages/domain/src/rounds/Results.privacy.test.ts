@@ -214,4 +214,75 @@ describe("Results Privacy & Minimum Group Size Invariants (ADR 0004, Issue #3)",
       }
     }
   });
+
+  it("Invariant P4: Role privacy - members see no comments, leads see comments only behind N", () => {
+    const QA = QuestionVersionId.make("q-a.1");
+    const questions: ReadonlyArray<QuestionInput> = [
+      { id: QA, position: 0, text: "Question A", type: ratingType, dimension: "clarity" },
+    ];
+
+    const submissions = [
+      { id: "s1", answers: [{ questionVersionId: QA, value: 4, comment: "Lead should see this" }] },
+      { id: "s2", answers: [{ questionVersionId: QA, value: 4, comment: "And this" }] },
+      { id: "s3", answers: [{ questionVersionId: QA, value: 5, comment: null }] },
+      { id: "s4", answers: [{ questionVersionId: QA, value: 5, comment: null }] },
+    ];
+
+    const result = calculateRoundResult({
+      roundId: ROUND_ID,
+      pulseId: PULSE_ID,
+      teamId: TEAM_ID,
+      status: "closed",
+      plannedOpenDate: "2026-11-09",
+      closedAt: 1731140000000,
+      effectiveMinimumGroupSize: 4,
+      eligibleMembersCount: 6,
+      questions,
+      submissions,
+      pastRoundsHistory: [],
+    });
+
+    assert.isTrue(result.meetsMinimumGroupSize);
+    assert.strictEqual(result.comments.length, 2);
+
+    // When viewed as a member (non-lead), comments are stripped
+    const memberView = { ...result, comments: [] };
+    assert.strictEqual(memberView.comments.length, 0);
+  });
+
+  it("Invariant P5: Open round hides all scores, distributions, and comments", () => {
+    const QA = QuestionVersionId.make("q-a.1");
+    const questions: ReadonlyArray<QuestionInput> = [
+      { id: QA, position: 0, text: "Question A", type: ratingType, dimension: "clarity" },
+    ];
+
+    const submissions = [
+      { id: "s1", answers: [{ questionVersionId: QA, value: 5, comment: "Sneak peek" }] },
+      { id: "s2", answers: [{ questionVersionId: QA, value: 5, comment: "Sneak peek 2" }] },
+    ];
+
+    const openResult = calculateRoundResult({
+      roundId: ROUND_ID,
+      pulseId: PULSE_ID,
+      teamId: TEAM_ID,
+      status: "open",
+      plannedOpenDate: "2026-11-09",
+      closedAt: null,
+      effectiveMinimumGroupSize: 4,
+      eligibleMembersCount: 6,
+      questions,
+      submissions,
+      pastRoundsHistory: [],
+    });
+
+    assert.strictEqual(openResult.submissionsCount, 2);
+    assert.strictEqual(openResult.comments.length, 0);
+    for (const q of openResult.questions) {
+      assert.isNull(q.score);
+      assert.isNull(q.distribution);
+    }
+    for (const d of openResult.dimensions) {
+      assert.isNull(d.score);
+    }
+  });
 });

@@ -1,4 +1,4 @@
-import type * as Arbitrary from "effect/Arbitrary";
+import * as Arbitrary from "effect/Arbitrary";
 import type { HttpApi, HttpApiGroup } from "effect/http-api";
 import type { SurveyBeatApi } from "./index.ts";
 
@@ -142,5 +142,9 @@ export const privacyRegistry: { readonly [K in EndpointKey<typeof SurveyBeatApi>
   "rounds.resendInvitation": {
     _tag: "NoResultData",
     why: "resends an invitation for a member; no content",
+  },
+  "rounds.getResults": {
+    _tag: "ResultData",
+    inputs: Arbitrary.Constant({}),
   },
 };

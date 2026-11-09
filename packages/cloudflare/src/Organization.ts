@@ -25,6 +25,7 @@ import {
   teamSummaryOf,
   type TransactionalEmail,
   calculateReminders,
+  calculateResultsReadyDeliveryTime,
   calculateRoundInstants,
   generateInvitationToken,
   hashToken,
@@ -476,37 +477,100 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
           yield* scheduleNextRound(round.pulseId, round.teamId, now);
         });
 
-      const JobPayload = Schema.Struct({
+      const InvitationJobPayload = Schema.Struct({
         personId: Schema.String,
         token: Schema.String,
       });
-      const decodeJobPayload = Schema.decodeUnknownOption(JobPayload);
+      const decodeInvitationJobPayload = Schema.decodeUnknownOption(InvitationJobPayload);
+
+      const ResultsReadyJobPayload = Schema.Struct({
+        kind: Schema.Literal("resultsReady"),
+        personId: Schema.String,
+        roundId: Schema.String,
+      });
+      const decodeResultsReadyJobPayload = Schema.decodeUnknownOption(ResultsReadyJobPayload);
 
       const parseJobPayload = (
         raw: string | null,
       ): { readonly personId: string; readonly token: string } | null => {
         if (raw === null) return null;
         try {
-          return Option.getOrNull(decodeJobPayload(JSON.parse(raw)));
+          return Option.getOrNull(decodeInvitationJobPayload(JSON.parse(raw)));
         } catch {
           return null;
         }
       };
 
-      /** Dispatches an Invitation email when a member's send time arrives. */
+      const parseSendPayload = (
+        raw: string | null,
+      ):
+        | { readonly kind: "resultsReady"; readonly personId: string; readonly roundId: string }
+        | { readonly personId: string; readonly token: string }
+        | null => {
+        if (raw === null) return null;
+        try {
+          const parsed = JSON.parse(raw);
+          const rr = Option.getOrNull(decodeResultsReadyJobPayload(parsed));
+          if (rr !== null) return rr;
+          return Option.getOrNull(decodeInvitationJobPayload(parsed));
+        } catch {
+          return null;
+        }
+      };
+
+      /** Dispatches an Invitation or Results-ready email when a send time arrives. */
       const executeSendJob = (jobId: JobId, roundId: RoundId, now: number) =>
         Effect.gen(function* () {
           const job = yield* rounds.getJob(jobId);
           if (job === null || job.status !== "pending") return;
 
           const round = yield* rounds.getRound(roundId);
-          if (round === null || round.status !== "open") {
+          if (round === null) {
             yield* rounds.markJobCompleted(jobId, now);
             return;
           }
 
-          const payload = parseJobPayload(job.payload);
+          const payload = parseSendPayload(job.payload);
           if (payload === null) {
+            yield* rounds.markJobCompleted(jobId, now);
+            return;
+          }
+
+          if ("kind" in payload) {
+            // Results-ready delivery: round must be ready or shared
+            if (round.status !== "ready" && round.status !== "shared") {
+              yield* rounds.markJobCompleted(jobId, now);
+              return;
+            }
+
+            const [dirState, pulseState] = yield* both;
+            const pulse = pulseState.pulses.find((p) => p.id === round.pulseId);
+            const team = dirState.teams.find((t) => t.id === round.teamId);
+            const person = dirState.people.find((p) => p.id === payload.personId);
+            if (pulse === undefined || person === undefined || person.removedAt !== null) {
+              yield* rounds.markJobCompleted(jobId, now);
+              return;
+            }
+
+            const storedResult = yield* rounds.getRoundResult(roundId);
+            const responseRatePercent = Math.round((storedResult?.responseRate ?? 0) * 100);
+
+            const resultsReadyEmail: TransactionalEmail = {
+              _tag: "ResultsReadyEmail",
+              pulseName: pulse.settings.name,
+              teamName: team?.name ?? pulse.settings.name,
+              resultsUrl: `https://app.surveybeat.app/teams/${round.teamId}/rounds/${roundId}`,
+              responseRatePercent,
+            };
+
+            const sendId = SendId.make(randomId());
+            yield* sends.create(sendId, person.email, resultsReadyEmail);
+            yield* rounds.markJobCompleted(jobId, now);
+            return;
+          }
+
+          // Invitation delivery: round must be open
+          if (round.status !== "open") {
             yield* rounds.markJobCompleted(jobId, now);
             return;
           }
@@ -702,6 +766,42 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
 
             yield* rounds.saveRoundResult(roundId, result, now);
             yield* rounds.markRoundReadyAndShared(roundId, now);
+
+            // Schedule results-ready emails for active members and leads of the team
+            const team = dirState.teams.find((t) => t.id === round.teamId);
+            const teamTimeZone = team?.timeZone ?? "UTC";
+            const activeMembers = dirState.memberships.filter(
+              (m) =>
+                m.teamId === round.teamId && m.endedAt === null && (m.role === "lead" || m.role === "member"),
+            );
+
+            for (const member of activeMembers) {
+              const personTz = yield* rounds.getPersonTimeZone(member.personId);
+              const effectiveTz = personTz ?? teamTimeZone;
+              const deliveryTime = calculateResultsReadyDeliveryTime(now, effectiveTz);
+              const resultsJobId = JobId.make(`results-ready-${roundId}-${member.personId}`);
+
+              yield* rounds.insertJob({
+                id: resultsJobId,
+                roundId,
+                type: "send",
+                dueAt: deliveryTime,
+                status: "pending",
+                payload: JSON.stringify({
+                  kind: "resultsReady",
+                  personId: member.personId,
+                  roundId,
+                }),
+                createdAt: now,
+                completedAt: null,
+              });
+
+              if (deliveryTime <= now) {
+                yield* executeSendJob(resultsJobId, roundId, now);
+              }
+            }
+
+            yield* repairAlarm();
             yield* rounds.markJobCompleted(jobId, now);
           });
 

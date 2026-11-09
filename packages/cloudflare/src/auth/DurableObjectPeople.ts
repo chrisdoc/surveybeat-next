@@ -70,4 +70,6 @@ export const durableObjectRounds = (organizations: Organizations) =>
       organizations.getByName(organizationId).viewRounds(actorId, teamId, pulseId),
     round: (organizationId, actorId, teamId, roundId) =>
       organizations.getByName(organizationId).viewRound(actorId, teamId, roundId),
+    results: (organizationId, actorId, teamId, roundId) =>
+      organizations.getByName(organizationId).viewResults(actorId, teamId, roundId),
   });

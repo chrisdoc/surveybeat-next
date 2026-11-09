@@ -3,6 +3,7 @@ import {
   type OrganizationRounds,
   type RoundCommand,
   runRoundCommand,
+  viewResults,
   viewRound,
   viewRounds,
 } from "@surveybeat/domain";
@@ -119,6 +120,11 @@ export const roundHandlers = <R>(services: Effect.Effect<Context.Context<RoundSe
               personId: params.personId,
             }),
           ),
+        ),
+      )
+      .handle("getResults", ({ params }) =>
+        provide(
+          Effect.flatMap(currentMember, (member) => viewResults(member, params.teamId, params.roundId)),
         ),
       ),
   );
