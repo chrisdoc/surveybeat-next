@@ -1,5 +1,6 @@
 import type { SqliteClient } from "@effect/sql-sqlite-do";
 import {
+  AlreadyAnswered,
   AnonymityMode,
   AnswerWindowDays,
   Distribution,
@@ -9,18 +10,27 @@ import {
   JobId,
   PersonId,
   PulseId,
+  QuestionType,
   QuestionVersionId,
+  redact,
   ReminderCount,
+  type Roster,
   RoundId,
+  RoundNotOpen,
   type RoundRecord,
   RoundStatus,
   type ScheduleJobRecord,
   ScheduleJobStatus,
   ScheduleJobType,
   SendId,
+  type SubmissionAnswer,
+  SubmissionId,
+  SubmissionNotFound,
+  type SubmissionRoundContext,
   TeamId,
 } from "@surveybeat/domain";
 import * as Effect from "effect/Effect";
+import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 
 const RoundRow = Schema.Struct({
@@ -263,9 +273,16 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient) => {
         SET status = 'cancelled', updated_at = ${now}
         WHERE id = ${roundId} AND status IN ('scheduled', 'open')`.pipe(Effect.asVoid, Effect.orDie);
 
-  const deleteSubmissionsAndParticipationsSeam = (_roundId: RoundId): Effect.Effect<void> =>
-    // Seam for slice 09: submission and participation tables do not exist yet.
-    Effect.void;
+  const deleteSubmissionsAndParticipations = (roundId: RoundId): Effect.Effect<void> =>
+    sql
+      .withTransaction(
+        Effect.gen(function* () {
+          yield* sql`DELETE FROM answer WHERE submission_id IN (SELECT id FROM submission WHERE round_id = ${roundId})`;
+          yield* sql`DELETE FROM submission WHERE round_id = ${roundId}`;
+          yield* sql`DELETE FROM participation WHERE round_id = ${roundId}`;
+        }),
+      )
+      .pipe(Effect.asVoid, Effect.orDie);
 
   // Pulse pause / skip methods
   const pausePulse = (pulseId: PulseId, now: number): Effect.Effect<void> =>
@@ -495,14 +512,211 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient) => {
   const setPersonTimeZone = (personId: PersonId, timeZone: string): Effect.Effect<void> =>
     sql`UPDATE person SET time_zone = ${timeZone} WHERE id = ${personId}`.pipe(Effect.asVoid, Effect.orDie);
 
-  const recordParticipation = (
+  const deleteParticipationForPerson = (personId: PersonId): Effect.Effect<void> =>
+    sql`DELETE FROM participation WHERE person_id = ${personId}`.pipe(Effect.asVoid, Effect.orDie);
+
+  const recordParticipation = (roundId: RoundId, personId: PersonId): Effect.Effect<void> =>
+    sql`INSERT INTO participation (round_id, person_id)
+        VALUES (${roundId}, ${personId})
+        ON CONFLICT (round_id, person_id) DO NOTHING`.pipe(Effect.asVoid, Effect.orDie);
+
+  const random128BitKey = (): string =>
+    Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) => byte.toString(16).padStart(2, "0")).join(
+      "",
+    );
+
+  const getSubmissionByEditKeyHash = (
+    editKeyHash: string,
+  ): Effect.Effect<{ id: string; roundId: string } | null> =>
+    sql<{
+      id: string;
+      round_id: string;
+    }>`SELECT id, round_id FROM submission WHERE edit_key_hash = ${editKeyHash} LIMIT 1`.pipe(
+      Effect.map((rows) => {
+        const row = rows[0];
+        return row === undefined ? null : { id: row.id, roundId: row.round_id };
+      }),
+      Effect.orDie,
+    );
+
+  const recordFirstAnswer = (
     roundId: RoundId,
     personId: PersonId,
-    answeredAt: number,
-  ): Effect.Effect<void> =>
-    sql`INSERT INTO participation (round_id, person_id, answered_at)
-        VALUES (${roundId}, ${personId}, ${answeredAt})
-        ON CONFLICT (round_id, person_id) DO NOTHING`.pipe(Effect.asVoid, Effect.orDie);
+    editKeyHash: string,
+    answers: ReadonlyArray<{
+      questionVersionId: QuestionVersionId;
+      value: number | null;
+      comment: string | null;
+    }>,
+    roster: Roster,
+  ): Effect.Effect<
+    { submissionId: SubmissionId; shownToLead: string | null },
+    AlreadyAnswered | RoundNotOpen
+  > =>
+    sql
+      .withTransaction(
+        Effect.gen(function* () {
+          const round = yield* getRound(roundId);
+          if (round === null || round.status !== "open") {
+            return yield* new RoundNotOpen();
+          }
+          const answered = yield* hasAnswered(roundId, personId);
+          if (answered) {
+            return yield* new AlreadyAnswered();
+          }
+
+          const submissionId = SubmissionId.make(random128BitKey());
+          yield* sql`INSERT INTO participation (round_id, person_id) VALUES (${roundId}, ${personId})`;
+          yield* sql`INSERT INTO submission (id, round_id, edit_key_hash) VALUES (${submissionId}, ${roundId}, ${editKeyHash})`;
+
+          let lastRedactedComment: string | null = null;
+          for (const ans of answers) {
+            const redacted = ans.comment ? redact(ans.comment, roster) : null;
+            if (redacted !== null) lastRedactedComment = redacted;
+            yield* sql`INSERT INTO answer (submission_id, question_version_id, value, comment)
+                       VALUES (${submissionId}, ${ans.questionVersionId}, ${ans.value}, ${redacted})
+                       ON CONFLICT (submission_id, question_version_id) DO UPDATE SET value = excluded.value, comment = excluded.comment`;
+          }
+
+          return { submissionId, shownToLead: lastRedactedComment };
+        }),
+      )
+      .pipe(
+        Effect.catch((err: unknown) => {
+          if (err instanceof AlreadyAnswered || err instanceof RoundNotOpen) {
+            return Effect.fail(err);
+          }
+          return Effect.die(err);
+        }),
+      );
+
+  const saveAnswer = (
+    editKeyHash: string,
+    answers: ReadonlyArray<{
+      questionVersionId: QuestionVersionId;
+      value: number | null;
+      comment: string | null;
+    }>,
+    roster: Roster,
+  ): Effect.Effect<{ saved: boolean; shownToLead: string | null }, SubmissionNotFound | RoundNotOpen> =>
+    sql
+      .withTransaction(
+        Effect.gen(function* () {
+          const sub = yield* getSubmissionByEditKeyHash(editKeyHash);
+          if (sub === null) {
+            return yield* new SubmissionNotFound();
+          }
+          const round = yield* getRound(RoundId.make(sub.roundId));
+          if (round === null || round.status !== "open") {
+            return yield* new RoundNotOpen();
+          }
+
+          let lastRedactedComment: string | null = null;
+          for (const ans of answers) {
+            const redacted = ans.comment ? redact(ans.comment, roster) : null;
+            if (redacted !== null) lastRedactedComment = redacted;
+            yield* sql`INSERT INTO answer (submission_id, question_version_id, value, comment)
+                       VALUES (${sub.id}, ${ans.questionVersionId}, ${ans.value}, ${redacted})
+                       ON CONFLICT (submission_id, question_version_id) DO UPDATE SET value = excluded.value, comment = excluded.comment`;
+          }
+
+          return { saved: true, shownToLead: lastRedactedComment };
+        }),
+      )
+      .pipe(
+        Effect.catch((err: unknown) => {
+          if (err instanceof SubmissionNotFound || err instanceof RoundNotOpen) {
+            return Effect.fail(err);
+          }
+          return Effect.die(err);
+        }),
+      );
+
+  const getMyAnswers = (
+    editKeyHash: string,
+  ): Effect.Effect<ReadonlyArray<SubmissionAnswer>, SubmissionNotFound> =>
+    sql
+      .withTransaction(
+        Effect.gen(function* () {
+          const sub = yield* getSubmissionByEditKeyHash(editKeyHash);
+          if (sub === null) {
+            return yield* new SubmissionNotFound();
+          }
+          const rows = yield* sql<{
+            question_version_id: string;
+            value: number | null;
+            comment: string | null;
+          }>`SELECT question_version_id, value, comment FROM answer WHERE submission_id = ${sub.id} ORDER BY question_version_id ASC`;
+
+          return rows.map((r) => ({
+            questionVersionId: QuestionVersionId.make(r.question_version_id),
+            value: r.value,
+            comment: r.comment,
+          }));
+        }),
+      )
+      .pipe(
+        Effect.catch((err: unknown) => {
+          if (err instanceof SubmissionNotFound) {
+            return Effect.fail(err);
+          }
+          return Effect.die(err);
+        }),
+      );
+
+  const getSubmissionRoundContext = (
+    roundId: RoundId,
+    personId: PersonId | null,
+  ): Effect.Effect<SubmissionRoundContext | null> =>
+    Effect.gen(function* () {
+      const round = yield* getRound(roundId);
+      if (round === null) return null;
+
+      const questions = yield* sql<{
+        position: number;
+        id: string;
+        text: string;
+        type: string;
+      }>`SELECT rq.position, qv.id, qv.text, qv.type
+         FROM round_question rq
+         JOIN question_version qv ON qv.id = rq.question_version_id
+         WHERE rq.round_id = ${roundId}
+         ORDER BY rq.position ASC`.pipe(Effect.orDie);
+
+      const parsedQuestions = questions.map((q) => {
+        let parsedJson: unknown = null;
+        try {
+          parsedJson = JSON.parse(q.type);
+        } catch {
+          parsedJson = null;
+        }
+        const decoded = Schema.decodeUnknownOption(QuestionType)(parsedJson);
+        const questionType = Option.getOrElse(decoded, (): QuestionType => ({
+          _tag: "Rating",
+          lowLabel: "Low",
+          highLabel: "High",
+          comment: true,
+        }));
+        return {
+          id: QuestionVersionId.make(q.id),
+          position: q.position,
+          text: q.text,
+          type: questionType,
+        };
+      });
+
+      const answered = personId === null ? false : yield* hasAnswered(roundId, personId);
+
+      return {
+        pulseName: round.pulseName,
+        anonymityStatement: "Your name is never stored with your answers.",
+        questions: parsedQuestions,
+        actions: [],
+        closeTime: round.plannedCloseAt,
+        state: round.status,
+        hasAnswered: answered,
+      };
+    }).pipe(Effect.orDie);
 
   return {
     getRound,
@@ -516,7 +730,8 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient) => {
     closeRound,
     markRoundReadyAndShared,
     cancelRound,
-    deleteSubmissionsAndParticipationsSeam,
+    deleteSubmissionsAndParticipations,
+    deleteParticipationForPerson,
     pausePulse,
     resumePulse,
     isPulsePaused,
@@ -547,6 +762,11 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient) => {
     recordParticipation,
     getPersonTimeZone,
     setPersonTimeZone,
+    // Submissions
+    getSubmissionRoundContext,
+    recordFirstAnswer,
+    saveAnswer,
+    getMyAnswers,
   };
 };
 

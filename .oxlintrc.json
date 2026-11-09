@@ -15,7 +15,8 @@
         "assertionStyle": "never"
       }
     ],
-    "surveybeat/domain-boundary": "error"
+    "surveybeat/domain-boundary": "error",
+    "surveybeat/privacy-query": "error"
   },
   "overrides": [
     {
@@ -34,7 +35,8 @@
     {
       "files": ["**/*.test.ts"],
       "rules": {
-        "typescript/consistent-type-assertions": "off"
+        "typescript/consistent-type-assertions": "off",
+        "surveybeat/privacy-query": "off"
       }
     }
   ],

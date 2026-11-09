@@ -44,6 +44,7 @@ import {
   type FrozenRoundMember,
   type PulseRecord,
   type PulseState,
+  type SubmissionAnswer,
 } from "@surveybeat/domain";
 import * as Clock from "effect/Clock";
 import * as Effect from "effect/Effect";
@@ -746,6 +747,7 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
                 yield* directory.apply(decision.changes);
                 if (command._tag === "RemovePerson") {
                   yield* rounds.revokeInvitationForPerson(command.personId, now);
+                  yield* rounds.deleteParticipationForPerson(command.personId);
                 }
                 return {
                   _tag: "Accepted",
@@ -923,7 +925,7 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
                     yield* rounds.cancelRound(round.id, now);
                     yield* rounds.cancelJobsForRound(round.id);
                     yield* rounds.revokeInvitationsForRound(round.id, now);
-                    yield* rounds.deleteSubmissionsAndParticipationsSeam(round.id);
+                    yield* rounds.deleteSubmissionsAndParticipations(round.id);
                     yield* repairAlarm();
                     return { _tag: "Accepted" } satisfies RoundCommandResult;
                   }
@@ -1146,12 +1148,8 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
         setPersonTimeZone: (personId: string, timeZone: string) =>
           rounds.setPersonTimeZone(PersonId.make(personId), timeZone),
         getPersonTimeZone: (personId: string) => rounds.getPersonTimeZone(PersonId.make(personId)),
-        recordParticipation: (roundId: string, personId: string, answeredAt?: number) =>
-          rounds.recordParticipation(
-            RoundId.make(roundId),
-            PersonId.make(personId),
-            answeredAt ?? Date.now(),
-          ),
+        recordParticipation: (roundId: string, personId: string) =>
+          rounds.recordParticipation(RoundId.make(roundId), PersonId.make(personId)),
         hasAnswered: (roundId: string, personId: string) =>
           rounds.hasAnswered(RoundId.make(roundId), PersonId.make(personId)),
         failInvitation: (roundId: string, personId: string, reason: string, now?: number) =>
@@ -1162,6 +1160,56 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
             reason,
             now ?? Date.now(),
           ),
+
+        getSubmissionRoundContext: (roundId: string, personId: string | null) =>
+          rounds.getSubmissionRoundContext(
+            RoundId.make(roundId),
+            personId === null ? null : PersonId.make(personId),
+          ),
+        recordFirstAnswer: (
+          roundId: string,
+          personId: string,
+          editKeyHash: string,
+          answers: ReadonlyArray<SubmissionAnswer>,
+        ) =>
+          Effect.gen(function* () {
+            const dirState = yield* directory.load;
+            return yield* rounds
+              .recordFirstAnswer(
+                RoundId.make(roundId),
+                PersonId.make(personId),
+                editKeyHash,
+                answers,
+                dirState.people,
+              )
+              .pipe(
+                Effect.map((res) => ({ _tag: "Success" as const, ...res })),
+                Effect.catchTag("AlreadyAnswered", () =>
+                  Effect.succeed({ _tag: "AlreadyAnswered" as const }),
+                ),
+                Effect.catchTag("RoundNotOpen", () => Effect.succeed({ _tag: "RoundNotOpen" as const })),
+              );
+          }),
+        saveAnswer: (editKeyHash: string, answers: ReadonlyArray<SubmissionAnswer>) =>
+          Effect.gen(function* () {
+            const dirState = yield* directory.load;
+            return yield* rounds.saveAnswer(editKeyHash, answers, dirState.people).pipe(
+              Effect.map((res) => ({ _tag: "Success" as const, ...res })),
+              Effect.catchTag("SubmissionNotFound", () =>
+                Effect.succeed({ _tag: "SubmissionNotFound" as const }),
+              ),
+              Effect.catchTag("RoundNotOpen", () => Effect.succeed({ _tag: "RoundNotOpen" as const })),
+            );
+          }),
+        getMyAnswers: (editKeyHash: string) =>
+          rounds.getMyAnswers(editKeyHash).pipe(
+            Effect.map((answers) => ({ _tag: "Success" as const, answers })),
+            Effect.catchTag("SubmissionNotFound", () =>
+              Effect.succeed({ _tag: "SubmissionNotFound" as const }),
+            ),
+          ),
+        deleteParticipationForPerson: (personId: string) =>
+          rounds.deleteParticipationForPerson(PersonId.make(personId)),
 
         get: (id: string) =>
           sql<{ id: string; name: string }>`SELECT id, name FROM organization WHERE id = ${id}`.pipe(

@@ -2,6 +2,7 @@
   "jsPlugins": ["../index.js"],
   "rules": {
     "surveybeat/domain-boundary": "error",
-    "surveybeat/no-literal-ui-text": "error"
+    "surveybeat/no-literal-ui-text": "error",
+    "surveybeat/privacy-query": "error"
   }
 }

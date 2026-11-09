@@ -63,3 +63,20 @@ describe("surveybeat/no-literal-ui-text", () => {
     expect(lint("apps/web/src/app/good-text.ts")).toHaveLength(0);
   });
 });
+
+describe("surveybeat/privacy-query", () => {
+  it.each([
+    ["packages/bad-query-rowid.ts", "rowid"],
+    ["packages/bad-query-join.ts", "join"],
+    ["packages/bad-query-order.ts", "ORDER BY"],
+  ])("fails on %s with %s violation", (file, messageSubstring) => {
+    const diagnostics = lint(file);
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0]?.code).toBe("surveybeat(privacy-query)");
+    expect(diagnostics[0]?.message).toContain(messageSubstring);
+  });
+
+  it("passes on valid queries", () => {
+    expect(lint("packages/good-query.ts")).toHaveLength(0);
+  });
+});
