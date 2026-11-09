@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: read
+  deployments: write
 
 # One run per pull request at a time, and never cancel a running deploy or destroy.
 concurrency:
@@ -27,6 +28,9 @@ jobs:
     if: github.event.action != 'closed' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    environment:
+      name: pr-${{ github.event.pull_request.number }}
+      url: https://${{ env.STAGE }}.app.surveybeat.app
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
