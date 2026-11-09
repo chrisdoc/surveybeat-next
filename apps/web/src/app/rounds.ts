@@ -12,7 +12,19 @@ import type { Html, HtmlBuilder } from "foldkit/html";
 import { defineTaggedUnion } from "foldkit/schema";
 import { formatDate, message } from "../messages/index.ts";
 import { Failure } from "./api.ts";
-import { appButton, buttonClass, type Child, linkButton, problemView, textField } from "./components.ts";
+import {
+  appButton,
+  badge,
+  buttonClass,
+  type Child,
+  emptyState,
+  linkButton,
+  linkClass,
+  pageTitle,
+  problemView,
+  secondaryButtonClass,
+  textField,
+} from "./components.ts";
 import type { LoadedTeam } from "./directory.ts";
 import { pulseHref, roundResultsHref } from "./routes.ts";
 
@@ -72,23 +84,20 @@ export const roundsScreenView = <Message>(
   h: HtmlBuilder<Message>,
 ): Html => {
   const children: Array<Child> = [
-    h.a(
-      [h.Href(pulseHref(state.teamId, state.pulseId)), h.Class("text-sm underline")],
-      [message("rounds.back")],
-    ),
-    h.h2([h.Class("mt-2 text-xl font-semibold")], [message("rounds.title")]),
+    h.a([h.Href(pulseHref(state.teamId, state.pulseId)), h.Class(linkClass)], [message("rounds.back")]),
+    h.div([h.Class("mt-4")], [pageTitle(message("rounds.title"), h)]),
   ];
 
   if (state.team._tag === "Failed") {
     children.push(problemView(state.team.failure, h)!);
-    return h.section([h.Class("mt-6")], children);
+    return h.section([], children);
   }
   if (state.rounds._tag === "Failed") {
     children.push(problemView(state.rounds.failure, h)!);
-    return h.section([h.Class("mt-6")], children);
+    return h.section([], children);
   }
   if (state.rounds._tag !== "Loaded") {
-    return h.section([h.Class("mt-6")], children);
+    return h.section([], children);
   }
 
   const lead = isLead(state.team);
@@ -97,9 +106,9 @@ export const roundsScreenView = <Message>(
   if (lead) {
     children.push(
       h.div(
-        [h.Class("mt-3 flex flex-col gap-2")],
+        [h.Class("mt-6 flex flex-col gap-3")],
         [
-          h.p([h.Class("text-sm text-gray-600")], [message("rounds.pauseHelp")]),
+          h.p([h.Class("text-muted")], [message("rounds.pauseHelp")]),
           h.div(
             [h.Class("flex gap-4")],
             [
@@ -124,7 +133,10 @@ export const roundsScreenView = <Message>(
             ],
           ),
           h.form(
-            [h.Class("flex flex-col gap-2"), h.OnSubmit(actions.onSubmitSkipDate)],
+            [
+              h.Class("flex flex-col gap-4 rounded-panel border border-line bg-surface p-6"),
+              h.OnSubmit(actions.onSubmitSkipDate),
+            ],
             [
               textField(
                 {
@@ -152,38 +164,48 @@ export const roundsScreenView = <Message>(
   }
 
   if (rounds.length === 0) {
-    children.push(h.p([h.Class("mt-3 text-gray-600")], [message("rounds.empty")]));
-    return h.section([h.Class("mt-6")], children);
+    children.push(emptyState(message("rounds.empty"), h));
+    return h.section([], children);
   }
 
   children.push(
     h.ul(
-      [h.Class("mt-3 flex flex-col gap-3")],
+      [h.Class("mt-8 flex flex-col gap-3")],
       rounds.map((round) => {
         const detail = state.details[round.id];
         const rate = state.rates[round.id];
         const confirming = state.confirm?.roundId === round.id ? state.confirm.kind : undefined;
         const failed = lead ? (detail?.failedInvitations ?? []) : [];
         return h.li(
-          [h.Class("flex flex-col gap-2 rounded border px-3 py-2")],
+          [h.Class("flex flex-col gap-2 rounded-panel border border-line bg-surface px-6 py-4")],
           [
             h.div(
-              [h.Class("flex justify-between")],
+              [h.Class("flex items-center justify-between gap-4")],
               [
-                h.span([], [message("rounds.round", { date: round.plannedOpenDate })]),
-                h.span([h.Class("text-sm text-gray-600")], [message(`rounds.status.${round.status}`)]),
+                h.span(
+                  [h.Class("font-semibold")],
+                  [message("rounds.round", { date: round.plannedOpenDate })],
+                ),
+                badge(
+                  round.status === "open" ? "primary" : "neutral",
+                  [message(`rounds.status.${round.status}`)],
+                  h,
+                ),
               ],
             ),
-            h.p([h.Class("text-sm text-gray-600")], [roundDates(round)]),
+            h.p([h.Class("text-sm text-muted")], [roundDates(round)]),
             lead && hasResults(round) && rate !== undefined && rate !== null
               ? h.p(
-                  [h.Class("text-sm text-gray-600")],
+                  [h.Class("text-sm text-muted")],
                   [message("rounds.responseRate", { rate: String(Math.round(rate * 100)) })],
                 )
               : null,
             lead && hasResults(round)
               ? h.a(
-                  [h.Href(roundResultsHref(state.teamId, round.id)), h.Class("text-sm underline")],
+                  [
+                    h.Href(roundResultsHref(state.teamId, round.id)),
+                    h.Class(`inline-flex min-h-11 items-center ${linkClass}`),
+                  ],
                   [message("rounds.viewResults")],
                 )
               : null,
@@ -225,9 +247,9 @@ export const roundsScreenView = <Message>(
               : null,
             confirming !== undefined
               ? h.div(
-                  [h.Role("alertdialog"), h.Class("flex flex-col gap-2 rounded bg-amber-50 p-3")],
+                  [h.Role("alertdialog"), h.Class("flex flex-col gap-2 rounded-control bg-brass-soft p-4")],
                   [
-                    h.p([h.Class("text-sm text-amber-900")], [message(`rounds.confirm.${confirming}`)]),
+                    h.p([h.Class("text-sm text-brass")], [message(`rounds.confirm.${confirming}`)]),
                     h.div(
                       [h.Class("flex gap-4")],
                       [
@@ -244,7 +266,7 @@ export const roundsScreenView = <Message>(
                           {
                             text: message("rounds.confirm.no"),
                             isDisabled: state.busy,
-                            className: linkButton,
+                            className: secondaryButtonClass,
                             onClick: actions.onDismissConfirm,
                           },
                           h,
@@ -258,7 +280,7 @@ export const roundsScreenView = <Message>(
               ? h.div(
                   [h.Class("flex flex-col gap-1")],
                   [
-                    h.h3([h.Class("text-sm font-medium")], [message("rounds.failedInvitations")]),
+                    h.h2([h.Class("text-sm font-semibold")], [message("rounds.failedInvitations")]),
                     h.ul(
                       [h.Class("flex flex-col gap-1")],
                       failed.map((invitation) =>
@@ -296,5 +318,5 @@ export const roundsScreenView = <Message>(
     ),
   );
 
-  return h.section([h.Class("mt-6")], children);
+  return h.section([], children);
 };

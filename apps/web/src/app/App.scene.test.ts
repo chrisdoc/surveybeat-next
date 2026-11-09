@@ -645,6 +645,20 @@ describe("App Scenes", () => {
         Scene.expect(Scene.text("75% response rate (6 of 8)")).toExist(),
         Scene.expect(Scene.text("How are you feeling?")).toExist(),
         Scene.expect(Scene.text("Great progress this week!")).toExist(),
+        Scene.expect(Scene.text("6 people, above your minimum of 4.")).toExist(),
+        Scene.expect(Scene.role("heading", { name: "How this page protects people" })).toExist(),
+        Scene.expect(Scene.text("Answers are never shown with a name.")).toExist(),
+        Scene.expect(Scene.text("A number appears only when at least 4 people contributed to it.")).toExist(),
+        Scene.expect(
+          Scene.text(
+            "Names, emails, phone numbers and links are removed from comments before they're saved.",
+          ),
+        ).toExist(),
+        Scene.expect(
+          Scene.text(
+            "Only people in this Team see these Results. Organization admins don't, unless they're in the Team.",
+          ),
+        ).toExist(),
         // Toggle table view
         Scene.click(Scene.role("button", { name: "Table view" })),
         Scene.expect(Scene.role("button", { name: "Chart view" })).toExist(),

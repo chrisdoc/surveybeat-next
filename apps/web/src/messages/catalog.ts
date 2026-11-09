@@ -191,6 +191,18 @@ export const catalog = {
   "results.tableCount": "Count",
   "results.tablePercent": "%",
   "results.dash": "—",
+  "results.aboveMinimum.one": "{count} person, above your minimum of {minimum}.",
+  "results.aboveMinimum.other": "{count} people, above your minimum of {minimum}.",
+  "results.protects.title": "How this page protects people",
+  "results.protects.noName": "Answers are never shown with a name.",
+  "results.protects.minimum": "A number appears only when at least {minimum} people contributed to it.",
+  "results.protects.comments":
+    "Names, emails, phone numbers and links are removed from comments before they're saved.",
+  "results.protects.access":
+    "Only people in this Team see these Results. Organization admins don't, unless they're in the Team.",
+  "results.stat.responseRate": "Response rate",
+  "results.stat.contributors": "Contributors",
+  "results.stat.ofEligible": "{responses} of {eligible}",
   "results.dimensionsTitle": "Dimensions",
   "results.questionsTitle": "Questions",
   "results.commentsTitle": "Comments",

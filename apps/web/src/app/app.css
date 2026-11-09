@@ -1,1 +1,60 @@
 @import "tailwindcss";
+@import "@fontsource-variable/figtree";
+@import "@fontsource-variable/newsreader";
+
+@theme {
+  --color-stone: #f3f4f1;
+  --color-surface: #ffffff;
+  --color-line: #e1e5e1;
+  --color-line-soft: #ecefec;
+  --color-ink: #0e2a24;
+  --color-muted: #3d554f;
+  --color-primary: #0b5d55;
+  --color-primary-hover: #07433d;
+  --color-primary-soft: #d3e7e2;
+  --color-evergreen: #0e2a24;
+  --color-evergreen-raised: #15372f;
+  --color-mint: #9fd6cb;
+  --color-mint-text: #bfd3cc;
+  --color-brass-soft: #f6eedc;
+  --color-brass: #6a4f12;
+  --color-danger: #b42318;
+  --color-danger-soft: #fef3f2;
+  --color-subtle: #f7f8f6;
+
+  --font-sans: "Figtree Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Newsreader Variable", Georgia, serif;
+
+  --radius-panel: 20px;
+  --radius-control: 12px;
+}
+
+@layer base {
+  body {
+    background-color: var(--color-stone);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  a,
+  button,
+  input,
+  select,
+  textarea,
+  summary,
+  [tabindex] {
+    &:focus-visible {
+      outline: 2px solid var(--color-primary);
+      outline-offset: 2px;
+    }
+  }
+
+  .num,
+  dd,
+  td,
+  output {
+    font-variant-numeric: tabular-nums;
+  }
+}

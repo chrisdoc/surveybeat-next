@@ -2428,6 +2428,6 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
 
   return {
     title: shellTitle,
-    body: shellView(shellTitle, organizationAdmin, [screenContent], h),
+    body: shellView(shellTitle, organizationAdmin, [screenContent], h, model.route._tag === "RoundResults"),
   };
 };

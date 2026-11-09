@@ -1,7 +1,9 @@
 import type { ReminderEmailWithToken as ReminderEmailData } from "@surveybeat/domain";
-import { Button, Heading, Link, Section, Text } from "react-email";
-import { colors, Layout, textLayout } from "./Layout.tsx";
+import { Link } from "react-email";
+import { Layout, textLayout } from "./Layout.tsx";
 import { message } from "./messages/index.ts";
+import { ActionRow, ActionsCard, BodyText, DisplayHeading, Notices, RatingRow } from "./Parts.tsx";
+import { colors } from "./theme.ts";
 
 /** Legacy rows carry their own URL; otherwise it is built from the token. */
 export const unsubscribeUrl = (email: ReminderEmailData): string =>
@@ -18,110 +20,33 @@ export function ReminderEmailComponent({ email }: { email: ReminderEmailData }) 
     <Layout
       preview={message("reminder.preview", { pulse: email.pulseName })}
       reason={message("invitation.reason")}
-    >
-      <Heading
-        as="h1"
-        className="sb-text"
-        style={{ color: colors.text, fontSize: "22px", lineHeight: "30px", margin: "0 0 12px" }}
-      >
-        {message("reminder.heading", { pulse: email.pulseName })}
-      </Heading>
-
-      <Text
-        className="sb-text"
-        style={{ color: colors.text, fontSize: "16px", lineHeight: "24px", margin: "0 0 16px" }}
-      >
-        {message("reminder.body")}
-      </Text>
-
-      {email.ratingQuestion && (
-        <Section style={{ margin: "20px 0" }}>
-          <Text
-            className="sb-text"
-            style={{ color: colors.text, fontSize: "16px", fontWeight: 600, margin: "0 0 12px" }}
-          >
-            {email.ratingQuestion.text}
-          </Text>
-          <div style={{ display: "flex", gap: "8px", margin: "12px 0", flexWrap: "wrap" }}>
-            {[1, 2, 3, 4, 5].map((val) => {
-              const label =
-                val === 1
-                  ? `1 · ${email.ratingQuestion?.lowLabel}`
-                  : val === 5
-                    ? `5 · ${email.ratingQuestion?.highLabel}`
-                    : `${val}`;
-              return (
-                <Button
-                  key={val}
-                  className="sb-button"
-                  href={`${email.baseUrl}/a#t=${email.token}&v=${val}`}
-                  style={{
-                    backgroundColor: colors.card,
-                    border: `1px solid ${colors.border}`,
-                    borderRadius: "6px",
-                    color: colors.text,
-                    fontSize: "14px",
-                    fontWeight: 500,
-                    padding: "8px 14px",
-                    textDecoration: "none",
-                  }}
+      outside={
+        <>
+          <ActionsCard actions={email.actions ?? []} />
+          <Notices
+            deliveryUrl={deliveryUrl}
+            extra={
+              <>
+                <br />
+                <Link
+                  className="sb-link"
+                  href={unsubscribeUrl(email)}
+                  style={{ color: colors.accent, textDecoration: "underline" }}
                 >
-                  {label}
-                </Button>
-              );
-            })}
-          </div>
-        </Section>
+                  {message("reminder.unsubscribe")}
+                </Link>
+              </>
+            }
+          />
+        </>
+      }
+    >
+      <DisplayHeading>{message("reminder.heading", { pulse: email.pulseName })}</DisplayHeading>
+      <BodyText>{message("reminder.body")}</BodyText>
+      {email.ratingQuestion && (
+        <RatingRow question={email.ratingQuestion} baseUrl={email.baseUrl} token={email.token} />
       )}
-
-      <div style={{ margin: "24px 0" }}>
-        <Button
-          className="sb-button"
-          href={openUrl}
-          style={{
-            backgroundColor: colors.accent,
-            borderRadius: "8px",
-            color: colors.accentText,
-            fontSize: "16px",
-            fontWeight: 600,
-            padding: "12px 20px",
-            textDecoration: "none",
-          }}
-        >
-          {message("invitation.openCheckIn")}
-        </Button>
-      </div>
-
-      {email.actions && email.actions.length > 0 && (
-        <Section style={{ margin: "24px 0 16px" }}>
-          <Text
-            className="sb-text"
-            style={{ color: colors.text, fontSize: "14px", fontWeight: 600, margin: "0 0 8px" }}
-          >
-            {message("invitation.actionsHeading")}
-          </Text>
-          <ul style={{ margin: 0, paddingLeft: "20px", color: colors.muted, fontSize: "14px" }}>
-            {email.actions.slice(0, 3).map((act, i) => (
-              <li key={i}>{act}</li>
-            ))}
-          </ul>
-        </Section>
-      )}
-
-      <Section style={{ borderTop: `1px solid ${colors.border}`, margin: "24px 0 0", paddingTop: "16px" }}>
-        <Text className="sb-muted" style={{ color: colors.muted, fontSize: "12px", margin: "0 0 4px" }}>
-          <Link href={deliveryUrl} style={{ color: colors.accent, textDecoration: "underline" }}>
-            {message("invitation.changeWhen")}
-          </Link>
-          {" · "}
-          <Link href={unsubscribeUrl(email)} style={{ color: colors.muted, textDecoration: "underline" }}>
-            {message("reminder.unsubscribe")}
-          </Link>
-        </Text>
-        <Text className="sb-muted" style={{ color: colors.muted, fontSize: "12px", margin: 0 }}>
-          {message("invitation.personalNotice")}
-        </Text>
-      </Section>
+      <ActionRow href={openUrl} />
     </Layout>
   );
 }

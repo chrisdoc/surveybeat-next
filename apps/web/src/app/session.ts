@@ -9,7 +9,16 @@ import type { Html, HtmlBuilder } from "foldkit/html";
 import { defineTaggedUnion } from "foldkit/schema";
 import { message } from "../messages/index.ts";
 import { type ApiClient, clientEffect } from "./api.ts";
-import { appButton, buttonClass, screenView, signOutView, textField } from "./components.ts";
+import {
+  alertView,
+  appButton,
+  buttonClass,
+  linkClass,
+  screenView,
+  secondaryButtonClass,
+  signOutView,
+  textField,
+} from "./components.ts";
 import { privacyHref } from "./routes.ts";
 
 export const SessionModel = defineTaggedUnion({
@@ -66,8 +75,8 @@ export const signInView = <Message>(failed: boolean, h: HtmlBuilder<Message>): H
   screenView(
     message("signIn.title"),
     [
-      h.p([h.Class("mt-2 text-gray-600")], [message("signIn.intro")]),
-      failed ? h.p([h.Role("alert"), h.Class("mt-2 text-red-700")], [message("signIn.failed")]) : null,
+      h.p([h.Class("mt-4 text-lg text-muted")], [message("signIn.intro")]),
+      failed ? alertView(message("signIn.failed"), h) : null,
       h.form(
         [h.Method("get"), h.Action("/auth/login"), h.Class("mt-4")],
         [
@@ -81,8 +90,8 @@ export const signInView = <Message>(failed: boolean, h: HtmlBuilder<Message>): H
         ],
       ),
       h.p(
-        [h.Class("mt-8 border-t pt-4 text-xs text-gray-500")],
-        [h.a([h.Href(privacyHref()), h.Class("text-gray-600 underline")], [message("nav.privacy")])],
+        [h.Class("mt-10 border-t border-line pt-4 text-sm")],
+        [h.a([h.Href(privacyHref()), h.Class(linkClass)], [message("nav.privacy")])],
       ),
     ].filter(Predicate.isNotNull),
     h,
@@ -96,7 +105,7 @@ export const failedView = <Message>(onRetry: Message, h: HtmlBuilder<Message>): 
         {
           text: message("app.retry"),
           onClick: onRetry,
-          className: `mt-4 ${buttonClass}`,
+          className: `mt-6 ${buttonClass}`,
         },
         h,
       ),
@@ -114,9 +123,12 @@ export const createOrganizationView = <Message>(
   screenView(
     message("createOrganization.title"),
     [
-      h.p([h.Class("mt-2 text-gray-600")], [message("createOrganization.intro")]),
+      h.p([h.Class("mt-4 text-lg text-muted")], [message("createOrganization.intro")]),
       h.form(
-        [h.Class("mt-4 flex flex-col gap-3"), h.OnSubmit(onSubmit)],
+        [
+          h.Class("mt-6 flex flex-col gap-4 rounded-panel border border-line bg-surface p-6 sm:p-8"),
+          h.OnSubmit(onSubmit),
+        ],
         [
           textField(
             {
@@ -147,7 +159,7 @@ export const createOrganizationView = <Message>(
 export const notInOrganizationView = <Message>(h: HtmlBuilder<Message>): Html =>
   screenView(
     message("notInOrganization.title"),
-    [h.p([h.Class("mt-2 text-gray-600")], [message("notInOrganization.intro")]), signOutView(h)],
+    [h.p([h.Class("mt-4 text-lg text-muted")], [message("notInOrganization.intro")]), signOutView(h)],
     h,
   );
 
@@ -160,9 +172,9 @@ export const chooseOrganizationView = <Message>(
   screenView(
     message("chooseOrganization.title"),
     [
-      h.p([h.Class("mt-2 text-gray-600")], [message("chooseOrganization.intro")]),
+      h.p([h.Class("mt-4 text-lg text-muted")], [message("chooseOrganization.intro")]),
       h.ul(
-        [h.Class("mt-4 flex flex-col gap-2")],
+        [h.Class("mt-6 flex flex-col gap-3")],
         organizations.map((org) =>
           h.li(
             [],
@@ -172,7 +184,7 @@ export const chooseOrganizationView = <Message>(
                   text: org.name,
                   isDisabled: busy,
                   onClick: onChoose(org.id),
-                  className: `w-full text-left ${buttonClass}`,
+                  className: `w-full justify-start text-left ${secondaryButtonClass}`,
                 },
                 h,
               ),
