@@ -9,7 +9,9 @@ import {
   QuestionId,
   QuestionVersionId,
   RoundId,
+  type RoundDetail,
   type RoundResult,
+  type RoundSummary,
   SendTime,
   TeamId,
   TemplateQuestionKey,
@@ -28,15 +30,24 @@ import {
   CreateActionCmd,
   CreateOrganization,
   CreatePulse,
+  CancelRoundCmd,
+  CloseRoundEarlyCmd,
   CreateTeam,
+  GetRoundDetailCmd,
+  GetRoundRateCmd,
   GetSettings,
   GetTeam,
   initialModel,
+  ListRoundsCmd,
   ListTeams,
   Message,
   Navigate,
+  PausePulseCmd,
   RemoveMember,
   RemoveQuestionCmd,
+  ResendInvitationCmd,
+  ResumePulseCmd,
+  SkipWeekCmd,
   update,
   UpdateActionCmd,
   UpdatePulseSettingsCmd,
@@ -586,6 +597,7 @@ describe("App Scenes", () => {
             dimension: "clarity",
             score: 4.2,
             usableQuestionCount: 1,
+            contributors: 6,
             totalQuestionCount: 1,
             meetsMinimumGroupSize: true,
             change: {
@@ -669,7 +681,7 @@ describe("App Scenes", () => {
           session: signedInAdmin,
           results: { _tag: "Loaded", result: mockSubNResult },
         }),
-        Scene.expect(Scene.text("Not enough responses to protect anonymity")).toExist(),
+        Scene.expect(Scene.text("Not enough answers to protect anonymity")).toExist(),
       );
     });
 
@@ -703,7 +715,7 @@ describe("App Scenes", () => {
           session: signedInAdmin,
           results: { _tag: "Loaded", result: mockOpenResult },
         }),
-        Scene.expect(Scene.text("3 responses received so far.")).toExist(),
+        Scene.expect(Scene.text("3 Submissions received so far.")).toExist(),
       );
     });
 
@@ -847,8 +859,210 @@ describe("App Scenes", () => {
           results: { _tag: "Loaded", result: mockSubNResult },
           actions: { _tag: "Loaded", actions: [] },
         }),
-        Scene.expect(Scene.text("Not enough responses to protect anonymity")).toExist(),
+        Scene.expect(Scene.text("Not enough answers to protect anonymity")).toExist(),
         Scene.expect(Scene.role("heading", { name: "Actions" })).toExist(),
+      );
+    });
+  });
+
+  describe("Rounds screen", () => {
+    const teamId = decodeTeamId("team-1");
+    const pulseId = decodePulseId("pulse-1");
+    const personId = decodePersonId("person-9");
+    const openId = Schema.decodeSync(RoundId)("round-open");
+    const closedId = Schema.decodeSync(RoundId)("round-closed");
+    const scheduledId = Schema.decodeSync(RoundId)("round-scheduled");
+    const url = makeUrl(`https://app.surveybeat.com/teams/${teamId}/pulses/${pulseId}/rounds`);
+
+    const summary = (id: RoundId, status: RoundSummary["status"], plannedOpenDate: string): RoundSummary => ({
+      id,
+      pulseId,
+      teamId,
+      status,
+      plannedOpenDate,
+      plannedOpenAt: 1731140000000,
+      openedAt: status === "scheduled" ? null : 1731140000000,
+      plannedCloseAt: 1731400000000,
+      closedAt: status === "closed" ? 1731400000000 : null,
+      pulseName: "Weekly check-in",
+    });
+    const rounds = {
+      pulseId,
+      rounds: [
+        summary(scheduledId, "scheduled", "2026-11-16"),
+        summary(openId, "open", "2026-11-09"),
+        summary(closedId, "closed", "2026-11-02"),
+      ],
+    };
+    const teamAs = (yourRole: "lead" | "member" | null) => ({
+      team: { id: teamId, name: "Platform", timeZone: decodeTimeZone("Europe/Berlin"), yourRole },
+      roster: [],
+      may: {
+        update: false,
+        manageLeads: false,
+        manageMembers: false,
+        managePulses: true,
+        viewResults: false,
+      },
+    });
+    const openDetail: RoundDetail = {
+      id: openId,
+      pulseId,
+      team: teamAs("lead").team,
+      status: "open",
+      plannedOpenDate: "2026-11-09",
+      plannedOpenAt: 1731140000000,
+      openedAt: 1731140000000,
+      plannedCloseAt: 1731400000000,
+      closedAt: null,
+      effectiveMinimumGroupSize: 4,
+      pulseName: "Weekly check-in",
+      answerWindowDays: 3,
+      reminders: 1,
+      anonymityMode: "anonymous",
+      distribution: "invitation",
+      questions: [],
+      failedInvitations: [
+        { personId, email: decodeEmail("ada@example.com"), reason: "Mailbox full", resendCount: 0 },
+      ],
+      createdAt: 1731100000000,
+    };
+    const given = (yourRole: "lead" | "member" | null) => ({
+      ...initialModel(url),
+      session: signedInAdmin,
+      teamDetail: { _tag: "Loaded" as const, detail: teamAs(yourRole) },
+      rounds: { _tag: "Loaded" as const, list: rounds },
+      roundDetails: { [openId]: openDetail },
+      roundRates: { [closedId]: 0.75 },
+    });
+
+    const reload = () =>
+      Scene.Command.resolveAll(
+        [ListRoundsCmd, Message.GotRounds({ outcome: { _tag: "Success", list: rounds } })],
+        [
+          GetRoundDetailCmd,
+          Message.GotRoundDetail({
+            roundId: openId,
+            outcome: { _tag: "Success", detail: openDetail },
+          }),
+        ],
+        [
+          GetRoundRateCmd,
+          Message.GotRoundRate({
+            roundId: closedId,
+            outcome: { _tag: "Failure", failure: "NotFound" },
+          }),
+        ],
+      );
+
+    it("lists Rounds for a Lead with status, response rate, and a link to Results", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given(given("lead")),
+        Scene.expect(Scene.role("heading", { name: "Rounds" })).toExist(),
+        Scene.expect(Scene.text("Round 2026-11-16")).toExist(),
+        Scene.expect(Scene.text("Scheduled")).toExist(),
+        Scene.expect(Scene.text("Open")).toExist(),
+        Scene.expect(Scene.text("Closed")).toExist(),
+        Scene.expect(Scene.text("75% response rate")).toExist(),
+        Scene.expect(Scene.role("link", { name: "View Results" })).toExist(),
+      );
+    });
+
+    it("shows a failed Invitation with its reason and Resend calls the resend endpoint", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given(given("lead")),
+        Scene.expect(Scene.text("ada@example.com: Mailbox full")).toExist(),
+        Scene.click(Scene.role("button", { name: "Resend" })),
+        Scene.Command.expectHas(ResendInvitationCmd),
+        Scene.Command.resolve(
+          ResendInvitationCmd,
+          Message.RoundCommandDone({ outcome: { _tag: "Success" } }),
+        ),
+        Scene.Command.expectHas(ListRoundsCmd),
+        reload(),
+      );
+    });
+
+    it("skips the Scheduled week, pauses, and resumes through the Rounds endpoints", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given(given("lead")),
+        Scene.click(Scene.role("button", { name: "Skip this week" })),
+        Scene.Command.expectHas(SkipWeekCmd),
+        Scene.Command.resolve(SkipWeekCmd, Message.RoundCommandDone({ outcome: { _tag: "Success" } })),
+        Scene.Command.expectHas(ListRoundsCmd),
+        reload(),
+        Scene.click(Scene.role("button", { name: "Pause Pulse" })),
+        Scene.Command.expectHas(PausePulseCmd),
+        Scene.Command.resolve(PausePulseCmd, Message.RoundCommandDone({ outcome: { _tag: "Success" } })),
+        reload(),
+        Scene.click(Scene.role("button", { name: "Resume Pulse" })),
+        Scene.Command.expectHas(ResumePulseCmd),
+        Scene.Command.resolve(ResumePulseCmd, Message.RoundCommandDone({ outcome: { _tag: "Success" } })),
+        reload(),
+      );
+    });
+
+    it("asks before closing a Round early and only then calls the endpoint", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given(given("lead")),
+        Scene.click(Scene.role("button", { name: "Close early" })),
+        Scene.Command.expectNone(),
+        Scene.expect(
+          Scene.text("Close this Round now? Members who were not yet invited are never invited."),
+        ).toExist(),
+        Scene.click(Scene.role("button", { name: "Yes, continue" })),
+        Scene.Command.expectHas(CloseRoundEarlyCmd),
+        Scene.Command.resolve(CloseRoundEarlyCmd, Message.RoundCommandDone({ outcome: { _tag: "Success" } })),
+        reload(),
+      );
+    });
+
+    it("asks before cancelling a Round, and Keep Round dismisses without a call", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given(given("lead")),
+        Scene.click(Scene.role("button", { name: "Cancel Round" })),
+        Scene.Command.expectNone(),
+        Scene.expect(Scene.role("button", { name: "Keep Round" })).toExist(),
+        Scene.click(Scene.role("button", { name: "Keep Round" })),
+        Scene.Command.expectNone(),
+        Scene.expect(Scene.role("button", { name: "Keep Round" })).toBeAbsent(),
+        Scene.click(Scene.role("button", { name: "Cancel Round" })),
+        Scene.click(Scene.role("button", { name: "Yes, continue" })),
+        Scene.Command.expectHas(CancelRoundCmd),
+        Scene.Command.resolve(CancelRoundCmd, Message.RoundCommandDone({ outcome: { _tag: "Success" } })),
+        reload(),
+      );
+    });
+
+    it("shows an Organization admin the list but no controls, Resend, or Results link", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given(given(null)),
+        Scene.expect(Scene.text("Round 2026-11-09")).toExist(),
+        Scene.expect(Scene.role("button", { name: "Close early" })).toBeAbsent(),
+        Scene.expect(Scene.role("button", { name: "Cancel Round" })).toBeAbsent(),
+        Scene.expect(Scene.role("button", { name: "Skip this week" })).toBeAbsent(),
+        Scene.expect(Scene.role("button", { name: "Pause Pulse" })).toBeAbsent(),
+        Scene.expect(Scene.role("button", { name: "Resend" })).toBeAbsent(),
+        Scene.expect(Scene.role("link", { name: "View Results" })).toBeAbsent(),
+      );
+    });
+
+    it("shows a Member the Forbidden problem and no controls", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...given("member"),
+          rounds: { _tag: "Failed" as const, failure: "Forbidden" as const },
+        }),
+        Scene.expect(Scene.role("alert")).toExist(),
+        Scene.expect(Scene.role("button", { name: "Close early" })).toBeAbsent(),
+        Scene.expect(Scene.role("button", { name: "Pause Pulse" })).toBeAbsent(),
       );
     });
   });

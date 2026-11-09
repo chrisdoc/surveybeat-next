@@ -27,7 +27,7 @@ import {
   textField,
   textareaField,
 } from "./components.ts";
-import { pulseHref, pulsesHref, teamHref } from "./routes.ts";
+import { pulseHref, pulsesHref, roundsHref, teamHref } from "./routes.ts";
 
 export const LoadedPulses = defineTaggedUnion({
   Loading: {},
@@ -358,6 +358,14 @@ export const pulseEditorView = <Message>(
   const { detail } = state.pulse;
   children.push(h.h2([h.Class("mt-2 text-xl font-semibold")], [detail.settings.name]));
   children.push(h.p([h.Class("text-sm text-gray-600")], [detail.team.name]));
+  if (detail.team.yourRole === "lead") {
+    children.push(
+      h.a(
+        [h.Href(roundsHref(state.teamId, detail.id)), h.Class("mt-2 inline-block underline")],
+        [message("pulse.rounds")],
+      ),
+    );
+  }
   children.push(
     h.p(
       [h.Role("status"), h.Class("mt-4")],
