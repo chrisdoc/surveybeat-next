@@ -1,0 +1,33 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "01M70PPVRCK85GJJ502QXK1JAN",
+  "strategy": "manual-commit",
+  "branch": "t3/r1-15-launch",
+  "checkpoints_count": 1,
+  "files_touched": [
+    ".github/workflows/deploy.yml",
+    ".github/workflows/preview.yml"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "redaction": {
+    "replacements": 606,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 23,
+      "credentialed_uri": 0,
+      "entropy": 591,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "01M70PPVRCK85GJJ502QXK1JAN",
+  "session_id": "4abfc20e-af7d-4463-9854-3d00cc0e9308",
+  "strategy": "manual-commit",
+  "created_at": "2026-11-09T17:47:21.192105513Z",
+  "branch": "t3/r1-15-launch",
+  "checkpoints_count": 1,
+  "files_touched": [
+    ".github/workflows/deploy.yml",
+    ".github/workflows/preview.yml"
+  ],
+  "agent": "Antigravity",
+  "model": "",
+  "turn_id": "2711f01a8124",
+  "checkpoint_transcript_start": 2122401,
+  "transcript_lines_at_start": 2122401,
+  "redaction": {
+    "replacements": 606,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 23,
+      "credentialed_uri": 0,
+      "entropy": 591,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
