@@ -1,0 +1,28 @@
+{
+  "tool_use_id": "toolu_01CamnkdaGW7hx9XNzNczv3E",
+  "agent_id": "a26cb168131aee4a6",
+  "subagent_type": "shipper",
+  "task_description": "Ship R1 review fixes as PR",
+  "files": [
+    "AGENTS.md",
+    "apps/web/src/app/App.scene.test.ts",
+    "apps/web/src/app/App.story.test.ts",
+    "apps/web/src/app/App.ts",
+    "apps/web/src/app/pulses.ts",
+    "apps/web/src/app/routes.ts",
+    "apps/web/src/messages/catalog.ts",
+    "docs/adr/0003-organization-admin-sees-no-results.md",
+    "docs/adr/0008-workspace-layout-and-toolchain.md",
+    "docs/adr/0010-session-deny-check-in-d1-and-the-organization-object.md",
+    "docs/infra.md"
+  ],
+  "token_usage": {
+    "input_tokens": 24,
+    "cache_creation_tokens": 38339,
+    "cache_read_tokens": 288010,
+    "output_tokens": 16161,
+    "api_call_count": 11
+  },
+  "started_at": "2026-11-09T18:22:54.852202594Z",
+  "completed_at": "2026-11-09T18:22:54.852517517Z"
+}

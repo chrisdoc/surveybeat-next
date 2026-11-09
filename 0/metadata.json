@@ -1,0 +1,90 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "01M70RSGXR884187KXZHBY8FJ0",
+  "session_id": "b21abd2c-9e7c-486c-94e6-e0230c6b395a",
+  "strategy": "manual-commit",
+  "created_at": "2026-11-09T18:23:11.639640666Z",
+  "branch": "t3/review-release-1",
+  "checkpoints_count": 5,
+  "save_step_count": 1,
+  "files_touched": [
+    "AGENTS.md",
+    "docs/adr/0003-organization-admin-sees-no-results.md",
+    "docs/adr/0008-workspace-layout-and-toolchain.md",
+    "docs/adr/0010-session-deny-check-in-d1-and-the-organization-object.md",
+    "docs/adr/0011-app-entry-uses-foldkit.md",
+    "docs/adr/0012-cloudflare-package-depends-on-emails.md",
+    "docs/adr/0013-domain-folder-layout-as-built.md",
+    "docs/adr/0014-organization-admin-may-join-a-team.md",
+    "docs/infra.md"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-5-5",
+  "turn_id": "a1b67cb95204",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 4416,
+    "cache_read_tokens": 661297,
+    "output_tokens": 701,
+    "api_call_count": 4,
+    "subagent_tokens": {
+      "input_tokens": 24,
+      "cache_creation_tokens": 38339,
+      "cache_read_tokens": 288010,
+      "output_tokens": 16161,
+      "api_call_count": 11
+    }
+  },
+  "redaction": {
+    "replacements": 15,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 8,
+      "credentialed_uri": 0,
+      "entropy": 4,
+      "key_context": 3,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "claude-skill-toolu_01VwYospfbykfJGt17MrC7AM",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "code-review"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "a1b67cb95204",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 52,
+        "end": 53,
+        "entry_ids": [
+          "5d402fc3-58d8-4092-b234-ecd84dcfd543"
+        ],
+        "tool_use_id": "toolu_01VwYospfbykfJGt17MrC7AM"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01VwYospfbykfJGt17MrC7AM"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: code-review",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 5
+  }
+}

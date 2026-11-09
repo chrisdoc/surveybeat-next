@@ -1,0 +1,124 @@
+we completed the first release https://github.com/chrisdoc/surveybeat-next/issues/34 do a review to check that we did the right thing
+
+---
+
+<task-notification>
+<task-id>a57acd1ed4636c8db</task-id>
+<tool-use-id>toolu_017ettTRUWTfcYNcJruFnsh1</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-e3ae936b/b21abd2c-9e7c-486c-94e6-e0230c6b395a/tasks/a57acd1ed4636c8db.output</output-file>
+<status>completed</status>
+<summary>Agent "Standards review of Release 1" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>I found five breaches of documented standards and four smells worth a look. I couldn't run `pnpm lint` or `typecheck` because there is no `node_modules` in this worktree, so lint results are unconfirmed. The quick checks found no `as` casts or `any` outside tests, no v3-style Effect imports, and no forbidden imports in the answer entry.
+
+**Hard violations**
+
+1. **ADRs changed in place instead of a new ADR** (AGENTS.md: "add a new ADR … never silently override one").
+   - `docs/adr/0008-workspace-layout-and-toolchain.md`: commit 06b swaps the app stack from "React, TanStack Router, Base UI" to Foldkit inside the existing ADR. It also adds `emails` as a dependency of `packages/cloudflare`. Both need a new ADR.
+   - `docs/adr/0003-organization-admin-sees-no-results.md:3`: a new rule ("An Organization admin may add themselves to a Team…") was added to the existing ADR.
+2. **Domain layout drifts from ADR 0008.** The ADR lists `answering/` and `results/` concepts, but the code puts `Results.ts` and `Submission.ts` under `packages/domain/src/rounds/`, with no new ADR.
+3. **AGENTS.md is stale after 06b.** It still says "the React app (`index.html`)" and that answer code "may not import React, Base UI". The app now uses Foldkit, and the lint bans Foldkit too.
+4. **Glossary: "response" used for Submission** (GLOSSARY.md: Submission, avoid "Response"). In `apps/web/src/messages/catalog.ts`, lines 141, 144, 145 and 146 say "responses". "Response rate" on line 140 is fine, because the glossary uses it.
+5. **Plural rule** (AGENTS.md: "Plurals use `&lt;base&gt;.one`/`.other`").
+   - `results.responseCount` (catalog.ts:141) and `results.openResponses` (catalog.ts:144, used at `apps/web/src/app/results.ts:605`) have no plural pair, so one Submission shows as "1 responses".
+6. **Commit subjects** (AGENTS.md: subjects start `R1 NN: ...`). These do not:
+   - "Set up the workspace and tooling (R1 01)"
+   - "Add the Alchemy stack… (R1 02)"
+   - "Add transactional email… (R1 05)"
+   - "Add the privacy suite harness (R1 14)"
+   - "Team rules, Template wording…"
+   - "Add AGENTS.md…"
+
+**Lesser doc wording.** ADR 0010 and `docs/infra.md:58` say "the user's Person", and `packages/domain/src/people/Directory.ts:138` says "the user". The glossary says Person. The WorkOS-user cases are arguably fine.
+
+**Judgement calls**
+
+- **Privacy tests in the unit project.** `packages/domain/src/privacy/Redaction.test.ts` and `SubmissionWorker.test.ts:153` ("redacts comment") test release-blocking invariants (ADR 0009). They are named `*.test.ts`, so the required privacy job never runs them. They do run in `pnpm test`.
+- **Divergent Change / large modules.** `packages/cloudflare/src/Organization.ts` (1778 lines), `apps/web/src/app/App.ts` (2099) and `SqlRounds.ts` (1016) each mix several concerns: People, Pulses, Rounds, alarms, Results.
+- **Test hooks in the production Durable Object.** `Organization.ts:1664–1690` has `getRoundsCount`, `getJobsForRound` and `getAlarm`, used only by `RoundTestRoutes.ts`. They use inline SQL, and `optOutReminders` falls back to `now ?? Date.now()` instead of Effect's Clock.
+- **Primitive Obsession.** The Organization RPC methods take raw `string` ids and re-brand them inside (`Organization.ts:910–1690`, e.g. `scheduleNextRound(pulseId: string, teamId: string, …)` then `PulseId.make(pulseId)`).
+- **Repeated Switches.** `job.type === "send" / "remind"` if-chains in `Organization.ts:~1653`.
+- **Duplicated Code.** `provide(Effect.flatMap(currentMember, …))` is repeated 9 times across `packages/cloudflare/src/*Handlers.ts`.</result>
+<usage><subagent_tokens>74952</subagent_tokens><tool_uses>14</tool_uses><duration_ms>91093</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>abc815ef98b01ff90</task-id>
+<tool-use-id>toolu_0179SjAgZiJxbBXH2VeFVUeL</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-e3ae936b/b21abd2c-9e7c-486c-94e6-e0230c6b395a/tasks/abc815ef98b01ff90.output</output-file>
+<status>completed</status>
+<summary>Agent "Spec review of Release 1" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>I found 13 problems against the Release 1 spec. The most serious: the end-to-end flow SPEC §7 requires is still all placeholders, and the results path has three minimum-group-size defects. Commit range reviewed: `db3821af...HEAD`.
+
+**(a) Missing or partial**
+
+1. **End-to-end flow never built.** #48 asks for the Playwright flow "create a Pulse … create an Action". All seven steps in `infra/tests/e2e/flow.spec.ts:9-15` are still `test.fixme`.
+2. **No property test runs over Result endpoints.** #48: "Any endpoint whose response contains Result data must be listed with an input generator". `rounds.getResults` has `inputs: Arbitrary.Constant({})` (`packages/api/src/PrivacyRegistry.ts:146`), and nothing reads `.inputs`.
+3. **No API test on Result endpoints.** #46: "API tests that no endpoint returns an aggregate below N for any role". No adapter test calls `getResults`. The role check P4 (`Results.privacy.test.ts:248-250`) builds `{...result, comments: []}` itself and then asserts on it, so it proves nothing.
+4. **A4 doesn't test the real write path.** It writes rows with its own SQL (`Submissions.privacy.test.ts:110-124`) instead of calling the real `recordFirstAnswer`.
+5. **Canary sweep is incomplete.** #48 lists "Queue and DLQ messages, R2, D1, and response bodies" and A6. The sweep covers Workers Logs only (`canary-sweep.ts:12-13`), and A6 exists nowhere.
+6. **Lead controls have no UI.** #42 asks for "failed Invitations with their reason and a **Resend** button", and #41 asks for skip, pause, close early and cancel. These exist only in the API. The app has no Rounds route or list (`apps/web/src/app/routes.ts`), so Results are reachable only from the results-ready email link.
+7. **Dimensions show no sample size.** #46 asks for "per-Dimension scores, each with its Contributor count". `DimensionResult` has no count (`Results.ts:91-100`).
+8. **Anonymity statement leaves out what the Lead sees.** SPEC §5.2 says the answer page states "what the lead will and will not see", with N as the example. The text is hard-coded as "Your name is never stored…" (`Organization.ts:435,618,1206`; `SqlRounds.ts:797`).
+
+**(b) Scope creep**
+
+- Nothing material. The `__test` routes only exist on `test_` stages (`EmailTestRoutes.ts:9`).
+
+**(c) Looks implemented but wrong**
+
+9. **Raw Invitation tokens stored.** #42: "token stored only as a hash". The plain token goes into `schedule_job.payload` for send and reminder jobs (`Organization.ts:449,470`).
+10. **Raising N leaves trend scores visible.** ADR 0004 says effective N = max(stored, current). `enforceEffectiveNOnResult` hides `score`, `distribution` and `change`, but leaves each `trend` (whose last point is this Round's score) and `typicalChange` untouched (`Results.ts:858-866, 873-891`). A score now below N stays visible on the trend.
+11. **Wrong sample size on dimension trends.** The trend table labels `usableQuestionCount` as "Contributors" (`apps/web/src/app/results.ts:159`). That is a count of Questions, not people.
+12. **Weekly time zones only half work.** SPEC §5.1: "Monday 9:00 means 9:00 for each recipient". The open job is scheduled with the Team's time zone for every member (`Organization.ts:176,280`). Members whose own zone is ahead of the Team's get sent immediately at open, so late (`:442`).
+13. **Links hard-coded to production.** `baseUrl` and `resultsUrl` are `https://app.surveybeat.app` (`Organization.ts:437,577`), so Invitations and results emails sent from staging or `pr-&lt;n&gt;` stages point at production.
+
+**Confirmed OK:** Submissions have no Person or time column, and each first Answer is stored in one transaction. Comments are redacted before insert (`SqlRounds.ts:628,670`). Org admins can't view Results or Actions (`Permissions.ts:75,82`). Submission Worker observability is off. Actions appear in the next Invitation. Reminders follow the W−1 and 6-hour rules.</result>
+<usage><subagent_tokens>144527</subagent_tokens><tool_uses>43</tool_uses><duration_ms>257558</duration_ms></usage>
+</task-notification>
+
+---
+
+can you send the work to sonnet 5.5 sub agents
+
+---
+
+<task-notification>
+<task-id>a7c1475fdb7aed3c2</task-id>
+<tool-use-id>toolu_01YZgmqNXmjbNhZBc7feY81c</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-e3ae936b/b21abd2c-9e7c-486c-94e6-e0230c6b395a/tasks/a7c1475fdb7aed3c2.output</output-file>
+<status>completed</status>
+<summary>Agent "Slice A: Results masking fixes" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>The failing privacy property test now passes. The failure was a real gap in `enforceEffectiveNOnResult`: it could show a Dimension's Typical change where a fresh computation at N gives none.
+
+## Cause
+`calculateRoundResult` now hides an earlier Dimension's score unless every Question it averaged still meets the raised N (`pastDimMeetsN`). My masking in `enforceEffectiveNOnResult` only checked the Dimension's own contributor count. Its Typical change also stayed visible when an earlier Question score, used in the Dimension's per-Question changes, was newly hidden.
+
+The generator does build Dimension and Question history independently, but this is possible in real data too. A Dimension can have at least N distinct contributors while every one of its Questions has fewer. That happens when the stored N was lower and each Submission answered a different Question. So the fix is not just working around an impossible fixture.
+
+## Change
+Only `packages/domain/src/rounds/Results.ts` changed, inside the Dimension masking in `enforceEffectiveNOnResult`.
+- **Earlier Dimension trend points:** a score is kept only if the Questions that averaged into it (from the Questions' own trends) match its `usableQuestionCount` and all meet the effective N. This mirrors `pastDimMeetsN`.
+- **Stale values:** the Dimension's `change` and `typicalChange` are now nulled when an earlier Question score in that Dimension was newly hidden, not only when the Dimension's own point was.
+
+## Decision
+When `enforceEffectiveNOnResult` hides a Typical change, it sets it to null instead of recomputing it. Recomputing would need each earlier Round's raw Question scores and contributor counts, and a stored Result only keeps the 12-Round trend. A fresh computation can therefore show a Typical change where the enforced one shows none. That is over-masking, not a leak, and the test only forbids showing something the fresh result doesn't. I did not edit the test.
+
+## Validation
+- `pnpm test:privacy`: 6 files, 34 tests passed.
+- `pnpm test packages/domain packages/api`: 12 files, 315 tests passed.
+- `pnpm typecheck`: no errors.
+- `pnpm lint`: clean.
+- `pnpm format:check`: clean.
+
+I did not re-run `pnpm test apps/web`, so the earlier 3 `App.scene.test.ts` failures from the rewording in item 4 may still be open.</result>
+<usage><subagent_tokens>82050</subagent_tokens><tool_uses>7</tool_uses><duration_ms>96080</duration_ms></usage>
+</task-notification>
+
+---
+
+create a PR
