@@ -173,6 +173,7 @@ const buildResult = (scenario: RoundResultScenario): Built => {
       teamId: TEAM,
       status: scenario.status,
       plannedOpenDate: "2026-11-09",
+      anonymityMode: "anonymous",
       closedAt: scenario.status === "open" ? null : 1_731_140_000_000,
       effectiveMinimumGroupSize,
       eligibleMembersCount: scenario.eligibleMembers,

@@ -1,6 +1,6 @@
-import { Schema } from "effect";
+import { Effect, Schema } from "effect";
 import { TeamId } from "../people/Team.ts";
-import { PulseId } from "../pulses/Pulse.ts";
+import { AnonymityMode, PulseId } from "../pulses/Pulse.ts";
 import { Dimension, QuestionType, QuestionVersionId } from "../pulses/Question.ts";
 import { RoundId, RoundStatus } from "./Round.ts";
 import type { SubmissionAnswer } from "./Submission.ts";
@@ -129,6 +129,10 @@ export const RoundResult = Schema.Struct({
   teamId: TeamId,
   status: RoundStatus,
   plannedOpenDate: Schema.String,
+  /** Release 1 has only anonymous Rounds, so Results stored before this field decode as anonymous. */
+  anonymityMode: AnonymityMode.pipe(
+    Schema.withDecodingDefaultKey(Effect.succeed<AnonymityMode>("anonymous")),
+  ),
   closedAt: Schema.NullOr(Schema.Int),
   effectiveMinimumGroupSize: Schema.Int,
   meetsMinimumGroupSize: Schema.Boolean,
@@ -344,6 +348,7 @@ export const calculateRoundResult = (params: {
   readonly teamId: TeamId;
   readonly status: RoundStatus;
   readonly plannedOpenDate: string;
+  readonly anonymityMode: AnonymityMode;
   readonly closedAt: number | null;
   readonly effectiveMinimumGroupSize: number;
   readonly eligibleMembersCount: number;
@@ -361,6 +366,7 @@ export const calculateRoundResult = (params: {
     teamId,
     status,
     plannedOpenDate,
+    anonymityMode,
     closedAt,
     effectiveMinimumGroupSize: effectiveN,
     eligibleMembersCount,
@@ -893,6 +899,7 @@ export const calculateRoundResult = (params: {
     teamId,
     status,
     plannedOpenDate,
+    anonymityMode,
     closedAt,
     effectiveMinimumGroupSize: effectiveN,
     meetsMinimumGroupSize: meetsRoundN,
