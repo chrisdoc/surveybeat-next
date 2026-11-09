@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_017ettTRUWTfcYNcJruFnsh1",
+  "agent_id": "a57acd1ed4636c8db",
+  "subagent_type": "general-purpose",
+  "task_description": "Standards review of Release 1",
+  "token_usage": {
+    "input_tokens": 26,
+    "cache_creation_tokens": 73412,
+    "cache_read_tokens": 769395,
+    "output_tokens": 6137,
+    "api_call_count": 13
+  },
+  "started_at": "2026-11-09T17:43:01.634223698Z",
+  "completed_at": "2026-11-09T17:44:32.32048555Z"
+}

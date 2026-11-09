@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_0179SjAgZiJxbBXH2VeFVUeL",
+  "agent_id": "abc815ef98b01ff90",
+  "subagent_type": "general-purpose",
+  "task_description": "Spec review of Release 1",
+  "token_usage": {
+    "input_tokens": 84,
+    "cache_creation_tokens": 123820,
+    "cache_read_tokens": 4637738,
+    "output_tokens": 15070,
+    "api_call_count": 42
+  },
+  "started_at": "2026-11-09T17:43:11.489555001Z",
+  "completed_at": "2026-11-09T17:47:28.775414554Z"
+}
