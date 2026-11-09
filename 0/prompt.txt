@@ -1,0 +1,53 @@
+Act as the implementation sub-agent for this task.
+
+Implement GitHub issue #57, "R1 06b: Move the app entry to Foldkit", in chrisdoc/surveybeat-next. This is production code. You're in your own git worktree. Run `git fetch origin` and create branch `t3/r1-06b-foldkit` from origin/main. Main holds slices 01–06 and 14: the Alchemy stack with `pr-<n>` stages, AuthKit sign-in, People/Teams/settings, the Pulse editor, email, and the privacy suite. The web app in `apps/web` currently uses React, Tailwind v4, and Base UI, with a hash router.
+
+## Read first
+- `gh issue view 57`: the acceptance criteria. They're binding.
+- Foldkit's docs: https://foldkit.dev/ , /get-started, /core/architecture, /core/routing-and-navigation, /core/server-rendering, /ui/overview, /testing, /react/coming-from-react. Read them with your web fetch tool. Foldkit is pre-1.0 (about v0.170) and requires Effect ~4.1.0; we pin effect 4.1.2. Use the real API from the installed packages' .d.ts files, not guesses.
+- docs/adr/0007, docs/adr/0008, GLOSSARY.md. The existing `apps/web/src` (App.tsx, Directory.tsx, the pulse screens, session.ts, directory.ts, messages/catalog.ts). `tools/oxlint-plugin-surveybeat`. The e2e in `infra/tests/e2e`.
+- The answer-page measurement method: on branch `prototype/answer-page`, see `git show prototype/answer-page:prototype/answer-page/RESULTS.md` and its `scripts/`.
+
+## Scope (summary; #57 is binding)
+- Pin `foldkit`, `@foldkit/ui`, `@foldkit/vite-plugin` exactly in the catalog. Respect pnpm minimumReleaseAge. NEVER add minimumReleaseAgeExclude; if the newest version is too fresh, use the previous one.
+- Rewrite every existing app screen in the Elm architecture (Model as an Effect Schema, Messages, update, Commands, view), with Foldkit's typed routing replacing the hash router:
+  - sign-in states;
+  - Create an Organization, not part of an Organization, and the Organization picker;
+  - Teams list, Team detail, and Organization settings;
+  - Pulse list and Pulse editor.
+
+  Keep the same API calls, behaviour, and message catalog keys. Accessible components come from `@foldkit/ui`.
+- Remove React, react-dom, and @base-ui/react from apps/web. React stays only in `packages/emails`. Tailwind v4 and the tokens stay.
+- Adapt the oxlint rules:
+  - `no-literal-ui-text` moves from JSX to Foldkit `h()` view calls, with fixtures proving it fails on literal text;
+  - `domain-boundary` additionally bans `foldkit` in `packages/domain`, `packages/api`, and the answer entry.
+- Tests: Foldkit story tests and scene tests for each screen's main flows, in Vitest. The e2e must keep passing on the PR stage.
+- Answer-page check: build the answer page's first screen with Foldkit static prerendering plus hydration in a scratch dir (NOT in apps/web) and measure it with the prototype's Lighthouse method: critical JS gzip, FCP, LCP. Report the numbers. The decision rule: only if critical JS ≤ 10 KB gzip AND LCP ≤ 1.3 s could the answer page switch later. Don't switch it in this PR.
+- Amend ADR 0008: Foldkit replaces React and Base UI for the app, the answer-page result goes in, and Foldkit's pre-1.0 status is listed as an accepted risk.
+- No `any`, and no `as` outside tests.
+
+## Validation
+`pnpm install --frozen-lockfile`, `typecheck`, `typecheck:effect`, `format:check`, `lint`, `test`, `test:privacy`, and the web build all pass.
+
+## Shipping
+Commit on `t3/r1-06b-foldkit` with a succinct message ending with:
+`Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`
+
+Push, and open a PR to main titled "R1 06b: Move the app entry to Foldkit". The body says "Closes #57. Part of #34.", lists the changes, the decisions, and the answer-page numbers, and ends with:
+`🤖 Generated with [Claude Code](https://claude.com/claude-code)`
+
+Don't merge. The last line is: PR <full URL>, head <SHA>, checks and reviews <state>.
+
+---
+
+Continue where you left off.
+
+---
+
+<task-notification>
+<task-id>b5lmluri2</task-id>
+<tool-use-id>toolu_01KFx5YvXVFZA5o9J5MxB2q3</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-197a0769/59e41770-7521-4522-a9ea-bebfabd0862b/tasks/b5lmluri2.output</output-file>
+<status>failed</status>
+<summary>Background command "P=/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-197a0769/59e41770-7521-4522-a9ea-bebfabd0862b/scratchpad/proto/prototype/answer-page; cd $P &amp;&amp; RUNS=5 node scripts/measure.mjs &gt; measure.log 2&gt;&amp;1; echo exit $?; tail -30 measure.log" failed with exit code 144</summary>
+</task-notification>

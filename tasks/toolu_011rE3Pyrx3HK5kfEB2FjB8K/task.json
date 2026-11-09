@@ -1,0 +1,20 @@
+{
+  "tool_use_id": "toolu_011rE3Pyrx3HK5kfEB2FjB8K",
+  "agent_id": "a527a74b739b1bf57",
+  "subagent_type": "web-fetch",
+  "task_description": "Read Foldkit docs",
+  "files": [
+    "apps/web/package.json",
+    "pnpm-lock.yaml",
+    "pnpm-workspace.yaml"
+  ],
+  "token_usage": {
+    "input_tokens": 4,
+    "cache_creation_tokens": 51638,
+    "cache_read_tokens": 4203,
+    "output_tokens": 12144,
+    "api_call_count": 2
+  },
+  "started_at": "2026-11-09T09:02:15.170895365Z",
+  "completed_at": "2026-11-09T09:02:15.171139767Z"
+}
