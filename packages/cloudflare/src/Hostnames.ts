@@ -10,6 +10,7 @@ export const ZONE_ID = "228eec30edf283bf8eb7a628283720f1";
  */
 export const hostnameFor = (stage: string, host: "app" | "submit"): string | undefined => {
   if (stage === "production") return `${host}.${ZONE}`;
+  if (stage === "staging") return `staging.${host}.${ZONE}`;
   if (/^pr-\d+$/.test(stage)) return `${stage}.${host}.${ZONE}`;
   return undefined;
 };

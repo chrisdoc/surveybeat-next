@@ -231,4 +231,22 @@ export const catalog = {
   "answer.state.otherBrowser":
     "You answered this check-in in another browser. Your answers are anonymous and can only be changed from the browser you used to submit them.",
   "answer.noscript": "JavaScript is required to answer this check-in anonymously.",
+  "privacy.title": "Privacy at SurveyBeat",
+  "privacy.back": "Back",
+  "privacy.anonymity.title": "Anonymous submissions",
+  "privacy.anonymity.body":
+    "Anonymous submissions store no name and no time. Your name, email, and IP address are never recorded with your answers, and answers are saved without a timestamp so they cannot be linked to access logs.",
+  "privacy.comments.title": "Comment redaction",
+  "privacy.comments.body":
+    "Comments are redacted before storage. Names of people in your Organization, email addresses, phone numbers, handles, and URLs are automatically stripped. Other phrasing is kept intact, so please leave out personal details.",
+  "privacy.restore.title": "30-day point-in-time restore window",
+  "privacy.restore.body":
+    "Database backups are kept for up to 30 days point-in-time strictly for disaster recovery. Backups are encrypted at rest and purged permanently after 30 days.",
+  "privacy.editKey.title": "Changing your answers",
+  "privacy.editKey.body":
+    "When you submit answers, an anonymous Edit key is stored solely in your local browser. Losing or clearing the Edit key means answers cannot be changed.",
+  "privacy.restoreTrigger.title": "Who can trigger a restore",
+  "privacy.restoreTrigger.body":
+    "Only authorized infrastructure operators with verified credentials can initiate a disaster recovery restore. Organization admins and team leads cannot inspect raw backups or trigger restores.",
+  "nav.privacy": "Privacy",
 } as const;

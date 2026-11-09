@@ -2,6 +2,7 @@ import { Button, Checkbox, Input, Select, Textarea } from "@foldkit/ui";
 import type { Html, HtmlBuilder } from "foldkit/html";
 import { message } from "../messages/index.ts";
 import { type Failure, failureMessage } from "./api.ts";
+import { teamsHref } from "./routes.ts";
 
 export type Child = Html | string;
 
@@ -188,4 +189,71 @@ export const signOutView = <Message>(h: HtmlBuilder<Message>): Html =>
         h,
       ),
     ],
+  );
+
+export const privacyView = <Message>(h: HtmlBuilder<Message>): Html =>
+  screenView(
+    message("privacy.title"),
+    [
+      h.div(
+        [h.Class("mt-4 mb-6")],
+        [h.a([h.Href(teamsHref()), h.Class("text-sm text-blue-600 underline")], [message("privacy.back")])],
+      ),
+      h.div(
+        [h.Class("mt-6 flex flex-col gap-6 text-sm text-gray-700 leading-relaxed")],
+        [
+          h.div(
+            [],
+            [
+              h.h2(
+                [h.Class("text-base font-semibold text-gray-900 mb-1")],
+                [message("privacy.anonymity.title")],
+              ),
+              h.p([], [message("privacy.anonymity.body")]),
+            ],
+          ),
+          h.div(
+            [],
+            [
+              h.h2(
+                [h.Class("text-base font-semibold text-gray-900 mb-1")],
+                [message("privacy.comments.title")],
+              ),
+              h.p([], [message("privacy.comments.body")]),
+            ],
+          ),
+          h.div(
+            [],
+            [
+              h.h2(
+                [h.Class("text-base font-semibold text-gray-900 mb-1")],
+                [message("privacy.restore.title")],
+              ),
+              h.p([], [message("privacy.restore.body")]),
+            ],
+          ),
+          h.div(
+            [],
+            [
+              h.h2(
+                [h.Class("text-base font-semibold text-gray-900 mb-1")],
+                [message("privacy.editKey.title")],
+              ),
+              h.p([], [message("privacy.editKey.body")]),
+            ],
+          ),
+          h.div(
+            [],
+            [
+              h.h2(
+                [h.Class("text-base font-semibold text-gray-900 mb-1")],
+                [message("privacy.restoreTrigger.title")],
+              ),
+              h.p([], [message("privacy.restoreTrigger.body")]),
+            ],
+          ),
+        ],
+      ),
+    ],
+    h,
   );

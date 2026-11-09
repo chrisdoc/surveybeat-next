@@ -34,7 +34,7 @@ import { defineMessageUnion } from "foldkit/message";
 import { Url } from "foldkit/url";
 import { message } from "../messages/index.ts";
 import { Failure, runApi } from "./api.ts";
-import { screenView } from "./components.ts";
+import { privacyView, screenView } from "./components.ts";
 import {
   decodeEmail,
   decodeName,
@@ -721,6 +721,7 @@ export const loadActiveRouteCommand = (route: AppRoute) => {
         ListActionsCmd({ teamId: route.teamId }),
         GetTeam({ teamId: route.teamId }),
       ];
+    case "Privacy":
     case "NotFound":
       return [];
   }
@@ -1816,6 +1817,13 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
 // ==========================================
 
 export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
+  if (model.route._tag === "Privacy") {
+    return {
+      title: message("privacy.title"),
+      body: privacyView(h),
+    };
+  }
+
   // Session states
   if (model.session._tag === "Loading") {
     return {

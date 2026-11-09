@@ -10,6 +10,7 @@ import { defineTaggedUnion } from "foldkit/schema";
 import { message } from "../messages/index.ts";
 import { type ApiClient, clientEffect } from "./api.ts";
 import { appButton, buttonClass, screenView, signOutView, textField } from "./components.ts";
+import { privacyHref } from "./routes.ts";
 
 export const SessionModel = defineTaggedUnion({
   Loading: {},
@@ -78,6 +79,10 @@ export const signInView = <Message>(failed: boolean, h: HtmlBuilder<Message>): H
             h,
           ),
         ],
+      ),
+      h.p(
+        [h.Class("mt-8 border-t pt-4 text-xs text-gray-500")],
+        [h.a([h.Href(privacyHref()), h.Class("text-gray-600 underline")], [message("nav.privacy")])],
       ),
     ].filter(Predicate.isNotNull),
     h,

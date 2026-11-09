@@ -730,14 +730,10 @@ export class SignInWorld {
       services: Effect.succeed(services),
       allowlist: Effect.sync(() => new OrganizationCreationAllowlist(this.allowlist)),
     });
-    const organizations = HttpApiBuilder.group(SurveyBeatApi, "organizations", (handlers) =>
-      handlers.handle("create", () => Effect.die("not used")).handle("getById", () => Effect.die("not used")),
-    );
     const { handler } = HttpRouter.toWebHandler(
       HttpApiBuilder.layer(SurveyBeatApi).pipe(
         Layer.provide([
           auth,
-          organizations,
           directoryHandlers(Effect.succeed(services)),
           pulseHandlers(Effect.succeed(services)),
           roundHandlers(Effect.succeed(services)),
