@@ -287,4 +287,43 @@ describe("Lifecycle scheduling and time engine", () => {
     assert.notStrictEqual(openRound.answerWindowDays, newPulseSettingsWindow);
     assert.notDeepEqual(frozenQuestions, newPulseQuestions);
   });
+
+  it.effect("generates unguessable 128-bit base64url tokens and valid SHA-256 hex hashes", () =>
+    Effect.gen(function* () {
+      const { generateInvitationToken, hashToken } = yield* Effect.promise(() => import("./Lifecycle.ts"));
+      const token1 = generateInvitationToken();
+      const token2 = generateInvitationToken();
+      assert.strictEqual(typeof token1, "string");
+      assert.strictEqual(token1.length, 22); // 16 bytes base64url = 22 characters unpadded
+      assert.notStrictEqual(token1, token2);
+      // Valid base64url characters only
+      assert.match(token1, /^[A-Za-z0-9_-]{22}$/);
+
+      const hash1 = yield* Effect.promise(() => hashToken(token1));
+      const hash2 = yield* Effect.promise(() => hashToken(token1));
+      const hashOther = yield* Effect.promise(() => hashToken(token2));
+
+      // SHA-256 hex is 64 lower-case hex characters
+      assert.match(hash1, /^[0-9a-f]{64}$/);
+      assert.strictEqual(hash1, hash2); // deterministic
+      assert.notStrictEqual(hash1, hashOther);
+    }),
+  );
+
+  it("skips reminders when close is less than 2 hours away or conditions match", () => {
+    const send = 1000000;
+    // W=1: 6 hours after send
+    const closeFar = send + 24 * 3600_000;
+    const r1 = calculateReminders(send, 1, 1, closeFar);
+    assert.deepStrictEqual(r1, [send + 6 * 3600_000]);
+
+    // Close in 7 hours: reminder at +6h is only 1h before close (< 2 hours cutoff), so it is skipped
+    const closeSoon = send + 7 * 3600_000;
+    const rDropped = calculateReminders(send, 1, 1, closeSoon);
+    assert.deepStrictEqual(rDropped, []);
+
+    // 0 reminders configured returns empty
+    const r0 = calculateReminders(send, 3, 0, closeFar);
+    assert.deepStrictEqual(r0, []);
+  });
 });

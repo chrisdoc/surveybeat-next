@@ -50,6 +50,7 @@ export const cloudflareEmailSender = (client: Cloudflare.Email.SendClient) =>
             subject: message.subject,
             html: message.html,
             text: message.text,
+            ...(message.headers !== undefined ? { headers: { ...message.headers } } : {}),
           })
           .pipe(
             Effect.map((result) => ({ messageId: result.messageId })),

@@ -14,4 +14,19 @@ export const catalog = {
   "addedToTeam.action": "Open SurveyBeat",
   "addedToTeam.link": "If the button does not work, open this link:",
   "addedToTeam.reason": "You received this email because {lead} added you to {team}.",
+
+  "invitation.subject": "{pulse}",
+  "invitation.preview": "Your check-in for {pulse} is open.",
+  "invitation.anonymity": "Your name is never stored with your answers.",
+  "invitation.openCheckIn": "Open check-in",
+  "invitation.changeWhen": "Change when I get this",
+  "invitation.personalNotice": "This link is personal. Don't forward it.",
+  "invitation.reason": "You received this email because you are a member of the team.",
+  "invitation.actionsHeading": "Team actions in progress",
+
+  "reminder.subject": "Reminder: {pulse}",
+  "reminder.preview": "There is still time to complete your check-in for {pulse}.",
+  "reminder.heading": "Reminder: {pulse}",
+  "reminder.body": "Your check-in is still waiting. Take a moment to share how things are going.",
+  "reminder.unsubscribe": "Turn off reminders for this Pulse",
 } as const;

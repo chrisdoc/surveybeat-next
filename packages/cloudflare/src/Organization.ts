@@ -15,8 +15,8 @@ import {
   type EmailAddress,
   type FollowUp,
   makeSendStore,
-  type PersonId,
-  type SendId,
+  PersonId,
+  SendId,
   type SendOutcome,
   settingsView,
   TeamId,
@@ -24,7 +24,10 @@ import {
   teamView,
   teamSummaryOf,
   type TransactionalEmail,
+  calculateReminders,
   calculateRoundInstants,
+  generateInvitationToken,
+  hashToken,
   nextEightWeeksCadenceDates,
   nextWeekdayDate,
   parseDateIso,
@@ -39,11 +42,14 @@ import {
   type RoundViewed,
   authorizeRoundAction,
   type FrozenRoundMember,
+  type PulseRecord,
+  type PulseState,
 } from "@surveybeat/domain";
 import * as Clock from "effect/Clock";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Reactivity from "effect/reactivity/Reactivity";
+import * as Schema from "effect/Schema";
 import * as Scope from "effect/Scope";
 import { makeSqlDirectory } from "./SqlDirectory.ts";
 import { makeSqlPulses } from "./SqlPulses.ts";
@@ -291,7 +297,20 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
           yield* repairAlarm();
         });
 
-      /** Idempotent DO method: opens a Round, freezes questions and members, schedules close & next Round. */
+      const firstRatingQuestionOf = (pulse: PulseRecord, pulseState: PulseState) => {
+        const firstVersionId = pulse.questions[0];
+        const firstVersion =
+          firstVersionId !== undefined ? pulseState.versions.find((v) => v.id === firstVersionId) : undefined;
+        return firstVersion && firstVersion.content.type._tag === "Rating"
+          ? {
+              text: firstVersion.content.text,
+              lowLabel: firstVersion.content.type.lowLabel,
+              highLabel: firstVersion.content.type.highLabel,
+            }
+          : null;
+      };
+
+      /** Idempotent DO method: opens a Round, freezes questions and members, sends invitations, schedules reminders & close & next Round. */
       const executeOpenJob = (jobId: JobId, roundId: RoundId, now: number) =>
         Effect.gen(function* () {
           const job = yield* rounds.getJob(jobId);
@@ -299,6 +318,13 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
 
           const round = yield* rounds.getRound(roundId);
           if (round === null || round.status !== "scheduled") {
+            yield* rounds.markJobCompleted(jobId, now);
+            return;
+          }
+
+          // Idempotency: if invitations already exist for this round, open was already executed.
+          const existingInvitations = yield* rounds.getInvitations(roundId);
+          if (existingInvitations.length > 0) {
             yield* rounds.markJobCompleted(jobId, now);
             return;
           }
@@ -316,7 +342,10 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
             (m) =>
               m.teamId === round.teamId && m.endedAt === null && (m.role === "lead" || m.role === "member"),
           );
-          const memberTimeZones = activeMembers.map(() => team.timeZone);
+
+          const memberTimeZones = yield* Effect.forEach(activeMembers, (m) =>
+            rounds.getPersonTimeZone(m.personId).pipe(Effect.map((tz) => tz ?? team.timeZone)),
+          );
 
           const instants = calculateRoundInstants(
             round.plannedOpenDate,
@@ -326,13 +355,13 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
             round.answerWindowDays,
           );
 
-          const frozenMembers: ReadonlyArray<FrozenRoundMember> = activeMembers.map((m) => {
-            const sendAt =
-              instants.sends.find((s) => s.timeZone === team.timeZone)?.sendAt ?? instants.openInstant;
+          const frozenMembers: ReadonlyArray<FrozenRoundMember> = activeMembers.map((m, idx) => {
+            const tz = memberTimeZones[idx] ?? team.timeZone;
+            const sendAt = instants.sends.find((s) => s.timeZone === tz)?.sendAt ?? instants.openInstant;
             return {
               roundId,
               personId: m.personId,
-              timeZone: team.timeZone,
+              timeZone: tz,
               sendAt,
             };
           });
@@ -340,7 +369,77 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
           // Freezes eligible members and question versions in storage.
           yield* rounds.openRound(roundId, now, instants.closeInstant, pulse.questions, frozenMembers);
 
-          // Slice 08 seam: invitations and emails will be dispatched here. Currently records open.
+          const ratingQuestion = firstRatingQuestionOf(pulse, pulseState);
+
+          // Dispatch invitations and schedule reminders
+          for (const m of frozenMembers) {
+            const person = dirState.people.find((p) => p.id === m.personId);
+            if (person === undefined || person.removedAt !== null) continue;
+
+            const token = generateInvitationToken();
+            const tokenHash = yield* Effect.promise(() => hashToken(token));
+            const sendId = SendId.make(randomId());
+
+            yield* rounds.insertInvitations([
+              {
+                roundId,
+                personId: m.personId,
+                tokenHash,
+                sendId,
+                status: "pending",
+                failedReason: null,
+                resendCount: 0,
+                createdAt: now,
+                updatedAt: now,
+              },
+            ]);
+
+            const invitationEmail: TransactionalEmail = {
+              _tag: "InvitationEmail",
+              pulseName: pulse.settings.name,
+              anonymityStatement: "Your name is never stored with your answers.",
+              token,
+              baseUrl: "https://app.surveybeat.app",
+              ratingQuestion,
+              actions: [],
+            };
+
+            if (m.sendAt <= now) {
+              yield* sends.create(sendId, person.email, invitationEmail);
+            } else {
+              yield* rounds.insertJob({
+                id: JobId.make(randomId()),
+                roundId,
+                type: "send",
+                dueAt: m.sendAt,
+                status: "pending",
+                payload: JSON.stringify({ personId: m.personId, token }),
+                createdAt: now,
+                completedAt: null,
+              });
+            }
+
+            // Reminders
+            const reminderInstants = calculateReminders(
+              m.sendAt,
+              round.answerWindowDays,
+              pulse.settings.reminders,
+              instants.closeInstant,
+            );
+            for (const remindAt of reminderInstants) {
+              yield* rounds.insertJob({
+                id: JobId.make(randomId()),
+                roundId,
+                type: "remind",
+                dueAt: remindAt,
+                status: "pending",
+                payload: JSON.stringify({ personId: m.personId, token }),
+                createdAt: now,
+                completedAt: null,
+              });
+            }
+          }
+
           yield* rounds.insertJob({
             id: JobId.make(randomId()),
             roundId,
@@ -356,6 +455,146 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
 
           // Create the next Scheduled Round right then
           yield* scheduleNextRound(round.pulseId, round.teamId, now);
+        });
+
+      const JobPayload = Schema.Struct({
+        personId: Schema.String,
+        token: Schema.String,
+      });
+      const decodeJobPayload = Schema.decodeUnknownOption(JobPayload);
+
+      const parseJobPayload = (
+        raw: string | null,
+      ): { readonly personId: string; readonly token: string } | null => {
+        if (raw === null) return null;
+        try {
+          return Option.getOrNull(decodeJobPayload(JSON.parse(raw)));
+        } catch {
+          return null;
+        }
+      };
+
+      /** Dispatches an Invitation email when a member's send time arrives. */
+      const executeSendJob = (jobId: JobId, roundId: RoundId, now: number) =>
+        Effect.gen(function* () {
+          const job = yield* rounds.getJob(jobId);
+          if (job === null || job.status !== "pending") return;
+
+          const round = yield* rounds.getRound(roundId);
+          if (round === null || round.status !== "open") {
+            yield* rounds.markJobCompleted(jobId, now);
+            return;
+          }
+
+          const payload = parseJobPayload(job.payload);
+          if (payload === null) {
+            yield* rounds.markJobCompleted(jobId, now);
+            return;
+          }
+
+          const { personId, token } = payload;
+          const [dirState, pulseState] = yield* both;
+          const pulse = pulseState.pulses.find((p) => p.id === round.pulseId);
+          const person = dirState.people.find((p) => p.id === personId);
+          if (pulse === undefined || person === undefined || person.removedAt !== null) {
+            yield* rounds.markJobCompleted(jobId, now);
+            return;
+          }
+
+          const inv = yield* rounds.getInvitation(roundId, PersonId.make(personId));
+          if (inv === null || inv.status === "revoked") {
+            yield* rounds.markJobCompleted(jobId, now);
+            return;
+          }
+
+          const ratingQuestion = firstRatingQuestionOf(pulse, pulseState);
+
+          const invitationEmail: TransactionalEmail = {
+            _tag: "InvitationEmail",
+            pulseName: pulse.settings.name,
+            anonymityStatement: "Your name is never stored with your answers.",
+            token,
+            baseUrl: "https://app.surveybeat.app",
+            ratingQuestion,
+            actions: [],
+          };
+
+          yield* sends.create(inv.sendId, person.email, invitationEmail);
+          yield* rounds.markJobCompleted(jobId, now);
+        });
+
+      /** Dispatches a reminder email for an open round if eligible. */
+      const executeRemindJob = (jobId: JobId, roundId: RoundId, now: number) =>
+        Effect.gen(function* () {
+          const job = yield* rounds.getJob(jobId);
+          if (job === null || job.status !== "pending") return;
+
+          const round = yield* rounds.getRound(roundId);
+          if (round === null || round.status !== "open") {
+            yield* rounds.markJobCompleted(jobId, now);
+            return;
+          }
+
+          // Skipped if close is less than 2 hours away
+          if (now >= round.plannedCloseAt - 2 * 3600_000) {
+            yield* rounds.markJobCompleted(jobId, now);
+            return;
+          }
+
+          const payload = parseJobPayload(job.payload);
+          if (payload === null) {
+            yield* rounds.markJobCompleted(jobId, now);
+            return;
+          }
+
+          const { personId, token } = payload;
+          const pid = PersonId.make(personId);
+
+          // Skipped if member has answered
+          const answered = yield* rounds.hasAnswered(roundId, pid);
+          if (answered) {
+            yield* rounds.markJobCompleted(jobId, now);
+            return;
+          }
+
+          // Skipped if member has opted out of reminders for this pulse
+          const optedOut = yield* rounds.isOptedOut(round.pulseId, pid);
+          if (optedOut) {
+            yield* rounds.markJobCompleted(jobId, now);
+            return;
+          }
+
+          const [dirState, pulseState] = yield* both;
+          const pulse = pulseState.pulses.find((p) => p.id === round.pulseId);
+          const person = dirState.people.find((p) => p.id === personId);
+          if (pulse === undefined || person === undefined || person.removedAt !== null) {
+            yield* rounds.markJobCompleted(jobId, now);
+            return;
+          }
+
+          const isMember = dirState.memberships.some(
+            (m) => m.teamId === round.teamId && m.personId === pid && m.endedAt === null,
+          );
+          if (!isMember) {
+            yield* rounds.markJobCompleted(jobId, now);
+            return;
+          }
+
+          const ratingQuestion = firstRatingQuestionOf(pulse, pulseState);
+
+          const reminderEmail: TransactionalEmail = {
+            _tag: "ReminderEmail",
+            pulseName: pulse.settings.name,
+            token,
+            baseUrl: "https://app.surveybeat.app",
+            ratingQuestion,
+            actions: [],
+            unsubscribeUrl: `https://app.surveybeat.app/api/reminders/unsubscribe?t=${token}`,
+          };
+
+          const sendId = SendId.make(randomId());
+          yield* sends.create(sendId, person.email, reminderEmail);
+          yield* rounds.markJobCompleted(jobId, now);
         });
 
       /** Idempotent DO method: closes an Open Round, stores effective N, enqueues computeResult. */
@@ -430,6 +669,10 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
                     yield* executeCloseJob(job.id, job.roundId, now);
                   } else if (job.type === "compute") {
                     yield* executeComputeJob(job.id, job.roundId, now);
+                  } else if (job.type === "send") {
+                    yield* executeSendJob(job.id, job.roundId, now);
+                  } else if (job.type === "remind") {
+                    yield* executeRemindJob(job.id, job.roundId, now);
                   }
                 }),
               );
@@ -501,6 +744,9 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
                 const decision = decide(yield* directory.load, actorId, command, now);
                 if (decision._tag === "Rejected") return decision satisfies CommandResult;
                 yield* directory.apply(decision.changes);
+                if (command._tag === "RemovePerson") {
+                  yield* rounds.revokeInvitationForPerson(command.personId, now);
+                }
                 return {
                   _tag: "Accepted",
                   followUps: yield* pendingOnly(decision.followUps),
@@ -676,8 +922,76 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
 
                     yield* rounds.cancelRound(round.id, now);
                     yield* rounds.cancelJobsForRound(round.id);
+                    yield* rounds.revokeInvitationsForRound(round.id, now);
                     yield* rounds.deleteSubmissionsAndParticipationsSeam(round.id);
                     yield* repairAlarm();
+                    return { _tag: "Accepted" } satisfies RoundCommandResult;
+                  }
+
+                  case "ResendInvitation": {
+                    const round = yield* rounds.getRound(command.roundId);
+                    if (round === null || round.teamId !== command.teamId) {
+                      return {
+                        _tag: "Rejected",
+                        rejection: { _tag: "RoundNotFound" },
+                      } satisfies RoundCommandResult;
+                    }
+                    if (round.status !== "open") {
+                      return {
+                        _tag: "Rejected",
+                        rejection: { _tag: "RoundNotOpen" },
+                      } satisfies RoundCommandResult;
+                    }
+
+                    const inv = yield* rounds.getInvitation(command.roundId, command.personId);
+                    if (inv === null) {
+                      return {
+                        _tag: "Rejected",
+                        rejection: { _tag: "InvitationNotFound" },
+                      } satisfies RoundCommandResult;
+                    }
+
+                    const [dirState, pulseState] = yield* both;
+                    const person = dirState.people.find((p) => p.id === command.personId);
+                    if (person === undefined || person.removedAt !== null) {
+                      return {
+                        _tag: "Rejected",
+                        rejection: { _tag: "InvitationNotFound" },
+                      } satisfies RoundCommandResult;
+                    }
+
+                    const pulse = pulseState.pulses.find((p) => p.id === round.pulseId);
+                    if (pulse === undefined) {
+                      return {
+                        _tag: "Rejected",
+                        rejection: { _tag: "PulseNotFound" },
+                      } satisfies RoundCommandResult;
+                    }
+
+                    const newToken = generateInvitationToken();
+                    const newTokenHash = yield* Effect.promise(() => hashToken(newToken));
+                    const newSendId = SendId.make(randomId());
+                    yield* rounds.resendInvitation(
+                      command.roundId,
+                      command.personId,
+                      newSendId,
+                      newTokenHash,
+                      now,
+                    );
+
+                    const ratingQuestion = firstRatingQuestionOf(pulse, pulseState);
+
+                    const invitationEmail: TransactionalEmail = {
+                      _tag: "InvitationEmail",
+                      pulseName: pulse.settings.name,
+                      anonymityStatement: "Your name is never stored with your answers.",
+                      token: newToken,
+                      baseUrl: "https://app.surveybeat.app",
+                      ratingQuestion,
+                      actions: [],
+                    };
+
+                    yield* sends.create(newSendId, person.email, invitationEmail);
                     return { _tag: "Accepted" } satisfies RoundCommandResult;
                   }
                 }
@@ -748,6 +1062,7 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
               return rejected;
             }
             const questions = yield* rounds.getRoundQuestions(roundId);
+            const failedInvitations = yield* rounds.getFailedInvitations(roundId);
             const viewed: RoundViewed<RoundDetail> = {
               _tag: "Viewed",
               value: {
@@ -767,6 +1082,7 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
                 anonymityMode: r.anonymityMode,
                 distribution: r.distribution,
                 questions,
+                failedInvitations,
                 createdAt: r.createdAt,
               },
             };
@@ -788,6 +1104,10 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
                   yield* executeCloseJob(job.id, job.roundId, now);
                 } else if (job.type === "compute") {
                   yield* executeComputeJob(job.id, job.roundId, now);
+                } else if (job.type === "send") {
+                  yield* executeSendJob(job.id, job.roundId, now);
+                } else if (job.type === "remind") {
+                  yield* executeRemindJob(job.id, job.roundId, now);
                 }
                 yield* repairAlarm();
               }),
@@ -814,6 +1134,33 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
             due_at: number;
           }>`SELECT id, type, status, due_at FROM schedule_job WHERE round_id = ${roundId} ORDER BY due_at ASC`.pipe(
             Effect.orDie,
+          ),
+
+        getInvitations: (roundId: string) => rounds.getInvitations(RoundId.make(roundId)),
+        getInvitationByTokenHash: (tokenHash: string) => rounds.getInvitationByTokenHash(tokenHash),
+        getInvitationBySendId: (sendId: string) => rounds.getInvitationBySendId(SendId.make(sendId)),
+        optOutReminders: (pulseId: string, personId: string, now?: number) =>
+          rounds.optOutReminders(PulseId.make(pulseId), PersonId.make(personId), now ?? Date.now()),
+        isOptedOut: (pulseId: string, personId: string) =>
+          rounds.isOptedOut(PulseId.make(pulseId), PersonId.make(personId)),
+        setPersonTimeZone: (personId: string, timeZone: string) =>
+          rounds.setPersonTimeZone(PersonId.make(personId), timeZone),
+        getPersonTimeZone: (personId: string) => rounds.getPersonTimeZone(PersonId.make(personId)),
+        recordParticipation: (roundId: string, personId: string, answeredAt?: number) =>
+          rounds.recordParticipation(
+            RoundId.make(roundId),
+            PersonId.make(personId),
+            answeredAt ?? Date.now(),
+          ),
+        hasAnswered: (roundId: string, personId: string) =>
+          rounds.hasAnswered(RoundId.make(roundId), PersonId.make(personId)),
+        failInvitation: (roundId: string, personId: string, reason: string, now?: number) =>
+          rounds.updateInvitationStatus(
+            RoundId.make(roundId),
+            PersonId.make(personId),
+            "failed",
+            reason,
+            now ?? Date.now(),
           ),
 
         get: (id: string) =>

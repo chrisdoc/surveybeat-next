@@ -35,7 +35,11 @@ const scriptedSender = (replies: ReadonlyArray<Reply>) =>
 
 const templates = Layer.succeed(EmailTemplates, {
   render: (content) =>
-    Effect.succeed({ subject: `Added to ${content.teamName}`, html: "<p>hi</p>", text: "hi" }),
+    Effect.succeed({
+      subject: content._tag === "AddedToTeam" ? `Added to ${content.teamName}` : "Subject",
+      html: "<p>hi</p>",
+      text: "hi",
+    }),
 });
 
 const accepted = (messageId: string): Reply => Effect.succeed({ messageId });

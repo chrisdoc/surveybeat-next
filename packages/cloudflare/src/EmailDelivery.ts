@@ -103,7 +103,27 @@ export const handleSendMessage = (
       Effect.provideService(SendStore, organizationSendStore(organizations.getByName(organizationId))),
     );
     if (result._tag === "RetryAfter") return message.retry({ delaySeconds: result.seconds });
-    if (result.state !== null) yield* indexMessage(db, request.value, result.state);
+    if (result.state !== null) {
+      yield* indexMessage(db, request.value, result.state);
+      const inv = yield* organizations.getByName(organizationId).getInvitationBySendId(sendId);
+      if (inv !== null) {
+        const round = yield* organizations.getByName(organizationId).getRound(inv.roundId);
+        if (round !== null) {
+          yield* db
+            .prepare(
+              "INSERT INTO invitation_index (token_hash, organization_id, round_id, person_id, pulse_id) VALUES (?, ?, ?, ?, ?) ON CONFLICT (token_hash) DO NOTHING",
+            )
+            .bind(inv.tokenHash, organizationId, inv.roundId, inv.personId, round.pulseId)
+            .run()
+            .pipe(Effect.asVoid);
+        }
+        if (result.state._tag === "Failed") {
+          yield* organizations
+            .getByName(organizationId)
+            .failInvitation(inv.roundId, inv.personId, result.state.reason);
+        }
+      }
+    }
     yield* logOutcome(sendId, result.state);
     message.ack();
   });

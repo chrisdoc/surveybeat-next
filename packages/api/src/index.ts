@@ -28,6 +28,7 @@ import {
   QuestionId,
   QuestionNotFound,
   InvalidRoundState,
+  InvitationNotFound,
   RoundDetail,
   RoundId,
   RoundList,
@@ -278,6 +279,7 @@ const roundErrors = [
   RoundNotOpen,
   InvalidRoundState,
   WeekOutOfRange,
+  InvitationNotFound,
 ] as const;
 
 /**
@@ -327,6 +329,11 @@ export class RoundsApiGroup extends HttpApiGroup.make("rounds")
     HttpApiEndpoint.post("cancelRound", "/teams/:teamId/rounds/:roundId/cancel", {
       params: { teamId: TeamId, roundId: RoundId },
       success: RoundDetail,
+      error: roundErrors,
+    }),
+    HttpApiEndpoint.post("resendInvitation", "/teams/:teamId/rounds/:roundId/invitations/:personId/resend", {
+      params: { teamId: TeamId, roundId: RoundId, personId: PersonId },
+      success: Schema.Void,
       error: roundErrors,
     }),
   )

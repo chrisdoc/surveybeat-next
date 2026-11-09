@@ -1,4 +1,6 @@
 import { Schema } from "effect";
+import { EmailAddress } from "../email/Email.ts";
+import { PersonId } from "../people/Identity.ts";
 import { TeamSummary } from "../people/Team.ts";
 import { TeamId } from "../people/Team.ts";
 import { PulseId, AnswerWindowDays, ReminderCount, AnonymityMode, Distribution } from "../pulses/Pulse.ts";
@@ -18,7 +20,7 @@ export type RoundStatus = typeof RoundStatus.Type;
 /** YYYY-MM-DD representing the cadence day of the week for this Round. */
 export const PlannedOpenDate = Schema.String.pipe(
   Schema.check(
-    Schema.isPattern(/^\\d{4}-\\d{2}-\\d{2}$/),
+    Schema.isPattern(/^\d{4}-\d{2}-\d{2}$/),
     Schema.makeFilter((s: string) => !isNaN(Date.parse(s)), { expected: "a valid YYYY-MM-DD date" }),
   ),
   Schema.brand("PlannedOpenDate"),
@@ -48,6 +50,15 @@ export const RoundMember = Schema.Struct({
 });
 export type RoundMember = typeof RoundMember.Type;
 
+/** A failed Invitation shown in the Lead's view with Resend (ADR 0006). */
+export const FailedInvitation = Schema.Struct({
+  personId: PersonId,
+  email: EmailAddress,
+  reason: Schema.String,
+  resendCount: Schema.Int,
+});
+export type FailedInvitation = typeof FailedInvitation.Type;
+
 /** Summary of a Round in lists. */
 export const RoundSummary = Schema.Struct({
   id: RoundId,
@@ -63,7 +74,7 @@ export const RoundSummary = Schema.Struct({
 });
 export type RoundSummary = typeof RoundSummary.Type;
 
-/** Detail view of a Round: lifecycle state, frozen questions, effective N. Never Result data. */
+/** Detail view of a Round: lifecycle state, frozen questions, effective N, failed invitations. Never Result data. */
 export const RoundDetail = Schema.Struct({
   id: RoundId,
   pulseId: PulseId,
@@ -81,6 +92,7 @@ export const RoundDetail = Schema.Struct({
   anonymityMode: AnonymityMode,
   distribution: Distribution,
   questions: Schema.Array(QuestionVersionId),
+  failedInvitations: Schema.Array(FailedInvitation),
   createdAt: Schema.Int,
 });
 export type RoundDetail = typeof RoundDetail.Type;
@@ -114,3 +126,8 @@ export class WeekOutOfRange extends Schema.TaggedError<WeekOutOfRange, { readonl
   {},
   { httpApiStatus: 400 },
 ) {}
+
+export class InvitationNotFound extends Schema.TaggedError<
+  InvitationNotFound,
+  { readonly brand: unique symbol }
+>()("InvitationNotFound", {}, { httpApiStatus: 404 }) {}

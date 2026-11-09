@@ -2,6 +2,8 @@ import { EmailTemplates, type RenderedEmail, type TransactionalEmail } from "@su
 import { Effect, Layer } from "effect";
 import { render } from "react-email";
 import * as AddedToTeam from "./AddedToTeam.tsx";
+import * as InvitationEmail from "./InvitationEmail.tsx";
+import * as ReminderEmail from "./ReminderEmail.tsx";
 
 /** A subject is one header line: names with line breaks must not start another header. */
 const oneLine = (subject: string) => subject.replace(/\s*[\r\n]+\s*/g, " ");
@@ -14,6 +16,22 @@ export const renderEmail = async (email: TransactionalEmail): Promise<RenderedEm
         subject: oneLine(AddedToTeam.subject(email)),
         html: await render(<AddedToTeam.AddedToTeamEmail email={email} />),
         text: AddedToTeam.text(email),
+      };
+    case "InvitationEmail":
+      return {
+        subject: oneLine(InvitationEmail.subject(email)),
+        html: await render(<InvitationEmail.InvitationEmailComponent email={email} />),
+        text: InvitationEmail.text(email),
+      };
+    case "ReminderEmail":
+      return {
+        subject: oneLine(ReminderEmail.subject(email)),
+        html: await render(<ReminderEmail.ReminderEmailComponent email={email} />),
+        text: ReminderEmail.text(email),
+        headers: {
+          "List-Unsubscribe": `<${email.unsubscribeUrl}>`,
+          "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+        },
       };
   }
 };

@@ -3,8 +3,11 @@ import {
   AnonymityMode,
   AnswerWindowDays,
   Distribution,
+  EmailAddress,
+  type FailedInvitation,
   type FrozenRoundMember,
   JobId,
+  PersonId,
   PulseId,
   QuestionVersionId,
   ReminderCount,
@@ -14,6 +17,7 @@ import {
   type ScheduleJobRecord,
   ScheduleJobStatus,
   ScheduleJobType,
+  SendId,
   TeamId,
 } from "@surveybeat/domain";
 import * as Effect from "effect/Effect";
@@ -63,6 +67,37 @@ const _RoundMemberRow = Schema.Struct({
   send_at: Schema.Int,
 });
 
+const InvitationRow = Schema.Struct({
+  round_id: RoundId,
+  person_id: PersonId,
+  token_hash: Schema.String,
+  send_id: SendId,
+  status: Schema.Literals(["pending", "sending", "sent", "failed", "revoked"]),
+  failed_reason: Schema.NullOr(Schema.String),
+  resend_count: Schema.Int,
+  created_at: Schema.Int,
+  updated_at: Schema.Int,
+});
+
+const FailedInvitationRow = Schema.Struct({
+  person_id: PersonId,
+  email: EmailAddress,
+  failed_reason: Schema.NullOr(Schema.String),
+  resend_count: Schema.Int,
+});
+
+export interface InvitationRecord {
+  readonly roundId: RoundId;
+  readonly personId: PersonId;
+  readonly tokenHash: string;
+  readonly sendId: SendId;
+  readonly status: "pending" | "sending" | "sent" | "failed" | "revoked";
+  readonly failedReason: string | null;
+  readonly resendCount: number;
+  readonly createdAt: number;
+  readonly updatedAt: number;
+}
+
 const rows = <S extends Schema.Top & { readonly DecodingServices: never }>(schema: S) =>
   Schema.decodeUnknownEffect(Schema.Array(schema));
 
@@ -96,6 +131,18 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient) => {
     payload: row.payload,
     createdAt: row.created_at,
     completedAt: row.completed_at,
+  });
+
+  const toInvitationRecord = (row: typeof InvitationRow.Type): InvitationRecord => ({
+    roundId: row.round_id,
+    personId: row.person_id,
+    tokenHash: row.token_hash,
+    sendId: row.send_id,
+    status: row.status,
+    failedReason: row.failed_reason,
+    resendCount: row.resend_count,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
   });
 
   const getRound = (roundId: RoundId): Effect.Effect<RoundRecord | null> =>
@@ -317,6 +364,146 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient) => {
       Effect.orDie,
     );
 
+  // Invitation methods
+  const insertInvitations = (invitations: ReadonlyArray<InvitationRecord>): Effect.Effect<void> =>
+    Effect.forEach(
+      invitations,
+      (inv) =>
+        sql`INSERT INTO invitation (round_id, person_id, token_hash, send_id, status, failed_reason, resend_count, created_at, updated_at)
+            VALUES (${inv.roundId}, ${inv.personId}, ${inv.tokenHash}, ${inv.sendId}, ${inv.status}, ${inv.failedReason}, ${inv.resendCount}, ${inv.createdAt}, ${inv.updatedAt})
+            ON CONFLICT (round_id, person_id) DO NOTHING`,
+      { discard: true },
+    ).pipe(Effect.orDie);
+
+  const getInvitations = (roundId: RoundId): Effect.Effect<ReadonlyArray<InvitationRecord>> =>
+    sql`SELECT * FROM invitation WHERE round_id = ${roundId}`.pipe(
+      Effect.flatMap(rows(InvitationRow)),
+      Effect.map((all) => all.map(toInvitationRecord)),
+      Effect.orDie,
+    );
+
+  const getInvitation = (roundId: RoundId, personId: PersonId): Effect.Effect<InvitationRecord | null> =>
+    sql`SELECT * FROM invitation WHERE round_id = ${roundId} AND person_id = ${personId}`.pipe(
+      Effect.flatMap(rows(InvitationRow)),
+      Effect.map((r) => (r[0] === undefined ? null : toInvitationRecord(r[0]))),
+      Effect.orDie,
+    );
+
+  const getInvitationByTokenHash = (tokenHash: string): Effect.Effect<InvitationRecord | null> =>
+    sql`SELECT * FROM invitation WHERE token_hash = ${tokenHash}`.pipe(
+      Effect.flatMap(rows(InvitationRow)),
+      Effect.map((r) => (r[0] === undefined ? null : toInvitationRecord(r[0]))),
+      Effect.orDie,
+    );
+
+  const updateInvitationStatus = (
+    roundId: RoundId,
+    personId: PersonId,
+    status: "pending" | "sending" | "sent" | "failed" | "revoked",
+    failedReason: string | null,
+    now: number,
+  ): Effect.Effect<void> =>
+    sql`UPDATE invitation
+        SET status = ${status}, failed_reason = ${failedReason}, updated_at = ${now}
+        WHERE round_id = ${roundId} AND person_id = ${personId}`.pipe(Effect.asVoid, Effect.orDie);
+
+  const getInvitationBySendId = (sendId: SendId): Effect.Effect<InvitationRecord | null> =>
+    sql`SELECT * FROM invitation WHERE send_id = ${sendId}`.pipe(
+      Effect.flatMap(rows(InvitationRow)),
+      Effect.map((r) => (r[0] === undefined ? null : toInvitationRecord(r[0]))),
+      Effect.orDie,
+    );
+
+  const getFailedInvitations = (roundId: RoundId): Effect.Effect<ReadonlyArray<FailedInvitation>> =>
+    sql`SELECT i.person_id, p.email, COALESCE(i.failed_reason, es.status) as failed_reason, i.resend_count
+        FROM invitation i
+        JOIN person p ON p.id = i.person_id
+        LEFT JOIN email_send es ON es.id = i.send_id
+        WHERE i.round_id = ${roundId} AND (i.status = 'failed' OR es.status = 'Failed')`.pipe(
+      Effect.flatMap(rows(FailedInvitationRow)),
+      Effect.map((rows) =>
+        rows.map((r) => ({
+          personId: r.person_id,
+          email: r.email,
+          reason: r.failed_reason ?? "unknown",
+          resendCount: r.resend_count,
+        })),
+      ),
+      Effect.orDie,
+    );
+
+  const resendInvitation = (
+    roundId: RoundId,
+    personId: PersonId,
+    newSendId: SendId,
+    newTokenHash: string,
+    now: number,
+  ): Effect.Effect<InvitationRecord | null> =>
+    Effect.gen(function* () {
+      yield* sql`UPDATE invitation
+                 SET token_hash = ${newTokenHash}, send_id = ${newSendId}, status = 'pending', failed_reason = NULL,
+                     resend_count = resend_count + 1, updated_at = ${now}
+                 WHERE round_id = ${roundId} AND person_id = ${personId}`;
+      return yield* getInvitation(roundId, personId);
+    }).pipe(Effect.orDie);
+
+  const revokeInvitationsForRound = (roundId: RoundId, now: number): Effect.Effect<ReadonlyArray<string>> =>
+    Effect.gen(function* () {
+      const invs = yield* getInvitations(roundId);
+      yield* sql`UPDATE invitation SET status = 'revoked', updated_at = ${now} WHERE round_id = ${roundId}`;
+      return invs.map((i) => i.tokenHash);
+    }).pipe(Effect.orDie);
+
+  const revokeInvitationForPerson = (personId: PersonId, now: number): Effect.Effect<ReadonlyArray<string>> =>
+    Effect.gen(function* () {
+      const invs = yield* sql`SELECT * FROM invitation WHERE person_id = ${personId}`.pipe(
+        Effect.flatMap(rows(InvitationRow)),
+        Effect.map((all) => all.map(toInvitationRecord)),
+        Effect.orDie,
+      );
+      yield* sql`UPDATE invitation SET status = 'revoked', updated_at = ${now} WHERE person_id = ${personId}`;
+      return invs.map((i) => i.tokenHash);
+    }).pipe(Effect.orDie);
+
+  const optOutReminders = (pulseId: PulseId, personId: PersonId, now: number): Effect.Effect<void> =>
+    sql`INSERT INTO pulse_reminder_opt_out (pulse_id, person_id, opted_out_at)
+        VALUES (${pulseId}, ${personId}, ${now})
+        ON CONFLICT (pulse_id, person_id) DO NOTHING`.pipe(Effect.asVoid, Effect.orDie);
+
+  const isOptedOut = (pulseId: PulseId, personId: PersonId): Effect.Effect<boolean> =>
+    sql<{
+      count: number;
+    }>`SELECT COUNT(*) as count FROM pulse_reminder_opt_out WHERE pulse_id = ${pulseId} AND person_id = ${personId}`.pipe(
+      Effect.map((rows) => (rows[0]?.count ?? 0) > 0),
+      Effect.orDie,
+    );
+
+  const hasAnswered = (roundId: RoundId, personId: PersonId): Effect.Effect<boolean> =>
+    sql<{
+      count: number;
+    }>`SELECT COUNT(*) as count FROM participation WHERE round_id = ${roundId} AND person_id = ${personId}`.pipe(
+      Effect.map((rows) => (rows[0]?.count ?? 0) > 0),
+      Effect.orDie,
+    );
+
+  const getPersonTimeZone = (personId: PersonId): Effect.Effect<string | null> =>
+    sql<{ time_zone: string | null }>`SELECT time_zone FROM person WHERE id = ${personId}`.pipe(
+      Effect.map((rows) => rows[0]?.time_zone ?? null),
+      Effect.orDie,
+    );
+
+  const setPersonTimeZone = (personId: PersonId, timeZone: string): Effect.Effect<void> =>
+    sql`UPDATE person SET time_zone = ${timeZone} WHERE id = ${personId}`.pipe(Effect.asVoid, Effect.orDie);
+
+  const recordParticipation = (
+    roundId: RoundId,
+    personId: PersonId,
+    answeredAt: number,
+  ): Effect.Effect<void> =>
+    sql`INSERT INTO participation (round_id, person_id, answered_at)
+        VALUES (${roundId}, ${personId}, ${answeredAt})
+        ON CONFLICT (round_id, person_id) DO NOTHING`.pipe(Effect.asVoid, Effect.orDie);
+
   return {
     getRound,
     getRoundsForPulse,
@@ -343,6 +530,23 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient) => {
     getJob,
     getDueJobs,
     getEarliestPendingJobDueAt,
+    // Invitations
+    insertInvitations,
+    getInvitations,
+    getInvitation,
+    getInvitationByTokenHash,
+    getInvitationBySendId,
+    updateInvitationStatus,
+    getFailedInvitations,
+    resendInvitation,
+    revokeInvitationsForRound,
+    revokeInvitationForPerson,
+    optOutReminders,
+    isOptedOut,
+    hasAnswered,
+    recordParticipation,
+    getPersonTimeZone,
+    setPersonTimeZone,
   };
 };
 
