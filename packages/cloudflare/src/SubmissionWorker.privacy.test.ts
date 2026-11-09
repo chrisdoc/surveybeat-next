@@ -7,7 +7,7 @@ import * as Reactivity from "effect/reactivity/Reactivity";
 import * as Scope from "effect/Scope";
 import { readdirSync, readFileSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
-import { makeSqlRounds } from "./SqlRounds.ts";
+import { makeSqlRounds, secureRandomBytes } from "./SqlRounds.ts";
 
 const doMigrationsDir = new URL("../migrations/", import.meta.url);
 
@@ -42,7 +42,7 @@ describe("SubmissionWorker first answer privacy (ADR 0005, ADR 0009)", () => {
           Parameters<typeof SqliteClient.make>[0]["storage"]
         >,
       }).pipe(Effect.provideService(Scope.Scope, yield* Scope.make()), Effect.provide(Reactivity.layer));
-      const rounds = makeSqlRounds(sql);
+      const rounds = makeSqlRounds(sql, secureRandomBytes);
 
       // The real write path behind the Submission Worker's first-answer route.
       const { submissionId } = yield* rounds

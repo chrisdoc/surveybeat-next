@@ -71,7 +71,7 @@ import * as Scope from "effect/Scope";
 import { makeSqlActions } from "./SqlActions.ts";
 import { makeSqlDirectory } from "./SqlDirectory.ts";
 import { makeSqlPulses } from "./SqlPulses.ts";
-import { makeSqlRounds } from "./SqlRounds.ts";
+import { makeSqlRounds, secureRandomBytes } from "./SqlRounds.ts";
 import { makeSqlSendRepository } from "./SqlSendRepository.ts";
 
 /**
@@ -150,7 +150,7 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
       // The question library and Pulses, decided against the directory (roles, Teams, N).
       const pulses = makeSqlPulses(sql);
       // Round lifecycle engine and schedule table (ADR 0006).
-      const rounds = makeSqlRounds(sql);
+      const rounds = makeSqlRounds(sql, secureRandomBytes);
       // Actions committed from Results (slice 13).
       const actions = makeSqlActions(sql);
       const both = Effect.all([directory.load, pulses.load]);

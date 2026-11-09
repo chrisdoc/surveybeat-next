@@ -44,7 +44,7 @@ const openRounds = (roundId: RoundId) =>
         Parameters<typeof SqliteClient.make>[0]["storage"]
       >,
     }).pipe(Effect.provideService(Scope.Scope, yield* Scope.make()), Effect.provide(Reactivity.layer));
-    return { db, rounds: makeSqlRounds(sql) };
+    return { db, rounds: makeSqlRounds(sql, yield* Unlinkability.seededRandomBytes) };
   });
 
 describe("Submissions privacy invariants (SPEC §7, ADR 0005)", () => {
