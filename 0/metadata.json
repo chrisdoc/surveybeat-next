@@ -1,0 +1,53 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "01M70AV0HVT9RGWBRDGGKTKDK2",
+  "session_id": "4abfc20e-af7d-4463-9854-3d00cc0e9308",
+  "strategy": "manual-commit",
+  "created_at": "2026-11-09T14:19:48.036564465Z",
+  "branch": "t3/r1-13-actions",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "apps/web/src/app/App.scene.test.ts",
+    "apps/web/src/app/App.ts",
+    "apps/web/src/app/api.ts",
+    "apps/web/src/app/results.ts",
+    "apps/web/src/messages/catalog.ts",
+    "packages/api/src/PrivacyRegistry.ts",
+    "packages/api/src/index.ts",
+    "packages/cloudflare/migrations/0010_actions.sql",
+    "packages/cloudflare/src/ActionHandlers.ts",
+    "packages/cloudflare/src/ActionsApi.test.ts",
+    "packages/cloudflare/src/MainWorker.ts",
+    "packages/cloudflare/src/Organization.ts",
+    "packages/cloudflare/src/SqlActions.ts",
+    "packages/cloudflare/src/SqlRounds.ts",
+    "packages/cloudflare/src/auth/DurableObjectPeople.ts",
+    "packages/cloudflare/src/auth/testing.ts",
+    "packages/domain/src/actions/Action.test.ts",
+    "packages/domain/src/actions/Action.ts",
+    "packages/domain/src/actions/ActionFlow.ts",
+    "packages/domain/src/actions/index.ts",
+    "packages/domain/src/index.ts",
+    "packages/domain/src/people/Permissions.test.ts",
+    "packages/domain/src/people/Permissions.ts"
+  ],
+  "agent": "Antigravity",
+  "model": "",
+  "turn_id": "c8fd90ae9f50",
+  "checkpoint_transcript_start": 1596343,
+  "transcript_lines_at_start": 1596343,
+  "redaction": {
+    "replacements": 263,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 29,
+      "credentialed_uri": 0,
+      "entropy": 234,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
