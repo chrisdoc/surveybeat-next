@@ -21,9 +21,14 @@ import {
   buttonClass,
   checkboxField,
   type Child,
+  emptyState,
   linkButton,
+  linkClass,
+  pageTitle,
   problemView,
+  secondaryButtonClass,
   selectField,
+  subSectionTitle,
   textField,
   textareaField,
 } from "./components.ts";
@@ -93,29 +98,29 @@ export const pulsesScreenView = <Message>(
   h: HtmlBuilder<Message>,
 ): Html => {
   const children: Array<Child> = [
-    h.a([h.Href(teamHref(state.teamId)), h.Class("text-sm underline")], [message("pulses.back")]),
+    h.a([h.Href(teamHref(state.teamId)), h.Class(linkClass)], [message("pulses.back")]),
   ];
 
   if (state.pulses._tag === "Failed") {
     children.push(problemView(state.pulses.failure, h)!);
-    return h.section([h.Class("mt-6")], children);
+    return h.section([], children);
   }
 
   if (state.pulses._tag !== "Loaded") {
-    return h.section([h.Class("mt-6")], children);
+    return h.section([], children);
   }
 
   const { pulses } = state.pulses;
   children.push(
-    h.h2([h.Class("mt-2 text-xl font-semibold")], [message("pulses.title", { team: pulses.team.name })]),
+    h.div([h.Class("mt-4")], [pageTitle(message("pulses.title", { team: pulses.team.name }), h)]),
   );
 
   if (pulses.pulses.length === 0) {
-    children.push(h.p([h.Class("mt-2 text-gray-600")], [message("pulses.empty")]));
+    children.push(emptyState(message("pulses.empty"), h));
   } else {
     children.push(
       h.ul(
-        [h.Class("mt-3 flex flex-col gap-2")],
+        [h.Class("mt-6 flex flex-col gap-3")],
         pulses.pulses.map((pulse) =>
           h.li(
             [],
@@ -123,12 +128,14 @@ export const pulsesScreenView = <Message>(
               h.a(
                 [
                   h.Href(pulseHref(state.teamId, pulse.id)),
-                  h.Class("flex justify-between rounded border px-3 py-2"),
+                  h.Class(
+                    "flex min-h-11 flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-panel border border-line bg-surface px-6 py-4 font-semibold hover:border-primary",
+                  ),
                 ],
                 [
                   h.span([], [pulse.name]),
                   h.span(
-                    [h.Class("text-sm text-gray-600")],
+                    [h.Class("text-sm font-normal text-muted")],
                     [
                       message("pulses.summary", {
                         day: message(`weekday.${pulse.cadence.day}`),
@@ -147,7 +154,7 @@ export const pulsesScreenView = <Message>(
     );
   }
 
-  children.push(h.p([h.Class("mt-6 text-sm text-gray-600")], [message("pulses.create.intro")]));
+  children.push(h.p([h.Class("mt-8 text-muted")], [message("pulses.create.intro")]));
   if (state.createFailure) {
     children.push(problemView(state.createFailure, h)!);
   }
@@ -156,14 +163,14 @@ export const pulsesScreenView = <Message>(
       {
         text: message("pulses.create.action"),
         isDisabled: state.createBusy,
-        className: `mt-2 ${buttonClass}`,
+        className: `mt-3 ${buttonClass}`,
         onClick: actions.onCreatePulse,
       },
       h,
     ),
   );
 
-  return h.section([h.Class("mt-6")], children);
+  return h.section([], children);
 };
 
 export const questionFormView = <Message>(
@@ -193,9 +200,12 @@ export const questionFormView = <Message>(
   h: HtmlBuilder<Message>,
 ): Html =>
   h.form(
-    [h.Class("mt-4 flex flex-col gap-3 rounded border p-3"), h.OnSubmit(actions.onSubmit)],
     [
-      h.h4([h.Class("font-medium")], [config.title]),
+      h.Class("mt-4 flex flex-col gap-4 rounded-panel border border-line bg-subtle p-6"),
+      h.OnSubmit(actions.onSubmit),
+    ],
+    [
+      subSectionTitle(config.title, h, 3),
       textField(
         {
           id: "q-text",
@@ -268,7 +278,7 @@ export const questionFormView = <Message>(
           )
         : null,
       config.kind === "LongText"
-        ? h.p([h.Class("text-sm text-gray-600")], [message("question.longText.help")])
+        ? h.p([h.Class("text-sm text-muted")], [message("question.longText.help")])
         : null,
       selectField(
         {
@@ -343,32 +353,32 @@ export const pulseEditorView = <Message>(
   h: HtmlBuilder<Message>,
 ): Html => {
   const children: Array<Child> = [
-    h.a([h.Href(pulsesHref(state.teamId)), h.Class("text-sm underline")], [message("pulse.back")]),
+    h.a([h.Href(pulsesHref(state.teamId)), h.Class(linkClass)], [message("pulse.back")]),
   ];
 
   if (state.pulse._tag === "Failed") {
     children.push(problemView(state.pulse.failure, h)!);
-    return h.section([h.Class("mt-6")], children);
+    return h.section([], children);
   }
 
   if (state.pulse._tag !== "Loaded") {
-    return h.section([h.Class("mt-6")], children);
+    return h.section([], children);
   }
 
   const { detail } = state.pulse;
-  children.push(h.h2([h.Class("mt-2 text-xl font-semibold")], [detail.settings.name]));
-  children.push(h.p([h.Class("text-sm text-gray-600")], [detail.team.name]));
+  children.push(h.div([h.Class("mt-4")], [pageTitle(detail.settings.name, h)]));
+  children.push(h.p([h.Class("mt-2 text-muted")], [detail.team.name]));
   if (detail.team.yourRole === "lead") {
     children.push(
       h.a(
-        [h.Href(roundsHref(state.teamId, detail.id)), h.Class("mt-2 inline-block underline")],
+        [h.Href(roundsHref(state.teamId, detail.id)), h.Class(`mt-3 inline-block ${linkClass}`)],
         [message("pulse.rounds")],
       ),
     );
   }
   children.push(
     h.p(
-      [h.Role("status"), h.Class("mt-4")],
+      [h.Role("status"), h.Class("mt-4 font-medium")],
       [
         message("pulse.estimate", {
           questions: pluralMessage("pulse.questionCount", detail.questions.length),
@@ -382,29 +392,35 @@ export const pulseEditorView = <Message>(
   if (detail.warnings.length > 0) {
     children.push(
       h.ul(
-        [h.Class("mt-2 flex flex-col gap-1")],
+        [h.Class("mt-3 flex flex-col gap-2")],
         detail.warnings.map((warning) =>
-          h.li([h.Class("rounded bg-amber-50 px-3 py-2 text-sm text-amber-900")], [warningMessage(warning)]),
+          h.li(
+            [h.Class("rounded-control bg-brass-soft px-4 py-3 text-sm text-brass")],
+            [warningMessage(warning)],
+          ),
         ),
       ),
     );
   }
 
   // Questions
-  children.push(h.h3([h.Class("mt-6 text-lg font-medium")], [message("pulse.questions")]));
+  children.push(h.div([h.Class("mt-8")], [subSectionTitle(message("pulse.questions"), h, 2)]));
   const orderLength = detail.questions.length;
   children.push(
     h.ol(
-      [h.Class("mt-2 flex flex-col gap-2")],
+      [h.Class("mt-3 flex flex-col gap-3")],
       detail.questions.map((question, index) => {
         const isEditing =
           Option.isSome(state.editingQuestionId) && state.editingQuestionId.value === question.questionId;
         return h.li(
-          [h.Class("rounded border px-3 py-2")],
+          [h.Class("rounded-panel border border-line bg-surface px-6 py-4")],
           [
-            h.p([], [message("pulse.question.number", { number: index + 1 }), question.text]),
             h.p(
-              [h.Class("text-sm text-gray-600")],
+              [h.Class("font-medium")],
+              [message("pulse.question.number", { number: index + 1 }), question.text],
+            ),
+            h.p(
+              [h.Class("text-sm text-muted")],
               [
                 message("pulse.question.meta", {
                   type: typeName(question.type),
@@ -414,7 +430,7 @@ export const pulseEditorView = <Message>(
               ],
             ),
             h.div(
-              [h.Class("mt-1 flex gap-4")],
+              [h.Class("mt-1 flex flex-wrap gap-x-4")],
               [
                 appButton(
                   {
@@ -459,7 +475,7 @@ export const pulseEditorView = <Message>(
               ].filter(Predicate.isNotNull),
             ),
             question.hasAnswers
-              ? h.p([h.Class("text-sm text-gray-600")], [message("pulse.question.answered")])
+              ? h.p([h.Class("text-sm text-muted")], [message("pulse.question.answered")])
               : null,
             isEditing
               ? questionFormView(
@@ -497,19 +513,23 @@ export const pulseEditorView = <Message>(
 
   // Template Questions
   if (detail.templateQuestions.length > 0) {
-    children.push(h.h3([h.Class("mt-6 text-lg font-medium")], [message("pulse.template.title")]));
+    children.push(h.div([h.Class("mt-8")], [subSectionTitle(message("pulse.template.title"), h, 2)]));
     children.push(
       h.ul(
-        [h.Class("mt-2 flex flex-col gap-2")],
+        [h.Class("mt-3 flex flex-col gap-3")],
         detail.templateQuestions.map((templateQ) =>
           h.li(
-            [h.Class("flex items-center justify-between rounded border px-3 py-2")],
+            [
+              h.Class(
+                "flex items-center justify-between gap-4 rounded-panel border border-line bg-surface px-6 py-3",
+              ),
+            ],
             [
               h.span(
-                [],
+                [h.Class("flex flex-col")],
                 [
                   templateQ.text,
-                  h.span([h.Class("text-sm text-gray-600")], [dimensionName(templateQ.dimension)]),
+                  h.span([h.Class("text-sm text-muted")], [dimensionName(templateQ.dimension)]),
                 ],
               ),
               appButton(
@@ -563,7 +583,7 @@ export const pulseEditorView = <Message>(
       appButton(
         {
           text: message("pulse.write.title"),
-          className: `mt-4 ${buttonClass}`,
+          className: `mt-6 ${secondaryButtonClass}`,
           onClick: actions.onToggleWriting(true),
         },
         h,
@@ -574,9 +594,12 @@ export const pulseEditorView = <Message>(
   // Settings form
   children.push(
     h.form(
-      [h.Class("mt-4 flex flex-col gap-3"), h.OnSubmit(actions.onSubmitSettings)],
       [
-        h.h3([h.Class("text-lg font-medium")], [message("pulse.settings.title")]),
+        h.Class("mt-8 flex flex-col gap-4 rounded-panel border border-line bg-surface p-6 sm:p-8"),
+        h.OnSubmit(actions.onSubmitSettings),
+      ],
+      [
+        subSectionTitle(message("pulse.settings.title"), h, 2),
         textField(
           {
             id: "pulse-setting-name",
@@ -609,7 +632,7 @@ export const pulseEditorView = <Message>(
           },
           h,
         ),
-        h.p([h.Class("text-sm text-gray-600")], [message("pulse.settings.time.help")]),
+        h.p([h.Class("text-sm text-muted")], [message("pulse.settings.time.help")]),
         selectField(
           {
             id: "pulse-setting-window",
@@ -632,10 +655,15 @@ export const pulseEditorView = <Message>(
           },
           h,
         ),
-        h.p([h.Class("text-sm text-gray-600")], [message("pulse.settings.anonymous")]),
-        h.p([h.Class("text-sm text-gray-600")], [message("pulse.settings.invitation")]),
+        h.p([h.Class("text-sm text-muted")], [message("pulse.settings.anonymous")]),
+        h.p([h.Class("text-sm text-muted")], [message("pulse.settings.invitation")]),
         problemView(state.settingsFailure, h),
-        state.settingsSaved ? h.p([h.Role("status")], [message("pulse.settings.saved")]) : null,
+        state.settingsSaved
+          ? h.p(
+              [h.Role("status"), h.Class("text-sm font-medium text-primary")],
+              [message("pulse.settings.saved")],
+            )
+          : null,
         appButton(
           {
             text: message("pulse.settings.save"),
@@ -648,5 +676,5 @@ export const pulseEditorView = <Message>(
     ),
   );
 
-  return h.section([h.Class("mt-6")], children);
+  return h.section([], children);
 };

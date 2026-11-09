@@ -1,7 +1,7 @@
 import type { ResultsReadyEmail } from "@surveybeat/domain";
-import { Button, Heading, Link, Text } from "react-email";
-import { colors, Layout, textLayout } from "./Layout.tsx";
+import { Layout, textLayout } from "./Layout.tsx";
 import { message } from "./messages/index.ts";
+import { BodyText, DisplayHeading, FallbackLink, PrimaryButton } from "./Parts.tsx";
 
 const params = (email: ResultsReadyEmail) => ({
   pulse: email.pulseName,
@@ -15,46 +15,10 @@ export function ResultsReadyEmailComponent({ email }: { email: ResultsReadyEmail
   const p = params(email);
   return (
     <Layout preview={message("resultsReady.preview", p)} reason={message("resultsReady.reason", p)}>
-      <Heading
-        as="h1"
-        className="sb-text"
-        style={{ color: colors.text, fontSize: "22px", lineHeight: "30px", margin: "0 0 16px" }}
-      >
-        {message("resultsReady.heading", p)}
-      </Heading>
-      <Text
-        className="sb-text"
-        style={{ color: colors.text, fontSize: "16px", lineHeight: "24px", margin: "0 0 24px" }}
-      >
-        {message("resultsReady.body", p)}
-      </Text>
-      <Button
-        className="sb-button"
-        href={email.resultsUrl}
-        style={{
-          backgroundColor: colors.accent,
-          borderRadius: "8px",
-          color: colors.accentText,
-          fontSize: "16px",
-          fontWeight: 600,
-          padding: "12px 20px",
-        }}
-      >
-        {message("resultsReady.action")}
-      </Button>
-      <Text
-        className="sb-muted"
-        style={{ color: colors.muted, fontSize: "13px", lineHeight: "20px", margin: "24px 0 0" }}
-      >
-        {message("resultsReady.link")}{" "}
-        <Link
-          className="sb-link"
-          href={email.resultsUrl}
-          style={{ color: colors.accent, wordBreak: "break-all" }}
-        >
-          {email.resultsUrl}
-        </Link>
-      </Text>
+      <DisplayHeading>{message("resultsReady.heading", p)}</DisplayHeading>
+      <BodyText>{message("resultsReady.body", p)}</BodyText>
+      <PrimaryButton href={email.resultsUrl}>{message("resultsReady.action")}</PrimaryButton>
+      <FallbackLink intro={message("resultsReady.link")} href={email.resultsUrl} />
     </Layout>
   );
 }

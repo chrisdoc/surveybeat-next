@@ -13,7 +13,21 @@ import type { Html, HtmlBuilder } from "foldkit/html";
 import { defineTaggedUnion } from "foldkit/schema";
 import { formatDate, message } from "../messages/index.ts";
 import { Failure } from "./api.ts";
-import { type Child, appButton, problemView, screenView, signOutView, textField } from "./components.ts";
+import {
+  type Child,
+  appButton,
+  badge,
+  emptyState,
+  linkButton,
+  linkClass,
+  navLink,
+  pageShell,
+  pageTitle,
+  problemView,
+  signOutView,
+  subSectionTitle,
+  textField,
+} from "./components.ts";
 import { privacyHref, pulsesHref, settingsHref, teamHref, teamsHref } from "./routes.ts";
 
 export const LoadedTeams = defineTaggedUnion({
@@ -37,6 +51,8 @@ export const LoadedSettings = defineTaggedUnion({
 });
 export type LoadedSettings = typeof LoadedSettings.Type;
 
+const formPanelClass = "mt-8 flex flex-col gap-4 rounded-panel border border-line bg-surface p-6 sm:p-8";
+
 export const roleName = (role: TeamSummary["yourRole"]): string =>
   role === null ? "" : message(`role.${role}`);
 
@@ -51,23 +67,19 @@ export const shellView = <Message>(
   organizationAdmin: boolean,
   children: ReadonlyArray<Child>,
   h: HtmlBuilder<Message>,
+  wide = false,
 ): Html =>
-  screenView(
-    title,
-    [
-      h.nav(
-        [h.Class("mt-4 flex gap-4")],
-        [
-          h.a([h.Href(teamsHref()), h.Class("underline")], [message("nav.teams")]),
-          organizationAdmin
-            ? h.a([h.Href(settingsHref()), h.Class("underline")], [message("nav.settings")])
-            : null,
-          h.a([h.Href(privacyHref()), h.Class("underline")], [message("nav.privacy")]),
-        ].filter(Predicate.isNotNull),
-      ),
-      ...children,
-      signOutView(h),
-    ],
+  pageShell(
+    {
+      organizationName: title,
+      wide,
+      nav: [
+        navLink(teamsHref(), message("nav.teams"), h),
+        organizationAdmin ? navLink(settingsHref(), message("nav.settings"), h) : null,
+        navLink(privacyHref(), message("nav.privacy"), h),
+      ].filter(Predicate.isNotNull),
+    },
+    [...children, signOutView(h)],
     h,
   );
 
@@ -89,30 +101,32 @@ export const teamsScreenView = <Message>(
   },
   h: HtmlBuilder<Message>,
 ): Html => {
-  const children: Array<Child> = [h.h2([h.Class("text-xl font-semibold")], [message("teams.title")])];
+  const children: Array<Child> = [pageTitle(message("teams.title"), h)];
 
   if (state.teams._tag === "Failed") {
     children.push(problemView(state.teams.failure, h)!);
   } else if (state.teams._tag === "Loaded") {
     if (state.teams.teams.length === 0) {
-      children.push(h.p([h.Class("mt-2 text-gray-600")], [message("teams.empty")]));
+      children.push(emptyState(message("teams.empty"), h));
     } else {
       children.push(
         h.ul(
-          [h.Class("mt-3 flex flex-col gap-2")],
+          [h.Class("mt-6 flex flex-col gap-3")],
           state.teams.teams.map((team) =>
             h.li(
               [],
               [
                 h.a(
-                  [h.Href(teamHref(team.id)), h.Class("flex justify-between rounded border px-3 py-2")],
+                  [
+                    h.Href(teamHref(team.id)),
+                    h.Class(
+                      "flex min-h-11 items-center justify-between gap-4 rounded-panel border border-line bg-surface px-6 py-4 text-lg font-semibold hover:border-primary",
+                    ),
+                  ],
                   [
                     h.span([], [team.name]),
                     team.yourRole !== null
-                      ? h.span(
-                          [h.Class("text-sm text-gray-600")],
-                          [message("teams.yourRole", { role: roleName(team.yourRole) })],
-                        )
+                      ? badge("neutral", [message("teams.yourRole", { role: roleName(team.yourRole) })], h)
                       : null,
                   ].filter(Predicate.isNotNull),
                 ),
@@ -127,9 +141,9 @@ export const teamsScreenView = <Message>(
   if (state.organizationAdmin) {
     children.push(
       h.form(
-        [h.Class("mt-6 flex flex-col gap-3"), h.OnSubmit(actions.onSubmitCreate)],
+        [h.Class(formPanelClass), h.OnSubmit(actions.onSubmitCreate)],
         [
-          h.h2([h.Class("text-xl font-semibold")], [message("teams.create.title")]),
+          subSectionTitle(message("teams.create.title"), h, 2),
           textField(
             {
               id: "create-team-name",
@@ -175,7 +189,7 @@ export const teamsScreenView = <Message>(
     );
   }
 
-  return h.section([h.Class("mt-6")], children);
+  return h.section([], children);
 };
 
 export const teamScreenView = <Message>(
@@ -209,33 +223,31 @@ export const teamScreenView = <Message>(
   },
   h: HtmlBuilder<Message>,
 ): Html => {
-  const children: Array<Child> = [
-    h.a([h.Href(teamsHref()), h.Class("text-sm underline")], [message("team.back")]),
-  ];
+  const children: Array<Child> = [h.a([h.Href(teamsHref()), h.Class(linkClass)], [message("team.back")])];
 
   if (state.team._tag === "Failed") {
     children.push(problemView(state.team.failure, h)!);
-    return h.section([h.Class("mt-6")], children);
+    return h.section([], children);
   }
 
   if (state.team._tag !== "Loaded") {
-    return h.section([h.Class("mt-6")], children);
+    return h.section([], children);
   }
 
   const { detail } = state.team;
-  children.push(h.h2([h.Class("mt-2 text-xl font-semibold")], [detail.team.name]));
+  children.push(h.div([h.Class("mt-4")], [pageTitle(detail.team.name, h)]));
   children.push(
-    h.p([h.Class("text-sm text-gray-600")], [message("team.timeZone", { timeZone: detail.team.timeZone })]),
+    h.p([h.Class("mt-2 text-muted")], [message("team.timeZone", { timeZone: detail.team.timeZone })]),
   );
 
   if (detail.team.yourRole === null) {
-    children.push(h.p([h.Class("mt-2 text-sm text-gray-600")], [message("team.noResultsAccess")]));
+    children.push(h.p([h.Class("mt-2 text-muted")], [message("team.noResultsAccess")]));
   }
 
   if (detail.may.managePulses) {
     children.push(
       h.a(
-        [h.Href(pulsesHref(detail.team.id)), h.Class("mt-4 inline-block underline")],
+        [h.Href(pulsesHref(detail.team.id)), h.Class(`mt-4 inline-block ${linkClass}`)],
         [message("team.pulses")],
       ),
     );
@@ -244,9 +256,9 @@ export const teamScreenView = <Message>(
   if (detail.may.update) {
     children.push(
       h.form(
-        [h.Class("mt-4 flex flex-col gap-3"), h.OnSubmit(actions.onSubmitRename)],
+        [h.Class(formPanelClass), h.OnSubmit(actions.onSubmitRename)],
         [
-          h.h3([h.Class("text-lg font-medium")], [message("team.rename.title")]),
+          subSectionTitle(message("team.rename.title"), h, 2),
           textField(
             {
               id: "rename-team-name",
@@ -282,23 +294,23 @@ export const teamScreenView = <Message>(
   }
 
   // Roster
-  children.push(h.h3([h.Class("mt-6 text-lg font-medium")], [message("team.roster")]));
+  children.push(h.div([h.Class("mt-8")], [subSectionTitle(message("team.roster"), h, 2)]));
   children.push(
     h.ul(
-      [h.Class("mt-2 flex flex-col gap-2")],
+      [h.Class("mt-3 rounded-panel border border-line bg-surface px-6")],
       detail.roster.map((entry) => {
         const isLead = entry.role === "lead";
         const mayRemove = isLead ? detail.may.manageLeads : detail.may.manageMembers;
         return h.li(
-          [h.Class("flex items-center justify-between rounded border px-3 py-2")],
+          [h.Class("flex items-center justify-between gap-4 border-b border-line-soft py-3 last:border-b-0")],
           [
             h.span(
-              [],
+              [h.Class("flex flex-wrap items-center gap-x-3 gap-y-1")],
               [
-                entry.email,
-                h.span([h.Class("text-sm text-gray-600")], [roleName(entry.role)]),
+                h.span([h.Class("font-medium")], [entry.email]),
+                badge("neutral", [roleName(entry.role)], h),
                 h.span(
-                  [h.Class("text-sm text-gray-600")],
+                  [h.Class("text-sm text-muted")],
                   [message("team.since", { date: formatDate(new Date(entry.since)) })],
                 ),
               ],
@@ -308,7 +320,7 @@ export const teamScreenView = <Message>(
                   {
                     text: message(isLead ? "team.removeLead" : "team.removeMember"),
                     isDisabled: state.rosterBusy,
-                    className: "text-sm underline",
+                    className: linkButton,
                     onClick: isLead
                       ? actions.onRemoveLead(entry.personId)
                       : actions.onRemoveMember(entry.personId),
@@ -329,7 +341,7 @@ export const teamScreenView = <Message>(
   if (detail.may.manageMembers) {
     children.push(
       h.form(
-        [h.Class("mt-4 flex flex-col gap-3"), h.OnSubmit(actions.onSubmitAddMember)],
+        [h.Class(formPanelClass), h.OnSubmit(actions.onSubmitAddMember)],
         [
           textField(
             {
@@ -343,7 +355,9 @@ export const teamScreenView = <Message>(
             h,
           ),
           problemView(state.addMemberFailure, h),
-          state.addMemberAdded ? h.p([h.Role("status")], [message("team.added")]) : null,
+          state.addMemberAdded
+            ? h.p([h.Role("status"), h.Class("text-sm font-medium text-primary")], [message("team.added")])
+            : null,
           appButton(
             {
               text: message("team.addMember.action"),
@@ -361,7 +375,7 @@ export const teamScreenView = <Message>(
   if (detail.may.manageLeads) {
     children.push(
       h.form(
-        [h.Class("mt-4 flex flex-col gap-3"), h.OnSubmit(actions.onSubmitAssignLead)],
+        [h.Class(formPanelClass), h.OnSubmit(actions.onSubmitAssignLead)],
         [
           textField(
             {
@@ -375,7 +389,9 @@ export const teamScreenView = <Message>(
             h,
           ),
           problemView(state.assignLeadFailure, h),
-          state.assignLeadAdded ? h.p([h.Role("status")], [message("team.added")]) : null,
+          state.assignLeadAdded
+            ? h.p([h.Role("status"), h.Class("text-sm font-medium text-primary")], [message("team.added")])
+            : null,
           appButton(
             {
               text: message("team.assignLead.action"),
@@ -389,7 +405,7 @@ export const teamScreenView = <Message>(
     );
   }
 
-  return h.section([h.Class("mt-6")], children);
+  return h.section([], children);
 };
 
 export const settingsScreenView = <Message>(
@@ -411,15 +427,15 @@ export const settingsScreenView = <Message>(
   },
   h: HtmlBuilder<Message>,
 ): Html => {
-  const children: Array<Child> = [h.h2([h.Class("text-xl font-semibold")], [message("settings.title")])];
+  const children: Array<Child> = [pageTitle(message("settings.title"), h)];
 
   if (state.settings._tag === "Failed") {
     children.push(problemView(state.settings.failure, h)!);
-    return h.section([h.Class("mt-6")], children);
+    return h.section([], children);
   }
 
   if (state.settings._tag !== "Loaded") {
-    return h.section([h.Class("mt-6")], children);
+    return h.section([], children);
   }
 
   const { settings } = state.settings;
@@ -427,7 +443,7 @@ export const settingsScreenView = <Message>(
   // MinimumGroupSizeForm
   children.push(
     h.form(
-      [h.Class("mt-4 flex flex-col gap-3"), h.OnSubmit(actions.onSubmitSize)],
+      [h.Class(formPanelClass), h.OnSubmit(actions.onSubmitSize)],
       [
         textField(
           {
@@ -440,9 +456,11 @@ export const settingsScreenView = <Message>(
           },
           h,
         ),
-        h.p([h.Class("text-sm text-gray-600")], [message("settings.minimumGroupSize.help")]),
+        h.p([h.Class("text-sm text-muted")], [message("settings.minimumGroupSize.help")]),
         problemView(state.sizeFailure, h),
-        state.sizeSaved ? h.p([h.Role("status")], [message("settings.saved")]) : null,
+        state.sizeSaved
+          ? h.p([h.Role("status"), h.Class("text-sm font-medium text-primary")], [message("settings.saved")])
+          : null,
         appButton(
           {
             text: message("settings.save"),
@@ -456,35 +474,31 @@ export const settingsScreenView = <Message>(
   );
 
   // People
-  children.push(h.h3([h.Class("mt-6 text-lg font-medium")], [message("settings.people")]));
+  children.push(h.div([h.Class("mt-8")], [subSectionTitle(message("settings.people"), h, 2)]));
   children.push(
     h.ul(
-      [h.Class("mt-2 flex flex-col gap-2")],
+      [h.Class("mt-3 rounded-panel border border-line bg-surface px-6")],
       settings.people.map((person) => {
         const personId = decodePerson(person.personId);
         return h.li(
-          [h.Class("rounded border px-3 py-2")],
+          [h.Class("border-b border-line-soft py-3 last:border-b-0")],
           [
             h.p(
-              [],
+              [h.Class("flex flex-wrap items-center gap-2 font-medium")],
               [
                 person.email,
-                person.organizationAdmin
-                  ? h.span([h.Class("ml-2 text-sm text-gray-600")], [message("settings.admin")])
-                  : null,
-                person.linked
-                  ? null
-                  : h.span([h.Class("ml-2 text-sm text-gray-600")], [message("settings.notSignedInYet")]),
+                person.organizationAdmin ? badge("primary", [message("settings.admin")], h) : null,
+                person.linked ? null : badge("neutral", [message("settings.notSignedInYet")], h),
               ].filter(Predicate.isNotNull),
             ),
             h.div(
-              [h.Class("mt-1 flex gap-4 text-sm")],
+              [h.Class("flex gap-4")],
               [
                 appButton(
                   {
                     text: message(person.organizationAdmin ? "settings.revokeAdmin" : "settings.makeAdmin"),
                     isDisabled: state.peopleBusy,
-                    className: "underline",
+                    className: linkButton,
                     onClick: person.organizationAdmin
                       ? actions.onRevokeAdmin(person.personId)
                       : actions.onGrantAdmin(person.personId),
@@ -496,7 +510,7 @@ export const settingsScreenView = <Message>(
                       {
                         text: message("settings.removePerson"),
                         isDisabled: state.peopleBusy,
-                        className: "underline",
+                        className: linkButton,
                         onClick: actions.onRemovePerson(person.personId),
                       },
                       h,
@@ -514,5 +528,5 @@ export const settingsScreenView = <Message>(
     children.push(problemView(state.peopleFailure, h)!);
   }
 
-  return h.section([h.Class("mt-6")], children);
+  return h.section([], children);
 };

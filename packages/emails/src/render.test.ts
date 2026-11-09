@@ -1,6 +1,7 @@
 import { describe, expect, it } from "@effect/vitest";
 import type { RenderableEmail } from "@surveybeat/domain";
 import { renderEmail } from "./render.tsx";
+import { colors } from "./theme.ts";
 
 /** One example per template. The mapped type fails to compile when a template has no example. */
 const examples: { readonly [K in RenderableEmail["_tag"]]: Extract<RenderableEmail, { _tag: K }> } = {
@@ -141,5 +142,25 @@ describe("ReminderEmail", () => {
     expect(rendered.text).toContain(
       "Turn off reminders for this Pulse: https://app.surveybeat.app/api/reminders/unsubscribe?t=test-token-123",
     );
+  });
+});
+
+describe("theme", () => {
+  it("keeps the light palette in step with the app theme", () => {
+    expect(colors).toEqual({
+      page: "#F3F4F1",
+      card: "#FFFFFF",
+      border: "#E1E5E1",
+      rowBorder: "#ECEFEC",
+      text: "#0E2A24",
+      muted: "#3D554F",
+      accent: "#0B5D55",
+      button: "#0E2A24",
+      buttonText: "#FFFFFF",
+      panel: "#0E2A24",
+      panelText: "#DCE9E5",
+      mint: "#9FD6CB",
+      ratingBorder: "#768C85",
+    });
   });
 });

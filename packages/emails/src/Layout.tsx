@@ -1,45 +1,39 @@
 import type { ReactNode } from "react";
 import { Body, Container, Head, Hr, Html, Preview, Section, Text } from "react-email";
 import { message } from "./messages/index.ts";
+import { colors, darkColors, fonts, radius } from "./theme.ts";
 
-/**
- * Light colours are inline, so clients without media queries show the light version. Clients that
- * honour `prefers-color-scheme` swap to the dark palette through the classes below.
- */
-export const colors = {
-  page: "#f4f4f5",
-  card: "#ffffff",
-  text: "#18181b",
-  muted: "#52525b",
-  border: "#e4e4e7",
-  accent: "#4338ca",
-  accentText: "#ffffff",
-} as const;
+const d = darkColors;
 
+/** Clients that honour `prefers-color-scheme` swap to the dark palette through the classes below. */
 const darkMode = `
 :root { color-scheme: light dark; supported-color-schemes: light dark; }
 @media (prefers-color-scheme: dark) {
-  .sb-page { background-color: #09090b !important; }
-  .sb-card { background-color: #18181b !important; border-color: #27272a !important; }
-  .sb-text { color: #fafafa !important; }
-  .sb-muted { color: #a1a1aa !important; }
-  .sb-rule { border-color: #27272a !important; }
-  .sb-button { background-color: #818cf8 !important; color: #09090b !important; }
-  .sb-link { color: #a5b4fc !important; }
+  .sb-page { background-color: ${d.page} !important; }
+  .sb-card { background-color: ${d.card} !important; border-color: ${d.border} !important; }
+  .sb-text { color: ${d.text} !important; }
+  .sb-muted { color: ${d.muted} !important; }
+  .sb-rule { border-color: ${d.rowBorder} !important; }
+  .sb-button { background-color: ${d.button} !important; color: ${d.buttonText} !important; }
+  .sb-link { color: ${d.link} !important; }
+  .sb-panel { background-color: ${d.panel} !important; }
+  .sb-panel-text { color: ${d.panelText} !important; }
+  .sb-rating { border-color: ${d.ratingBorder} !important; color: ${d.ratingText} !important; }
 }
 `;
-
-const font = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
 
 /** The frame every SurveyBeat email shares: preview line, brand, card, and the reason it was sent. */
 export function Layout({
   preview,
   reason,
   children,
+  outside,
 }: {
   preview: string;
   reason: string;
   children: ReactNode;
+  /** Extra blocks between the card and the footer, such as the privacy panel. */
+  outside?: ReactNode;
 }) {
   return (
     <Html lang="en">
@@ -51,12 +45,12 @@ export function Layout({
       <Preview>{preview}</Preview>
       <Body
         className="sb-page"
-        style={{ backgroundColor: colors.page, fontFamily: font, margin: 0, padding: "24px 0" }}
+        style={{ backgroundColor: colors.page, fontFamily: fonts.sans, margin: 0, padding: "40px 0" }}
       >
-        <Container style={{ maxWidth: "560px", padding: "0 16px" }}>
+        <Container style={{ maxWidth: "560px", padding: "0 20px" }}>
           <Text
             className="sb-muted"
-            style={{ color: colors.muted, fontSize: "14px", fontWeight: 600, margin: "0 0 12px" }}
+            style={{ color: colors.muted, fontSize: "15px", fontWeight: 600, margin: "0 0 16px 8px" }}
           >
             {message("layout.brand")}
           </Text>
@@ -65,12 +59,13 @@ export function Layout({
             style={{
               backgroundColor: colors.card,
               border: `1px solid ${colors.border}`,
-              borderRadius: "12px",
-              padding: "32px",
+              borderRadius: radius.card,
+              padding: "40px 36px",
             }}
           >
             {children}
           </Section>
+          {outside}
           <Hr
             className="sb-rule"
             style={{ borderTop: `1px solid ${colors.border}`, margin: "24px 0 12px" }}
