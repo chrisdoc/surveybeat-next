@@ -1,0 +1,35 @@
+This is not a valid redirect URI
+Redirect URIs must match the values configured in your WorkOS application's Redirects settings.
+
+chrisdoc's Application
+
+https://app.surveybeat.app/auth/callback
+
+
+https://straightforward-mouse-82-staging.authkit.app/redirect-uri-invalid?invalid_redirect_uri=https%3A%2F%2Fapp.surveybeat.app%2Fauth%2Fcallback&REDACTED
+
+---
+
+i set the client_id and api_key what shall we set for ORG_CREATION_ALLOWLIST?
+
+---
+
+done
+
+---
+
+what is next on our plan?
+
+---
+
+[User attached one or more files without additional text. Respond using the conversation context and the attached files.]
+
+[Attached image "image.png" is saved at: /home/ubuntu/.t3/userdata/attachments/f381993e-becf-46b5-877f-76ea8ea5d38c-342cac88-bd14-434c-aee8-6e95e5f16b2f.png]
+
+---
+
+can we have the ORG_CREATION_ALLOWLIST defined as yaml per environment or?
+
+---
+
+go ahead
