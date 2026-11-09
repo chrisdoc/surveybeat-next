@@ -20,7 +20,13 @@ type PluralParams<B extends PluralKey> = Readonly<
 >;
 
 const LOCALE = "en";
-const pluralRules = new Intl.PluralRules(LOCALE);
+let cachedPluralRules: Intl.PluralRules | undefined;
+function getPluralRules(): Intl.PluralRules {
+  if (!cachedPluralRules) {
+    cachedPluralRules = new Intl.PluralRules(LOCALE);
+  }
+  return cachedPluralRules;
+}
 
 const isMessageKey = (key: string): key is MessageKey => Object.hasOwn(catalog, key);
 
@@ -37,7 +43,7 @@ export function message(key: MessageKey, params: Readonly<Record<string, Value>>
 
 /** Picks the plural form for `count` with `Intl.PluralRules`; `{count}` is filled in. */
 export function pluralMessage<B extends PluralKey>(base: B, count: number, params?: PluralParams<B>): string {
-  const specific = `${base}.${pluralRules.select(count)}`;
+  const specific = `${base}.${getPluralRules().select(count)}`;
   const template = isMessageKey(specific) ? catalog[specific] : catalog[`${base}.other`];
   return fill(template, { ...params, count: new Intl.NumberFormat(LOCALE).format(count) });
 }

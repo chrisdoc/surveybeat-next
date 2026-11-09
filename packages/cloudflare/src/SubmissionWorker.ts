@@ -91,13 +91,19 @@ export default class SubmissionWorker extends Cloudflare.Worker<SubmissionWorker
     const organizations = yield* Organization;
     const database = yield* Cloudflare.D1.QueryDatabase(yield* Database);
 
+    const corsHeaders = {
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "POST, OPTIONS",
+      "access-control-allow-headers": "Content-Type, X-Invitation-Token, X-Edit-Key",
+    };
+
     return {
       fetch: Effect.gen(function* () {
         const request = yield* HttpServerRequest;
         const path = request.url.split("?")[0];
 
         if (request.method === "OPTIONS") {
-          return HttpServerResponse.empty({ status: 204 });
+          return HttpServerResponse.empty({ status: 204, headers: corsHeaders });
         }
 
         if (path === "/submit" && request.method === "POST") {
@@ -274,7 +280,10 @@ export default class SubmissionWorker extends Cloudflare.Worker<SubmissionWorker
         }
 
         return yield* HttpServerResponse.json({ error: "not found" }, { status: 404 });
-      }).pipe(Effect.orDie),
+      }).pipe(
+        Effect.map((res) => HttpServerResponse.setHeaders(res, corsHeaders)),
+        Effect.orDie,
+      ),
     };
   }).pipe(Effect.provide(Layer.mergeAll(Cloudflare.D1.QueryDatabaseBinding))),
 ) {}

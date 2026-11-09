@@ -1,11 +1,135 @@
 import { foldkit } from "@foldkit/vite-plugin";
 import tailwindcss from "@tailwindcss/vite";
-import { defineConfig } from "vite";
+import { copyFileSync, mkdirSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { defineConfig, type Plugin } from "vite";
+import { message } from "./src/messages/index.ts";
+
+const prerenderAnswer = (): Plugin => {
+  let outDir = "dist";
+  return {
+    name: "prerender-answer",
+    configResolved(config) {
+      outDir = resolve(config.root, config.build.outDir);
+    },
+    transformIndexHtml(html, ctx) {
+      if (!ctx.path.endsWith("answer.html") && !html.includes("<!--PRERENDER_STYLE-->")) {
+        return html;
+      }
+      const rawCss = readFileSync(resolve(import.meta.dirname, "src/answer/style.css"), "utf8");
+      const minCss = rawCss
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/\s*([{};:,])\s*/g, "$1")
+        .replace(/\n\s*/g, "");
+
+      const bootstrapScript = `<script>
+(function() {
+  try {
+    var hash = location.hash;
+    var params = new URLSearchParams(hash.slice(1));
+    var t = params.get("t");
+    var v = params.get("v");
+    if (t) {
+      sessionStorage.setItem("sb_token", t);
+    } else {
+      t = sessionStorage.getItem("sb_token") || "";
+    }
+    window.__sb_token = t;
+    if (v) {
+      var n = parseInt(v, 10);
+      if (n >= 1 && n <= 5) {
+        window.__sb_v = n;
+      }
+    }
+    if (hash) {
+      history.replaceState(null, "", location.pathname + location.search);
+    }
+    if (t) {
+      var host = location.hostname;
+      var submitOrigin = (host === "app.surveybeat.app")
+        ? "https://submit.surveybeat.app"
+        : (host.endsWith(".app.surveybeat.app")
+            ? "https://" + host.replace(".app.surveybeat.app", ".submit.surveybeat.app")
+            : location.origin);
+      window.__sb_submitOrigin = submitOrigin;
+      window.__exchangePromise = fetch(submitOrigin + "/exchange", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ token: t })
+      }).then(function(r) {
+        if (!r.ok) {
+          var err = new Error("HTTP " + r.status);
+          err.status = r.status;
+          throw err;
+        }
+        return r.json();
+      });
+    }
+  } catch (e) {}
+})();
+</script>`;
+
+      const scaleKeys = [
+        "answer.scale.1",
+        "answer.scale.2",
+        "answer.scale.3",
+        "answer.scale.4",
+        "answer.scale.5",
+      ] as const;
+
+      const scale = scaleKeys
+        .map(
+          (key, idx) =>
+            `<label><input type="radio" name="q1" value="${idx + 1}"><span>${idx + 1} · ${message(key)}</span></label>`,
+        )
+        .join("");
+
+      const body = `<main>
+  <noscript><p class="err" role="alert">${message("answer.noscript")}</p></noscript>
+  <h1 id="pulse"></h1>
+  <p class="err" id="err" role="alert" hidden></p>
+  <div id="state-message" role="alert" hidden></div>
+  <section data-screen="1" id="screen-1">
+    <form id="f1">
+      <fieldset>
+        <legend id="q1text" tabindex="-1">${message("answer.loading")}</legend>
+        <div class="scale">${scale}</div>
+      </fieldset>
+      <p class="anon" id="anon">${message("answer.anonymity")}</p>
+      <button type="submit" id="save" disabled>${message("answer.save")}</button>
+    </form>
+  </section>
+  <div id="remaining-screens" hidden></div>
+  <section data-screen="thanks" id="screen-thanks" hidden>
+    <h2 tabindex="-1">${message("answer.thanks.title")}</h2>
+    <p id="thanks-body">${message("answer.thanks.body")}</p>
+    <ul class="actions" id="actions"></ul>
+  </section>
+</main>`;
+
+      return html
+        .replace("<title></title>", `<title>${message("answer.title")}</title>`)
+        .replace("<!--PRERENDER_STYLE-->", `<style>${minCss}</style>`)
+        .replace("<!--HEAD_BOOTSTRAP-->", bootstrapScript)
+        .replace("<!--PRERENDER_BODY-->", body);
+    },
+    closeBundle() {
+      try {
+        const answerHtmlPath = resolve(outDir, "answer.html");
+        const aDir = resolve(outDir, "a");
+        mkdirSync(aDir, { recursive: true });
+        copyFileSync(answerHtmlPath, resolve(aDir, "index.html"));
+        copyFileSync(answerHtmlPath, resolve(outDir, "a.html"));
+      } catch {}
+    },
+  };
+};
 
 // Two entries in one project: the app (Foldkit) and the answer page (plain TypeScript, no framework).
 export default defineConfig({
-  plugins: [tailwindcss(), foldkit()],
+  plugins: [tailwindcss(), foldkit(), prerenderAnswer()],
   build: {
+    modulePreload: false,
     rollupOptions: {
       input: {
         app: "index.html",

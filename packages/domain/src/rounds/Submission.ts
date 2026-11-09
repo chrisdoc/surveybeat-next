@@ -1,6 +1,6 @@
 import { Schema } from "effect";
 import { QuestionType, QuestionVersionId } from "../pulses/Question.ts";
-import { RoundStatus } from "./Round.ts";
+import { RoundId, RoundStatus } from "./Round.ts";
 
 /** A random 128-bit key identifying an anonymous Submission. */
 export const SubmissionId = Schema.String.pipe(Schema.brand("SubmissionId"));
@@ -40,6 +40,7 @@ export type SubmissionAction = typeof SubmissionAction.Type;
 
 /** The context returned by token exchange with zero side effects (ADR 0005, ADR 0007). */
 export const SubmissionRoundContext = Schema.Struct({
+  roundId: RoundId,
   pulseName: Schema.String,
   anonymityStatement: Schema.String,
   questions: Schema.Array(SubmissionQuestion),

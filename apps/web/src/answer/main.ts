@@ -1,20 +1,675 @@
-// The answer entry: plain TypeScript, no React, no Base UI, no HttpApi client.
-import { formatDate, message, pluralMessage } from "../messages/index.ts";
+import { message } from "../messages/index.ts";
 
-document.title = message("answer.title");
-
-const container = document.getElementById("answer");
-if (container !== null) {
-  const lines = [
-    message("answer.placeholder"),
-    pluralMessage("answer.remaining", 1),
-    message("answer.closes", { date: formatDate(new Date()) }),
-  ];
-  container.replaceChildren(
-    ...lines.map((line) => {
-      const paragraph = document.createElement("p");
-      paragraph.textContent = line;
-      return paragraph;
-    }),
-  );
+interface QuestionTypeRating {
+  readonly _tag: "Rating";
+  readonly lowLabel?: string;
+  readonly highLabel?: string;
+  readonly comment?: boolean;
 }
+
+interface QuestionTypeSingleChoice {
+  readonly _tag: "SingleChoice";
+  readonly options: ReadonlyArray<string>;
+}
+
+interface QuestionTypeLongText {
+  readonly _tag: "LongText";
+}
+
+type QuestionType = QuestionTypeRating | QuestionTypeSingleChoice | QuestionTypeLongText;
+
+interface QuestionData {
+  readonly id: string;
+  readonly position: number;
+  readonly text: string;
+  readonly type: QuestionType;
+}
+
+interface ActionData {
+  readonly id: string;
+  readonly title: string;
+}
+
+interface RoundContextData {
+  readonly roundId: string;
+  readonly pulseName: string;
+  readonly anonymityStatement: string;
+  readonly questions: ReadonlyArray<QuestionData>;
+  readonly actions: ReadonlyArray<ActionData>;
+  readonly closeTime: number;
+  readonly state: string;
+  readonly hasAnswered: boolean;
+}
+
+declare global {
+  interface Window {
+    __sb_token?: string | undefined;
+    __sb_v?: number | undefined;
+    __sb_submitOrigin?: string | undefined;
+    __exchangePromise?: Promise<unknown> | undefined;
+  }
+}
+
+function getSubmitOrigin(): string {
+  if (typeof window.__sb_submitOrigin === "string" && window.__sb_submitOrigin.length > 0) {
+    return window.__sb_submitOrigin;
+  }
+  const host = window.location.hostname;
+  if (host === "app.surveybeat.app") {
+    return "https://submit.surveybeat.app";
+  }
+  if (host.endsWith(".app.surveybeat.app")) {
+    return `https://${host.replace(".app.surveybeat.app", ".submit.surveybeat.app")}`;
+  }
+  return window.location.origin;
+}
+
+function getStoredToken(): string {
+  const fromWindow = window.__sb_token;
+  if (typeof fromWindow === "string" && fromWindow.length > 0) {
+    return fromWindow;
+  }
+  const hash = window.location.hash;
+  if (hash.length > 1) {
+    const params = new URLSearchParams(hash.slice(1));
+    const t = params.get("t");
+    if (typeof t === "string" && t.length > 0) {
+      window.sessionStorage.setItem("sb_token", t);
+      return t;
+    }
+  }
+  const stored = window.sessionStorage.getItem("sb_token");
+  return typeof stored === "string" ? stored : "";
+}
+
+function generateEditKey(): string {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+async function sha256Hex(text: string): Promise<string> {
+  const data = new TextEncoder().encode(text);
+  const hash = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(hash), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function mark(name: string): void {
+  if (typeof performance !== "undefined" && typeof performance.mark === "function") {
+    performance.mark(name);
+  }
+}
+
+async function postJson(url: string, body: unknown): Promise<unknown> {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const error = new Error(`HTTP ${res.status}`);
+    throw Object.assign(error, { status: res.status });
+  }
+  const data: unknown = await res.json();
+  return data;
+}
+
+function parseRoundContext(data: unknown): RoundContextData | null {
+  if (typeof data !== "object" || data === null) return null;
+  if (!("roundId" in data) || typeof data.roundId !== "string") return null;
+  if (!("pulseName" in data) || typeof data.pulseName !== "string") return null;
+  if (!("anonymityStatement" in data) || typeof data.anonymityStatement !== "string") return null;
+  if (!("closeTime" in data) || typeof data.closeTime !== "number") return null;
+  if (!("state" in data) || typeof data.state !== "string") return null;
+  if (!("hasAnswered" in data) || typeof data.hasAnswered !== "boolean") return null;
+  if (!("questions" in data) || !Array.isArray(data.questions)) return null;
+
+  const questions: Array<QuestionData> = [];
+  for (const item of data.questions) {
+    if (
+      typeof item === "object" &&
+      item !== null &&
+      "id" in item &&
+      typeof item.id === "string" &&
+      "text" in item &&
+      typeof item.text === "string" &&
+      "position" in item &&
+      typeof item.position === "number"
+    ) {
+      let qType: QuestionType = { _tag: "Rating", comment: true };
+      if ("type" in item && typeof item.type === "object" && item.type !== null && "_tag" in item.type) {
+        if (item.type._tag === "Rating") {
+          qType = {
+            _tag: "Rating",
+            lowLabel:
+              "lowLabel" in item.type && typeof item.type.lowLabel === "string"
+                ? item.type.lowLabel
+                : undefined,
+            highLabel:
+              "highLabel" in item.type && typeof item.type.highLabel === "string"
+                ? item.type.highLabel
+                : undefined,
+            comment:
+              "comment" in item.type && typeof item.type.comment === "boolean" ? item.type.comment : true,
+          };
+        } else if (
+          item.type._tag === "SingleChoice" &&
+          "options" in item.type &&
+          Array.isArray(item.type.options)
+        ) {
+          const opts: Array<string> = [];
+          for (const opt of item.type.options) {
+            if (typeof opt === "string") opts.push(opt);
+          }
+          qType = { _tag: "SingleChoice", options: opts };
+        } else if (item.type._tag === "LongText") {
+          qType = { _tag: "LongText" };
+        }
+      }
+      questions.push({ id: item.id, position: item.position, text: item.text, type: qType });
+    }
+  }
+
+  const actions: Array<ActionData> = [];
+  if ("actions" in data && Array.isArray(data.actions)) {
+    for (const act of data.actions) {
+      if (
+        typeof act === "object" &&
+        act !== null &&
+        "id" in act &&
+        typeof act.id === "string" &&
+        "title" in act &&
+        typeof act.title === "string"
+      ) {
+        actions.push({ id: act.id, title: act.title });
+      }
+    }
+  }
+
+  return {
+    roundId: data.roundId,
+    pulseName: data.pulseName,
+    anonymityStatement: data.anonymityStatement,
+    questions,
+    actions,
+    closeTime: data.closeTime,
+    state: data.state,
+    hasAnswered: data.hasAnswered,
+  };
+}
+
+function extractShownToLead(data: unknown): string | null {
+  if (
+    typeof data === "object" &&
+    data !== null &&
+    "shownToLead" in data &&
+    typeof data.shownToLead === "string"
+  ) {
+    return data.shownToLead;
+  }
+  return null;
+}
+
+function showError(msg: string): void {
+  const err = document.getElementById("err");
+  if (err instanceof HTMLElement) {
+    err.textContent = msg;
+    err.hidden = false;
+  }
+}
+
+function showStateMessage(msg: string): void {
+  const box = document.getElementById("state-message");
+  if (box instanceof HTMLElement) {
+    box.className = "state-box";
+    const p = document.createElement("p");
+    p.textContent = msg;
+    box.replaceChildren(p);
+    box.hidden = false;
+  }
+  const s1 = document.getElementById("screen-1");
+  if (s1 instanceof HTMLElement) {
+    s1.hidden = true;
+  }
+  const rem = document.getElementById("remaining-screens");
+  if (rem instanceof HTMLElement) {
+    rem.hidden = true;
+  }
+  const thanks = document.getElementById("screen-thanks");
+  if (thanks instanceof HTMLElement) {
+    thanks.hidden = true;
+  }
+}
+
+type ScaleKey = "answer.scale.1" | "answer.scale.2" | "answer.scale.3" | "answer.scale.4" | "answer.scale.5";
+
+const scaleKeys: ReadonlyArray<ScaleKey> = [
+  "answer.scale.1",
+  "answer.scale.2",
+  "answer.scale.3",
+  "answer.scale.4",
+  "answer.scale.5",
+];
+
+async function run(): Promise<void> {
+  document.title = message("answer.title");
+
+  const anonEl = document.getElementById("anon");
+  if (anonEl instanceof HTMLElement) {
+    anonEl.textContent = message("answer.anonymity");
+  }
+
+  const saveBtn = document.getElementById("save");
+
+  // Read preselected value
+  let preselectedV = typeof window.__sb_v === "number" ? window.__sb_v : undefined;
+  if (preselectedV === undefined && window.location.hash.length > 1) {
+    const params = new URLSearchParams(window.location.hash.slice(1));
+    const vParam = params.get("v");
+    if (typeof vParam === "string") {
+      const parsed = parseInt(vParam, 10);
+      if (parsed >= 1 && parsed <= 5) {
+        preselectedV = parsed;
+      }
+    }
+  }
+
+  if (typeof preselectedV === "number") {
+    const initialRadio = document.querySelector(`input[name="q1"][value="${preselectedV}"]`);
+    if (initialRadio instanceof HTMLInputElement) {
+      initialRadio.checked = true;
+    }
+  }
+
+  // Strip fragment so token does not linger in history (ADR 0005)
+  if (window.location.hash.length > 0) {
+    window.history.replaceState(null, "", window.location.pathname + window.location.search);
+  }
+
+  const token = getStoredToken();
+  const submitOrigin = getSubmitOrigin();
+
+  let exchangePromise = window.__exchangePromise;
+  if (!exchangePromise) {
+    if (token.length === 0) {
+      showError(message("answer.error"));
+      return;
+    }
+    exchangePromise = postJson(`${submitOrigin}/exchange`, { token });
+  }
+
+  let rawContext: unknown;
+  try {
+    rawContext = await exchangePromise;
+  } catch (err: unknown) {
+    if (typeof err === "object" && err !== null && "status" in err && err.status === 404) {
+      showError(message("answer.error"));
+      return;
+    }
+    showError(message("answer.error"));
+    return;
+  }
+
+  const context = parseRoundContext(rawContext);
+  if (context === null) {
+    showError(message("answer.error"));
+    return;
+  }
+
+  // Trigger dynamic schema validation after first paint (keeps Effect Schema off critical path)
+  const scheduleValidation = () => {
+    void import("./schema-validate.ts").then((mod) => {
+      mod.validateRoundContext(rawContext);
+    });
+  };
+  setTimeout(scheduleValidation, 8000);
+
+  // Check state
+  if (context.state !== "open") {
+    showStateMessage(message("answer.state.closed"));
+    return;
+  }
+
+  const roundStorageKey = `sb_edit_${context.roundId}`;
+  let editKey = window.localStorage.getItem(roundStorageKey) ?? "";
+
+  if (context.hasAnswered) {
+    if (editKey.length === 0) {
+      showStateMessage(message("answer.state.otherBrowser"));
+      return;
+    }
+    // Member has edit key on this device; proceed to allow editing/reviewing answers
+  }
+
+  // Populate Screen 1
+  const pulseEl = document.getElementById("pulse");
+  if (pulseEl instanceof HTMLElement) {
+    pulseEl.textContent = context.pulseName;
+  }
+
+  const q1 = context.questions[0];
+  if (q1) {
+    const q1text = document.getElementById("q1text");
+    if (q1text instanceof HTMLElement) {
+      q1text.textContent = q1.text;
+    }
+  }
+
+  if (saveBtn instanceof HTMLButtonElement) {
+    saveBtn.disabled = false;
+  }
+
+  mark("meaningful");
+
+  let firstSaved = context.hasAnswered;
+
+  const doFirstSave = async (ratingVal: number): Promise<void> => {
+    if (firstSaved) return;
+    if (saveBtn instanceof HTMLButtonElement) {
+      saveBtn.disabled = true;
+    }
+    mark("first-save-start");
+    try {
+      editKey = generateEditKey();
+      const editKeyHash = await sha256Hex(editKey);
+      window.localStorage.setItem(roundStorageKey, editKey);
+
+      await postJson(`${submitOrigin}/first-answer`, {
+        token,
+        editKeyHash,
+        questionVersionId: q1 ? q1.id : "",
+        value: ratingVal,
+      });
+
+      firstSaved = true;
+      // Invariant: after the first save, no request carries the token (ADR 0005)
+      window.sessionStorage.removeItem("sb_token");
+      window.__sb_token = undefined;
+
+      mark("first-save-end");
+      mark("screen2");
+      goToRemainingScreens();
+    } catch (err: unknown) {
+      if (typeof err === "object" && err !== null && "status" in err && err.status === 409) {
+        showStateMessage(message("answer.state.alreadyAnswered"));
+        return;
+      }
+      showError(message("answer.error"));
+      if (saveBtn instanceof HTMLButtonElement) {
+        saveBtn.disabled = false;
+      }
+    }
+  };
+
+  // Screen 1 form submit
+  const f1 = document.getElementById("f1");
+  if (f1 instanceof HTMLFormElement) {
+    f1.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const checked = document.querySelector('input[name="q1"]:checked');
+      if (checked instanceof HTMLInputElement) {
+        void doFirstSave(Number(checked.value));
+      }
+    });
+  }
+
+  // Value change on Screen 1 also confirms first save (ADR 0007)
+  const q1Radios = document.querySelectorAll('input[name="q1"]');
+  q1Radios.forEach((r) => {
+    if (r instanceof HTMLInputElement) {
+      r.addEventListener("change", () => {
+        void doFirstSave(Number(r.value));
+      });
+    }
+  });
+
+  const goToRemainingScreens = () => {
+    const s1 = document.getElementById("screen-1");
+    if (s1 instanceof HTMLElement) {
+      s1.hidden = true;
+    }
+
+    const remainingQuestions = context.questions.slice(1);
+    if (remainingQuestions.length === 0) {
+      goToThanksScreen();
+      return;
+    }
+
+    renderRemainingQuestions(remainingQuestions);
+  };
+
+  const goToThanksScreen = () => {
+    const s1 = document.getElementById("screen-1");
+    if (s1 instanceof HTMLElement) {
+      s1.hidden = true;
+    }
+    const rem = document.getElementById("remaining-screens");
+    if (rem instanceof HTMLElement) {
+      rem.hidden = true;
+    }
+
+    const thanks = document.getElementById("screen-thanks");
+    if (thanks instanceof HTMLElement) {
+      thanks.hidden = false;
+      const h2 = thanks.querySelector("h2");
+      if (h2 instanceof HTMLElement) {
+        h2.focus();
+      }
+    }
+
+    const bodyEl = document.getElementById("thanks-body");
+    const actionsUl = document.getElementById("actions");
+    if (context.actions.length > 0) {
+      if (bodyEl instanceof HTMLElement) {
+        bodyEl.textContent = message("answer.thanks.body");
+      }
+      if (actionsUl instanceof HTMLUListElement) {
+        actionsUl.replaceChildren(
+          ...context.actions.slice(0, 3).map((act) => {
+            const li = document.createElement("li");
+            li.textContent = act.title;
+            return li;
+          }),
+        );
+      }
+    } else {
+      if (bodyEl instanceof HTMLElement) {
+        bodyEl.textContent = message("answer.thanks.bodyNoActions");
+      }
+      if (actionsUl instanceof HTMLElement) {
+        actionsUl.replaceChildren();
+      }
+    }
+  };
+
+  const renderRemainingQuestions = (questions: ReadonlyArray<QuestionData>) => {
+    const container = document.getElementById("remaining-screens");
+    if (!(container instanceof HTMLElement)) return;
+
+    container.hidden = false;
+    container.replaceChildren();
+
+    const isDesktop = window.matchMedia("(min-width: 640px)").matches;
+    document.body.classList.toggle("is-desktop", isDesktop);
+
+    const questionSections: Array<HTMLElement> = [];
+
+    questions.forEach((q, idx) => {
+      const section = document.createElement("section");
+      section.setAttribute("data-question-screen", String(idx + 2));
+      section.className = "question-block";
+      // On mobile, hide screens past the first remaining question
+      if (!isDesktop && idx > 0) {
+        section.hidden = true;
+      }
+
+      const fieldset = document.createElement("fieldset");
+      const legend = document.createElement("legend");
+      legend.tabIndex = -1;
+      legend.textContent = q.text;
+      fieldset.appendChild(legend);
+
+      if (q.type._tag === "Rating") {
+        const scaleDiv = document.createElement("div");
+        scaleDiv.className = "scale";
+        for (let i = 1; i <= 5; i++) {
+          const lbl = document.createElement("label");
+          const radio = document.createElement("input");
+          radio.type = "radio";
+          radio.name = `q_${q.id}`;
+          radio.value = String(i);
+
+          radio.addEventListener("change", () => {
+            void saveAnswer(q.id, { value: i });
+          });
+
+          const span = document.createElement("span");
+          const scaleKey = scaleKeys[i - 1];
+          if (scaleKey !== undefined) {
+            span.textContent = `${i} · ${message(scaleKey)}`;
+          }
+          lbl.appendChild(radio);
+          lbl.appendChild(span);
+          scaleDiv.appendChild(lbl);
+        }
+        fieldset.appendChild(scaleDiv);
+      } else if (q.type._tag === "SingleChoice") {
+        const scaleDiv = document.createElement("div");
+        scaleDiv.className = "scale";
+        q.type.options.forEach((opt, optIdx) => {
+          const lbl = document.createElement("label");
+          const radio = document.createElement("input");
+          radio.type = "radio";
+          radio.name = `q_${q.id}`;
+          radio.value = String(optIdx);
+
+          radio.addEventListener("change", () => {
+            void saveAnswer(q.id, { value: optIdx });
+          });
+
+          const span = document.createElement("span");
+          span.textContent = opt;
+          lbl.appendChild(radio);
+          lbl.appendChild(span);
+          scaleDiv.appendChild(lbl);
+        });
+        fieldset.appendChild(scaleDiv);
+      }
+
+      section.appendChild(fieldset);
+
+      // Comments: Rating with comment=true, or LongText
+      const hasComment = (q.type._tag === "Rating" && q.type.comment === true) || q.type._tag === "LongText";
+
+      if (hasComment) {
+        const commentDiv = document.createElement("div");
+        commentDiv.className = "comment-section";
+
+        const lbl = document.createElement("label");
+        lbl.htmlFor = `comment_${q.id}`;
+        lbl.className = "comment-label";
+        lbl.textContent = message("answer.comment.label");
+        commentDiv.appendChild(lbl);
+
+        const disclosure = document.createElement("p");
+        disclosure.className = "comment-disclosure";
+        disclosure.id = `disclosure_${q.id}`;
+        disclosure.textContent = message("answer.comment.disclosure");
+        commentDiv.appendChild(disclosure);
+
+        const textarea = document.createElement("textarea");
+        textarea.id = `comment_${q.id}`;
+        textarea.maxLength = 1000;
+        textarea.setAttribute("aria-describedby", `disclosure_${q.id}`);
+
+        const leadP = document.createElement("p");
+        leadP.className = "lead-preview";
+        leadP.setAttribute("aria-live", "polite");
+
+        const saveComment = async () => {
+          const val = textarea.value.trim();
+          if (val.length === 0) return;
+          try {
+            const raw = await saveAnswer(q.id, { comment: val });
+            const shownToLead = extractShownToLead(raw);
+            if (shownToLead !== null) {
+              leadP.textContent = message("answer.comment.leadSees", { text: shownToLead });
+            }
+          } catch {
+            showError(message("answer.error"));
+          }
+        };
+
+        textarea.addEventListener("change", () => {
+          void saveComment();
+        });
+        textarea.addEventListener("blur", () => {
+          void saveComment();
+        });
+
+        commentDiv.appendChild(textarea);
+        commentDiv.appendChild(leadP);
+        section.appendChild(commentDiv);
+      }
+
+      // Navigation buttons
+      const isLast = idx === questions.length - 1;
+      const nextBtn = document.createElement("button");
+      nextBtn.type = "button";
+      nextBtn.className = "mobile-next-btn";
+      nextBtn.textContent = isLast ? message("answer.finish") : message("answer.next");
+      nextBtn.addEventListener("click", () => {
+        if (isLast) {
+          goToThanksScreen();
+        } else {
+          section.hidden = true;
+          const nextSec = questionSections[idx + 1];
+          if (nextSec instanceof HTMLElement) {
+            nextSec.hidden = false;
+            const leg = nextSec.querySelector("legend");
+            if (leg instanceof HTMLElement) {
+              leg.focus();
+            }
+          }
+        }
+      });
+      section.appendChild(nextBtn);
+
+      questionSections.push(section);
+      container.appendChild(section);
+    });
+
+    // Desktop finish button
+    const finishBtn = document.createElement("button");
+    finishBtn.type = "button";
+    finishBtn.className = "desktop-finish-btn";
+    finishBtn.textContent = message("answer.finish");
+    finishBtn.addEventListener("click", () => {
+      goToThanksScreen();
+    });
+    container.appendChild(finishBtn);
+
+    // Focus the first remaining question legend
+    const firstLegend = questionSections[0]?.querySelector("legend");
+    if (firstLegend instanceof HTMLElement) {
+      firstLegend.focus();
+    }
+  };
+
+  const saveAnswer = async (
+    questionVersionId: string,
+    body: { value?: number; comment?: string },
+  ): Promise<unknown> => {
+    mark("answer-save-start");
+    // Invariant: Subsequent answers carry editKey, NEVER token (ADR 0005)
+    const result = await postJson(`${submitOrigin}/answer`, {
+      editKey,
+      questionVersionId,
+      ...body,
+    });
+    mark("answer-save-end");
+    return result;
+  };
+}
+
+void run();
