@@ -708,6 +708,7 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient) => {
       const answered = personId === null ? false : yield* hasAnswered(roundId, personId);
 
       return {
+        roundId,
         pulseName: round.pulseName,
         anonymityStatement: "Your name is never stored with your answers.",
         questions: parsedQuestions,

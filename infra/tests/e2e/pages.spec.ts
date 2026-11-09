@@ -8,8 +8,8 @@ test("the app loads", async ({ page, pageErrors }) => {
 
 test("the answer page loads", async ({ page, pageErrors }) => {
   await open(page, "/answer");
-  await expect(page.locator("#answer p").first()).toBeVisible();
-  await expect(page).not.toHaveTitle("");
+  await expect(page.locator("#screen-1")).toBeVisible();
+  await expect(page).toHaveTitle("Your answer");
   expect(pageErrors).toEqual([]);
 });
 

@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test:e2e": "playwright test --config tests/e2e/playwright.config.ts"
+    "test:e2e": "playwright test --config tests/e2e/playwright.config.ts",
+    "test:lighthouse": "node scripts/lighthouse-gate.ts"
   },
   "dependencies": {
     "@alchemy.run/cloudflare": "catalog:",
@@ -16,6 +17,7 @@
     "effect": "catalog:"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
     "@effect/vitest": "catalog:",
     "@playwright/test": "catalog:",
     "@types/node": "catalog:"
