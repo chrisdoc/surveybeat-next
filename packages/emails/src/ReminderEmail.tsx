@@ -1,7 +1,11 @@
-import type { ReminderEmail as ReminderEmailData } from "@surveybeat/domain";
+import type { ReminderEmailWithToken as ReminderEmailData } from "@surveybeat/domain";
 import { Button, Heading, Link, Section, Text } from "react-email";
 import { colors, Layout, textLayout } from "./Layout.tsx";
 import { message } from "./messages/index.ts";
+
+/** Legacy rows carry their own URL; otherwise it is built from the token. */
+export const unsubscribeUrl = (email: ReminderEmailData): string =>
+  email.unsubscribeUrl ?? `${email.baseUrl}/api/reminders/unsubscribe?t=${email.token}`;
 
 export const subject = (email: ReminderEmailData): string =>
   message("reminder.subject", { pulse: email.pulseName });
@@ -110,7 +114,7 @@ export function ReminderEmailComponent({ email }: { email: ReminderEmailData }) 
             {message("invitation.changeWhen")}
           </Link>
           {" · "}
-          <Link href={email.unsubscribeUrl} style={{ color: colors.muted, textDecoration: "underline" }}>
+          <Link href={unsubscribeUrl(email)} style={{ color: colors.muted, textDecoration: "underline" }}>
             {message("reminder.unsubscribe")}
           </Link>
         </Text>
@@ -161,7 +165,7 @@ export const text = (email: ReminderEmailData): string => {
       "",
       ...actionLines,
       `${message("invitation.changeWhen")}: ${deliveryUrl}`,
-      `${message("reminder.unsubscribe")}: ${email.unsubscribeUrl}`,
+      `${message("reminder.unsubscribe")}: ${unsubscribeUrl(email)}`,
       message("invitation.personalNotice"),
     ],
     message("invitation.reason"),

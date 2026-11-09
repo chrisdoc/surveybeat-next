@@ -1,9 +1,9 @@
 import { describe, expect, it } from "@effect/vitest";
-import type { TransactionalEmail } from "@surveybeat/domain";
+import type { RenderableEmail } from "@surveybeat/domain";
 import { renderEmail } from "./render.tsx";
 
 /** One example per template. The mapped type fails to compile when a template has no example. */
-const examples: { readonly [K in TransactionalEmail["_tag"]]: Extract<TransactionalEmail, { _tag: K }> } = {
+const examples: { readonly [K in RenderableEmail["_tag"]]: Extract<RenderableEmail, { _tag: K }> } = {
   AddedToTeam: {
     _tag: "AddedToTeam",
     teamName: "Platform",
@@ -13,7 +13,7 @@ const examples: { readonly [K in TransactionalEmail["_tag"]]: Extract<Transactio
   InvitationEmail: {
     _tag: "InvitationEmail",
     pulseName: "Weekly Pulse",
-    anonymityStatement: "Your name is never stored with your answers.",
+    minimumGroupSize: 4,
     token: "test-token-123",
     baseUrl: "https://app.surveybeat.app",
     ratingQuestion: {
@@ -30,7 +30,6 @@ const examples: { readonly [K in TransactionalEmail["_tag"]]: Extract<Transactio
     baseUrl: "https://app.surveybeat.app",
     ratingQuestion: null,
     actions: [],
-    unsubscribeUrl: "https://app.surveybeat.app/api/reminders/unsubscribe?t=test-token-123",
   },
   ResultsReadyEmail: {
     _tag: "ResultsReadyEmail",
@@ -86,7 +85,9 @@ describe("InvitationEmail", () => {
   it("contains pulse name, anonymity statement, 5 rating links, open check-in, actions, and footer", async () => {
     const { html, text } = await renderEmail(examples.InvitationEmail);
     expect(html).toContain("Weekly Pulse");
-    expect(html).toContain("Your name is never stored with your answers.");
+    expect(html).toContain(
+      "Your lead only sees combined answers from at least 4 people, never who answered what. Your name is never stored with your answers.",
+    );
     for (let v = 1; v <= 5; v++) {
       expect(html).toContain(`https://app.surveybeat.app/a#t=test-token-123&amp;v=${v}`);
     }
@@ -98,7 +99,8 @@ describe("InvitationEmail", () => {
     expect(html).toContain("This link is personal. Don&#x27;t forward it.");
 
     expect(text).toContain("Weekly Pulse");
-    expect(text).toContain("Your name is never stored with your answers.");
+    expect(text).toContain("at least 4 people");
+    expect(text).toContain("never who answered what");
     expect(text).toContain("https://app.surveybeat.app/a#t=test-token-123");
     expect(text).toContain(
       "Change when I get this: https://app.surveybeat.app/delivery?token=test-token-123",
@@ -106,7 +108,27 @@ describe("InvitationEmail", () => {
   });
 });
 
+describe("InvitationEmail rows stored before N was carried", () => {
+  it("render their statement verbatim", async () => {
+    const { minimumGroupSize: _n, ...rest } = examples.InvitationEmail;
+    const { text } = await renderEmail({
+      ...rest,
+      anonymityStatement: "Your name is never stored with your answers.",
+    });
+    expect(text).toContain("Your name is never stored with your answers.");
+    expect(text).not.toContain("at least");
+  });
+});
+
 describe("ReminderEmail", () => {
+  it("renders the unsubscribe URL stored by an older row as is", async () => {
+    const { headers } = await renderEmail({
+      ...examples.ReminderEmail,
+      unsubscribeUrl: "https://old.example/api/reminders/unsubscribe?t=old",
+    });
+    expect(headers?.["List-Unsubscribe"]).toBe("<https://old.example/api/reminders/unsubscribe?t=old>");
+  });
+
   it("includes RFC 8058 List-Unsubscribe headers and opt-out link", async () => {
     const rendered = await renderEmail(examples.ReminderEmail);
     expect(rendered.headers).toBeDefined();

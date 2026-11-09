@@ -156,13 +156,16 @@ export const trendTable = <Message>(
       h.tbody(
         [],
         points.map((p) => {
-          const contrib = "contributors" in p ? p.contributors : p.usableQuestionCount;
+          const contrib = p.contributors;
           return h.tr(
             [h.Class("border-b border-gray-100")],
             [
               h.td([h.Class("px-2 py-1")], [p.plannedOpenDate]),
               h.td([h.Class("px-2 py-1")], [p.score !== null ? String(p.score) : message("results.dash")]),
-              h.td([h.Class("px-2 py-1")], [String(contrib)]),
+              h.td(
+                [h.Class("px-2 py-1")],
+                [contrib !== undefined ? String(contrib) : message("results.dash")],
+              ),
             ],
           );
         }),
@@ -602,7 +605,7 @@ export const resultsScreenView = <Message>(
           h.p([h.Class("text-blue-900 font-medium")], [message("results.openNotice")]),
           h.p(
             [h.Class("text-sm text-blue-700 mt-1")],
-            [message("results.openResponses", { count: String(result.submissionsCount) })],
+            [pluralMessage("results.openSubmissions", result.submissionsCount)],
           ),
         ],
       ),
@@ -672,6 +675,12 @@ export const resultsScreenView = <Message>(
                     ),
                   ],
                 ),
+                dim.contributors !== undefined && dim.contributors !== null
+                  ? h.p(
+                      [h.Class("text-xs text-gray-500")],
+                      [pluralMessage("results.contributors", dim.contributors)],
+                    )
+                  : null,
                 changeView(dim.change, h),
                 highlightBadge(dim.change?.highlight ?? null, h),
                 baselineNote(dim.typicalChange, h),

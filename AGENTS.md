@@ -34,7 +34,7 @@ CI runs `typecheck:effect`, `typecheck`, `format:check`, `lint`, `test`, then th
 - `packages/domain` — Effect schemas and services by concept (`people/`, `email/`); depends only on `effect`.
 - `packages/api` — the `HttpApi` declaration shared by the Worker and the typed web client; depends on `domain`.
 - `packages/cloudflare` — all Cloudflare adapters plus the `MainWorker` and `SubmissionWorker` entries; the only package that touches the Alchemy runtime.
-- `apps/web` — one Vite project with two entries: the React app (`index.html`) and the plain-TypeScript answer page (`answer.html`).
+- `apps/web` — one Vite project with two entries: the Foldkit app (`index.html`) and the plain-TypeScript answer page (`answer.html`).
 - `packages/emails` — React Email templates and rendering. `packages/testing` — privacy harness. `infra` — Alchemy stack, scripts, Playwright e2e, privacy sweep. `tools/oxlint-plugin-surveybeat` — local lint rules.
 
 ## Toolchain traps
@@ -44,7 +44,7 @@ CI runs `typecheck:effect`, `typecheck`, `format:check`, `lint`, `test`, then th
 - Stricter than defaults: `exactOptionalPropertyTypes`, `noUncheckedIndexedAccess`, `verbatimModuleSyntax` (use `import type`), and relative imports carry explicit `.ts`/`.tsx` extensions.
 - Lint bans `any` and type assertions (`as Foo`) outside `*.test.ts` (`consistent-type-assertions: never`). Decode with Effect Schema or use typed helpers instead.
 - All user-facing text comes from `apps/web/src/messages/catalog.ts` or `packages/emails/src/messages/catalog.ts`; `no-literal-ui-text` fails otherwise. HTML shells must hold no visible text and an empty `<title>` (asserted in `messages.test.ts`). Plurals use `<base>.one`/`.other`.
-- The lint plugin enforces the boundaries: `domain`/`api` may not import `cloudflare:*` or Alchemy, and `apps/web/src/answer/**` may not import React, Base UI, or the HttpApi client.
+- The lint plugin enforces the boundaries: `domain`/`api` may not import `cloudflare:*`, Alchemy, or Foldkit, and `apps/web/src/answer/**` may not import React, Base UI, Foldkit, or the HttpApi client.
 - Keep the answer entry plain TypeScript within its budget (JS ≤ 10 KB gzip critical path, CSS ≤ 2 KB inline, HTML ≤ 8 KB); no framework, per ADR 0008.
 
 ## Tests

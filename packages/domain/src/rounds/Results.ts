@@ -28,6 +28,11 @@ export const DimensionTrendPoint = Schema.Struct({
   plannedOpenDate: Schema.String,
   score: Schema.NullOr(Schema.Finite),
   usableQuestionCount: Schema.Int,
+  /**
+   * Contributors to the Dimension in that Round (see `DimensionResult.contributors`). Optional so
+   * payloads stored before this field existed still decode; absent means unknown.
+   */
+  contributors: Schema.optionalKey(Schema.Int),
   hasGap: Schema.Boolean,
 });
 export type DimensionTrendPoint = typeof DimensionTrendPoint.Type;
@@ -94,6 +99,12 @@ export const DimensionResult = Schema.Struct({
   score: Schema.NullOr(Schema.Finite),
   usableQuestionCount: Schema.Int,
   totalQuestionCount: Schema.Int,
+  /**
+   * Contributors to the Dimension: Submissions that gave a value to at least one of its usable
+   * Questions. Null when the Dimension is hidden by the minimum group size. Optional so payloads
+   * stored before this field existed still decode; absent means unknown.
+   */
+  contributors: Schema.optionalKey(Schema.NullOr(Schema.Int)),
   meetsMinimumGroupSize: Schema.Boolean,
   change: Schema.NullOr(DimensionChange),
   typicalChange: Schema.NullOr(TypicalChange),
@@ -185,6 +196,8 @@ export interface HistoricalRoundDimensionData {
   readonly dimension: Dimension;
   readonly score: number | null;
   readonly usableQuestionCount: number;
+  /** Dimension contributors of that Round, when known (older stored Results lack it). */
+  readonly contributors?: number | null | undefined;
   readonly meetsMinimumGroupSize: boolean;
 }
 
@@ -270,6 +283,55 @@ export const shuffleComments = (comments: ReadonlyArray<CommentResult>): Readonl
     }
   }
   return arr;
+};
+
+/**
+ * Contributors of a past Round's Dimension for its trend point: the stored value when present,
+ * otherwise the largest contributor count among that Round's Questions of the Dimension
+ * (a lower bound of the distinct count; enough to apply the minimum group size).
+ */
+const pastDimContributors = (
+  pastDim: HistoricalRoundDimensionData,
+  past: HistoricalRoundData,
+  questions: ReadonlyArray<QuestionInput>,
+): { readonly contributors?: number } => {
+  if (pastDim.contributors !== undefined && pastDim.contributors !== null) {
+    return { contributors: pastDim.contributors };
+  }
+  const ids = new Set<string>(questions.filter((q) => q.dimension === pastDim.dimension).map((q) => q.id));
+  const counts = past.questions.filter((pq) => ids.has(pq.questionVersionId)).map((pq) => pq.contributors);
+  return counts.length === 0 ? {} : { contributors: Math.max(...counts) };
+};
+
+/**
+ * Whether a past Round's Dimension score may be shown at `pastEffectiveN`. When N has been raised
+ * since that Round, every Question its score averaged must still meet the raised N (ADR 0004);
+ * if those Questions cannot be matched, the score stays hidden.
+ */
+const pastDimMeetsN = (
+  pastDim: HistoricalRoundDimensionData,
+  past: HistoricalRoundData,
+  questions: ReadonlyArray<QuestionInput>,
+  pastEffectiveN: number,
+): boolean => {
+  if (pastDim.score === null || !pastDim.meetsMinimumGroupSize || past.submissionsCount < pastEffectiveN) {
+    return false;
+  }
+  if (pastEffectiveN <= past.effectiveMinimumGroupSize) return true;
+  if (
+    pastDim.contributors !== undefined &&
+    pastDim.contributors !== null &&
+    pastDim.contributors < pastEffectiveN
+  ) {
+    return false;
+  }
+  const ids = new Set<string>(questions.filter((q) => q.dimension === pastDim.dimension).map((q) => q.id));
+  const averaged = past.questions.filter((pq) => ids.has(pq.questionVersionId) && pq.score !== null);
+  return (
+    averaged.length > 0 &&
+    averaged.length === pastDim.usableQuestionCount &&
+    averaged.every((pq) => pq.contributors >= pastEffectiveN)
+  );
 };
 
 /**
@@ -422,6 +484,7 @@ export const calculateRoundResult = (params: {
     readonly score: number | null;
     readonly usableQuestionCount: number;
     readonly totalQuestionCount: number;
+    readonly contributors: number | null;
     readonly meetsN: boolean;
   }
 
@@ -438,6 +501,7 @@ export const calculateRoundResult = (params: {
         score: null,
         usableQuestionCount: 0,
         totalQuestionCount: totalCount,
+        contributors: null,
         meetsN: false,
       });
       continue;
@@ -450,16 +514,22 @@ export const calculateRoundResult = (params: {
         score: null,
         usableQuestionCount: 0,
         totalQuestionCount: totalCount,
+        contributors: null,
         meetsN: false,
       });
     } else {
       const sum = usableQuestions.reduce((acc, q) => acc + (q.score ?? 0), 0);
       const mean = roundDecimals(sum / usableQuestions.length, 2);
+      const usableIds = new Set<string>(usableQuestions.map((tqs) => tqs.question.id));
+      const dimContributors = submissions.filter((sub) =>
+        sub.answers.some((ans) => ans.value !== null && usableIds.has(ans.questionVersionId)),
+      ).length;
       tempDimensionScores.push({
         dimension: dim,
         score: mean,
         usableQuestionCount: usableQuestions.length,
         totalQuestionCount: totalCount,
+        contributors: dimContributors,
         meetsN: true,
       });
     }
@@ -620,17 +690,14 @@ export const calculateRoundResult = (params: {
     for (const past of pastUpTo11) {
       const pastDim = past.dimensions.find((pd) => pd.dimension === dim);
       const pastEffectiveN = Math.max(past.effectiveMinimumGroupSize, effectiveN);
-      const pastUsable =
-        pastDim !== undefined &&
-        pastDim.score !== null &&
-        pastDim.meetsMinimumGroupSize &&
-        past.submissionsCount >= pastEffectiveN;
+      const pastUsable = pastDim !== undefined && pastDimMeetsN(pastDim, past, questions, pastEffectiveN);
 
       dimTrendPoints.push({
         roundId: past.roundId,
         plannedOpenDate: past.plannedOpenDate,
         score: pastUsable && pastDim ? pastDim.score : null,
         usableQuestionCount: pastDim ? pastDim.usableQuestionCount : 0,
+        ...(pastDim !== undefined ? pastDimContributors(pastDim, past, questions) : {}),
         hasGap: !pastUsable,
       });
     }
@@ -640,6 +707,7 @@ export const calculateRoundResult = (params: {
       plannedOpenDate,
       score: tds.score,
       usableQuestionCount: tds.usableQuestionCount,
+      ...(tds.contributors !== null ? { contributors: tds.contributors } : {}),
       hasGap: !tds.meetsN,
     });
 
@@ -649,6 +717,7 @@ export const calculateRoundResult = (params: {
         score: null,
         usableQuestionCount: tds.usableQuestionCount,
         totalQuestionCount: tds.totalQuestionCount,
+        contributors: null,
         meetsMinimumGroupSize: false,
         change: null,
         typicalChange: null,
@@ -667,12 +736,7 @@ export const calculateRoundResult = (params: {
     for (const past of pastRoundsHistory) {
       const pastDim = past.dimensions.find((pd) => pd.dimension === dim);
       const pastEffectiveN = Math.max(past.effectiveMinimumGroupSize, effectiveN);
-      if (
-        pastDim !== undefined &&
-        pastDim.score !== null &&
-        pastDim.meetsMinimumGroupSize &&
-        past.submissionsCount >= pastEffectiveN
-      ) {
+      if (pastDim !== undefined && pastDimMeetsN(pastDim, past, questions, pastEffectiveN)) {
         usablePastDimRounds.push({
           roundId: past.roundId,
           plannedOpenDate: past.plannedOpenDate,
@@ -796,6 +860,7 @@ export const calculateRoundResult = (params: {
       score: tds.score,
       usableQuestionCount: tds.usableQuestionCount,
       totalQuestionCount: tds.totalQuestionCount,
+      contributors: tds.contributors,
       meetsMinimumGroupSize: true,
       change: changeObj,
       typicalChange: typicalChangeObj,
@@ -841,10 +906,45 @@ export const calculateRoundResult = (params: {
   };
 };
 
+/** Minimal shape shared by Question and Dimension trend points. */
+interface MaskableTrendPoint {
+  readonly roundId: RoundId;
+  readonly score: number | null;
+  readonly contributors?: number | undefined;
+  readonly hasGap: boolean;
+}
+
+/**
+ * Applies an effective N to the earlier Rounds' trend points (everything except the current Round's
+ * point, which the caller rebuilds from the masked current aggregate). A point whose contributors are
+ * unknown or below N loses its score. Earlier Rounds' own stored N was already applied when the trend
+ * was built, so only the raised Organization N needs checking here. Returns the points and the
+ * Rounds whose visible score was newly hidden.
+ */
+const maskEarlierTrendPoints = <P extends MaskableTrendPoint>(
+  points: ReadonlyArray<P>,
+  currentRoundId: RoundId,
+  effectiveN: number,
+): { readonly points: ReadonlyArray<P>; readonly newlyMasked: ReadonlySet<RoundId> } => {
+  const newlyMasked = new Set<RoundId>();
+  const masked = points.map((p) => {
+    if (p.roundId === currentRoundId || p.score === null) return p;
+    if (p.contributors !== undefined && p.contributors >= effectiveN) return p;
+    newlyMasked.add(p.roundId);
+    return { ...p, score: null, hasGap: true };
+  });
+  return { points: masked, newlyMasked };
+};
+
 /**
  * When N is raised in Organization settings after a Result was computed,
  * apply the stricter effective N (Rule R9: max(stored N, current N)).
  * Lowering N never loosens past rounds.
+ *
+ * Everything derived from a now-hidden score is hidden with it: the trend points (the current
+ * Round's point mirrors the masked aggregate), the change, and the Typical change (which is computed
+ * from the earlier Rounds' scores and cannot be recomputed here, so it is dropped whenever one of
+ * those scores is newly hidden).
  */
 export const enforceEffectiveNOnResult = (result: RoundResult, currentOrgN: number): RoundResult => {
   const effectiveN = Math.max(result.effectiveMinimumGroupSize, currentOrgN);
@@ -855,20 +955,88 @@ export const enforceEffectiveNOnResult = (result: RoundResult, currentOrgN: numb
   const meetsRoundN = result.submissionsCount >= effectiveN;
 
   // Mask questions
-  const maskedQuestions = result.questions.map((q) => {
+  const maskedQuestions = result.questions.map((q): QuestionResult => {
     const meetsN = q.contributors >= effectiveN && meetsRoundN;
-    if (meetsN) return q;
+    const earlier = maskEarlierTrendPoints(q.trend, result.roundId, effectiveN);
+    const trend = earlier.points.map((p) =>
+      p.roundId === result.roundId && !meetsN ? { ...p, score: null, hasGap: true } : p,
+    );
+    const earlierChanged = earlier.newlyMasked.size > 0;
+    if (meetsN) {
+      if (!earlierChanged) return q;
+      return {
+        ...q,
+        change:
+          q.change !== null &&
+          q.change.previousRoundId !== null &&
+          earlier.newlyMasked.has(q.change.previousRoundId)
+            ? null
+            : q.change,
+        typicalChange: null,
+        trend,
+      };
+    }
     return {
       ...q,
       meetsMinimumGroupSize: false,
       score: null,
       distribution: null,
       change: null,
+      typicalChange: null,
+      trend,
     };
   });
 
   // Mask dimensions
-  const maskedDimensions = result.dimensions.map((d) => {
+  const maskedDimensions = result.dimensions.map((d): DimensionResult => {
+    const dimensionQuestions = result.questions.filter((q) => q.dimension === d.dimension);
+    // Earlier Rounds whose score of one of this Dimension's Questions is newly hidden: the
+    // Dimension's change and Typical change average those Question scores, so they are stale.
+    const questionMasked = new Set<RoundId>();
+    for (const q of dimensionQuestions) {
+      for (const id of maskEarlierTrendPoints(q.trend, result.roundId, effectiveN).newlyMasked) {
+        questionMasked.add(id);
+      }
+    }
+    // An earlier Dimension score is the mean of that Round's visible Question scores, so it may stay
+    // only if every Question it averaged still meets the effective N (same rule as `pastDimMeetsN`).
+    const base = maskEarlierTrendPoints(d.trend, result.roundId, effectiveN);
+    const newlyMasked = new Set<RoundId>(base.newlyMasked);
+    const earlier = {
+      newlyMasked,
+      points: base.points.map((p) => {
+        if (p.roundId === result.roundId || p.score === null) return p;
+        const averaged = dimensionQuestions.flatMap((q) =>
+          q.trend.filter((t) => t.roundId === p.roundId && t.score !== null),
+        );
+        if (
+          averaged.length > 0 &&
+          averaged.length === p.usableQuestionCount &&
+          averaged.every((t) => t.contributors >= effectiveN)
+        ) {
+          return p;
+        }
+        newlyMasked.add(p.roundId);
+        return { ...p, score: null, hasGap: true };
+      }),
+    };
+    const withCurrent = (
+      current: Pick<DimensionTrendPoint, "score" | "usableQuestionCount" | "hasGap"> & {
+        readonly contributors: number | null;
+      },
+    ): ReadonlyArray<DimensionTrendPoint> =>
+      earlier.points.map((p) => {
+        if (p.roundId !== result.roundId) return p;
+        const { contributors: _previous, ...rest } = p;
+        return {
+          ...rest,
+          score: current.score,
+          usableQuestionCount: current.usableQuestionCount,
+          ...(current.contributors !== null ? { contributors: current.contributors } : {}),
+          hasGap: current.hasGap,
+        };
+      });
+
     const usableQs = maskedQuestions.filter(
       (q) => q.dimension === d.dimension && q.meetsMinimumGroupSize && q.score !== null,
     );
@@ -878,16 +1046,36 @@ export const enforceEffectiveNOnResult = (result: RoundResult, currentOrgN: numb
         meetsMinimumGroupSize: false,
         score: null,
         usableQuestionCount: 0,
+        contributors: null,
         change: null,
+        typicalChange: null,
+        trend: withCurrent({ score: null, usableQuestionCount: 0, contributors: null, hasGap: true }),
       };
     }
     const sum = usableQs.reduce((acc, q) => acc + (q.score ?? 0), 0);
     const mean = roundDecimals(sum / usableQs.length, 2);
+    const usableSetChanged = usableQs.length !== d.usableQuestionCount;
+    // Distinct contributors cannot be recounted without Submissions. When the usable Questions are
+    // unchanged the stored count still holds; otherwise use the largest remaining Question count
+    // (a lower bound, and every usable Question has at least N contributors).
+    const contributors = usableSetChanged
+      ? Math.max(...usableQs.map((q) => q.contributors))
+      : (d.contributors ?? Math.max(...usableQs.map((q) => q.contributors)));
+    const earlierChanged = newlyMasked.size > 0 || questionMasked.size > 0;
+    const changeStale =
+      usableSetChanged ||
+      (d.change !== null &&
+        d.change.previousRoundId !== null &&
+        (newlyMasked.has(d.change.previousRoundId) || questionMasked.has(d.change.previousRoundId)));
     return {
       ...d,
       score: mean,
       usableQuestionCount: usableQs.length,
+      contributors,
       meetsMinimumGroupSize: true,
+      change: changeStale ? null : d.change,
+      typicalChange: earlierChanged || usableSetChanged ? null : d.typicalChange,
+      trend: withCurrent({ score: mean, usableQuestionCount: usableQs.length, contributors, hasGap: false }),
     };
   });
 

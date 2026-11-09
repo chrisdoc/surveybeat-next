@@ -4,7 +4,7 @@ import { expect, test } from "@playwright/test";
 const mockExchangeContext = {
   roundId: "round-test-123",
   pulseName: "Weekly Pulse",
-  anonymityStatement: "Your name is never stored with your answers.",
+  minimumGroupSize: 4,
   questions: [
     {
       id: "q-rating-1",
@@ -78,7 +78,7 @@ test.describe("answer page static entry (Issue #44, ADR 0005, ADR 0007, ADR 0008
     // 5. Anonymity statement must sit directly above "Save and continue"
     const anon = page.locator("#anon");
     await expect(anon).toBeVisible();
-    await expect(anon).toHaveText("Your name is never stored with your answers.");
+    await expect(anon).toContainText("at least 4 people");
 
     // Wait a moment to ensure no background POSTs fire without user interaction
     await page.waitForTimeout(500);

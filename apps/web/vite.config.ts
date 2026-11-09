@@ -95,7 +95,7 @@ const prerenderAnswer = (): Plugin => {
         <legend id="q1text" tabindex="-1">${message("answer.loading")}</legend>
         <div class="scale">${scale}</div>
       </fieldset>
-      <p class="anon" id="anon">${message("answer.anonymity")}</p>
+      <p class="anon" id="anon"></p>
       <button type="submit" id="save" disabled>${message("answer.save")}</button>
     </form>
   </section>

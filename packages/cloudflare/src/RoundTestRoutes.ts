@@ -1,18 +1,26 @@
 import type * as Cloudflare from "@alchemy.run/cloudflare";
+import { EmailTemplatesLive } from "@surveybeat/emails";
 import {
+  deriveInvitationToken,
+  EmailTemplates,
   EmailAddress,
   hashToken,
+  importInvitationTokenKey,
   MembershipId,
   PersonId,
   PulseId,
+  SendId,
   TeamId,
   TimeZone,
 } from "@surveybeat/domain";
 import * as Clock from "effect/Clock";
+import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
+import * as Redacted from "effect/Redacted";
 import { HttpServerRequest } from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
-import type { Organizations } from "./EmailDelivery.ts";
+import { InvitationTokensLive, type Organizations } from "./EmailDelivery.ts";
 
 export const ROUNDS_TEST_ROUTE = "/__test/rounds";
 
@@ -24,6 +32,8 @@ export const ROUNDS_TEST_ROUTE = "/__test/rounds";
  * 3. Every job run twice changes nothing the second time (idempotency).
  * 4. Exactly one Invitation is created per member on open, and none duplicated on second open.
  * 5. Failed invitations appear in Lead's view and resend resets status to pending with new send.
+ * 6. No Invitation token is persisted: the token is derived here from the stage key, matches the stored
+ *    hash, and appears in no job payload or send content (issue 42).
  */
 export const roundTestRoutes = (organizations: Organizations, database: Cloudflare.D1.QueryDatabaseClient) =>
   Effect.gen(function* () {
@@ -97,6 +107,41 @@ export const roundTestRoutes = (organizations: Organizations, database: Cloudfla
     const openJobAfterFirst = yield* organization.getJob(openJob.id);
     const invsAfterFirst = yield* organization.getInvitations(roundSummary.id);
 
+    // 6. The token is derived, never stored: only its hash is, and no job or send holds the token.
+    const tokenKey = yield* Config.Redacted("INVITATION_TOKEN_KEY").pipe(
+      Effect.flatMap((secret) => Effect.promise(() => importInvitationTokenKey(Redacted.value(secret)))),
+    );
+    const tokenFor = (generation: number) =>
+      Effect.promise(() =>
+        deriveInvitationToken(tokenKey, { roundId: roundSummary.id, personId: leadPersonId, generation }),
+      );
+    /** Everything the Organization persists about the Invitation's jobs and sends, as text. */
+    const persistedText = (sendId: SendId) =>
+      Effect.gen(function* () {
+        const jobs = yield* organization.getJobsForRound(roundSummary.id);
+        const send = yield* organization.getEmailSend(sendId);
+        return JSON.stringify({ jobs, send });
+      });
+    const firstInvitation = invsAfterFirst[0];
+    const firstSendId = firstInvitation?.sendId ?? SendId.make("");
+    const token0 = yield* tokenFor(0);
+    // Rendered as the Queue consumer does it: the stored send gets its token derived just before rendering.
+    const storedSend = yield* organization.getEmailSend(firstSendId);
+    const renderedText =
+      storedSend === null
+        ? ""
+        : yield* EmailTemplates.pipe(
+            Effect.flatMap((templates) => templates.render(storedSend.email)),
+            Effect.map((rendered) => rendered.text),
+            Effect.provide(EmailTemplatesLive.pipe(Layer.provide(InvitationTokensLive))),
+          );
+    const persistedAfterOpen = yield* persistedText(firstSendId);
+    const tokenDerivedMatchesHash =
+      firstInvitation !== undefined &&
+      (yield* Effect.promise(() => hashToken(token0))) === firstInvitation.tokenHash;
+    const tokenNotPersistedAfterOpen =
+      !persistedAfterOpen.includes(token0) && persistedAfterOpen.includes(firstSendId);
+
     // Run open job second time (idempotency check)
     yield* organization.runScheduleJob(openJob.id, openJob.due_at);
     const roundAfterSecond = yield* organization.getRound(roundSummary.id);
@@ -154,6 +199,12 @@ export const roundTestRoutes = (organizations: Organizations, database: Cloudfla
     const invsAfterResend = yield* organization.getInvitations(roundSummary.id);
     const resentInv = invsAfterResend[0];
     const resendCountIncremented = resentInv !== undefined && resentInv.resendCount === 1;
+    const token1 = yield* tokenFor(1);
+    const persistedAfterResend = yield* persistedText(resentInv?.sendId ?? SendId.make(""));
+    const resendTokenDerivedMatchesHash =
+      resentInv !== undefined && (yield* Effect.promise(() => hashToken(token1))) === resentInv.tokenHash;
+    const tokenNotPersistedAfterResend =
+      token1 !== token0 && !persistedAfterResend.includes(token1) && !persistedAfterResend.includes(token0);
 
     // Index the new token into D1 invitation_index as well
     if (resentInv !== undefined) {
@@ -224,6 +275,12 @@ export const roundTestRoutes = (organizations: Organizations, database: Cloudfla
       hasComputedResult,
       alarmPointsToEarliest2,
       testToken,
+      tokenDerivedMatchesHash,
+      tokenNotPersistedAfterOpen,
+      resendTokenDerivedMatchesHash,
+      tokenNotPersistedAfterResend,
+      renderedText,
+      token0,
       organizationId,
       leadPersonId,
       pulseId,

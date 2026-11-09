@@ -414,6 +414,94 @@ describe("Minimum group size rules R1–R11 (Issue #3 / ADR 0004)", () => {
   });
 });
 
+describe("Raised Organization N masks derived values (ADR 0004)", () => {
+  const history = (contributors: number): Array<HistoricalRoundData> =>
+    [1, 2, 3].map((i) => ({
+      roundId: RoundId.make(`past-${i}`),
+      plannedOpenDate: `2026-10-0${i}`,
+      closedAt: 1730000000000 + i * 86400000,
+      effectiveMinimumGroupSize: 4,
+      submissionsCount: contributors,
+      questions: [{ questionVersionId: Q1, score: 2 + i * 0.5, contributors, meetsMinimumGroupSize: true }],
+      dimensions: [
+        {
+          dimension: "workload" as const,
+          score: 2 + i * 0.5,
+          usableQuestionCount: 1,
+          contributors,
+          meetsMinimumGroupSize: true,
+        },
+      ],
+    }));
+
+  const compute = (submissionCount: number, past: Array<HistoricalRoundData>) =>
+    calculateRoundResult({
+      roundId: ROUND_1,
+      pulseId: PULSE_ID,
+      teamId: TEAM_ID,
+      status: "closed",
+      plannedOpenDate: "2026-11-02",
+      closedAt: 1730592000000,
+      effectiveMinimumGroupSize: 4,
+      eligibleMembersCount: 10,
+      questions: testQuestions,
+      submissions: Array.from({ length: submissionCount }, (_, i) => ({
+        id: `s${i}`,
+        answers: [{ questionVersionId: Q1, value: 4, comment: null }],
+      })),
+      pastRoundsHistory: past,
+    });
+
+  it("reports dimension contributors and hides them with the dimension", () => {
+    const result = compute(5, history(5));
+    const dim = result.dimensions.find((d) => d.dimension === "workload");
+    assert.strictEqual(dim?.contributors, 5);
+    const masked = enforceEffectiveNOnResult(result, 6);
+    assert.isNull(masked.dimensions.find((d) => d.dimension === "workload")?.contributors);
+  });
+
+  it("leaves no score, trend point or typical change once the current Round fails the raised N", () => {
+    const result = compute(5, history(5));
+    const before = result.dimensions.find((d) => d.dimension === "workload");
+    assert.strictEqual(before?.trend[before.trend.length - 1]?.score, 4);
+
+    const masked = enforceEffectiveNOnResult(result, 6);
+    for (const d of masked.dimensions) {
+      assert.isNull(d.score);
+      assert.isNull(d.change);
+      assert.isNull(d.typicalChange);
+      for (const p of d.trend) {
+        assert.isNull(p.score);
+        assert.isTrue(p.hasGap);
+      }
+    }
+    for (const q of masked.questions) {
+      assert.isNull(q.typicalChange);
+      for (const p of q.trend) assert.isNull(p.score);
+    }
+  });
+
+  it("hides earlier trend points that fail the raised N but keeps the current point that passes", () => {
+    const result = compute(6, history(5));
+    const masked = enforceEffectiveNOnResult(result, 6);
+    const dim = masked.dimensions.find((d) => d.dimension === "workload");
+    assert.strictEqual(dim?.score, 4);
+    assert.strictEqual(dim?.contributors, 6);
+    assert.isNull(dim?.change);
+    assert.isNull(dim?.typicalChange);
+    assert.deepStrictEqual(
+      dim?.trend.map((p) => p.score),
+      [null, null, null, 4],
+    );
+    const q = masked.questions.find((x) => x.questionVersionId === Q1);
+    assert.deepStrictEqual(
+      q?.trend.map((p) => p.score),
+      [null, null, null, 4],
+    );
+    assert.isNull(q?.change);
+  });
+});
+
 describe("12-Round history, trends, warm-up, and gap handling (Issue #4)", () => {
   it("building baseline warm-up note when fewer than 6 usable rounds exist", () => {
     // 3 usable past rounds

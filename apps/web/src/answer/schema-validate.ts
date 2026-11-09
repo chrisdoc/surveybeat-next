@@ -3,7 +3,7 @@ import * as Schema from "effect/Schema";
 export const SubmissionRoundContext = Schema.Struct({
   roundId: Schema.String,
   pulseName: Schema.String,
-  anonymityStatement: Schema.String,
+  minimumGroupSize: Schema.Int,
   questions: Schema.Array(
     Schema.Struct({
       id: Schema.String,

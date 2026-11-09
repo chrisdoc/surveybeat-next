@@ -17,7 +17,9 @@ import {
   QuestionContent,
   QuestionId,
   type QuestionType,
+  RoundDetail,
   RoundId,
+  RoundList,
   RoundResult,
   TeamDetail,
   TeamId,
@@ -57,6 +59,7 @@ import {
   pulsesScreenView,
 } from "./pulses.ts";
 import { LoadedActions, LoadedResults, resultsScreenView } from "./results.ts";
+import { isLead, LoadedRounds, RoundConfirm, roundsScreenView } from "./rounds.ts";
 import { AppRoute, pulseHref, teamHref, urlToAppRoute } from "./routes.ts";
 import {
   chooseOrganizationView,
@@ -135,6 +138,14 @@ export const Model = Schema.Struct({
   settingsSaved: Schema.Boolean,
   settingsBusy: Schema.Boolean,
   settingsFailure: Schema.Option(Failure),
+  // Rounds screen
+  rounds: LoadedRounds,
+  roundDetails: Schema.Record(Schema.String, RoundDetail),
+  roundRates: Schema.Record(Schema.String, Schema.NullOr(Schema.Finite)),
+  roundConfirm: Schema.Option(RoundConfirm),
+  roundsSkipDate: Schema.String,
+  roundsBusy: Schema.Boolean,
+  roundsFailure: Schema.Option(Failure),
   // Results screen
   results: LoadedResults,
   showTable: Schema.Record(Schema.String, Schema.Boolean),
@@ -163,6 +174,14 @@ export const OutcomeActions = Schema.Union([
 ]);
 export const OutcomeActionItem = Schema.Union([
   Schema.TaggedStruct("Success", { action: ActionItem }),
+  Schema.TaggedStruct("Failure", { failure: Failure }),
+]);
+export const OutcomeRounds = Schema.Union([
+  Schema.TaggedStruct("Success", { list: RoundList }),
+  Schema.TaggedStruct("Failure", { failure: Failure }),
+]);
+export const OutcomeRoundDetail = Schema.Union([
+  Schema.TaggedStruct("Success", { detail: RoundDetail }),
   Schema.TaggedStruct("Failure", { failure: Failure }),
 ]);
 export const OutcomeTeams = Schema.Union([
@@ -261,6 +280,20 @@ export const Message = defineMessageUnion({
   SettingsWindowChanged: { days: Schema.String },
   SettingsRemindersChanged: { reminders: Schema.String },
   SubmitSettings: {},
+  // Rounds screen
+  GotRounds: { outcome: OutcomeRounds },
+  GotRoundDetail: { roundId: RoundId, outcome: OutcomeRoundDetail },
+  GotRoundRate: { roundId: RoundId, outcome: OutcomeResults },
+  SkipWeekClicked: { plannedOpenDate: Schema.String },
+  SkipDateChanged: { date: Schema.String },
+  SubmitSkipDate: {},
+  PausePulseClicked: {},
+  ResumePulseClicked: {},
+  RoundConfirmRequested: { kind: Schema.Literals(["close", "cancel"]), roundId: RoundId },
+  RoundConfirmDismissed: {},
+  RoundConfirmed: {},
+  ResendInvitationClicked: { roundId: RoundId, personId: PersonId },
+  RoundCommandDone: { outcome: OutcomeVoid },
   // Results screen
   GotResults: { outcome: OutcomeResults },
   ToggleResultsTable: { key: Schema.String },
@@ -552,6 +585,105 @@ export const ReorderQuestionsCmd = Command.define("ReorderQuestionsCmd", {
     ),
 });
 
+export const ListRoundsCmd = Command.define("ListRoundsCmd", {
+  args: { teamId: TeamId, pulseId: PulseId },
+  messages: [Message.GotRounds],
+  execute: ({ teamId, pulseId }) =>
+    runApi(
+      (api) => api.rounds.listRounds({ params: { teamId, pulseId } }),
+      (list) => Message.GotRounds({ outcome: { _tag: "Success", list } }),
+      (failure) => Message.GotRounds({ outcome: { _tag: "Failure", failure } }),
+    ),
+});
+
+export const GetRoundDetailCmd = Command.define("GetRoundDetailCmd", {
+  args: { teamId: TeamId, roundId: RoundId },
+  messages: [Message.GotRoundDetail],
+  execute: ({ teamId, roundId }) =>
+    runApi(
+      (api) => api.rounds.getRound({ params: { teamId, roundId } }),
+      (detail) => Message.GotRoundDetail({ roundId, outcome: { _tag: "Success", detail } }),
+      (failure) => Message.GotRoundDetail({ roundId, outcome: { _tag: "Failure", failure } }),
+    ),
+});
+
+export const GetRoundRateCmd = Command.define("GetRoundRateCmd", {
+  args: { teamId: TeamId, roundId: RoundId },
+  messages: [Message.GotRoundRate],
+  execute: ({ teamId, roundId }) =>
+    runApi(
+      (api) => api.rounds.getResults({ params: { teamId, roundId } }),
+      (result) => Message.GotRoundRate({ roundId, outcome: { _tag: "Success", result } }),
+      (failure) => Message.GotRoundRate({ roundId, outcome: { _tag: "Failure", failure } }),
+    ),
+});
+
+export const SkipWeekCmd = Command.define("SkipWeekCmd", {
+  args: { teamId: TeamId, pulseId: PulseId, plannedOpenDate: Schema.String },
+  messages: [Message.RoundCommandDone],
+  execute: ({ teamId, pulseId, plannedOpenDate }) =>
+    runApi(
+      (api) => api.rounds.skipWeek({ params: { teamId, pulseId }, payload: { plannedOpenDate } }),
+      () => Message.RoundCommandDone({ outcome: { _tag: "Success" } }),
+      (failure) => Message.RoundCommandDone({ outcome: { _tag: "Failure", failure } }),
+    ),
+});
+
+export const PausePulseCmd = Command.define("PausePulseCmd", {
+  args: { teamId: TeamId, pulseId: PulseId },
+  messages: [Message.RoundCommandDone],
+  execute: ({ teamId, pulseId }) =>
+    runApi(
+      (api) => api.rounds.pausePulse({ params: { teamId, pulseId } }),
+      () => Message.RoundCommandDone({ outcome: { _tag: "Success" } }),
+      (failure) => Message.RoundCommandDone({ outcome: { _tag: "Failure", failure } }),
+    ),
+});
+
+export const ResumePulseCmd = Command.define("ResumePulseCmd", {
+  args: { teamId: TeamId, pulseId: PulseId },
+  messages: [Message.RoundCommandDone],
+  execute: ({ teamId, pulseId }) =>
+    runApi(
+      (api) => api.rounds.resumePulse({ params: { teamId, pulseId } }),
+      () => Message.RoundCommandDone({ outcome: { _tag: "Success" } }),
+      (failure) => Message.RoundCommandDone({ outcome: { _tag: "Failure", failure } }),
+    ),
+});
+
+export const CloseRoundEarlyCmd = Command.define("CloseRoundEarlyCmd", {
+  args: { teamId: TeamId, roundId: RoundId },
+  messages: [Message.RoundCommandDone],
+  execute: ({ teamId, roundId }) =>
+    runApi(
+      (api) => api.rounds.closeRoundEarly({ params: { teamId, roundId } }),
+      () => Message.RoundCommandDone({ outcome: { _tag: "Success" } }),
+      (failure) => Message.RoundCommandDone({ outcome: { _tag: "Failure", failure } }),
+    ),
+});
+
+export const CancelRoundCmd = Command.define("CancelRoundCmd", {
+  args: { teamId: TeamId, roundId: RoundId },
+  messages: [Message.RoundCommandDone],
+  execute: ({ teamId, roundId }) =>
+    runApi(
+      (api) => api.rounds.cancelRound({ params: { teamId, roundId } }),
+      () => Message.RoundCommandDone({ outcome: { _tag: "Success" } }),
+      (failure) => Message.RoundCommandDone({ outcome: { _tag: "Failure", failure } }),
+    ),
+});
+
+export const ResendInvitationCmd = Command.define("ResendInvitationCmd", {
+  args: { teamId: TeamId, roundId: RoundId, personId: PersonId },
+  messages: [Message.RoundCommandDone],
+  execute: ({ teamId, roundId, personId }) =>
+    runApi(
+      (api) => api.rounds.resendInvitation({ params: { teamId, roundId, personId } }),
+      () => Message.RoundCommandDone({ outcome: { _tag: "Success" } }),
+      (failure) => Message.RoundCommandDone({ outcome: { _tag: "Failure", failure } }),
+    ),
+});
+
 export const GetResultsCmd = Command.define("GetResultsCmd", {
   args: { teamId: TeamId, roundId: RoundId },
   messages: [Message.GotResults],
@@ -691,6 +823,13 @@ export const initialModel = (url: Url): Model => {
     settingsSaved: false,
     settingsBusy: false,
     settingsFailure: Option.none(),
+    rounds: { _tag: "Loading" },
+    roundDetails: {},
+    roundRates: {},
+    roundConfirm: Option.none(),
+    roundsSkipDate: "",
+    roundsBusy: false,
+    roundsFailure: Option.none(),
     results: { _tag: "Loading" },
     showTable: {},
     actions: { _tag: "Loading" },
@@ -715,6 +854,9 @@ export const loadActiveRouteCommand = (route: AppRoute) => {
       return [ListPulses({ teamId: route.teamId })];
     case "Pulse":
       return [GetPulse({ teamId: route.teamId, pulseId: route.pulseId })];
+    case "Rounds":
+      // The Team loads first: its role decides which follow-up calls the Rounds screen makes.
+      return [GetTeam({ teamId: route.teamId })];
     case "RoundResults":
       return [
         GetResultsCmd({ teamId: route.teamId, roundId: route.roundId }),
@@ -776,6 +918,13 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         settings: { _tag: "Loading" },
         teams: { _tag: "Loading" },
         results: { _tag: "Loading" },
+        rounds: { _tag: "Loading" },
+        roundDetails: {},
+        roundRates: {},
+        roundConfirm: Option.none(),
+        roundsSkipDate: "",
+        roundsBusy: false,
+        roundsFailure: Option.none(),
         actions: { _tag: "Loading" },
         actionTitle: "",
         actionOwnerId: Option.none(),
@@ -985,6 +1134,10 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
             renameName: outcome.detail.team.name,
             renameTimeZone: outcome.detail.team.timeZone,
           },
+          commands:
+            model.route._tag === "Rounds"
+              ? [ListRoundsCmd({ teamId: model.route.teamId, pulseId: model.route.pulseId })]
+              : [],
         };
       }
       if (outcome.failure === "Unauthenticated") {
@@ -1660,6 +1813,158 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     }
 
     // ----------------------------------------
+    // Rounds screen
+    // ----------------------------------------
+    case "GotRounds": {
+      const { outcome } = message;
+      if (outcome._tag === "Failure") {
+        if (outcome.failure === "Unauthenticated") {
+          return { model, commands: [LoadSession()] };
+        }
+        return { model: { ...model, rounds: { _tag: "Failed", failure: outcome.failure } } };
+      }
+      const lead = isLead(model.teamDetail);
+      const commands = [];
+      if (lead && model.route._tag === "Rounds") {
+        const teamId = model.route.teamId;
+        for (const round of outcome.list.rounds) {
+          if (round.status === "open") {
+            commands.push(GetRoundDetailCmd({ teamId, roundId: round.id }));
+          } else if (round.status === "closed" || round.status === "ready" || round.status === "shared") {
+            commands.push(GetRoundRateCmd({ teamId, roundId: round.id }));
+          }
+        }
+      }
+      return {
+        model: { ...model, rounds: { _tag: "Loaded", list: outcome.list } },
+        commands,
+      };
+    }
+
+    case "GotRoundDetail": {
+      if (message.outcome._tag === "Failure") return { model };
+      return {
+        model: {
+          ...model,
+          roundDetails: { ...model.roundDetails, [message.roundId]: message.outcome.detail },
+        },
+      };
+    }
+
+    case "GotRoundRate": {
+      if (message.outcome._tag === "Failure") return { model };
+      return {
+        model: {
+          ...model,
+          roundRates: { ...model.roundRates, [message.roundId]: message.outcome.result.responseRate },
+        },
+      };
+    }
+
+    case "SkipDateChanged":
+      return { model: { ...model, roundsSkipDate: message.date } };
+
+    case "SkipWeekClicked": {
+      if (model.route._tag !== "Rounds") return { model };
+      return {
+        model: { ...model, roundsBusy: true, roundsFailure: Option.none() },
+        commands: [
+          SkipWeekCmd({
+            teamId: model.route.teamId,
+            pulseId: model.route.pulseId,
+            plannedOpenDate: message.plannedOpenDate,
+          }),
+        ],
+      };
+    }
+
+    case "SubmitSkipDate": {
+      if (model.route._tag !== "Rounds" || model.roundsSkipDate.trim() === "") return { model };
+      return {
+        model: { ...model, roundsBusy: true, roundsFailure: Option.none() },
+        commands: [
+          SkipWeekCmd({
+            teamId: model.route.teamId,
+            pulseId: model.route.pulseId,
+            plannedOpenDate: model.roundsSkipDate.trim(),
+          }),
+        ],
+      };
+    }
+
+    case "PausePulseClicked": {
+      if (model.route._tag !== "Rounds") return { model };
+      return {
+        model: { ...model, roundsBusy: true, roundsFailure: Option.none() },
+        commands: [PausePulseCmd({ teamId: model.route.teamId, pulseId: model.route.pulseId })],
+      };
+    }
+
+    case "ResumePulseClicked": {
+      if (model.route._tag !== "Rounds") return { model };
+      return {
+        model: { ...model, roundsBusy: true, roundsFailure: Option.none() },
+        commands: [ResumePulseCmd({ teamId: model.route.teamId, pulseId: model.route.pulseId })],
+      };
+    }
+
+    case "RoundConfirmRequested":
+      return {
+        model: {
+          ...model,
+          roundConfirm: Option.some({ kind: message.kind, roundId: message.roundId }),
+          roundsFailure: Option.none(),
+        },
+      };
+
+    case "RoundConfirmDismissed":
+      return { model: { ...model, roundConfirm: Option.none() } };
+
+    case "RoundConfirmed": {
+      if (model.route._tag !== "Rounds" || Option.isNone(model.roundConfirm)) return { model };
+      const { kind, roundId } = model.roundConfirm.value;
+      const teamId = model.route.teamId;
+      return {
+        model: { ...model, roundConfirm: Option.none(), roundsBusy: true, roundsFailure: Option.none() },
+        commands: [
+          kind === "close" ? CloseRoundEarlyCmd({ teamId, roundId }) : CancelRoundCmd({ teamId, roundId }),
+        ],
+      };
+    }
+
+    case "ResendInvitationClicked": {
+      if (model.route._tag !== "Rounds") return { model };
+      return {
+        model: { ...model, roundsBusy: true, roundsFailure: Option.none() },
+        commands: [
+          ResendInvitationCmd({
+            teamId: model.route.teamId,
+            roundId: message.roundId,
+            personId: message.personId,
+          }),
+        ],
+      };
+    }
+
+    case "RoundCommandDone": {
+      const { outcome } = message;
+      if (outcome._tag === "Failure") {
+        if (outcome.failure === "Unauthenticated") {
+          return { model, commands: [LoadSession()] };
+        }
+        return { model: { ...model, roundsBusy: false, roundsFailure: Option.some(outcome.failure) } };
+      }
+      const reload =
+        model.route._tag === "Rounds"
+          ? [ListRoundsCmd({ teamId: model.route.teamId, pulseId: model.route.pulseId })]
+          : [];
+      return {
+        model: { ...model, roundsBusy: false, roundDetails: {}, roundRates: {}, roundsSkipDate: "" },
+        commands: reload,
+      };
+    }
+
+    // ----------------------------------------
     // Results screen
     // ----------------------------------------
     case "GotResults": {
@@ -2055,6 +2360,35 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
           onSettingsWindowChange: (days) => Message.SettingsWindowChanged({ days }),
           onSettingsRemindersChange: (reminders) => Message.SettingsRemindersChanged({ reminders }),
           onSubmitSettings: Message.SubmitSettings(),
+        },
+        h,
+      );
+      break;
+
+    case "Rounds":
+      screenContent = roundsScreenView(
+        {
+          teamId: model.route.teamId,
+          pulseId: model.route.pulseId,
+          team: model.teamDetail,
+          rounds: model.rounds,
+          details: model.roundDetails,
+          rates: model.roundRates,
+          confirm: Option.getOrUndefined(model.roundConfirm),
+          skipDate: model.roundsSkipDate,
+          busy: model.roundsBusy,
+          failure: Option.getOrUndefined(model.roundsFailure),
+        },
+        {
+          onSkipWeek: (plannedOpenDate) => Message.SkipWeekClicked({ plannedOpenDate }),
+          onSkipDateChange: (date) => Message.SkipDateChanged({ date }),
+          onSubmitSkipDate: Message.SubmitSkipDate(),
+          onPause: Message.PausePulseClicked(),
+          onResume: Message.ResumePulseClicked(),
+          onAskConfirm: (kind, roundId) => Message.RoundConfirmRequested({ kind, roundId }),
+          onConfirm: Message.RoundConfirmed(),
+          onDismissConfirm: Message.RoundConfirmDismissed(),
+          onResend: (roundId, personId) => Message.ResendInvitationClicked({ roundId, personId }),
         },
         h,
       );

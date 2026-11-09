@@ -42,7 +42,8 @@ export type SubmissionAction = typeof SubmissionAction.Type;
 export const SubmissionRoundContext = Schema.Struct({
   roundId: RoundId,
   pulseName: Schema.String,
-  anonymityStatement: Schema.String,
+  /** The Team's minimum group size N, which the answer page states to the member (SPEC 5.2, ADR 0004). */
+  minimumGroupSize: Schema.Int.pipe(Schema.check(Schema.isGreaterThanOrEqualTo(1))),
   questions: Schema.Array(SubmissionQuestion),
   actions: Schema.Array(SubmissionAction),
   closeTime: Schema.Int,

@@ -17,7 +17,8 @@ export const catalog = {
 
   "invitation.subject": "{pulse}",
   "invitation.preview": "Your check-in for {pulse} is open.",
-  "invitation.anonymity": "Your name is never stored with your answers.",
+  "invitation.anonymity":
+    "Your lead only sees combined answers from at least {n} people, never who answered what. Your name is never stored with your answers.",
   "invitation.openCheckIn": "Open check-in",
   "invitation.changeWhen": "Change when I get this",
   "invitation.personalNotice": "This link is personal. Don't forward it.",
