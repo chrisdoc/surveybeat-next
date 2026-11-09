@@ -1,20 +1,26 @@
 import {
+  type ActionId,
+  ActionItem,
+  type ActionStatus,
+  Dimension,
   type DimensionResult,
   type DimensionTrendPoint,
   type DistributionOption,
   type Highlight,
+  PersonId,
   type QuestionChange,
   type QuestionResult,
   RoundResult,
   type TrendPoint,
   type TypicalChange,
 } from "@surveybeat/domain";
-import { Predicate } from "effect";
+import { Option, Predicate, Schema } from "effect";
 import type { Html, HtmlBuilder } from "foldkit/html";
 import { defineTaggedUnion } from "foldkit/schema";
 import { message, pluralMessage } from "../messages/index.ts";
 import { Failure, failureMessage } from "./api.ts";
-import { appButton } from "./components.ts";
+import { appButton, problemView, selectField, textField } from "./components.ts";
+import type { LoadedTeam } from "./directory.ts";
 import { dimensionName } from "./pulses.ts";
 import { teamHref } from "./routes.ts";
 
@@ -24,6 +30,13 @@ export const LoadedResults = defineTaggedUnion({
   Failed: { failure: Failure },
 });
 export type LoadedResults = typeof LoadedResults.Type;
+
+export const LoadedActions = defineTaggedUnion({
+  Loading: {},
+  Loaded: { actions: Schema.Array(ActionItem) },
+  Failed: { failure: Failure },
+});
+export type LoadedActions = typeof LoadedActions.Type;
 
 /** Hand-built SVG 12-round trend line chart. */
 export const trendChart = <Message>(
@@ -307,10 +320,24 @@ const baselineNote = <Message>(typical: TypicalChange | null, h: HtmlBuilder<Mes
 export const resultsScreenView = <Message>(
   state: {
     readonly results: LoadedResults;
+    readonly actions: LoadedActions;
+    readonly teamDetail: LoadedTeam;
     readonly showTable: Record<string, boolean>;
+    readonly actionTitle: string;
+    readonly actionOwnerId: Option.Option<PersonId>;
+    readonly actionDueDate: string;
+    readonly actionDimension: Dimension | "none";
+    readonly actionBusy: boolean;
+    readonly actionFailure: Option.Option<Failure>;
   },
-  actions: {
+  callbacks: {
     readonly onToggleTable: (key: string) => Message;
+    readonly onActionTitleChange: (title: string) => Message;
+    readonly onActionOwnerChange: (personId: string) => Message;
+    readonly onActionDueDateChange: (date: string) => Message;
+    readonly onActionDimensionChange: (dim: string) => Message;
+    readonly onSubmitAction: Message;
+    readonly onUpdateActionStatus: (actionId: ActionId, status: ActionStatus) => Message;
   },
   h: HtmlBuilder<Message>,
 ): Html => {
@@ -345,6 +372,226 @@ export const resultsScreenView = <Message>(
       ),
     );
   }
+
+  // Actions section: shown for all closed rounds (ADR 0004: Actions list has no minimum group size)
+  const isLead = state.teamDetail._tag === "Loaded" && state.teamDetail.detail.team.yourRole === "lead";
+  const roster = state.teamDetail._tag === "Loaded" ? state.teamDetail.detail.roster : [];
+
+  const actionsItems: Array<Html> = [];
+
+  if (state.actions._tag === "Loading") {
+    actionsItems.push(h.p([h.Class("text-sm text-gray-500")], [message("app.loading")]));
+  } else if (state.actions._tag === "Failed") {
+    actionsItems.push(
+      h.p([h.Role("alert"), h.Class("text-sm text-red-700")], [failureMessage(state.actions.failure)]),
+    );
+  } else {
+    const list = state.actions.actions;
+    if (list.length === 0) {
+      actionsItems.push(h.p([h.Class("text-sm text-gray-500 italic")], [message("actions.empty")]));
+    } else {
+      actionsItems.push(
+        h.ul(
+          [h.Class("flex flex-col gap-3")],
+          list.map((action) => {
+            const statusLabel =
+              action.status === "committed"
+                ? message("actions.statusCommitted")
+                : action.status === "done"
+                  ? message("actions.statusDone")
+                  : message("actions.statusDropped");
+
+            const statusClass =
+              action.status === "committed"
+                ? "bg-blue-100 text-blue-800"
+                : action.status === "done"
+                  ? "bg-green-100 text-green-800"
+                  : "bg-gray-100 text-gray-800";
+
+            const buttons: Array<Html> = [];
+            if (isLead) {
+              if (action.status === "committed") {
+                buttons.push(
+                  appButton(
+                    {
+                      text: message("actions.markDone"),
+                      onClick: callbacks.onUpdateActionStatus(action.id, "done"),
+                      className: "text-xs px-2 py-1 bg-green-600 hover:bg-green-700 text-white rounded",
+                    },
+                    h,
+                  ),
+                  appButton(
+                    {
+                      text: message("actions.drop"),
+                      onClick: callbacks.onUpdateActionStatus(action.id, "dropped"),
+                      className: "text-xs px-2 py-1 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded",
+                    },
+                    h,
+                  ),
+                );
+              } else {
+                buttons.push(
+                  appButton(
+                    {
+                      text: message("actions.reopen"),
+                      onClick: callbacks.onUpdateActionStatus(action.id, "committed"),
+                      className: "text-xs px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded",
+                    },
+                    h,
+                  ),
+                );
+              }
+            }
+
+            return h.li(
+              [h.Class("p-4 rounded border border-gray-200 bg-white shadow-xs flex flex-col gap-2")],
+              [
+                h.div(
+                  [h.Class("flex items-start justify-between gap-4")],
+                  [
+                    h.div(
+                      [h.Class("flex flex-col gap-1")],
+                      [
+                        h.h3([h.Class("font-medium text-base text-gray-900")], [action.title]),
+                        h.div(
+                          [h.Class("flex flex-wrap items-center gap-3 text-xs text-gray-500")],
+                          [
+                            h.span([], [message("actions.ownerLabel", { owner: action.ownerEmail })]),
+                            action.dueDate !== null
+                              ? h.span([], [message("actions.dueLabel", { date: action.dueDate })])
+                              : null,
+                            action.dimension !== null
+                              ? h.span(
+                                  [h.Class("px-1.5 py-0.5 rounded bg-gray-100 text-gray-700")],
+                                  [dimensionName(action.dimension)],
+                                )
+                              : null,
+                          ].filter(Predicate.isNotNull),
+                        ),
+                      ],
+                    ),
+                    h.div(
+                      [h.Class("flex items-center gap-2")],
+                      [
+                        h.span(
+                          [h.Class(`px-2 py-0.5 rounded text-xs font-medium ${statusClass}`)],
+                          [statusLabel],
+                        ),
+                        ...buttons,
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            );
+          }),
+        ),
+      );
+    }
+  }
+
+  let commitForm: Html = null;
+  if (isLead) {
+    const firstPerson = roster[0];
+    const selectedOwner = Option.getOrElse(state.actionOwnerId, () =>
+      firstPerson !== undefined ? firstPerson.personId : PersonId.make(""),
+    );
+
+    const dimensionOptions: ReadonlyArray<readonly [string, string]> = [
+      ["none", message("actions.none")],
+      ...Dimension.literals.map((dim): readonly [string, string] => [dim, dimensionName(dim)]),
+    ];
+
+    const rosterOptions: ReadonlyArray<readonly [string, string]> = roster.map((m) => [m.personId, m.email]);
+
+    commitForm = h.form(
+      [
+        h.Class("mt-6 p-4 rounded border border-gray-200 bg-gray-50 flex flex-col gap-4"),
+        h.OnSubmit(callbacks.onSubmitAction),
+      ],
+      [
+        h.h3([h.Class("text-base font-semibold text-gray-900")], [message("actions.commitTitle")]),
+        textField(
+          {
+            id: "action-title",
+            label: message("actions.inputTitle"),
+            value: state.actionTitle,
+            onInput: callbacks.onActionTitleChange,
+            isDisabled: state.actionBusy,
+          },
+          h,
+        ),
+        h.div(
+          [h.Class("grid grid-cols-1 sm:grid-cols-3 gap-3")],
+          [
+            selectField(
+              {
+                id: "action-owner",
+                label: message("actions.owner"),
+                value: selectedOwner,
+                options: rosterOptions,
+                onChange: callbacks.onActionOwnerChange,
+                isDisabled: state.actionBusy,
+              },
+              h,
+            ),
+            textField(
+              {
+                id: "action-due-date",
+                label: message("actions.dueDate"),
+                value: state.actionDueDate,
+                type: "text",
+                onInput: callbacks.onActionDueDateChange,
+                isDisabled: state.actionBusy,
+              },
+              h,
+            ),
+            selectField(
+              {
+                id: "action-dimension",
+                label: message("actions.dimension"),
+                value: state.actionDimension,
+                options: dimensionOptions,
+                onChange: callbacks.onActionDimensionChange,
+                isDisabled: state.actionBusy,
+              },
+              h,
+            ),
+          ],
+        ),
+        problemView(Option.getOrUndefined(state.actionFailure), h),
+        h.div(
+          [h.Class("flex justify-end")],
+          [
+            appButton(
+              {
+                text: message("actions.submit"),
+                type: "submit",
+                isDisabled: state.actionBusy || state.actionTitle.trim() === "",
+                className: "px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-medium",
+              },
+              h,
+            ),
+          ],
+        ),
+      ].filter(Predicate.isNotNull),
+    );
+  }
+
+  const actionsNode = h.section(
+    [h.Class("mt-8 flex flex-col gap-4 border-t border-gray-200 pt-6")],
+    [
+      h.div(
+        [h.Class("flex flex-col gap-1")],
+        [
+          h.h2([h.Class("text-xl font-semibold text-gray-900")], [message("actions.title")]),
+          h.p([h.Class("text-xs text-gray-500")], [message("actions.intro")]),
+        ],
+      ),
+      ...actionsItems,
+      commitForm,
+    ].filter(Predicate.isNotNull),
+  );
 
   // Open round check: response count only
   if (result.status === "open") {
@@ -382,6 +629,7 @@ export const resultsScreenView = <Message>(
           ),
         ],
       ),
+      actionsNode,
     );
     return h.main([h.Class("mx-auto max-w-2xl p-6 flex flex-col gap-4")], children);
   }
@@ -437,7 +685,7 @@ export const resultsScreenView = <Message>(
                     appButton(
                       {
                         text: message(isTable ? "results.chartView" : "results.tableView"),
-                        onClick: actions.onToggleTable(dimKey),
+                        onClick: callbacks.onToggleTable(dimKey),
                         className: "text-xs underline text-blue-600 bg-transparent px-1 py-0.5",
                       },
                       h,
@@ -520,7 +768,7 @@ export const resultsScreenView = <Message>(
                             appButton(
                               {
                                 text: message(isTable ? "results.chartView" : "results.tableView"),
-                                onClick: actions.onToggleTable(qKey),
+                                onClick: callbacks.onToggleTable(qKey),
                                 className: "text-xs underline text-blue-600 bg-transparent px-1 py-0.5",
                               },
                               h,
@@ -560,6 +808,8 @@ export const resultsScreenView = <Message>(
       ),
     );
   }
+
+  children.push(actionsNode);
 
   return h.main([h.Class("mx-auto max-w-2xl p-6 flex flex-col gap-4")], children);
 };

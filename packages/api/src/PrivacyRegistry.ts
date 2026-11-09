@@ -147,4 +147,16 @@ export const privacyRegistry: { readonly [K in EndpointKey<typeof SurveyBeatApi>
     _tag: "ResultData",
     inputs: Arbitrary.Constant({}),
   },
+  "actions.listActions": {
+    _tag: "NoResultData",
+    why: "Actions have no minimum group size",
+  },
+  "actions.createAction": {
+    _tag: "NoResultData",
+    why: "creates an Action commitment; no Result data",
+  },
+  "actions.updateAction": {
+    _tag: "NoResultData",
+    why: "updates an Action; no Result data",
+  },
 };

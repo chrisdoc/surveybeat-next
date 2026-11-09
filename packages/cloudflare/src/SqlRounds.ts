@@ -26,6 +26,8 @@ import {
   type ScheduleJobRecord,
   ScheduleJobStatus,
   ScheduleJobType,
+  selectActionsForRound,
+  ActionStatus,
   SendId,
   type SubmissionAnswer,
   SubmissionId,
@@ -111,6 +113,20 @@ export interface InvitationRecord {
   readonly createdAt: number;
   readonly updatedAt: number;
 }
+
+const PreviousRoundRow = Schema.Struct({
+  opened_at: Schema.NullOr(Schema.Int),
+  planned_open_at: Schema.Int,
+});
+
+const ActionSummaryRow = Schema.Struct({
+  id: Schema.String,
+  title: Schema.String,
+  status: ActionStatus,
+  created_at: Schema.Int,
+  updated_at: Schema.Int,
+  done_at: Schema.NullOr(Schema.Int),
+});
 
 const rows = <S extends Schema.Top & { readonly DecodingServices: never }>(schema: S) =>
   Schema.decodeUnknownEffect(Schema.Array(schema));
@@ -745,12 +761,42 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient) => {
 
       const answered = personId === null ? false : yield* hasAnswered(roundId, personId);
 
+      const prevRows = yield* sql`
+        SELECT opened_at, planned_open_at
+        FROM round
+        WHERE pulse_id = ${round.pulseId}
+          AND planned_open_at < ${round.plannedOpenAt}
+        ORDER BY planned_open_at DESC
+        LIMIT 1`.pipe(Effect.flatMap(rows(PreviousRoundRow)), Effect.orDie);
+
+      const previousRound = prevRows[0]
+        ? { openedAt: prevRows[0].opened_at, plannedOpenAt: prevRows[0].planned_open_at }
+        : null;
+
+      const actionRows = yield* sql`
+        SELECT id, title, status, created_at, updated_at, done_at
+        FROM action
+        WHERE team_id = ${round.teamId}
+        ORDER BY created_at ASC`.pipe(Effect.flatMap(rows(ActionSummaryRow)), Effect.orDie);
+
+      const eligibleActions = selectActionsForRound(
+        actionRows.map((r) => ({
+          id: r.id,
+          title: r.title,
+          status: r.status,
+          createdAt: r.created_at,
+          updatedAt: r.updated_at,
+          doneAt: r.done_at,
+        })),
+        previousRound,
+      );
+
       return {
         roundId,
         pulseName: round.pulseName,
         anonymityStatement: "Your name is never stored with your answers.",
         questions: parsedQuestions,
-        actions: [],
+        actions: eligibleActions.slice(0, 3).map((a) => ({ id: a.id, title: a.title })),
         closeTime: round.plannedCloseAt,
         state: round.status,
         hasAnswered: answered,

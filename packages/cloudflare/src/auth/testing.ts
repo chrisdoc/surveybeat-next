@@ -47,6 +47,13 @@ import {
   Unauthenticated,
   WorkosOrganizationId,
   WorkosUserId,
+  ActionId,
+  type ActionItem,
+  type ActionList,
+  type ActionRecord,
+  type ActionViewed,
+  OrganizationActions,
+  authorizeRoundAction,
 } from "@surveybeat/domain";
 import { expect } from "@effect/vitest";
 import * as Context from "effect/Context";
@@ -57,6 +64,7 @@ import * as Redacted from "effect/Redacted";
 import * as HttpRouter from "effect/http/HttpRouter";
 import * as HttpServer from "effect/http/HttpServer";
 import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
+import { actionHandlers } from "../ActionHandlers.ts";
 import { directoryHandlers } from "../DirectoryHandlers.ts";
 import { pulseHandlers } from "../PulseHandlers.ts";
 import { roundHandlers } from "../RoundHandlers.ts";
@@ -340,6 +348,7 @@ export class MemoryIndex {
 interface MemoryOrganization {
   state: DirectoryState;
   pulses: PulseState;
+  actions: Map<ActionId, ActionRecord>;
   readonly sends: Map<SendId, { readonly recipient: EmailAddress; readonly email: TransactionalEmail }>;
 }
 
@@ -357,6 +366,7 @@ export class MemoryOrganizations {
     return {
       state: { organizationName: "", minimumGroupSize: 4, people: [], teams: [], memberships: [] },
       pulses: EMPTY_PULSE_STATE,
+      actions: new Map(),
       sends: new Map(),
     };
   }
@@ -382,6 +392,7 @@ export class MemoryOrganizations {
             memberships: [],
           },
           pulses: EMPTY_PULSE_STATE,
+          actions: new Map(),
           sends: new Map(),
         });
       }),
@@ -471,6 +482,152 @@ export class MemoryOrganizations {
       Effect.succeed({ _tag: "Rejected", rejection: { _tag: "RoundNotFound" } }),
   });
 
+  readonly actions = OrganizationActions.of({
+    list: (organizationId, actorId, teamId) =>
+      Effect.sync((): ActionViewed<ActionList> => {
+        const organization = this.organization(organizationId);
+        const auth = authorizeRoundAction(organization.state, actorId, "team.viewActions", teamId);
+        if (auth._tag === "Rejected") {
+          return {
+            _tag: "Rejected",
+            rejection: { _tag: auth.rejection._tag === "TeamNotFound" ? "TeamNotFound" : "Forbidden" },
+          };
+        }
+        const team = organization.state.teams.find((t) => t.id === teamId);
+        if (team === undefined) return { _tag: "Rejected", rejection: { _tag: "TeamNotFound" } };
+        const all: Array<ActionItem> = [];
+        for (const act of organization.actions.values()) {
+          if (act.teamId === teamId) {
+            const owner = organization.state.people.find((p) => p.id === act.ownerId);
+            all.push({
+              id: act.id,
+              teamId: act.teamId,
+              roundId: act.roundId,
+              title: act.title,
+              ownerId: act.ownerId,
+              ownerEmail: owner?.email ?? EmailAddress.make("unknown@example.com"),
+              dueDate: act.dueDate,
+              dimension: act.dimension,
+              status: act.status,
+              createdAt: act.createdAt,
+              updatedAt: act.updatedAt,
+              doneAt: act.doneAt,
+            });
+          }
+        }
+        all.sort((a, b) => a.createdAt - b.createdAt);
+        return { _tag: "Viewed", value: { teamId, actions: all } };
+      }),
+    create: (organizationId, actorId, teamId, payload, now) =>
+      Effect.sync((): ActionViewed<ActionItem> => {
+        const organization = this.organization(organizationId);
+        const auth = authorizeRoundAction(organization.state, actorId, "team.createAction", teamId);
+        if (auth._tag === "Rejected") {
+          return {
+            _tag: "Rejected",
+            rejection: { _tag: auth.rejection._tag === "TeamNotFound" ? "TeamNotFound" : "Forbidden" },
+          };
+        }
+        const team = organization.state.teams.find((t) => t.id === teamId);
+        if (team === undefined) return { _tag: "Rejected", rejection: { _tag: "TeamNotFound" } };
+        const isMember = organization.state.memberships.some(
+          (m) => m.teamId === teamId && m.personId === payload.ownerId && m.endedAt === null,
+        );
+        if (!isMember) return { _tag: "Rejected", rejection: { _tag: "OwnerNotInTeam" } };
+        const owner = organization.state.people.find((p) => p.id === payload.ownerId);
+        const actionId = ActionId.make(`action-${organization.actions.size + 1}`);
+        const record: ActionRecord = {
+          id: actionId,
+          teamId,
+          roundId: payload.roundId,
+          title: payload.title,
+          ownerId: payload.ownerId,
+          dueDate: payload.dueDate ?? null,
+          dimension: payload.dimension ?? null,
+          status: "committed",
+          createdAt: now,
+          updatedAt: now,
+          doneAt: null,
+        };
+        organization.actions.set(actionId, record);
+        return {
+          _tag: "Viewed",
+          value: {
+            id: record.id,
+            teamId: record.teamId,
+            roundId: record.roundId,
+            title: record.title,
+            ownerId: record.ownerId,
+            ownerEmail: owner?.email ?? EmailAddress.make("unknown@example.com"),
+            dueDate: record.dueDate,
+            dimension: record.dimension,
+            status: record.status,
+            createdAt: record.createdAt,
+            updatedAt: record.updatedAt,
+            doneAt: record.doneAt,
+          },
+        };
+      }),
+    update: (organizationId, actorId, teamId, actionId, payload, now) =>
+      Effect.sync((): ActionViewed<ActionItem> => {
+        const organization = this.organization(organizationId);
+        const auth = authorizeRoundAction(organization.state, actorId, "team.updateAction", teamId);
+        if (auth._tag === "Rejected") {
+          return {
+            _tag: "Rejected",
+            rejection: { _tag: auth.rejection._tag === "TeamNotFound" ? "TeamNotFound" : "Forbidden" },
+          };
+        }
+        const team = organization.state.teams.find((t) => t.id === teamId);
+        if (team === undefined) return { _tag: "Rejected", rejection: { _tag: "TeamNotFound" } };
+        const existing = organization.actions.get(actionId);
+        if (existing === undefined || existing.teamId !== teamId) {
+          return { _tag: "Rejected", rejection: { _tag: "ActionNotFound" } };
+        }
+        if (payload.ownerId !== undefined) {
+          const isMember = organization.state.memberships.some(
+            (m) => m.teamId === teamId && m.personId === payload.ownerId && m.endedAt === null,
+          );
+          if (!isMember) return { _tag: "Rejected", rejection: { _tag: "OwnerNotInTeam" } };
+        }
+        let newDoneAt: number | null = existing.doneAt;
+        if (payload.status === "done" && existing.status !== "done") {
+          newDoneAt = now;
+        } else if (payload.status !== undefined && payload.status !== "done") {
+          newDoneAt = null;
+        }
+        const updated: ActionRecord = {
+          ...existing,
+          title: payload.title ?? existing.title,
+          ownerId: payload.ownerId ?? existing.ownerId,
+          dueDate: payload.dueDate !== undefined ? payload.dueDate : existing.dueDate,
+          dimension: payload.dimension !== undefined ? payload.dimension : existing.dimension,
+          status: payload.status ?? existing.status,
+          updatedAt: now,
+          doneAt: newDoneAt,
+        };
+        organization.actions.set(actionId, updated);
+        const owner = organization.state.people.find((p) => p.id === updated.ownerId);
+        return {
+          _tag: "Viewed",
+          value: {
+            id: updated.id,
+            teamId: updated.teamId,
+            roundId: updated.roundId,
+            title: updated.title,
+            ownerId: updated.ownerId,
+            ownerEmail: owner?.email ?? EmailAddress.make("unknown@example.com"),
+            dueDate: updated.dueDate,
+            dimension: updated.dimension,
+            status: updated.status,
+            createdAt: updated.createdAt,
+            updatedAt: updated.updatedAt,
+            doneAt: updated.doneAt,
+          },
+        };
+      }),
+  });
+
   person(organizationId: OrganizationId, personId: PersonId): PersonRecord | undefined {
     return this.organizations.get(organizationId)?.state.people.find((person) => person.id === personId);
   }
@@ -520,6 +677,7 @@ export class SignInWorld {
     this.durable.organizations.set(id, {
       state: { organizationName: name, minimumGroupSize: 4, people: [], teams: [], memberships: [] },
       pulses: EMPTY_PULSE_STATE,
+      actions: new Map(),
       sends: new Map(),
     });
     return { id, name, workos };
@@ -554,6 +712,7 @@ export class SignInWorld {
       Context.add(OrganizationDirectory, this.durable.directory),
       Context.add(OrganizationPulses, this.durable.pulses),
       Context.add(OrganizationRounds, this.durable.rounds),
+      Context.add(OrganizationActions, this.durable.actions),
       Context.add(EmailOutbox, this.outbox.service),
       Context.add(
         NewIds,
@@ -582,6 +741,7 @@ export class SignInWorld {
           directoryHandlers(Effect.succeed(services)),
           pulseHandlers(Effect.succeed(services)),
           roundHandlers(Effect.succeed(services)),
+          actionHandlers(Effect.succeed(services)),
         ]),
         Layer.provide(HttpServer.layerServices),
       ),

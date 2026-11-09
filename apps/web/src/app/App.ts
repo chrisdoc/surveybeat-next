@@ -1,4 +1,8 @@
 import {
+  ActionId,
+  ActionItem,
+  ActionList,
+  ActionStatus,
   Dimension,
   EmailAddress,
   MinimumGroupSize,
@@ -52,7 +56,7 @@ import {
   pulseEditorView,
   pulsesScreenView,
 } from "./pulses.ts";
-import { LoadedResults, resultsScreenView } from "./results.ts";
+import { LoadedActions, LoadedResults, resultsScreenView } from "./results.ts";
 import { AppRoute, pulseHref, teamHref, urlToAppRoute } from "./routes.ts";
 import {
   chooseOrganizationView,
@@ -134,6 +138,14 @@ export const Model = Schema.Struct({
   // Results screen
   results: LoadedResults,
   showTable: Schema.Record(Schema.String, Schema.Boolean),
+  // Actions
+  actions: LoadedActions,
+  actionTitle: Schema.String,
+  actionOwnerId: Schema.Option(PersonId),
+  actionDueDate: Schema.String,
+  actionDimension: Schema.Union([Dimension, Schema.Literal("none")]),
+  actionBusy: Schema.Boolean,
+  actionFailure: Schema.Option(Failure),
 });
 export type Model = typeof Model.Type;
 
@@ -143,6 +155,14 @@ export type Model = typeof Model.Type;
 
 export const OutcomeResults = Schema.Union([
   Schema.TaggedStruct("Success", { result: RoundResult }),
+  Schema.TaggedStruct("Failure", { failure: Failure }),
+]);
+export const OutcomeActions = Schema.Union([
+  Schema.TaggedStruct("Success", { list: ActionList }),
+  Schema.TaggedStruct("Failure", { failure: Failure }),
+]);
+export const OutcomeActionItem = Schema.Union([
+  Schema.TaggedStruct("Success", { action: ActionItem }),
   Schema.TaggedStruct("Failure", { failure: Failure }),
 ]);
 export const OutcomeTeams = Schema.Union([
@@ -244,6 +264,16 @@ export const Message = defineMessageUnion({
   // Results screen
   GotResults: { outcome: OutcomeResults },
   ToggleResultsTable: { key: Schema.String },
+  // Actions
+  GotActions: { outcome: OutcomeActions },
+  ActionTitleChanged: { title: Schema.String },
+  ActionOwnerChanged: { personId: PersonId },
+  ActionDueDateChanged: { dueDate: Schema.String },
+  ActionDimensionChanged: { dimension: Schema.Union([Dimension, Schema.Literal("none")]) },
+  SubmitAction: {},
+  CreatedAction: { outcome: OutcomeActionItem },
+  UpdateActionStatus: { actionId: ActionId, status: ActionStatus },
+  UpdatedAction: { outcome: OutcomeActionItem },
 });
 export type Message = typeof Message.Type;
 
@@ -533,6 +563,58 @@ export const GetResultsCmd = Command.define("GetResultsCmd", {
     ),
 });
 
+export const ListActionsCmd = Command.define("ListActionsCmd", {
+  args: { teamId: TeamId },
+  messages: [Message.GotActions],
+  execute: ({ teamId }) =>
+    runApi(
+      (api) => api.actions.listActions({ params: { teamId } }),
+      (list) => Message.GotActions({ outcome: { _tag: "Success", list } }),
+      (failure) => Message.GotActions({ outcome: { _tag: "Failure", failure } }),
+    ),
+});
+
+export const CreateActionCmd = Command.define("CreateActionCmd", {
+  args: {
+    teamId: TeamId,
+    roundId: RoundId,
+    title: Schema.String,
+    ownerId: PersonId,
+    dueDate: Schema.NullOr(Schema.String),
+    dimension: Schema.NullOr(Dimension),
+  },
+  messages: [Message.CreatedAction],
+  execute: ({ teamId, roundId, title, ownerId, dueDate, dimension }) =>
+    runApi(
+      (api) =>
+        api.actions.createAction({
+          params: { teamId },
+          payload: { roundId, title, ownerId, dueDate, dimension },
+        }),
+      (action) => Message.CreatedAction({ outcome: { _tag: "Success", action } }),
+      (failure) => Message.CreatedAction({ outcome: { _tag: "Failure", failure } }),
+    ),
+});
+
+export const UpdateActionCmd = Command.define("UpdateActionCmd", {
+  args: {
+    teamId: TeamId,
+    actionId: ActionId,
+    status: ActionStatus,
+  },
+  messages: [Message.UpdatedAction],
+  execute: ({ teamId, actionId, status }) =>
+    runApi(
+      (api) =>
+        api.actions.updateAction({
+          params: { teamId, actionId },
+          payload: { status },
+        }),
+      (action) => Message.UpdatedAction({ outcome: { _tag: "Success", action } }),
+      (failure) => Message.UpdatedAction({ outcome: { _tag: "Failure", failure } }),
+    ),
+});
+
 export const Navigate = Command.define("Navigate", {
   args: { url: Schema.String },
   messages: [Message.Navigated],
@@ -611,6 +693,13 @@ export const initialModel = (url: Url): Model => {
     settingsFailure: Option.none(),
     results: { _tag: "Loading" },
     showTable: {},
+    actions: { _tag: "Loading" },
+    actionTitle: "",
+    actionOwnerId: Option.none(),
+    actionDueDate: "",
+    actionDimension: "none",
+    actionBusy: false,
+    actionFailure: Option.none(),
   };
 };
 
@@ -627,7 +716,11 @@ export const loadActiveRouteCommand = (route: AppRoute) => {
     case "Pulse":
       return [GetPulse({ teamId: route.teamId, pulseId: route.pulseId })];
     case "RoundResults":
-      return [GetResultsCmd({ teamId: route.teamId, roundId: route.roundId })];
+      return [
+        GetResultsCmd({ teamId: route.teamId, roundId: route.roundId }),
+        ListActionsCmd({ teamId: route.teamId }),
+        GetTeam({ teamId: route.teamId }),
+      ];
     case "NotFound":
       return [];
   }
@@ -682,6 +775,13 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         settings: { _tag: "Loading" },
         teams: { _tag: "Loading" },
         results: { _tag: "Loading" },
+        actions: { _tag: "Loading" },
+        actionTitle: "",
+        actionOwnerId: Option.none(),
+        actionDueDate: "",
+        actionDimension: "none",
+        actionBusy: false,
+        actionFailure: Option.none(),
       };
       if (model.session._tag === "SignedIn") {
         return {
@@ -1591,6 +1691,123 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         },
       };
     }
+
+    // ----------------------------------------
+    // Actions
+    // ----------------------------------------
+    case "GotActions": {
+      const { outcome } = message;
+      if (outcome._tag === "Success") {
+        return {
+          model: {
+            ...model,
+            actions: { _tag: "Loaded", actions: outcome.list.actions },
+          },
+        };
+      }
+      return {
+        model: {
+          ...model,
+          actions: { _tag: "Failed", failure: outcome.failure },
+        },
+      };
+    }
+
+    case "ActionTitleChanged":
+      return { model: { ...model, actionTitle: message.title } };
+
+    case "ActionOwnerChanged":
+      return { model: { ...model, actionOwnerId: Option.some(message.personId) } };
+
+    case "ActionDueDateChanged":
+      return { model: { ...model, actionDueDate: message.dueDate } };
+
+    case "ActionDimensionChanged":
+      return { model: { ...model, actionDimension: message.dimension } };
+
+    case "SubmitAction": {
+      if (model.route._tag !== "RoundResults" || model.actionTitle.trim() === "") {
+        return { model };
+      }
+      const teamId = model.route.teamId;
+      const roundId = model.route.roundId;
+      const roster = model.teamDetail._tag === "Loaded" ? model.teamDetail.detail.roster : [];
+      const ownerId = Option.getOrElse(model.actionOwnerId, () => roster[0]?.personId);
+      if (ownerId === undefined) return { model };
+      const dueDate = model.actionDueDate.trim() !== "" ? model.actionDueDate.trim() : null;
+      const dimension = model.actionDimension !== "none" ? model.actionDimension : null;
+      return {
+        model: { ...model, actionBusy: true, actionFailure: Option.none() },
+        commands: [
+          CreateActionCmd({
+            teamId,
+            roundId,
+            title: model.actionTitle.trim(),
+            ownerId,
+            dueDate,
+            dimension,
+          }),
+        ],
+      };
+    }
+
+    case "CreatedAction": {
+      const { outcome } = message;
+      if (outcome._tag === "Success") {
+        const nextActions =
+          model.actions._tag === "Loaded"
+            ? LoadedActions.Loaded({ actions: [...model.actions.actions, outcome.action] })
+            : model.actions;
+        return {
+          model: {
+            ...model,
+            actions: nextActions,
+            actionTitle: "",
+            actionDueDate: "",
+            actionDimension: "none",
+            actionBusy: false,
+            actionFailure: Option.none(),
+          },
+        };
+      }
+      return {
+        model: {
+          ...model,
+          actionBusy: false,
+          actionFailure: Option.some(outcome.failure),
+        },
+      };
+    }
+
+    case "UpdateActionStatus": {
+      if (model.route._tag !== "RoundResults") return { model };
+      return {
+        model,
+        commands: [
+          UpdateActionCmd({
+            teamId: model.route.teamId,
+            actionId: message.actionId,
+            status: message.status,
+          }),
+        ],
+      };
+    }
+
+    case "UpdatedAction": {
+      const { outcome } = message;
+      if (outcome._tag === "Success") {
+        const nextActions =
+          model.actions._tag === "Loaded"
+            ? LoadedActions.Loaded({
+                actions: model.actions.actions.map((a: ActionItem) =>
+                  a.id === outcome.action.id ? outcome.action : a,
+                ),
+              })
+            : model.actions;
+        return { model: { ...model, actions: nextActions } };
+      }
+      return { model: { ...model, actionFailure: Option.some(outcome.failure) } };
+    }
   }
 };
 
@@ -1839,10 +2056,28 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
       screenContent = resultsScreenView(
         {
           results: model.results,
+          actions: model.actions,
+          teamDetail: model.teamDetail,
           showTable: model.showTable,
+          actionTitle: model.actionTitle,
+          actionOwnerId: model.actionOwnerId,
+          actionDueDate: model.actionDueDate,
+          actionDimension: model.actionDimension,
+          actionBusy: model.actionBusy,
+          actionFailure: model.actionFailure,
         },
         {
           onToggleTable: (key) => Message.ToggleResultsTable({ key }),
+          onActionTitleChange: (title) => Message.ActionTitleChanged({ title }),
+          onActionOwnerChange: (personId) =>
+            Message.ActionOwnerChanged({ personId: PersonId.make(personId) }),
+          onActionDueDateChange: (date) => Message.ActionDueDateChanged({ dueDate: date }),
+          onActionDimensionChange: (dim) =>
+            Message.ActionDimensionChanged({
+              dimension: Schema.is(Dimension)(dim) ? dim : "none",
+            }),
+          onSubmitAction: Message.SubmitAction(),
+          onUpdateActionStatus: (actionId, status) => Message.UpdateActionStatus({ actionId, status }),
         },
         h,
       );

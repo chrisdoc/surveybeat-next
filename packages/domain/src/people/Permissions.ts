@@ -35,7 +35,10 @@ export type TeamAction =
   | "team.createPulse"
   | "team.editPulse"
   | "team.viewRounds"
-  | "team.manageRounds";
+  | "team.manageRounds"
+  | "team.viewActions"
+  | "team.createAction"
+  | "team.updateAction";
 
 export type Action = OrganizationAction | TeamAction;
 
@@ -76,6 +79,10 @@ export const PERMISSIONS: { readonly [A in Action]: ReadonlyArray<Grantee> } = {
   "team.editPulse": ["admin", "lead"],
   "team.viewRounds": ["admin", "lead"],
   "team.manageRounds": ["admin", "lead"],
+  // Actions committed from a Result (ADR 0003: team membership required, admin grants nothing)
+  "team.viewActions": ["lead", "member", "viewer"],
+  "team.createAction": ["lead"],
+  "team.updateAction": ["lead"],
 };
 
 /** Whether `actor` may do `action` to `resource`. */

@@ -1,4 +1,6 @@
 import {
+  ActionId,
+  type ActionItem,
   EmailAddress,
   MinimumGroupSize,
   OrganizationId,
@@ -23,6 +25,7 @@ import {
   AddQuestionCmd,
   AssignLead,
   ChooseOrganization,
+  CreateActionCmd,
   CreateOrganization,
   CreatePulse,
   CreateTeam,
@@ -35,6 +38,7 @@ import {
   RemoveMember,
   RemoveQuestionCmd,
   update,
+  UpdateActionCmd,
   UpdatePulseSettingsCmd,
   UpdateSettings,
   UpdateTeam,
@@ -700,6 +704,151 @@ describe("App Scenes", () => {
           results: { _tag: "Loaded", result: mockOpenResult },
         }),
         Scene.expect(Scene.text("3 responses received so far.")).toExist(),
+      );
+    });
+
+    it("renders Actions on Results screen and allows Lead to commit an action", () => {
+      const teamId = decodeTeamId("team-1");
+      const roundId = Schema.decodeSync(RoundId)("round-1");
+      const pulseId = decodePulseId("pulse-1");
+      const personId = decodePersonId("person-1");
+      const actionId = Schema.decodeSync(ActionId)("action-1");
+
+      const mockResult: RoundResult = {
+        roundId,
+        pulseId,
+        teamId,
+        status: "closed",
+        plannedOpenDate: "2026-11-09",
+        closedAt: 1731140000000,
+        effectiveMinimumGroupSize: 4,
+        meetsMinimumGroupSize: true,
+        eligibleMembersCount: 8,
+        submissionsCount: 6,
+        responseRate: 0.75,
+        delayed: false,
+        questions: [],
+        dimensions: [],
+        comments: [],
+      };
+
+      const mockTeamDetail = {
+        team: {
+          id: teamId,
+          name: "Platform",
+          timeZone: decodeTimeZone("Europe/Berlin"),
+          yourRole: "lead" as const,
+        },
+        roster: [
+          {
+            personId,
+            email: decodeEmail("grace@example.com"),
+            role: "lead" as const,
+            since: 1700000000000,
+          },
+        ],
+        abilities: {
+          update: true,
+          manageLeads: true,
+          manageMembers: true,
+          managePulses: true,
+          viewResults: true,
+        },
+      };
+
+      const committedAction: ActionItem = {
+        id: actionId,
+        teamId,
+        roundId,
+        title: "Shorten pairing sessions",
+        ownerId: personId,
+        ownerEmail: decodeEmail("grace@example.com"),
+        dueDate: "2026-11-20",
+        dimension: "workload",
+        status: "committed",
+        createdAt: 1731145000000,
+        updatedAt: 1731145000000,
+        doneAt: null,
+      };
+
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}/rounds/${roundId}`)),
+          session: signedInAdmin,
+          results: { _tag: "Loaded", result: mockResult },
+          teamDetail: { _tag: "Loaded", detail: mockTeamDetail },
+          actions: { _tag: "Loaded", actions: [] },
+        }),
+        Scene.expect(Scene.role("heading", { name: "Actions" })).toExist(),
+        Scene.expect(Scene.text("No actions committed yet.")).toExist(),
+        // Lead sees commit form
+        Scene.expect(Scene.role("heading", { name: "Commit an action" })).toExist(),
+        // Enter title
+        Scene.type(Scene.label("Action title"), "Shorten pairing sessions"),
+        // Submit
+        Scene.click(Scene.role("button", { name: "Commit action" })),
+        Scene.Command.expectHas(CreateActionCmd),
+        Scene.Command.resolve(
+          CreateActionCmd,
+          Message.CreatedAction({
+            outcome: { _tag: "Success", action: committedAction },
+          }),
+        ),
+        Scene.expect(Scene.text("Shorten pairing sessions")).toExist(),
+        Scene.expect(Scene.text("Committed")).toExist(),
+        Scene.expect(Scene.role("button", { name: "Mark done" })).toExist(),
+        Scene.expect(Scene.role("button", { name: "Drop" })).toExist(),
+        // Click Mark done
+        Scene.click(Scene.role("button", { name: "Mark done" })),
+        Scene.Command.expectHas(UpdateActionCmd),
+        Scene.Command.resolve(
+          UpdateActionCmd,
+          Message.UpdatedAction({
+            outcome: {
+              _tag: "Success",
+              action: { ...committedAction, status: "done", doneAt: 1731150000000 },
+            },
+          }),
+        ),
+        Scene.expect(Scene.text("Done")).toExist(),
+        Scene.expect(Scene.role("button", { name: "Reopen" })).toExist(),
+      );
+    });
+
+    it("renders Actions on sub-N results screen without gating", () => {
+      const teamId = decodeTeamId("team-1");
+      const roundId = Schema.decodeSync(RoundId)("round-subn");
+      const pulseId = decodePulseId("pulse-1");
+
+      const mockSubNResult: RoundResult = {
+        roundId,
+        pulseId,
+        teamId,
+        status: "closed",
+        plannedOpenDate: "2026-11-09",
+        closedAt: 1731140000000,
+        effectiveMinimumGroupSize: 4,
+        meetsMinimumGroupSize: false,
+        eligibleMembersCount: 8,
+        submissionsCount: 2,
+        responseRate: 0.25,
+        delayed: false,
+        questions: [],
+        dimensions: [],
+        comments: [],
+      };
+
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}/rounds/${roundId}`)),
+          session: signedInAdmin,
+          results: { _tag: "Loaded", result: mockSubNResult },
+          actions: { _tag: "Loaded", actions: [] },
+        }),
+        Scene.expect(Scene.text("Not enough responses to protect anonymity")).toExist(),
+        Scene.expect(Scene.role("heading", { name: "Actions" })).toExist(),
       );
     });
   });
