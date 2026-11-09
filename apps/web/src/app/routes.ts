@@ -1,4 +1,4 @@
-import { PulseId, TeamId } from "@surveybeat/domain";
+import { PulseId, RoundId, TeamId } from "@surveybeat/domain";
 import { pipe, Schema } from "effect";
 import {
   defineRouteUnion,
@@ -17,6 +17,7 @@ export const AppRoute = defineRouteUnion({
   Team: { teamId: TeamId },
   Pulses: { teamId: TeamId },
   Pulse: { teamId: TeamId, pulseId: PulseId },
+  RoundResults: { teamId: TeamId, roundId: RoundId },
   Settings: {},
   NotFound: { path: Schema.String },
 });
@@ -42,8 +43,22 @@ export const pulseRouter = pipe(
   slash(schemaSegment("pulseId", PulseId)),
   mapTo(AppRoute.Pulse),
 );
+export const roundResultsRouter = pipe(
+  literal("teams"),
+  slash(schemaSegment("teamId", TeamId)),
+  slash(literal("rounds")),
+  slash(schemaSegment("roundId", RoundId)),
+  mapTo(AppRoute.RoundResults),
+);
 
-export const appRouter = oneOf(pulseRouter, pulsesRouter, teamRouter, settingsRouter, teamsRouter);
+export const appRouter = oneOf(
+  roundResultsRouter,
+  pulseRouter,
+  pulsesRouter,
+  teamRouter,
+  settingsRouter,
+  teamsRouter,
+);
 export const urlToAppRoute = (url: Url): AppRoute => parseUrlWithFallback(appRouter, AppRoute.NotFound)(url);
 
 export const teamsHref = () => teamsRouter.build({});
@@ -51,3 +66,5 @@ export const settingsHref = () => settingsRouter.build({});
 export const teamHref = (teamId: TeamId) => teamRouter.build({ teamId });
 export const pulsesHref = (teamId: TeamId) => pulsesRouter.build({ teamId });
 export const pulseHref = (teamId: TeamId, pulseId: PulseId) => pulseRouter.build({ teamId, pulseId });
+export const roundResultsHref = (teamId: TeamId, roundId: RoundId) =>
+  roundResultsRouter.build({ teamId, roundId });

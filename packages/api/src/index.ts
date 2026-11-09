@@ -34,6 +34,7 @@ import {
   RoundList,
   RoundNotFound,
   RoundNotOpen,
+  RoundResult,
   WeekOutOfRange,
   SessionState,
   TeamDetail,
@@ -334,6 +335,11 @@ export class RoundsApiGroup extends HttpApiGroup.make("rounds")
     HttpApiEndpoint.post("resendInvitation", "/teams/:teamId/rounds/:roundId/invitations/:personId/resend", {
       params: { teamId: TeamId, roundId: RoundId, personId: PersonId },
       success: Schema.Void,
+      error: roundErrors,
+    }),
+    HttpApiEndpoint.get("getResults", "/teams/:teamId/rounds/:roundId/results", {
+      params: { teamId: TeamId, roundId: RoundId },
+      success: RoundResult,
       error: roundErrors,
     }),
   )

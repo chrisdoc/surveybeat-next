@@ -32,6 +32,13 @@ const examples: { readonly [K in TransactionalEmail["_tag"]]: Extract<Transactio
     actions: [],
     unsubscribeUrl: "https://app.surveybeat.app/api/reminders/unsubscribe?t=test-token-123",
   },
+  ResultsReadyEmail: {
+    _tag: "ResultsReadyEmail",
+    pulseName: "Weekly Pulse",
+    teamName: "Platform",
+    resultsUrl: "https://app.surveybeat.app/teams/team-1/rounds/round-1",
+    responseRatePercent: 85,
+  },
 };
 
 describe.each(Object.values(examples))("$_tag", (email) => {

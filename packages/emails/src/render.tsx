@@ -4,6 +4,7 @@ import { render } from "react-email";
 import * as AddedToTeam from "./AddedToTeam.tsx";
 import * as InvitationEmail from "./InvitationEmail.tsx";
 import * as ReminderEmail from "./ReminderEmail.tsx";
+import * as ResultsReadyEmail from "./ResultsReadyEmail.tsx";
 
 /** A subject is one header line: names with line breaks must not start another header. */
 const oneLine = (subject: string) => subject.replace(/\s*[\r\n]+\s*/g, " ");
@@ -32,6 +33,12 @@ export const renderEmail = async (email: TransactionalEmail): Promise<RenderedEm
           "List-Unsubscribe": `<${email.unsubscribeUrl}>`,
           "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
         },
+      };
+    case "ResultsReadyEmail":
+      return {
+        subject: oneLine(ResultsReadyEmail.subject(email)),
+        html: await render(<ResultsReadyEmail.ResultsReadyEmailComponent email={email} />),
+        text: ResultsReadyEmail.text(email),
       };
   }
 };

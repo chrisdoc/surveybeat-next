@@ -49,11 +49,25 @@ export const ReminderEmail = Schema.TaggedStruct("ReminderEmail", {
 });
 export type ReminderEmail = typeof ReminderEmail.Type;
 
+/** A results-ready notice email sent when a Round closes and results are shared. */
+export const ResultsReadyEmail = Schema.TaggedStruct("ResultsReadyEmail", {
+  pulseName: Schema.NonEmptyString,
+  teamName: Schema.NonEmptyString,
+  resultsUrl: Schema.String.pipe(Schema.check(Schema.isStartingWith("https://"))),
+  responseRatePercent: Schema.Int,
+});
+export type ResultsReadyEmail = typeof ResultsReadyEmail.Type;
+
 /**
  * What to say, without how it looks. A send stores this and the Queue consumer renders it,
  * so a template fix reaches mail that is still waiting to be sent.
  */
-export const TransactionalEmail = Schema.Union([AddedToTeam, InvitationEmail, ReminderEmail]);
+export const TransactionalEmail = Schema.Union([
+  AddedToTeam,
+  InvitationEmail,
+  ReminderEmail,
+  ResultsReadyEmail,
+]);
 export type TransactionalEmail = typeof TransactionalEmail.Type;
 
 /** A rendered message: the HTML part and the plain-text part always travel together. */

@@ -262,6 +262,54 @@ export const calculateReminders = (
   return candidates.filter((time) => time < cutoff);
 };
 
+/**
+ * Calculates delivery time for results-ready email (Issue #46):
+ * right away if current local time is between 08:00 and 20:00, otherwise at their next 08:00.
+ */
+export const calculateResultsReadyDeliveryTime = (nowMs: number, timeZone: string): number => {
+  const dtf = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+  const parts: Record<string, string> = {};
+  for (const p of dtf.formatToParts(new Date(nowMs))) {
+    parts[p.type] = p.value;
+  }
+  let h = parseInt(parts.hour ?? "0", 10);
+  if (h === 24) h = 0;
+  const year = parseInt(parts.year ?? "0", 10);
+  const month = parseInt(parts.month ?? "0", 10);
+  const day = parseInt(parts.day ?? "0", 10);
+
+  // Between 08:00 and 20:00 local time: send right away (nowMs)
+  if (h >= 8 && h < 20) {
+    return nowMs;
+  }
+
+  // Before 08:00: next 08:00 is today at 08:00
+  if (h < 8) {
+    return localToUtc(year, month, day, 8, 0, timeZone);
+  }
+
+  // At or after 20:00: next 08:00 is tomorrow at 08:00
+  const tomorrowUtc = Date.UTC(year, month - 1, day) + 86_400_000;
+  const tomDate = new Date(tomorrowUtc);
+  return localToUtc(
+    tomDate.getUTCFullYear(),
+    tomDate.getUTCMonth() + 1,
+    tomDate.getUTCDate(),
+    8,
+    0,
+    timeZone,
+  );
+};
+
 export type RoundCommand =
   | {
       readonly _tag: "SkipWeek";

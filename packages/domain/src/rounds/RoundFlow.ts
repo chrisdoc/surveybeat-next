@@ -16,6 +16,7 @@ import {
   RoundNotOpen,
   WeekOutOfRange,
 } from "./Round.ts";
+import type { RoundResult } from "./Results.ts";
 
 export type RoundCommandResult =
   | { readonly _tag: "Rejected"; readonly rejection: RoundRejection }
@@ -44,6 +45,12 @@ export interface OrganizationRoundsShape {
     teamId: TeamId,
     roundId: RoundId,
   ) => Effect.Effect<RoundViewed<RoundDetail>>;
+  readonly results: (
+    organizationId: OrganizationId,
+    actorId: PersonId,
+    teamId: TeamId,
+    roundId: RoundId,
+  ) => Effect.Effect<RoundViewed<RoundResult>>;
 }
 
 export class OrganizationRounds extends Context.Service<OrganizationRounds, OrganizationRoundsShape>()(
@@ -103,4 +110,9 @@ export const viewRounds = (member: Member, teamId: TeamId, pulseId: PulseId) =>
 export const viewRound = (member: Member, teamId: TeamId, roundId: RoundId) =>
   Effect.flatMap(OrganizationRounds, (rounds) =>
     Effect.flatMap(rounds.round(member.organization.id, member.personId, teamId, roundId), viewed),
+  );
+
+export const viewResults = (member: Member, teamId: TeamId, roundId: RoundId) =>
+  Effect.flatMap(OrganizationRounds, (rounds) =>
+    Effect.flatMap(rounds.results(member.organization.id, member.personId, teamId, roundId), viewed),
   );
