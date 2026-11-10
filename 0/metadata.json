@@ -1,0 +1,57 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "01M72M703EGAG54FHS9N7NEZXX",
+  "session_id": "a17d6eaf-e8ab-41a2-bd05-2fe91b6d8f54",
+  "strategy": "manual-commit",
+  "created_at": "2026-11-10T11:41:40.696063107Z",
+  "branch": "r2-108-history",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "apps/web/src/answer/kept-answers.test.ts",
+    "apps/web/src/answer/kept-answers.ts",
+    "apps/web/src/answer/main.ts",
+    "apps/web/src/app/App.scene.test.ts",
+    "apps/web/src/app/history.ts",
+    "apps/web/src/app/keptAnswers.test.ts",
+    "apps/web/src/app/keptAnswers.ts",
+    "packages/domain/src/rounds/MemberHistory.test.ts",
+    "packages/domain/src/rounds/MemberHistory.ts"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-5-5",
+  "turn_id": "017d7aa4484c",
+  "checkpoint_transcript_start": 625,
+  "transcript_lines_at_start": 625,
+  "compact_transcript_start": 74,
+  "token_usage": {
+    "input_tokens": 20,
+    "cache_creation_tokens": 7170,
+    "cache_read_tokens": 2106207,
+    "output_tokens": 4860,
+    "api_call_count": 10,
+    "subagent_tokens": {
+      "input_tokens": 70,
+      "cache_creation_tokens": 136192,
+      "cache_read_tokens": 3880323,
+      "output_tokens": 71992,
+      "api_call_count": 35
+    }
+  },
+  "redaction": {
+    "replacements": 11,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 2,
+      "credentialed_uri": 0,
+      "entropy": 7,
+      "key_context": 2,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  },
+  "session_metrics": {
+    "turn_count": 5
+  }
+}
