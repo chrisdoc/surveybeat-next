@@ -16,9 +16,7 @@ const RawAnswer = Schema.Struct({
 const RawBody = Schema.Struct({
   token: Schema.optional(Schema.String),
   editKey: Schema.optional(Schema.String),
-  edit_key: Schema.optional(Schema.String),
   editKeyHash: Schema.optional(Schema.String),
-  edit_key_hash: Schema.optional(Schema.String),
   questionVersionId: Schema.optional(Schema.String),
   value: Schema.optional(Schema.NullOr(Schema.Int)),
   comment: Schema.optional(Schema.NullOr(Schema.String)),
@@ -60,10 +58,18 @@ const extractAnswers = (body: RawBody): ReadonlyArray<SubmissionAnswer> => {
   return [];
 };
 
+/** Credential-bearing query parameters. Accepted only in the POST body (ADR 0005, issue #130). */
+const credentialQueryParams = ["token", "t", "editKey", "edit_key", "editKeyHash", "edit_key_hash"] as const;
+
+/** Credential-bearing headers. Accepted only in the POST body (ADR 0005, issue #130). */
+const credentialHeaders = ["x-invitation-token", "x-edit-key"] as const;
+
+const EDIT_KEY_HASH = /^[0-9a-f]{64}$/;
+
 const corsHeaders = {
   "access-control-allow-origin": "*",
   "access-control-allow-methods": "POST, OPTIONS",
-  "access-control-allow-headers": "Content-Type, X-Invitation-Token, X-Edit-Key",
+  "access-control-allow-headers": "Content-Type",
 };
 
 /**
@@ -84,15 +90,21 @@ export const submissionRoutes = (organizations: Organizations, database: Cloudfl
       return yield* HttpServerResponse.json({ ok: true }, { status: 202 });
     }
 
-    const body = yield* parseBody(request);
+    // Credentials in the query string or headers are refused before the body is parsed or any
+    // D1 or Organization is touched.
     const url = new URL(request.url, "https://submit.surveybeat.app");
-    const tokenFromQuery = url.searchParams.get("token") ?? url.searchParams.get("t") ?? undefined;
-    const editKeyFromQuery = url.searchParams.get("editKey") ?? url.searchParams.get("edit_key") ?? undefined;
-    const tokenFromHeader = request.headers["x-invitation-token"];
-    const editKeyFromHeader = request.headers["x-edit-key"];
+    const credentialInUrl = credentialQueryParams.some((name) => url.searchParams.has(name));
+    const credentialInHeader = credentialHeaders.some((name) => request.headers[name] !== undefined);
+    if (credentialInUrl || credentialInHeader) {
+      return yield* HttpServerResponse.json(
+        { error: "Credentials are accepted only in the request body" },
+        { status: 400 },
+      );
+    }
 
-    const token = body.token ?? tokenFromQuery ?? tokenFromHeader;
-    const editKey = body.editKey ?? body.edit_key ?? editKeyFromQuery ?? editKeyFromHeader;
+    const body = yield* parseBody(request);
+    const token = body.token;
+    const editKey = body.editKey;
 
     // Invariant A5: A request carrying both an Invitation token and an Edit key is rejected (400).
     if (token !== undefined && editKey !== undefined) {
@@ -105,6 +117,12 @@ export const submissionRoutes = (organizations: Organizations, database: Cloudfl
     if (path === "/exchange" && request.method === "POST") {
       if (token === undefined) {
         return yield* HttpServerResponse.json({ error: "Missing invitation token" }, { status: 400 });
+      }
+      if (body.editKeyHash !== undefined) {
+        return yield* HttpServerResponse.json(
+          { error: "Edit key hash is not accepted here" },
+          { status: 400 },
+        );
       }
       const tokenHash = yield* Effect.promise(() => hashToken(token));
       const row = yield* database
@@ -125,22 +143,17 @@ export const submissionRoutes = (organizations: Organizations, database: Cloudfl
       return yield* HttpServerResponse.json(context);
     }
 
-    if (
-      (path === "/first-answer" || (path === "/answer" && token !== undefined)) &&
-      request.method === "POST"
-    ) {
+    if (path === "/first-answer" && request.method === "POST") {
       if (token === undefined) {
         return yield* HttpServerResponse.json({ error: "Missing invitation token" }, { status: 400 });
       }
-      const rawEditKeyHash =
-        body.editKeyHash ??
-        body.edit_key_hash ??
-        url.searchParams.get("editKeyHash") ??
-        url.searchParams.get("edit_key_hash") ??
-        undefined;
-
-      if (rawEditKeyHash === undefined) {
+      // The browser sends only the hash with the first Answer (ADR 0005).
+      const editKeyHash = body.editKeyHash;
+      if (editKeyHash === undefined) {
         return yield* HttpServerResponse.json({ error: "Missing edit key hash" }, { status: 400 });
+      }
+      if (!EDIT_KEY_HASH.test(editKeyHash)) {
+        return yield* HttpServerResponse.json({ error: "Malformed edit key hash" }, { status: 400 });
       }
 
       const tokenHash = yield* Effect.promise(() => hashToken(token));
@@ -156,7 +169,7 @@ export const submissionRoutes = (organizations: Organizations, database: Cloudfl
       const answers = extractAnswers(body);
       const result = yield* organizations
         .getByName(row.organization_id)
-        .recordFirstAnswer(row.round_id, row.person_id, rawEditKeyHash, answers)
+        .recordFirstAnswer(row.round_id, row.person_id, editKeyHash, answers)
         .pipe(Effect.orDie);
 
       if (result._tag === "AlreadyAnswered") {
@@ -170,7 +183,7 @@ export const submissionRoutes = (organizations: Organizations, database: Cloudfl
         .prepare(
           "INSERT INTO submission_index (edit_key_hash, organization_id, round_id) VALUES (?, ?, ?) ON CONFLICT (edit_key_hash) DO NOTHING",
         )
-        .bind(rawEditKeyHash, row.organization_id, row.round_id)
+        .bind(editKeyHash, row.organization_id, row.round_id)
         .run()
         .pipe(Effect.orDie);
 
@@ -178,22 +191,27 @@ export const submissionRoutes = (organizations: Organizations, database: Cloudfl
     }
 
     if (path === "/answer" && request.method === "POST") {
-      const rawEditKeyHash =
-        editKey !== undefined
-          ? yield* Effect.promise(() => hashToken(editKey))
-          : (body.editKeyHash ??
-            body.edit_key_hash ??
-            url.searchParams.get("editKeyHash") ??
-            url.searchParams.get("edit_key_hash") ??
-            undefined);
-
-      if (rawEditKeyHash === undefined) {
+      // Later Answers carry the raw Edit key; the server derives the hash itself.
+      if (token !== undefined) {
+        return yield* HttpServerResponse.json(
+          { error: "Invitation token is not accepted here" },
+          { status: 400 },
+        );
+      }
+      if (body.editKeyHash !== undefined) {
+        return yield* HttpServerResponse.json(
+          { error: "Edit key hash is not accepted here" },
+          { status: 400 },
+        );
+      }
+      if (editKey === undefined) {
         return yield* HttpServerResponse.json({ error: "Missing edit key" }, { status: 400 });
       }
+      const editKeyHash = yield* Effect.promise(() => hashToken(editKey));
 
       const row = yield* database
         .prepare("SELECT organization_id, round_id FROM submission_index WHERE edit_key_hash = ?")
-        .bind(rawEditKeyHash)
+        .bind(editKeyHash)
         .first<{ organization_id: string; round_id: string }>()
         .pipe(Effect.orDie);
       if (row === null) {
@@ -203,7 +221,7 @@ export const submissionRoutes = (organizations: Organizations, database: Cloudfl
       const answers = extractAnswers(body);
       const result = yield* organizations
         .getByName(row.organization_id)
-        .saveAnswer(rawEditKeyHash, answers)
+        .saveAnswer(editKeyHash, answers)
         .pipe(Effect.orDie);
 
       if (result._tag === "SubmissionNotFound") {
