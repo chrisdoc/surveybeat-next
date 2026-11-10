@@ -1,0 +1,28 @@
+Yes go for r2, we will use openrouter with model https://openrouter.ai/meta/muse-ember
+
+---
+
+Delegated task node:delegated-task:command%3Amcp%3A7aa672c1-afe7-48cf-bcf1-28859b62d109%3Adelegate-task%3Ab01ca6c6-a84c-4935-95a0-6c5a8f86e6d6 (Research #87 OpenRouter muse-ember) [completed]:
+The research note is on main: `docs/research/openrouter-muse-ember.md`. PR #96 is squash-merged as `5b571bd1`, the remote branch is deleted, and #87 is still open. I didn't use an API key, so all findings come from reading docs and OpenRouter's public APIs. No request was run against the model.
+
+- **ZDR: no.** `meta/muse-ember` has one endpoint, run by Meta itself. OpenRouter lists it as keeping prompts for 30 days, not training on them, and not ZDR, and it isn't in `/api/v1/endpoints/zdr`. With `provider.zdr: true` (or the account/guardrail setting `enforce_zdr_other`) the request has nowhere to go and fails, so no request body can make this model retention-free.
+- **Region: US.** The model page says it isn't available through EU in-region routing, and it's missing from both the EU and the US regional model lists. Meta's headquarters is listed as US, and no source says where Meta processes requests.
+- **JSON schema: yes.** The endpoint supports `response_format` with a strict `json_schema`. The context length is 1,048,576 tokens. Reasoning can't be turned off and defaults to `max` effort, so set `reasoning.effort` to low and cap `max_tokens`.
+- **Cost per Round: about $0.001–0.0025** for 20 comments of 300 characters in one theming call. Most of the output tokens are reasoning, and that count is a guess until a real call measures it.
+- **DPA: yes.** It's part of OpenRouter's terms by default and includes the EU standard contract clauses. It doesn't stop Meta keeping prompts: the DPA puts the provider's terms on the customer, and Meta isn't covered by OpenRouter's no-retention promise.
+- **Biggest risk:** members' redacted comments stay with a US provider for 30 days. The training status is also unclear in Meta's own documents. Meta's terms have a no-training "Standard" tier and a tier where Meta trains on content, and Muse Ember isn't on Meta's list of either. Only OpenRouter's flag says it isn't trained on.
+- **Other findings:** a moderation error returns up to 100 characters of the comment in its body, so error bodies must never be logged. Whether `data_collection: "deny"` excludes Meta needs a real request to find out.
+
+The note gives the request body that blocks training, fallback to other providers and storage on OpenRouter's side, and states that it can't block Meta's retention. For an ADR that requires real no-retention, the ZDR-eligible alternative is `meta/muse-spark-open`, hosted on Together, Nebius or Modal.
+
+I used plain git instead of GitButler because `but status` here showed the main checkout's workspace, which holds other agents' uncommitted changes. The merge went through while the `check`, `deploy` and `privacy` CI jobs were still pending, because none were required to merge. The change is a single Markdown file, so those jobs shouldn't be affected.
+
+PR https://github.com/chrisdoc/surveybeat-next/pull/96, head 54260706a1fa72686288a77d3eb2810a6e3cb691, checks pending at merge (only GitGuardian had passed), no reviews; merged.
+
+---
+
+what would be the cost with gpt luna 6 or haiku 5.5 and do they offer zdr
+
+---
+
+yes to all
