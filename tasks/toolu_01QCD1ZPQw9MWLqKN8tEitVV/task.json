@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01QCD1ZPQw9MWLqKN8tEitVV",
+  "agent_id": "a490d7c5235178147",
+  "subagent_type": "scoper",
+  "task_description": "Scope German localization slice",
+  "token_usage": {
+    "input_tokens": 24,
+    "cache_creation_tokens": 67749,
+    "cache_read_tokens": 465784,
+    "output_tokens": 8307,
+    "api_call_count": 12
+  },
+  "started_at": "2026-11-10T08:31:25.000683448Z",
+  "completed_at": "2026-11-10T09:22:51.76791012Z"
+}
