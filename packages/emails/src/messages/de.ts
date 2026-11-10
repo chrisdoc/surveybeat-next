@@ -42,6 +42,23 @@ export const de = {
   "resultsReady.action": "Ergebnisse ansehen",
   "resultsReady.link": "Falls die Schaltfläche nicht funktioniert, öffne diesen Link:",
   "resultsReady.reason": "Du hast diese E-Mail erhalten, weil du Mitglied von {team} bist.",
+
+  "page.delivery.title": "Zustellzeit ändern · SurveyBeat",
+  "page.delivery.heading": "Zustellzeit ändern",
+  "page.delivery.intro": "Wir schicken dir deine Check-ins und Erinnerungen zu deiner Ortszeit.",
+  "page.delivery.timeZone": "Zeitzone",
+  "page.delivery.save": "Einstellung speichern",
+  "page.deliverySaved.title": "Zustellzeit aktualisiert · SurveyBeat",
+  "page.deliverySaved.heading": "Einstellungen aktualisiert",
+  "page.deliverySaved.body": "Deine Zeitzone für die Zustellung ist jetzt auf {timeZone} eingestellt.",
+  "page.unsubscribe.title": "Erinnerungen ausschalten · SurveyBeat",
+  "page.unsubscribe.heading": "Erinnerungen ausschalten",
+  "page.unsubscribe.body": "Du bekommst für diesen Pulse-Check-in keine Erinnerungen mehr.",
+  "page.unsubscribe.button": "Erinnerungen ausschalten",
+  "page.error.missingTokenOrTimeZone": "Token oder Zeitzone fehlen.",
+  "page.error.missingToken": "Token fehlt.",
+  "page.error.invalid": "Dieser Link ist ungültig oder abgelaufen.",
+  "page.unsubscribed": "Erinnerungen für diesen Pulse sind ausgeschaltet.",
 } as const satisfies Translation;
 
 // Fails to compile, naming the key, when a German string's {placeholders} differ from English.

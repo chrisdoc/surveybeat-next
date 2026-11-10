@@ -225,6 +225,46 @@ describe("AI processing notice", () => {
   });
 });
 
+describe("answer and delivery links follow the email's locale", () => {
+  it.each([
+    ["InvitationEmail", examples.InvitationEmail],
+    ["ReminderEmail", examples.ReminderEmail],
+  ] as const)("%s in German opens /de/a and carries lang=de", async (_name, example) => {
+    const { html, text } = await renderEmail({ ...example, locale: "de" });
+    expect(html).toContain("/de/a#t=test-token-123");
+    expect(text).toContain("/de/a#t=test-token-123");
+    expect(html).toContain("lang=de");
+    expect(text).toContain("lang=de");
+    expect(text).toContain("https://app.surveybeat.app/delivery?token=test-token-123&lang=de");
+  });
+
+  it.each([
+    ["InvitationEmail", examples.InvitationEmail],
+    ["ReminderEmail", examples.ReminderEmail],
+  ] as const)("%s in English opens /a and carries no language", async (_name, example) => {
+    const { html, text } = await renderEmail(example);
+    expect(html).toContain("/a#t=test-token-123");
+    expect(text).toContain("/a#t=test-token-123");
+    expect(html).not.toContain("/de/a");
+    expect(text).not.toContain("/de/a");
+    // The document's lang="en" attribute is not a link parameter, so only the link forms are checked.
+    expect(html).not.toContain("lang=de");
+    expect(text).not.toContain("lang=");
+  });
+
+  it("keeps the unsubscribe link in German, including a legacy stored one", async () => {
+    const { headers, text } = await renderEmail({
+      ...examples.ReminderEmail,
+      locale: "de",
+      unsubscribeUrl: "https://old.example/api/reminders/unsubscribe?t=old",
+    });
+    expect(headers?.["List-Unsubscribe"]).toBe(
+      "<https://old.example/api/reminders/unsubscribe?t=old&lang=de>",
+    );
+    expect(text).toContain("https://old.example/api/reminders/unsubscribe?t=old&lang=de");
+  });
+});
+
 describe("theme", () => {
   it("keeps the light palette in step with the app theme", () => {
     expect(colors).toEqual({

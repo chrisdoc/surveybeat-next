@@ -1,5 +1,7 @@
+import type { Locale } from "@surveybeat/domain";
 import type { ReactNode } from "react";
 import { Button, Heading, Link, Section, Text } from "react-email";
+import { answerPath } from "./links.ts";
 import type { Messages } from "./messages/index.ts";
 import { colors, fonts, radius } from "./theme.ts";
 
@@ -78,10 +80,12 @@ export function RatingRow({
   question,
   baseUrl,
   token,
+  locale,
 }: {
   question: { readonly text: string; readonly lowLabel: string; readonly highLabel: string };
   baseUrl: string;
   token: string;
+  locale: Locale;
 }) {
   return (
     <Section style={{ margin: "0 0 8px" }}>
@@ -104,7 +108,7 @@ export function RatingRow({
               <td key={val} align="center" style={{ textAlign: "center" }}>
                 <a
                   className="sb-rating"
-                  href={`${baseUrl}/a#t=${token}&v=${val}`}
+                  href={`${baseUrl}${answerPath(locale)}#t=${token}&v=${val}`}
                   style={{
                     border: `1px solid ${colors.ratingBorder}`,
                     borderRadius: "28px",

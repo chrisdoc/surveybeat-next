@@ -1,6 +1,7 @@
 import type { ReminderEmailWithToken as ReminderEmailData } from "@surveybeat/domain";
 import { Link } from "react-email";
 import { Layout, textLayout } from "./Layout.tsx";
+import { answerPath, langQuery } from "./links.ts";
 import { messagesFor } from "./messages/index.ts";
 import {
   ActionRow,
@@ -15,15 +16,16 @@ import { colors } from "./theme.ts";
 
 /** Legacy rows carry their own URL; otherwise it is built from the token. */
 export const unsubscribeUrl = (email: ReminderEmailData): string =>
-  email.unsubscribeUrl ?? `${email.baseUrl}/api/reminders/unsubscribe?t=${email.token}`;
+  (email.unsubscribeUrl ?? `${email.baseUrl}/api/reminders/unsubscribe?t=${email.token}`) +
+  langQuery(email.locale);
 
 export const subject = (email: ReminderEmailData): string =>
   messagesFor(email.locale).message("reminder.subject", { pulse: email.pulseName });
 
 export function ReminderEmailComponent({ email }: { email: ReminderEmailData }) {
   const m = messagesFor(email.locale);
-  const openUrl = `${email.baseUrl}/a#t=${email.token}`;
-  const deliveryUrl = `${email.baseUrl}/delivery?token=${email.token}`;
+  const openUrl = `${email.baseUrl}${answerPath(email.locale)}#t=${email.token}`;
+  const deliveryUrl = `${email.baseUrl}/delivery?token=${email.token}${langQuery(email.locale)}`;
 
   return (
     <Layout
@@ -56,7 +58,12 @@ export function ReminderEmailComponent({ email }: { email: ReminderEmailData }) 
       <DisplayHeading>{m.message("reminder.heading", { pulse: email.pulseName })}</DisplayHeading>
       <BodyText>{m.message("reminder.body")}</BodyText>
       {email.ratingQuestion && (
-        <RatingRow question={email.ratingQuestion} baseUrl={email.baseUrl} token={email.token} />
+        <RatingRow
+          question={email.ratingQuestion}
+          baseUrl={email.baseUrl}
+          token={email.token}
+          locale={email.locale}
+        />
       )}
       <ActionRow href={openUrl} messages={m} />
     </Layout>
@@ -65,8 +72,8 @@ export function ReminderEmailComponent({ email }: { email: ReminderEmailData }) 
 
 export const text = (email: ReminderEmailData): string => {
   const m = messagesFor(email.locale);
-  const openUrl = `${email.baseUrl}/a#t=${email.token}`;
-  const deliveryUrl = `${email.baseUrl}/delivery?token=${email.token}`;
+  const openUrl = `${email.baseUrl}${answerPath(email.locale)}#t=${email.token}`;
+  const deliveryUrl = `${email.baseUrl}/delivery?token=${email.token}${langQuery(email.locale)}`;
 
   const ratingLines: Array<string> = [];
   if (email.ratingQuestion) {
@@ -78,7 +85,7 @@ export const text = (email: ReminderEmailData): string => {
           : val === 5
             ? `5 (${email.ratingQuestion.highLabel})`
             : `${val}`;
-      ratingLines.push(`${label}: ${email.baseUrl}/a#t=${email.token}&v=${val}`);
+      ratingLines.push(`${label}: ${email.baseUrl}${answerPath(email.locale)}#t=${email.token}&v=${val}`);
     }
     ratingLines.push("");
   }

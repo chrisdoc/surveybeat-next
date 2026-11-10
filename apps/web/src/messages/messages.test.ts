@@ -1,6 +1,7 @@
 import type { Locale } from "@surveybeat/domain";
 import { afterEach, describe, expect, it } from "vitest";
 import answerHtml from "../../answer.html?raw";
+import deAnswerHtml from "../../de/answer.html?raw";
 import indexHtml from "../../index.html?raw";
 import { catalog } from "./catalog.ts";
 import { de } from "./de.ts";
@@ -120,6 +121,7 @@ describe("HTML entries", () => {
   it.each([
     ["index.html", indexHtml],
     ["answer.html", answerHtml],
+    ["de/answer.html", deAnswerHtml],
   ])("%s has no user-facing text outside the catalog", (_name, html) => {
     expect(visibleText(html)).toBe("");
   });
@@ -127,6 +129,7 @@ describe("HTML entries", () => {
   it.each([
     ["index.html", indexHtml],
     ["answer.html", answerHtml],
+    ["de/answer.html", deAnswerHtml],
   ])("%s leaves the title to the catalog", (_name, html) => {
     expect(/<title>\s*<\/title>/.test(html)).toBe(true);
   });

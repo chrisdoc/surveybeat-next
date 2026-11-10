@@ -1,5 +1,6 @@
 import type { InvitationEmailWithToken as InvitationEmailData } from "@surveybeat/domain";
 import { Layout, textLayout } from "./Layout.tsx";
+import { answerPath, langQuery } from "./links.ts";
 import { type Messages, messagesFor } from "./messages/index.ts";
 import { ActionRow, ActionsCard, DisplayHeading, Notices, PrivacyPanel, RatingRow } from "./Parts.tsx";
 
@@ -21,8 +22,8 @@ export const subject = (email: InvitationEmailData): string =>
 
 export function InvitationEmailComponent({ email }: { email: InvitationEmailData }) {
   const m = messagesFor(email.locale);
-  const openUrl = `${email.baseUrl}/a#t=${email.token}`;
-  const deliveryUrl = `${email.baseUrl}/delivery?token=${email.token}`;
+  const openUrl = `${email.baseUrl}${answerPath(email.locale)}#t=${email.token}`;
+  const deliveryUrl = `${email.baseUrl}/delivery?token=${email.token}${langQuery(email.locale)}`;
   const notice = aiNotice(email, m);
 
   return (
@@ -48,7 +49,12 @@ export function InvitationEmailComponent({ email }: { email: InvitationEmailData
     >
       <DisplayHeading>{email.pulseName}</DisplayHeading>
       {email.ratingQuestion && (
-        <RatingRow question={email.ratingQuestion} baseUrl={email.baseUrl} token={email.token} />
+        <RatingRow
+          question={email.ratingQuestion}
+          baseUrl={email.baseUrl}
+          token={email.token}
+          locale={email.locale}
+        />
       )}
       <ActionRow href={openUrl} messages={m} />
     </Layout>
@@ -57,8 +63,8 @@ export function InvitationEmailComponent({ email }: { email: InvitationEmailData
 
 export const text = (email: InvitationEmailData): string => {
   const m = messagesFor(email.locale);
-  const openUrl = `${email.baseUrl}/a#t=${email.token}`;
-  const deliveryUrl = `${email.baseUrl}/delivery?token=${email.token}`;
+  const openUrl = `${email.baseUrl}${answerPath(email.locale)}#t=${email.token}`;
+  const deliveryUrl = `${email.baseUrl}/delivery?token=${email.token}${langQuery(email.locale)}`;
   const notice = aiNotice(email, m);
 
   const ratingLines: Array<string> = [];
@@ -71,7 +77,7 @@ export const text = (email: InvitationEmailData): string => {
           : val === 5
             ? `5 (${email.ratingQuestion.highLabel})`
             : `${val}`;
-      ratingLines.push(`${label}: ${email.baseUrl}/a#t=${email.token}&v=${val}`);
+      ratingLines.push(`${label}: ${email.baseUrl}${answerPath(email.locale)}#t=${email.token}&v=${val}`);
     }
     ratingLines.push("");
   }

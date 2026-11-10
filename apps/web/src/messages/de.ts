@@ -1,4 +1,5 @@
 import type { Mismatched, Translation } from "./index.ts";
+import { answerDe } from "./answer.de.ts";
 
 /** German catalog (ADR 0018). Same keys, same order as `catalog.ts`; placeholders keep their English names. */
 export const de = {
@@ -313,38 +314,7 @@ export const de = {
     "Jemand anderes hat diesen Pulse geändert. Lade die Seite neu und versuch es erneut.",
   "error.Invalid": "Prüfe deine Eingabe und versuch es erneut.",
   "error.Unavailable": "Etwas ist schiefgelaufen. Versuch es gleich noch einmal.",
-  "answer.title": "Deine Antwort",
-  "answer.placeholder": "Deine Frage erscheint hier.",
-  "answer.remaining.one": "Noch {count} Frage",
-  "answer.remaining.other": "Noch {count} Fragen",
-  "answer.closes": "Schließt am {date}",
-  "answer.scale.1": "Sehr schlecht",
-  "answer.scale.2": "Schlecht",
-  "answer.scale.3": "Okay",
-  "answer.scale.4": "Gut",
-  "answer.scale.5": "Sehr gut",
-  "answer.save": "Speichern und weiter",
-  "answer.next": "Weiter",
-  "answer.finish": "Abschließen",
-  "answer.loading": "Deine Frage wird geladen…",
-  "answer.anonymity":
-    "Deine Teamleitung sieht nur zusammengefasste Antworten von mindestens {n} Personen, aber nie, wer was geantwortet hat. Dein Name wird nie zusammen mit deinen Antworten gespeichert.",
-  "answer.aiNotice":
-    "Kommentare werden nach dem Entfernen von Namen, E-Mail-Adressen, Telefonnummern, Handles und Links von einem KI-Dienst in der EU zusammengefasst. Er speichert nichts.",
-  "answer.comment.label": "Möchtest du noch etwas sagen?",
-  "answer.comment.hint": "Optional. Namen, E-Mail-Adressen und Links werden entfernt.",
-  "answer.comment.disclosure":
-    "Deine Teamleitung liest Kommentare wörtlich, sobald mindestens 4 Personen geantwortet haben. Wir entfernen Namen von Personen in deiner Organisation, E-Mail-Adressen, Telefonnummern, Handles und Links. Andere Details entfernen wir nicht, also lass alles weg, was dich identifiziert.",
-  "answer.comment.leadSees": "Deine Teamleitung sieht: {text}",
-  "answer.thanks.title": "Danke!",
-  "answer.thanks.body": "Deine Antwort ist gespeichert. Das kannst du als Nächstes tun:",
-  "answer.thanks.bodyNoActions": "Deine Antwort ist gespeichert.",
-  "answer.error": "Etwas ist schiefgelaufen. Versuch es bitte noch einmal.",
-  "answer.state.closed": "Dieser Check-in ist geschlossen.",
-  "answer.state.alreadyAnswered": "Du hast diesen Check-in bereits beantwortet.",
-  "answer.state.otherBrowser":
-    "Du hast diesen Check-in in einem anderen Browser beantwortet. Deine Antworten sind anonym und können nur in dem Browser geändert werden, mit dem du sie abgeschickt hast.",
-  "answer.noscript": "JavaScript wird benötigt, um diesen Check-in anonym zu beantworten.",
+  ...answerDe,
   "privacy.title": "Datenschutz bei SurveyBeat",
   "privacy.back": "Zurück",
   "privacy.anonymity.title": "Anonyme Einsendungen",
