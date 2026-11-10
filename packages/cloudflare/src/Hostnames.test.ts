@@ -19,11 +19,15 @@ describe("siteDomainFor (landing page hostnames)", () => {
     assert.strictEqual(siteDomainFor("pr-12"), "pr-12.surveybeat.app");
   });
 
-  it("keeps production on workers.dev until the apex cutover", () => {
-    assert.strictEqual(siteDomainFor("production"), undefined);
+  it("serves production on workers.dev when apexServedBySite is false", () => {
+    assert.strictEqual(siteDomainFor("production", false), undefined);
   });
 
-  it("serves the apex with www redirecting to it once the cutover is on", () => {
+  it("serves the apex with www redirecting to it when the cutover is on", () => {
+    assert.deepStrictEqual(siteDomainFor("production"), {
+      name: "surveybeat.app",
+      redirects: ["www.surveybeat.app"],
+    });
     assert.deepStrictEqual(siteDomainFor("production", true), {
       name: "surveybeat.app",
       redirects: ["www.surveybeat.app"],
