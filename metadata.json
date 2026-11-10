@@ -1,0 +1,88 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "01M727APMGZGZ5HAZH1BCHH105",
+  "strategy": "manual-commit",
+  "branch": "r2-102-ai-client",
+  "checkpoints_count": 2,
+  "files_touched": [
+    ".github/workflows/deploy.yml",
+    ".github/workflows/preview.yml",
+    "apps/web/src/answer/main.ts",
+    "apps/web/src/answer/round-context.test.ts",
+    "apps/web/src/answer/round-context.ts",
+    "apps/web/src/answer/schema-validate.ts",
+    "apps/web/src/app/App.scene.test.ts",
+    "apps/web/src/app/App.story.test.ts",
+    "apps/web/src/app/App.ts",
+    "apps/web/src/app/directory.ts",
+    "apps/web/src/messages/catalog.ts",
+    "docs/infra.md",
+    "packages/api/src/index.ts",
+    "packages/cloudflare/migrations/0011_ai_processing.sql",
+    "packages/cloudflare/src/DirectoryHandlers.ts",
+    "packages/cloudflare/src/MainWorker.ts",
+    "packages/cloudflare/src/Organization.ts",
+    "packages/cloudflare/src/SqlDirectory.ts",
+    "packages/cloudflare/src/SqlRounds.ts",
+    "packages/cloudflare/src/SubmissionRoundContext.test.ts",
+    "packages/cloudflare/src/ai/OpenRouterAiClient.test.ts",
+    "packages/cloudflare/src/ai/OpenRouterAiClient.ts",
+    "packages/cloudflare/src/auth/localTestSecrets.ts",
+    "packages/cloudflare/src/auth/testing.ts",
+    "packages/domain/src/ai/AiClient.test.ts",
+    "packages/domain/src/ai/AiClient.ts",
+    "packages/domain/src/ai/index.ts",
+    "packages/domain/src/ai/testing.ts",
+    "packages/domain/src/email/Email.ts",
+    "packages/domain/src/email/EmailTemplates.test.ts",
+    "packages/domain/src/index.ts",
+    "packages/domain/src/people/Directory.test.ts",
+    "packages/domain/src/people/Directory.ts",
+    "packages/domain/src/people/Team.ts",
+    "packages/domain/src/pulses/Editor.test.ts",
+    "packages/domain/src/rounds/Results.privacy.test.ts",
+    "packages/domain/src/rounds/Submission.ts",
+    "packages/emails/src/InvitationEmail.tsx",
+    "packages/emails/src/Parts.tsx",
+    "packages/emails/src/ReminderEmail.tsx",
+    "packages/emails/src/messages/catalog.ts",
+    "packages/emails/src/render.test.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 48,
+    "cache_creation_tokens": 46340,
+    "cache_read_tokens": 10329515,
+    "output_tokens": 27407,
+    "api_call_count": 22,
+    "subagent_tokens": {
+      "input_tokens": 24,
+      "cache_creation_tokens": 69591,
+      "cache_read_tokens": 476424,
+      "output_tokens": 7620,
+      "api_call_count": 12
+    }
+  },
+  "redaction": {
+    "replacements": 98,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 4,
+      "credentialed_uri": 0,
+      "entropy": 65,
+      "key_context": 29,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}

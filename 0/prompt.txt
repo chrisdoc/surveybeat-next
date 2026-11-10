@@ -1,0 +1,55 @@
+then setup subagents opus 5.5 for orchestration, sonnet 5.5 for review and haiku 5.5 as the worker / implementor who writes code
+
+---
+
+<task-notification>
+<task-id>a8dbed902ad3e9b5d</task-id>
+<tool-use-id>toolu_01FPzAK6MqUa8veU88qzRMhb</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-95b51f6c/f1686b66-f60e-4681-b2b3-a71e0d9b7445/tasks/a8dbed902ad3e9b5d.output</output-file>
+<status>completed</status>
+<summary>Agent "Scope R2 01 AI client" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>**Complexity flag:** this is complex. It touches domain, Cloudflare adapters, API, web, emails, and infra/CI (condition 1). It adds a secret and an outbound call to a third party (condition 2 and security). Redaction and no-logging rules apply (ADR 0005, 0009). Issue 102 and ADR 0015 disagree on scope (see 6). The answer-page JS budget has about 1 KB of headroom (see 4).
+
+**Issue 102 acceptance criteria (copied from the issue):** `aiProcessing` setting, off by default, with an admin toggle that explains what is sent, to whom, and that nothing is kept. While on, the answer page and Invitation/Reminder emails carry catalog copy. An `AiClient` domain interface with a Cloudflare adapter that POSTs the exact ADR 0015 body. Key from `OPENROUTER_API_KEY`, timeout, retries on 408/429/502/503 honouring `Retry-After`. Response and error bodies are never logged. Input type admits only redacted text, Question text, scores, and Action titles. Tests: byte-exact request body, a privacy test that the input type rejects Person ids or names, and a fake layer.
+
+**1. Organization settings**
+- Storage: `minimum_group_size` was added to `organization` in `packages/cloudflare/migrations/0004_teams.sql:12` (`INTEGER NOT NULL DEFAULT 4 CHECK (&gt;= 3)`). Next migration number is `0011`.
+- SQL: `packages/cloudflare/src/SqlDirectory.ts:18` (row schema), `:46-60` (load), `:109-110` (`SettingsUpdated` UPDATE).
+- Domain: `packages/domain/src/people/Directory.ts:51` (`DirectoryState.minimumGroupSize`), `:101` (`UpdateSettings` command), `:113` (`SettingsUpdated` change), `:440-442` (decide, gated by `organization.updateSettings`), `:485` (applyChanges), `:549-560` (`settingsView`, admin only).
+- Permissions: `packages/domain/src/people/Permissions.ts:18` and `:63` (`organization.updateSettings: ["admin"]`).
+- API: `packages/api/src/index.ts` (about `:169-174`) has `GET /organization` and `PATCH /organization` with payload `{ minimumGroupSize }`. Handler: `packages/cloudflare/src/DirectoryHandlers.ts:138-145`. Privacy classification: `packages/api/src/PrivacyRegistry.ts:126` and `:130` (`NoResultData`).
+- Web: `apps/web/src/app/directory.ts:411` (`settingsScreenView`), with the number form around `:445-475`. `apps/web/src/app/components.ts:356` (`checkboxField`: `id`, `label`, `isChecked`, `onToggle`, `isDisabled`). Commands and messages: `apps/web/src/app/App.ts:441` (`UpdateSettings`), `:1344-1374` (`GotSettings`/`SubmitSize`). Copy keys: `apps/web/src/messages/catalog.ts:126-131`.
+- Unverified: where the `OrganizationSettings` schema lives. I did not find it.
+
+**2. Secrets and CI**
+- `packages/cloudflare/src/auth/AuthConfig.ts`: `authBindings` returns `Config.Redacted(...)` values bound as Worker secrets (about lines 13-22). `authSettings` reads them back and dies if they are missing or short.
+- `packages/cloudflare/src/MainWorker.ts:126` spreads `...(yield* authBindings)` into the Worker env. `:189` is the cached `authSettings`.
+- The Organization DO reads `Config.Redacted("INVITATION_TOKEN_KEY")` at `packages/cloudflare/src/Organization.ts:130`. That suggests the DO shares the Worker env, which I did not confirm.
+- `infra/alchemy.run.ts:23-30` only sets secret providers (DotEnv, ProcessEnv, and the allowlist). It declares no per-secret bindings. So `OPENROUTER_API_KEY` would go into `authBindings`-style code, plus a test stand-in in `packages/cloudflare/src/auth/localTestSecrets.ts`.
+- CI: `.github/workflows/deploy.yml:49-56` and `:128-135`, and `preview.yml:44-55` and `:159-162`, pass `${{ secrets.WORKOS_* }}` through step `env`. A new key needs the same entries and a GitHub secret.
+
+**3. Outbound HTTP and service pattern**
+- `packages/cloudflare/src/auth/WorkosIdentityProvider.ts`: `WorkosConfig` at `:15-20`. Status and error classifiers at `:22-50`. `call` wraps a Promise in `Effect.tryPromise`, mapping every failure to `AuthUnavailable` (about `:60`). Retry is not implemented there.
+- No `AbortSignal` or timeout code found in `packages/cloudflare/src`, so the timeout and retry logic would be new.
+- Email: `packages/domain/src/email/EmailSender.ts` defines `EmailRejected` and `EmailOutcomeUnknown` (tagged errors) and `EmailSender` as a `Context.Service`. `packages/cloudflare/src/CloudflareEmailSender.ts:8-20` (classification sets), `:33-38` (`classifySendError`), `:41-61` (adapter via `Effect.context&lt;RuntimeContext&gt;` and `EmailSender.of`).
+- Fake layer: `packages/domain/src/email/deliver.test.ts:17-35` (`scriptedSender` using `Layer.succeed`). Non-production adapter: `packages/cloudflare/src/CapturingEmailSender.ts`.
+
+**4. Answer page**
+- Copy: key `answer.anonymity` at `apps/web/src/messages/catalog.ts:270-271`. It is set at runtime in `apps/web/src/answer/main.ts:315-318` into `#anon`. I did not find `id="anon"` in `apps/web/answer.html`, so the element's origin is unverified. Prerender is in `apps/web/vite.config.ts:8-16` and `:118`.
+- Token exchange: `packages/cloudflare/src/SubmissionWorker.ts:139-152` returns `getSubmissionRoundContext` (`SqlRounds.ts:731`). Domain shape: `packages/domain/src/rounds/Submission.ts:42-53`, with `roundId`, `pulseName`, `minimumGroupSize`, `questions`, `actions`, `closeTime`, `state`, and `hasAnswered`. It has no AI flag, so the flag would be added to the struct, the builder, `parseRoundContext` (`main.ts:117-200`), and `apps/web/src/answer/schema-validate.ts:3-24`.
+- Budget (`apps/web/src/answer/budget.test.ts`): I measured the existing `apps/web/dist` without rebuilding, so it may be stale. HTML is 7,280 B raw and 2,706 B gzip (limit 8 KB). Inline CSS is 1,508 B gzip (limit 2 KB). Critical JS is about 9,243 B gzip (limit 10,240), counting `answer-*.js` at 4,057 B and `messages-*.js`. Headroom is about 1 KB, and the catalog string lives in the messages chunk.
+
+**5. Emails**
+- Types: `packages/domain/src/email/Email.ts`. `InvitationEmail` (`:47-56`) has `minimumGroupSize`. `ReminderEmail` (`:58-66`) has no N and no privacy field. `InvitationEmailWithToken` (`:74-83`), `ReminderEmailWithToken` (`:89-97`), `TransactionalEmail` union (`:112-118`). Sends are stored as `StoredEmail` (`:121-128`), so a new field affects rows already stored.
+- Payloads: `packages/cloudflare/src/Organization.ts` builds the invitation at about `:462-470` (`minimumGroupSize: dirState.minimumGroupSize`), and a `common` object at about `:645-652`. The reminder path is unverified.
+- Templates: `packages/emails/src/InvitationEmail.tsx:10-13` (`anonymityStatement`) and `:29` (`PrivacyPanel`). `packages/emails/src/ReminderEmail.tsx` has no privacy panel. Copy: `packages/emails/src/messages/catalog.ts:20-21`.
+
+**6. Tests and validation**
+- Existing tests to extend: `packages/domain/src/people/Permissions.test.ts`, `packages/domain/src/email/deliver.test.ts` and `EmailTemplates.test.ts`, `packages/emails/src/render.test.ts` (with snapshots), `apps/web/src/answer/budget.test.ts`, `packages/api/src/registry.privacy.test.ts`, `packages/cloudflare/src/DirectoryApi.test.ts` (adapter, slow), `SubmissionWorker.test.ts`.
+- Commands: `pnpm test &lt;path&gt;` for each file, `pnpm test:privacy` for `*.privacy.test.ts`, `pnpm typecheck`, `pnpm typecheck:effect`, `pnpm lint`, `pnpm format:check`, then `pnpm --filter @surveybeat/web build` and the budget test. E2E only on a deployed stage.
+- Scope conflict: ADR 0015 says the answer page and the Invitation carry the statement. The issue also names Reminder emails.
+
+**Possible split (facts only):** (a) setting: migration, SqlDirectory, Directory.ts, API, handlers, settings UI. (b) AiClient: domain interface, Cloudflare adapter, secret wiring, CI, fake layer. (c) copy surfaces (answer page and emails) depend on (a) for the flag. The answer page depends on the budget. Email payload changes depend on the stored-email schema.</result>
+<usage><subagent_tokens>80739</subagent_tokens><tool_uses>0</tool_uses><duration_ms>33398</duration_ms></usage>
+</task-notification>
