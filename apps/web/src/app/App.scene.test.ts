@@ -14,6 +14,7 @@ import {
   type RoundSummary,
   SendTime,
   TeamId,
+  type TeamOverview,
   TemplateQuestionKey,
   TimeZone,
 } from "@surveybeat/domain";
@@ -21,7 +22,7 @@ import { Option, Schema } from "effect";
 import * as Scene from "foldkit/scene";
 import { setup } from "foldkit/test/vitest";
 import { fromString } from "foldkit/url";
-import { describe, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   AddMember,
   AddQuestionCmd,
@@ -56,6 +57,7 @@ import {
   UpdateTeam,
   view,
 } from "./App.ts";
+import { formatDate } from "../messages/index.ts";
 import type { SessionModel } from "./session.ts";
 
 setup();
@@ -324,6 +326,159 @@ describe("App Scenes", () => {
           }),
         ),
       );
+    });
+
+    describe("Team health overview", () => {
+      const teamId = decodeTeamId("team-1");
+      const roundA = Schema.decodeSync(RoundId)("round-a");
+      const roundB = Schema.decodeSync(RoundId)("round-b");
+      const roundC = Schema.decodeSync(RoundId)("round-c");
+      const actionId = Schema.decodeSync(ActionId)("action-1");
+      const committedAt = Date.parse("2026-10-28T09:00:00Z");
+      const doneAt = Date.parse("2026-11-04T09:00:00Z");
+
+      const overview: TeamOverview = {
+        teamId,
+        rounds: [
+          { roundId: roundA, plannedOpenDate: "2026-10-26" },
+          { roundId: roundB, plannedOpenDate: "2026-11-02" },
+          { roundId: roundC, plannedOpenDate: "2026-11-09" },
+        ],
+        dimensions: [
+          {
+            dimension: "workload",
+            points: [
+              { roundId: roundA, score: 3.5 },
+              { roundId: roundB, score: null },
+              { roundId: roundC, score: 4 },
+            ],
+          },
+          {
+            dimension: "clarity",
+            points: [
+              { roundId: roundA, score: 3 },
+              { roundId: roundB, score: 3.5 },
+              { roundId: roundC, score: 4 },
+            ],
+          },
+        ],
+        markers: [
+          { actionId, title: "Fix standups", kind: "committed", at: committedAt },
+          { actionId, title: "Fix standups", kind: "done", at: doneAt },
+        ],
+      };
+
+      const detailWith = (viewResults: boolean) => ({
+        team: {
+          id: teamId,
+          name: "Platform",
+          timeZone: decodeTimeZone("UTC"),
+          yourRole: "member" as const,
+        },
+        roster: [],
+        may: {
+          update: false,
+          manageLeads: false,
+          manageMembers: false,
+          managePulses: false,
+          viewResults,
+        },
+      });
+
+      const teamUrl = makeUrl(`https://app.surveybeat.com/teams/${teamId}`);
+
+      it("shows Dimension lines, Action markers with titles, and a table view", () => {
+        Scene.scene(
+          { update, view },
+          Scene.given({
+            ...initialModel(teamUrl),
+            session: signedInAdmin,
+            teamDetail: { _tag: "Loaded", detail: detailWith(true) },
+            teamOverview: { _tag: "Loaded", overview },
+          }),
+          Scene.expect(Scene.role("heading", { name: "Team health over time" })).toExist(),
+          Scene.expect(Scene.role("img", { name: "Workload across all shared Rounds" })).toExist(),
+          Scene.expect(Scene.role("img", { name: "Clarity across all shared Rounds" })).toExist(),
+          Scene.expect(
+            Scene.role("button", {
+              name: `Committed ${formatDate(new Date(committedAt))}: Fix standups`,
+            }),
+          ).toExist(),
+          Scene.expect(Scene.text(`Committed ${formatDate(new Date(committedAt))}: Fix standups`)).toExist(),
+          Scene.expect(
+            Scene.role("button", {
+              name: `Done ${formatDate(new Date(doneAt))}: Fix standups`,
+            }),
+          ).toExist(),
+          Scene.expect(Scene.text("Action committed")).toExist(),
+          // Workload has a gap in the middle Round: two dots. Clarity has three. Five dots in all.
+          Scene.expectAll(Scene.all.selector("circle")).toHaveCount(5),
+          Scene.inside(
+            Scene.role("img", { name: "Workload across all shared Rounds" }),
+            Scene.expectAll(Scene.all.selector("circle")).toHaveCount(2),
+          ),
+          Scene.click(Scene.role("button", { name: "Table view" })),
+          Scene.expect(Scene.role("button", { name: "Chart view" })).toExist(),
+          Scene.expect(Scene.text("Too few answers")).toExist(),
+          Scene.expect(Scene.text("Fix standups")).toExist(),
+        );
+      });
+
+      it("hides the overview from people who may not see Results", () => {
+        Scene.scene(
+          { update, view },
+          Scene.given({
+            ...initialModel(teamUrl),
+            session: signedInAdmin,
+            teamDetail: { _tag: "Loaded", detail: detailWith(false) },
+            teamOverview: { _tag: "Loaded", overview },
+          }),
+          Scene.expect(Scene.role("heading", { name: "Team health over time" })).toBeAbsent(),
+        );
+      });
+
+      it("hides the overview when the server refuses it", () => {
+        Scene.scene(
+          { update, view },
+          Scene.given({
+            ...initialModel(teamUrl),
+            session: signedInAdmin,
+            teamDetail: { _tag: "Loaded", detail: detailWith(true) },
+            teamOverview: { _tag: "Failed", failure: "Forbidden" },
+          }),
+          Scene.expect(Scene.role("heading", { name: "Team health over time" })).toBeAbsent(),
+        );
+      });
+
+      it("ignores an overview that belongs to a Team the user has navigated away from", () => {
+        const model = {
+          ...initialModel(teamUrl),
+          session: signedInAdmin,
+          teamDetail: { _tag: "Loaded" as const, detail: detailWith(true) },
+        };
+        const stale = update(
+          model,
+          Message.GotTeamOverview({
+            outcome: {
+              _tag: "Success",
+              overview: { ...overview, teamId: decodeTeamId("team-other") },
+            },
+          }),
+        );
+        expect(stale.model.teamOverview).toEqual({ _tag: "Loading" });
+
+        const current = update(model, Message.GotTeamOverview({ outcome: { _tag: "Success", overview } }));
+        expect(current.model.teamOverview).toEqual({ _tag: "Loaded", overview });
+      });
+
+      it("loads the overview alongside the Team when the Team page opens", () => {
+        const result = update(
+          { ...initialModel(teamUrl), session: signedInAdmin },
+          Message.UrlChanged({ url: teamUrl }),
+        );
+        expect(result.model.teamOverview).toEqual({ _tag: "Loading" });
+        expect(result.commands?.map((command) => command.name)).toEqual(["GetTeam", "GetTeamOverviewCmd"]);
+      });
     });
   });
 

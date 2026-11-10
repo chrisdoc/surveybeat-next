@@ -30,6 +30,7 @@ import {
   GetRoundRateCmd,
   GetSettings,
   GetTeam,
+  GetTeamOverviewCmd,
   GrantAdmin,
   initialModel,
   ListPulses,
@@ -339,6 +340,12 @@ describe("App Stories", () => {
           GetTeam,
           Message.GotTeam({
             outcome: { _tag: "Success", detail },
+          }),
+        ),
+        Story.Command.resolve(
+          GetTeamOverviewCmd,
+          Message.GotTeamOverview({
+            outcome: { _tag: "Failure", failure: "Forbidden" },
           }),
         ),
         Story.model((m) => {

@@ -54,6 +54,8 @@ import {
   type ActionViewed,
   OrganizationActions,
   authorizeRoundAction,
+  type RoundViewed,
+  type TeamOverview,
 } from "@surveybeat/domain";
 import { expect } from "@effect/vitest";
 import * as Context from "effect/Context";
@@ -488,6 +490,13 @@ export class MemoryOrganizations {
       Effect.succeed({ _tag: "Rejected", rejection: { _tag: "RoundNotFound" } }),
     results: (_organizationId, _actorId, _teamId, _roundId) =>
       Effect.succeed({ _tag: "Rejected", rejection: { _tag: "RoundNotFound" } }),
+    overview: (organizationId, actorId, teamId) =>
+      Effect.sync((): RoundViewed<TeamOverview> => {
+        const organization = this.organization(organizationId);
+        const auth = authorizeRoundAction(organization.state, actorId, "team.viewResults", teamId);
+        if (auth._tag === "Rejected") return auth;
+        return { _tag: "Viewed", value: { teamId, rounds: [], dimensions: [], markers: [] } };
+      }),
   });
 
   readonly actions = OrganizationActions.of({

@@ -20,6 +20,7 @@ import type { Html, HtmlBuilder } from "foldkit/html";
 import { defineTaggedUnion } from "foldkit/schema";
 import { message, pluralMessage } from "../messages/index.ts";
 import { Failure, failureMessage } from "./api.ts";
+import { lineChart } from "./charts.ts";
 import { resultsSummary } from "./resultsSummary.ts";
 import {
   alertView,
@@ -60,94 +61,26 @@ export type LoadedActions = typeof LoadedActions.Type;
 
 const smallHeading = "text-[13px] font-semibold text-muted";
 
-/** Hand-built SVG 12-round trend line chart. `unusual` marks the latest point in brass. */
+/** The 12-round trend line chart of a Dimension or Question. `unusual` marks the latest point in brass. */
 export const trendChart = <Message>(
   points: ReadonlyArray<TrendPoint | DimensionTrendPoint>,
   h: HtmlBuilder<Message>,
   unusual = false,
 ): Html => {
   if (points.length === 0) return null;
+  const last = points.length - 1;
 
-  const width = 360;
-  const height = 120;
-  const padLeft = 24;
-  const padRight = 16;
-  const padTop = 16;
-  const padBottom = 24;
-
-  const chartW = width - padLeft - padRight;
-  const chartH = height - padTop - padBottom;
-
-  const minScore = 1.0;
-  const maxScore = 5.0;
-
-  const getX = (idx: number) => {
-    if (points.length <= 1) return padLeft + chartW / 2;
-    return padLeft + (idx / (points.length - 1)) * chartW;
-  };
-
-  const getY = (score: number) => {
-    const norm = (score - minScore) / (maxScore - minScore);
-    return padTop + (1 - norm) * chartH;
-  };
-
-  const svgChildren = [];
-
-  // Horizontal guide lines at 1.0, 3.0, 5.0
-  for (const s of [1, 3, 5]) {
-    const y = getY(s);
-    svgChildren.push(
-      h.line([
-        h.X1(String(padLeft)),
-        h.Y1(String(y)),
-        h.X2(String(width - padRight)),
-        h.Y2(String(y)),
-        h.Class("stroke-line"),
-      ]),
-    );
-  }
-
-  // Draw lines between consecutive non-gap points
-  for (let i = 0; i < points.length - 1; i++) {
-    const p1 = points[i]!;
-    const p2 = points[i + 1]!;
-    if (p1.score !== null && p2.score !== null && !p2.hasGap) {
-      svgChildren.push(
-        h.line([
-          h.X1(String(getX(i))),
-          h.Y1(String(getY(p1.score))),
-          h.X2(String(getX(i + 1))),
-          h.Y2(String(getY(p2.score))),
-          h.Class("stroke-primary"),
-          h.StrokeWidth("2"),
-        ]),
-      );
-    }
-  }
-
-  // Draw dot markers
-  for (let i = 0; i < points.length; i++) {
-    const p = points[i]!;
-    if (p.score !== null) {
-      svgChildren.push(
-        h.circle([
-          h.Cx(String(getX(i))),
-          h.Cy(String(getY(p.score))),
-          h.R("4"),
-          h.Class(unusual && i === points.length - 1 ? "fill-brass" : "fill-primary"),
-        ]),
-      );
-    }
-  }
-
-  return h.svg(
-    [
-      h.ViewBox(`0 0 ${width} ${height}`),
-      h.Class("h-32 w-full max-w-sm overflow-hidden"),
-      h.Role("img"),
-      h.AriaLabel(message("results.trend12Rounds")),
-    ],
-    svgChildren,
+  return lineChart(
+    {
+      points: points.map((p, i) => ({
+        x: points.length <= 1 ? 0.5 : i / last,
+        score: p.score,
+        joinsPrevious: !p.hasGap,
+      })),
+      ariaLabel: message("results.trend12Rounds"),
+      highlightLast: unusual,
+    },
+    h,
   );
 };
 
@@ -405,7 +338,7 @@ const resultsLayout = <Message>(
   );
 };
 
-const toggleButton = <Message>(isTable: boolean, onClick: Message, h: HtmlBuilder<Message>): Html =>
+export const toggleButton = <Message>(isTable: boolean, onClick: Message, h: HtmlBuilder<Message>): Html =>
   appButton(
     { text: message(isTable ? "results.chartView" : "results.tableView"), onClick, className: linkButton },
     h,

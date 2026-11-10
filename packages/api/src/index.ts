@@ -46,6 +46,7 @@ import {
   TeamName,
   TeamNameTaken,
   TeamNotFound,
+  TeamOverview,
   TeamSummary,
   TimeZone,
   Unauthenticated,
@@ -331,6 +332,11 @@ export class RoundsApiGroup extends HttpApiGroup.make("rounds")
     HttpApiEndpoint.get("getResults", "/teams/:teamId/rounds/:roundId/results", {
       params: { teamId: TeamId, roundId: RoundId },
       success: RoundResult,
+      error: roundErrors,
+    }),
+    HttpApiEndpoint.get("getTeamOverview", "/teams/:teamId/overview", {
+      params: { teamId: TeamId },
+      success: TeamOverview,
       error: roundErrors,
     }),
   )

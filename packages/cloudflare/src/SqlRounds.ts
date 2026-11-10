@@ -849,6 +849,19 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
       Effect.orDie,
     );
 
+  const getSharedRoundResultsForTeam = (teamId: TeamId): Effect.Effect<ReadonlyArray<RoundResult>> =>
+    sql<{
+      payload: string;
+    }>`SELECT rr.payload FROM round_result rr JOIN round r ON r.id = rr.round_id WHERE r.team_id = ${teamId} AND r.status = 'shared' ORDER BY r.planned_open_at ASC, r.id ASC`.pipe(
+      Effect.map((rows) =>
+        rows.flatMap((row) => {
+          const result = decodeRoundResultPayload(row.payload);
+          return result === null ? [] : [result];
+        }),
+      ),
+      Effect.orDie,
+    );
+
   const getRoundMembersCount = (roundId: RoundId): Effect.Effect<number> =>
     sql<{ count: number }>`SELECT count(*) as count FROM round_member WHERE round_id = ${roundId}`.pipe(
       Effect.map((rows) => rows[0]?.count ?? 0),
@@ -1027,6 +1040,7 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
     // Results
     saveRoundResult,
     getRoundResult,
+    getSharedRoundResultsForTeam,
     getRoundMembersCount,
     getRoundQuestionsDetailed,
     getSubmissionsForRound,
