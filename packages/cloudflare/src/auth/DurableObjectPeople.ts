@@ -79,6 +79,7 @@ export const durableObjectRounds = (organizations: Organizations) =>
       organizations.getByName(organizationId).viewResults(actorId, teamId, roundId),
     overview: (organizationId, actorId, teamId) =>
       organizations.getByName(organizationId).viewTeamOverview(actorId, teamId),
+    history: (organizationId, actorId) => organizations.getByName(organizationId).viewMemberHistory(actorId),
   });
 
 /** `OrganizationActions` on the same objects: actions committed from Results. */

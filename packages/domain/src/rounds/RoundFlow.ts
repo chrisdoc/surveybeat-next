@@ -16,6 +16,7 @@ import {
   RoundNotOpen,
   WeekOutOfRange,
 } from "./Round.ts";
+import type { MemberHistory } from "./MemberHistory.ts";
 import type { RoundResult } from "./Results.ts";
 import type { TeamOverview } from "./TeamOverview.ts";
 
@@ -57,6 +58,7 @@ export interface OrganizationRoundsShape {
     actorId: PersonId,
     teamId: TeamId,
   ) => Effect.Effect<RoundViewed<TeamOverview>>;
+  readonly history: (organizationId: OrganizationId, actorId: PersonId) => Effect.Effect<MemberHistory>;
 }
 
 export class OrganizationRounds extends Context.Service<OrganizationRounds, OrganizationRoundsShape>()(
@@ -127,3 +129,6 @@ export const viewTeamOverview = (member: Member, teamId: TeamId) =>
   Effect.flatMap(OrganizationRounds, (rounds) =>
     Effect.flatMap(rounds.overview(member.organization.id, member.personId, teamId), viewed),
   );
+
+export const viewMemberHistory = (member: Member) =>
+  Effect.flatMap(OrganizationRounds, (rounds) => rounds.history(member.organization.id, member.personId));

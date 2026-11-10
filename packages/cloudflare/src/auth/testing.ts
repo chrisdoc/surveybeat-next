@@ -520,6 +520,7 @@ export class MemoryOrganizations {
         if (auth._tag === "Rejected") return auth;
         return { _tag: "Viewed", value: { teamId, rounds: [], dimensions: [], markers: [] } };
       }),
+    history: () => Effect.succeed({ rounds: [] }),
   });
 
   readonly notes = OrganizationNotes.of({

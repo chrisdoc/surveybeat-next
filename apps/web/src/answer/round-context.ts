@@ -1,4 +1,4 @@
-import { message } from "../messages/index.ts";
+import { message } from "../messages/answer.ts";
 
 export interface QuestionTypeRating {
   readonly _tag: "Rating";

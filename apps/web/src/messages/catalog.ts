@@ -5,6 +5,8 @@
  * Keys are flat. Templates use `{placeholder}`. Plural forms are separate keys
  * named `<base>.<Intl.PluralRules category>`; `.other` is required.
  */
+import { answerCatalog } from "./answer.ts";
+
 export const catalog = {
   "app.title": "SurveyBeat",
   "app.loading": "Loading…",
@@ -25,6 +27,7 @@ export const catalog = {
   "chooseOrganization.intro": "You belong to more than one. Pick the one to open.",
   "signedIn.title": "{organization}",
   "nav.teams": "Teams",
+  "nav.history": "My history",
   "nav.settings": "Organization settings",
   "teams.title": "Teams",
   "teams.empty": "You're not in any Team yet.",
@@ -287,38 +290,7 @@ export const catalog = {
   "error.OrderMismatch": "Someone else changed this Pulse. Reload the page and try again.",
   "error.Invalid": "Check what you entered and try again.",
   "error.Unavailable": "Something went wrong. Try again in a moment.",
-  "answer.title": "Your answer",
-  "answer.placeholder": "Your Question will appear here.",
-  "answer.remaining.one": "{count} Question left",
-  "answer.remaining.other": "{count} Questions left",
-  "answer.closes": "Closes on {date}",
-  "answer.scale.1": "Very poor",
-  "answer.scale.2": "Poor",
-  "answer.scale.3": "Okay",
-  "answer.scale.4": "Good",
-  "answer.scale.5": "Very good",
-  "answer.save": "Save and continue",
-  "answer.next": "Next",
-  "answer.finish": "Finish",
-  "answer.loading": "Loading your question\u2026",
-  "answer.anonymity":
-    "Your lead only sees combined answers from at least {n} people, never who answered what. Your name is never stored with your answers.",
-  "answer.aiNotice":
-    "Comments are summarised by an AI service in the EU after names, emails, phone numbers, handles and links are removed. It keeps nothing.",
-  "answer.comment.label": "Want to say more?",
-  "answer.comment.hint": "Optional. Names, emails and links are removed.",
-  "answer.comment.disclosure":
-    "Your Lead reads comments word for word, once at least 4 people answer. We remove names of people in your organization, email addresses, phone numbers, handles and links. We don't remove other details, so leave out anything that identifies you.",
-  "answer.comment.leadSees": "Your Lead will see: {text}",
-  "answer.thanks.title": "Thank you!",
-  "answer.thanks.body": "Your answer is saved. Here is what you can do next:",
-  "answer.thanks.bodyNoActions": "Your answer is saved.",
-  "answer.error": "Something went wrong. Please try again.",
-  "answer.state.closed": "This check-in is closed.",
-  "answer.state.alreadyAnswered": "You've already answered this check-in.",
-  "answer.state.otherBrowser":
-    "You answered this check-in in another browser. Your answers are anonymous and can only be changed from the browser you used to submit them.",
-  "answer.noscript": "JavaScript is required to answer this check-in anonymously.",
+  ...answerCatalog,
   "privacy.title": "Privacy at SurveyBeat",
   "privacy.back": "Back",
   "privacy.anonymity.title": "Anonymous submissions",
@@ -336,6 +308,26 @@ export const catalog = {
   "privacy.restoreTrigger.title": "Who can trigger a restore",
   "privacy.restoreTrigger.body":
     "Only authorized infrastructure operators with verified credentials can initiate a disaster recovery restore. Organization admins and team leads cannot inspect raw backups or trigger restores.",
+  "history.title": "My history",
+  "history.intro":
+    "The check-ins you took part in. Your own answers are kept only in this browser, for one year. SurveyBeat never stores which answers are yours.",
+  "history.empty": "You haven't taken part in a check-in yet.",
+  "history.noAnswersHere":
+    "Your answers aren't on this device. They stay only in the browser you answered in, and SurveyBeat can't restore them. The Team's scores are still shown.",
+  "history.cleared": "Your answers were removed from this device.",
+  "history.clear": "Clear my answers on this device",
+  "history.round.meta": "{team} · {date}",
+  "history.column.question": "Question",
+  "history.column.yours": "Your answer",
+  "history.column.team": "Team score",
+  "history.yours.rating": "{value} · {label}",
+  "history.yours.comment": "Your comment: {text}",
+  "history.yours.notOnDevice": "Not on this device",
+  "history.yours.none": "Not answered",
+  "history.team.score": "{score} of 5",
+  "history.team.hidden": "Hidden: too few answers",
+  "history.team.notShared": "The Team's scores aren't shared with you.",
+  "history.team.belowMinimum": "Too few people answered to show the Team's scores.",
   "nav.privacy": "Privacy",
   "language.label": "Language",
   "language.followBrowser": "Same as my browser",

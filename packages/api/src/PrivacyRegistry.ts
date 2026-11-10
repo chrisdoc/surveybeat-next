@@ -234,6 +234,7 @@ export const privacyRegistry: { readonly [K in EndpointKey<typeof SurveyBeatApi>
     leadOnly: ["comments", "themes.supportingComments", "discussionGuide"],
   },
   "rounds.getTeamOverview": { _tag: "ResultData", inputs: roundResultScenarios, leadOnly: [] },
+  "rounds.getMyHistory": { _tag: "ResultData", inputs: roundResultScenarios, leadOnly: [] },
   "actions.listActions": {
     _tag: "NoResultData",
     why: "Actions have no minimum group size",

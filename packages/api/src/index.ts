@@ -27,6 +27,7 @@ import {
   QuestionNotFound,
   InvalidRoundState,
   InvitationNotFound,
+  MemberHistory,
   RoundDetail,
   RoundId,
   RoundList,
@@ -289,7 +290,8 @@ const roundErrors = [
 /**
  * Rounds and lifecycle controls: listing Rounds for a Pulse, viewing a Round, skipping weeks,
  * pausing and resuming Pulses, closing early, and cancelling. Authorized through the permission table.
- * No endpoint returns Result data.
+ * `getResults` and `getTeamOverview` return Team Result data, and `getMyHistory` returns the Team's
+ * scores for the caller's own Rounds, each only when it meets N. Everything else returns no Result data.
  */
 export class RoundsApiGroup extends HttpApiGroup.make("rounds")
   .add(
@@ -348,6 +350,11 @@ export class RoundsApiGroup extends HttpApiGroup.make("rounds")
     HttpApiEndpoint.get("getTeamOverview", "/teams/:teamId/overview", {
       params: { teamId: TeamId },
       success: TeamOverview,
+      error: roundErrors,
+    }),
+    // Takes no input: the server never learns which Submission is the caller's (ADR 0017).
+    HttpApiEndpoint.get("getMyHistory", "/me/history", {
+      success: MemberHistory,
       error: roundErrors,
     }),
   )

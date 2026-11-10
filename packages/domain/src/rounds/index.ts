@@ -5,3 +5,4 @@ export * from "./Submission.ts";
 export * from "./Results.ts";
 export * from "./TeamOverview.ts";
 export * from "./Themes.ts";
+export * from "./MemberHistory.ts";
