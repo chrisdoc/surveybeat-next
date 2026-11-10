@@ -62,7 +62,7 @@ const ScenarioHistoryRound = Schema.Struct({
  * (ADR 0016, 0019).
  */
 export const RoundResultScenario = Schema.Struct({
-  status: Schema.Literals(["open", "closed", "shared"]),
+  status: Schema.Literals(["open", "closed", "ready", "shared"]),
   storedN: between(1, 8),
   organizationN: between(1, 10),
   eligibleMembers: between(0, 20),
@@ -219,6 +219,10 @@ export const privacyRegistry: { readonly [K in EndpointKey<typeof SurveyBeatApi>
   "rounds.closeRoundEarly": {
     _tag: "NoResultData",
     why: "closes an open round early; returns round detail, no Results",
+  },
+  "rounds.shareResults": {
+    _tag: "NoResultData",
+    why: "the Lead shares a Ready Round's Result with the Team; returns nothing",
   },
   "rounds.cancelRound": {
     _tag: "NoResultData",

@@ -103,6 +103,7 @@ export const pulseTestRoutes = (organizations: Organizations) =>
           name: "Friday check-in",
           cadence: { _tag: "Weekly", day: "friday", time: SendTime.make("15:30") },
           answerWindowDays: 6,
+          reviewWindowDays: 5,
           reminders: 0,
           anonymityMode: "anonymous",
           distribution: "invitation",

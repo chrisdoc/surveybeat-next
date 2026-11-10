@@ -114,6 +114,10 @@ export const catalog = {
   "pulse.settings.reminders": "Reminders",
   "pulse.settings.reminderCount.one": "{count} reminder",
   "pulse.settings.reminderCount.other": "{count} reminders",
+  "pulse.settings.reviewWindow": "Review window",
+  "pulse.settings.reviewWindow.none": "None: share at once",
+  "pulse.settings.reviewWindow.help":
+    "After a Round closes, only you see its Results for this long, or until you share them. Then the team sees them.",
   "pulse.settings.anonymous": "Anonymous: names are never stored with answers.",
   "pulse.settings.invitation": "Sent by Invitation: one email per member of the Team.",
   "pulse.settings.save": "Save settings",
@@ -265,6 +269,12 @@ export const catalog = {
   "results.delayedTitle": "Results delayed",
   "results.delayedBody":
     "We're having trouble calculating results for this Round. Our team has been notified.",
+  "results.review.memberNotice": "Your Lead is reviewing these Results. They'll be shared by {date}.",
+  "results.review.memberNoticeNoDate": "Your Lead is reviewing these Results.",
+  "results.review.leadTitle": "Only you can see these Results",
+  "results.review.leadBody": "They'll be shared with the team automatically on {date}.",
+  "results.review.share": "Share with the team",
+  "results.review.sharing": "Sharing…",
   "actions.title": "Actions",
   "actions.intro": "Commitments made from this Round's Results. Up to three are shown in the next check-in.",
   "actions.empty": "No actions committed yet.",

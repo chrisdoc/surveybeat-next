@@ -161,6 +161,7 @@ describe("Lifecycle scheduling and time engine", () => {
         openedAt: null,
         plannedCloseAt: startMs + 3 * 24 * 3600_000,
         closedAt: null,
+        reviewEndsAt: null,
         effectiveMinimumGroupSize: null,
         pulseName: "Weekly Health",
         answerWindowDays: 3,
@@ -190,6 +191,7 @@ describe("Lifecycle scheduling and time engine", () => {
         ...openRound,
         status: "closed",
         closedAt: closeEarlyTime,
+        reviewEndsAt: null,
         effectiveMinimumGroupSize: 4, // Max of org N (4) and round N
         updatedAt: closeEarlyTime,
       };
@@ -263,6 +265,7 @@ describe("Lifecycle scheduling and time engine", () => {
       openedAt: null,
       plannedCloseAt: instants1.closeInstant,
       closedAt: null,
+      reviewEndsAt: null,
       effectiveMinimumGroupSize: null,
       pulseName: "Original Name",
       answerWindowDays: 3,

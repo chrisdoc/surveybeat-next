@@ -21,6 +21,7 @@ import * as Redacted from "effect/Redacted";
 import { HttpServerRequest } from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import { InvitationTokensLive, type Organizations } from "./EmailDelivery.ts";
+import { setReviewWindowDays } from "./ReviewWindowTestRoutes.ts";
 
 export const ROUNDS_TEST_ROUTE = "/__test/rounds";
 
@@ -75,6 +76,8 @@ export const roundTestRoutes = (organizations: Organizations, database: Cloudfla
       },
       now,
     );
+    // The Review window is 0, so the Round is shared at close (the lifecycle checks below expect that).
+    yield* setReviewWindowDays(organization, admin, teamId, pulseId, 0, now);
 
     // 1. Alarm points at the earliest due job
     const initialAlarm = yield* organization.getAlarm();

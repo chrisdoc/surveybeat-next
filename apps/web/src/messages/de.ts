@@ -110,6 +110,10 @@ export const de = {
   "pulse.settings.reminders": "Erinnerungen",
   "pulse.settings.reminderCount.one": "{count} Erinnerung",
   "pulse.settings.reminderCount.other": "{count} Erinnerungen",
+  "pulse.settings.reviewWindow": "Prüfzeitraum",
+  "pulse.settings.reviewWindow.none": "Keiner: sofort teilen",
+  "pulse.settings.reviewWindow.help":
+    "Nach dem Ende einer Runde siehst nur du die Ergebnisse so lange, oder bis du sie teilst. Danach sieht das Team sie.",
   "pulse.settings.anonymous": "Anonym: Namen werden nie zusammen mit Antworten gespeichert.",
   "pulse.settings.invitation": "Versand per Einladung: eine E-Mail pro Mitglied des Teams.",
   "pulse.settings.save": "Einstellungen speichern",
@@ -267,6 +271,13 @@ export const de = {
   "results.delayedTitle": "Ergebnisse verzögert",
   "results.delayedBody":
     "Wir haben gerade Schwierigkeiten, die Ergebnisse für diese Runde zu berechnen. Unser Team wurde benachrichtigt.",
+  "results.review.memberNotice":
+    "Deine Teamleitung sieht sich diese Ergebnisse gerade an. Sie werden spätestens am {date} geteilt.",
+  "results.review.memberNoticeNoDate": "Deine Teamleitung sieht sich diese Ergebnisse gerade an.",
+  "results.review.leadTitle": "Nur du siehst diese Ergebnisse",
+  "results.review.leadBody": "Sie werden am {date} automatisch mit dem Team geteilt.",
+  "results.review.share": "Mit dem Team teilen",
+  "results.review.sharing": "Wird geteilt…",
   "actions.title": "Maßnahmen",
   "actions.intro":
     "Maßnahmen, die auf Grundlage der Ergebnisse dieser Runde zugesagt wurden. Bis zu drei erscheinen im nächsten Check-in.",

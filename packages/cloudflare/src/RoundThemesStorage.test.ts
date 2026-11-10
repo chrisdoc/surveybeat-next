@@ -105,6 +105,56 @@ describe("Comment themes storage (ADR 0016, ADR 0019)", () => {
     assert.deepStrictEqual(indexes, ["schedule_job_due", "schedule_job_round"]);
   });
 
+  it("0015 keeps existing schedule_job rows, accepts the share type, and adds the Review window (issue 106)", () => {
+    const db = new DatabaseSync(":memory:");
+    // Everything before 0015: one Pulse and one Round, and one existing job row.
+    applyMigrations(db, migrationFiles("0015_"));
+    seedRound(db, "round-1");
+    db.prepare(
+      `INSERT INTO schedule_job (id, round_id, type, due_at, status, payload, created_at, completed_at)
+         VALUES ('job-1', 'round-1', 'themes', 5000, 'pending', NULL, 1000, NULL)`,
+    ).run();
+    const before = db.prepare("SELECT * FROM schedule_job").all();
+
+    applyMigrations(
+      db,
+      migrationFiles().filter((f) => f.startsWith("0015_")),
+    );
+
+    assert.deepStrictEqual(db.prepare("SELECT * FROM schedule_job").all(), before);
+    db.prepare(
+      `INSERT INTO schedule_job (id, round_id, type, due_at, status, payload, created_at, completed_at)
+         VALUES ('job-share', 'round-1', 'share', 6000, 'pending', NULL, 2000, NULL)`,
+    ).run();
+    assert.throws(() =>
+      db
+        .prepare(
+          `INSERT INTO schedule_job (id, round_id, type, due_at, status, payload, created_at, completed_at)
+             VALUES ('job-bogus', 'round-1', 'bogus', 6000, 'pending', NULL, 2000, NULL)`,
+        )
+        .run(),
+    );
+    const indexes = db
+      .prepare(
+        "SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'schedule_job' ORDER BY name",
+      )
+      .all()
+      .map((row) => row["name"]);
+    assert.deepStrictEqual(indexes, ["schedule_job_due", "schedule_job_round"]);
+
+    // The Pulse that existed before the migration gets the default three-day Review window.
+    assert.strictEqual(
+      db.prepare("SELECT review_window_days FROM pulse WHERE id = 'pulse-1'").get()?.["review_window_days"],
+      3,
+    );
+    assert.throws(() => db.prepare("UPDATE pulse SET review_window_days = 8 WHERE id = 'pulse-1'").run());
+    // A Round closed before the migration has no Review window end: it is treated as already over.
+    assert.strictEqual(
+      db.prepare("SELECT review_ends_at FROM round WHERE id = 'round-1'").get()?.["review_ends_at"],
+      null,
+    );
+  });
+
   it.effect(
     "requestThemes inserts once; the record starts pending with zero attempts; failed attempts count",
     () =>

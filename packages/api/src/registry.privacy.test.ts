@@ -86,6 +86,45 @@ describe("privacy registry", () => {
     );
   }
 
+  it("a ready Round that meets N: the Lead sees its Result and the Review window end; a member sees neither", () => {
+    const readyScenario: RoundResultScenario = {
+      status: "ready",
+      storedN: 2,
+      organizationN: 2,
+      eligibleMembers: 5,
+      questions: [
+        { kind: "text", dimension: null },
+        { kind: "rating", dimension: "workload" },
+      ],
+      submissions: [0, 1, 2, 3].map((s) => [
+        { answered: true, value: 0, comment: s % 2 === 0 ? "too much work" : "fine" },
+        { answered: true, value: 2, comment: null },
+        { answered: false, value: 0, comment: null },
+        { answered: false, value: 0, comment: null },
+        { answered: false, value: 0, comment: null },
+      ]),
+      history: [],
+      viewer: "lead",
+      themes: "ready",
+    };
+    const asLead = buildResult(readyScenario).result;
+    assert.strictEqual(asLead.status, "ready");
+    assert.strictEqual(asLead.reviewEndsAt, READY_REVIEW_ENDS_AT);
+    assert.isNotEmpty(asLead.questions);
+    assert.isNotEmpty(asLead.dimensions);
+    assert.isNotEmpty(asLead.themes ?? []);
+
+    const asMember = buildResult({ ...readyScenario, viewer: "member" }).result;
+    assert.strictEqual(asMember.status, "ready");
+    assert.strictEqual(asMember.reviewEndsAt, READY_REVIEW_ENDS_AT);
+    assert.deepStrictEqual(asMember.questions, []);
+    assert.deepStrictEqual(asMember.dimensions, []);
+    assert.deepStrictEqual(asMember.comments, []);
+    assert.deepStrictEqual(asMember.themes, []);
+    assert.strictEqual(asMember.themesStatus, "notRequested");
+    assert.isFalse(Object.hasOwn(asMember, "discussionGuide"));
+  });
+
   it("a Lead receives the Lead-only fields of a ready Round that meets N", () => {
     const lead: RoundResultScenario = {
       status: "closed",
@@ -113,7 +152,8 @@ describe("privacy registry", () => {
     assert.isTrue((asLead.themes ?? []).every((theme) => theme.supportingComments !== undefined));
     assert.isNotNull(asLead.discussionGuide);
 
-    const asMember = buildResult({ ...lead, viewer: "member" }).result;
+    // Members see the themes only once the Round is Shared (the Review window is over).
+    const asMember = buildResult({ ...lead, status: "shared", viewer: "member" }).result;
     assert.deepStrictEqual(asMember.comments, []);
     assert.deepStrictEqual(
       (asMember.themes ?? []).map((theme) => Object.keys(theme).sort()),
@@ -128,7 +168,7 @@ describe("privacy registry", () => {
   it("a member's encoded Results response never carries counts, raw comments, or the guide", () => {
     for (const themes of ["none", "pending", "ready", "failed"] as const) {
       const member: RoundResultScenario = {
-        status: "closed",
+        status: "shared", // members see themes only once the Round is Shared (Review window)
         storedN: 2,
         organizationN: 2,
         eligibleMembers: 5,
@@ -207,6 +247,9 @@ const themesRecordOf = (themes: RoundResultScenario["themes"]): RoundThemesRecor
       return { status: "ready", themes: READY_THEMES };
   }
 };
+
+/** When a ready Round's Review window ends, in the scenarios that have one (ADR: Review window, issue 106). */
+const READY_REVIEW_ENDS_AT = 1_731_400_000_000;
 
 const buildResult = (scenario: RoundResultScenario): Built => {
   const effectiveN = Math.max(scenario.storedN, scenario.organizationN);
@@ -304,6 +347,10 @@ const buildResult = (scenario: RoundResultScenario): Built => {
       isLead: scenario.viewer === "lead",
       // Any record, even for an open Round: the view itself must hide themes until the Round closes.
       themes: themesRecordOf(scenario.themes),
+      round: {
+        status: scenario.status,
+        reviewEndsAt: scenario.status === "ready" ? READY_REVIEW_ENDS_AT : null,
+      },
     }),
     direct: compute(effectiveN),
   };
@@ -435,6 +482,16 @@ const violations = (
     )
   ) {
     found.push("theme with fewer than 2 supporting comments");
+  }
+  // The Review window (issue 106): a member sees no Result data until the Round is Shared.
+  if (scenario.viewer === "member" && (scenario.status === "closed" || scenario.status === "ready")) {
+    const shown =
+      result.questions.length > 0 ||
+      result.dimensions.length > 0 ||
+      result.comments.length > 0 ||
+      (result.themes ?? []).length > 0 ||
+      Object.hasOwn(result, "discussionGuide");
+    if (shown) found.push("Result data shown to a member before Shared");
   }
   if (scenario.viewer === "member") {
     for (const field of leadOnly) {

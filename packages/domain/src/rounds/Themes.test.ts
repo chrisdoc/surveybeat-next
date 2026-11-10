@@ -13,10 +13,12 @@ import {
   nextThemesAttemptAt,
   repeatsCommentWords,
   runThemesAttempt,
+  type RoundThemesRecord,
   shouldRequestThemes,
   THEMES_RETRY_WINDOW_MS,
   ThemesReplyInvalid,
   type ThemesJobDecision,
+  viewRoundResult,
 } from "./Themes.ts";
 
 const MINUTE = 60_000;
@@ -546,5 +548,159 @@ describe("themes job lifecycle (ADR 0016)", () => {
 
       expect(decision).toEqual({ _tag: "RetryAt", dueAt: REQUESTED_AT + 5 * MINUTE, attempts: 1 });
     }),
+  );
+});
+
+describe("viewRoundResult: the Review window (issue 106)", () => {
+  const VIEW_ROUND_ID = RoundId.make("round-view-4d2c");
+  const VIEW_QV = QuestionVersionId.make("qv-view-8a1b.1");
+  const REVIEW_ENDS_AT = 1_731_400_000_000;
+  const VIEW_COMMENTS = [
+    "Calendars fill up before anyone can plan deep work",
+    "Too many meetings and no quiet time",
+  ];
+  const VIEW_GUIDE = {
+    whatStoodOut: ["Clarity scores held steady"],
+    whatPeopleRaised: ["Calendars fill up quickly"],
+    actionsToCheckOn: [],
+    questions: ["What would give you protected time?"],
+  };
+  const VIEW_STORED_THEMES = {
+    themes: [
+      {
+        label: "Meetings crowd out focus",
+        sentence: "Meetings leave little quiet time.",
+        supportingComments: 2,
+      },
+    ],
+    guide: VIEW_GUIDE,
+  };
+  const VIEW_THEMES: RoundThemesRecord = { status: "ready", themes: VIEW_STORED_THEMES };
+
+  /** A Result with 6 submissions, stored under N = 4 with status closed, so it meets N. */
+  const storedResult = (): RoundResult => ({
+    roundId: VIEW_ROUND_ID,
+    pulseId: PulseId.make("pulse-view-6e3f"),
+    teamId: TeamId.make("team-view-9b7a"),
+    status: "closed",
+    plannedOpenDate: "2026-11-09",
+    anonymityMode: "anonymous",
+    closedAt: 1_731_140_000_000,
+    effectiveMinimumGroupSize: 4,
+    meetsMinimumGroupSize: true,
+    eligibleMembersCount: 8,
+    submissionsCount: 6,
+    responseRate: 0.75,
+    delayed: false,
+    questions: [
+      {
+        questionVersionId: VIEW_QV,
+        position: 1,
+        text: "How clear is the plan?",
+        type: { _tag: "Rating", lowLabel: "Low", highLabel: "High", comment: true },
+        dimension: "clarity",
+        contributors: 6,
+        meetsMinimumGroupSize: true,
+        score: 3.4,
+        distribution: null,
+        change: null,
+        typicalChange: null,
+        trend: [],
+      },
+    ],
+    dimensions: [
+      {
+        dimension: "clarity",
+        score: 3.4,
+        usableQuestionCount: 1,
+        totalQuestionCount: 1,
+        contributors: 6,
+        meetsMinimumGroupSize: true,
+        change: null,
+        typicalChange: null,
+        trend: [],
+      },
+    ],
+    comments: VIEW_COMMENTS.map((text) => ({ questionVersionId: VIEW_QV, text })),
+  });
+
+  const view = (
+    status: "closed" | "ready" | "shared",
+    isLead: boolean,
+    reviewEndsAt: number | null = REVIEW_ENDS_AT,
+    themes: RoundThemesRecord | null = VIEW_THEMES,
+  ) =>
+    viewRoundResult({
+      stored: storedResult(),
+      organizationN: 4,
+      isLead,
+      themes,
+      round: { status, reviewEndsAt },
+    });
+
+  it("takes the status from the Round's current row, not the stored payload", () => {
+    expect(view("ready", true).status).toBe("ready");
+    expect(view("shared", true).status).toBe("shared");
+    expect(view("closed", true).status).toBe("closed");
+  });
+
+  it("includes reviewEndsAt only while the Round is ready and the end is set", () => {
+    expect(view("ready", true).reviewEndsAt).toBe(REVIEW_ENDS_AT);
+    expect(view("ready", false).reviewEndsAt).toBe(REVIEW_ENDS_AT);
+    expect(view("ready", true, null)).not.toHaveProperty("reviewEndsAt");
+    expect(view("closed", true)).not.toHaveProperty("reviewEndsAt");
+    expect(view("shared", true)).not.toHaveProperty("reviewEndsAt");
+  });
+
+  it.each(["closed", "ready"] as const)(
+    "withholds the Result from a member while the Round is %s, keeping the counts",
+    (status) => {
+      const member = view(status, false);
+      expect(member.questions).toEqual([]);
+      expect(member.dimensions).toEqual([]);
+      expect(member.comments).toEqual([]);
+      expect(member.themesStatus).toBe("notRequested");
+      expect(member.themes).toEqual([]);
+      expect(member).not.toHaveProperty("discussionGuide");
+      expect(member.meetsMinimumGroupSize).toBe(true);
+      expect(member.submissionsCount).toBe(6);
+      expect(member.eligibleMembersCount).toBe(8);
+      expect(member.responseRate).toBe(0.75);
+      expect(member.delayed).toBe(false);
+      expect(member.roundId).toBe(VIEW_ROUND_ID);
+      expect(member.closedAt).toBe(1_731_140_000_000);
+      expect(member.effectiveMinimumGroupSize).toBe(4);
+    },
+  );
+
+  it("withholds from a member even when the Round has no themes record", () => {
+    const member = view("ready", false, REVIEW_ENDS_AT, null);
+    expect(member.questions).toEqual([]);
+    expect(member.dimensions).toEqual([]);
+    expect(member).not.toHaveProperty("discussionGuide");
+  });
+
+  it("gives a member the full Result once the Round is shared, with label and sentence only", () => {
+    const member = view("shared", false);
+    expect(member.questions).toHaveLength(1);
+    expect(member.dimensions).toHaveLength(1);
+    expect(member.themesStatus).toBe("ready");
+    expect(member.themes).toEqual([
+      { label: "Meetings crowd out focus", sentence: "Meetings leave little quiet time." },
+    ]);
+    expect(member).not.toHaveProperty("discussionGuide");
+  });
+
+  it.each(["closed", "ready", "shared"] as const)(
+    "leaves the Lead's view of a %s Round unchanged: questions, comments, themes and the guide",
+    (status) => {
+      const lead = view(status, true);
+      expect(lead.questions).toHaveLength(1);
+      expect(lead.dimensions).toHaveLength(1);
+      expect(lead.comments).toHaveLength(2);
+      expect(lead.themesStatus).toBe("ready");
+      expect(lead.themes).toEqual(VIEW_STORED_THEMES.themes);
+      expect(lead.discussionGuide).toEqual(VIEW_GUIDE);
+    },
   );
 });

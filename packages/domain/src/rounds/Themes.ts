@@ -5,6 +5,7 @@ import * as Schema from "effect/Schema";
 import { AiClient, type AiInput, type AiRequest, RedactedText } from "../ai/AiClient.ts";
 import { redact, type Roster } from "../privacy/Redaction.ts";
 import { DiscussionGuide, enforceEffectiveNOnResult, type RoundResult } from "./Results.ts";
+import type { RoundStatus } from "./Round.ts";
 
 /** What round_themes stores once (never recomputed). */
 export const StoredThemes = Schema.Struct({
@@ -307,31 +308,55 @@ export const runThemesAttempt = (params: {
 /**
  * The Result as one viewer may see it (ADR 0004, 0016, 0019). Single source of truth used by the
  * Organization object and the privacy tests.
+ *
+ * The Round's current row decides the status and the Review window end, not the stored payload. Until
+ * the Round is Shared, only the Lead sees its Result (the Review window, see Issue #106).
  */
 export const viewRoundResult = (params: {
   readonly stored: RoundResult;
   readonly organizationN: number;
   readonly isLead: boolean;
   readonly themes: RoundThemesRecord | null;
+  readonly round: { readonly status: RoundStatus; readonly reviewEndsAt: number | null };
 }): RoundResult => {
   // Theme fields come only from the themes record, never from whatever the stored Result carries.
   const {
     themes: _themes,
     themesStatus: _themesStatus,
     discussionGuide: _discussionGuide,
+    reviewEndsAt: _reviewEndsAt,
     ...r
   } = enforceEffectiveNOnResult(params.stored, params.organizationN);
-  const shown: RoundResult = { ...r, comments: params.isLead ? r.comments : [] };
+  const status = params.round.status;
+  const reviewEnds =
+    status === "ready" && params.round.reviewEndsAt !== null
+      ? { reviewEndsAt: params.round.reviewEndsAt }
+      : {};
 
-  const hidden = (status: "notRequested" | "preparing" | "unavailable"): RoundResult => ({
+  if (!params.isLead && (status === "closed" || status === "ready")) {
+    return {
+      ...r,
+      ...reviewEnds,
+      status,
+      questions: [],
+      dimensions: [],
+      comments: [],
+      themesStatus: "notRequested",
+      themes: [],
+    };
+  }
+
+  const shown: RoundResult = { ...r, ...reviewEnds, status, comments: params.isLead ? r.comments : [] };
+
+  const hidden = (themesStatus: "notRequested" | "preparing" | "unavailable"): RoundResult => ({
     ...shown,
-    themesStatus: status,
+    themesStatus,
     themes: [],
     ...(params.isLead ? { discussionGuide: null } : {}),
   });
 
   const record = params.themes;
-  const closed = r.status === "closed" || r.status === "ready" || r.status === "shared";
+  const closed = status === "closed" || status === "ready" || status === "shared";
   if (!closed || !r.meetsMinimumGroupSize || record === null) return hidden("notRequested");
 
   switch (record.status) {
