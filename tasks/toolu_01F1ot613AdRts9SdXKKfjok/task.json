@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01F1ot613AdRts9SdXKKfjok",
+  "agent_id": "a6fb77f13a38daf5f",
+  "subagent_type": "reviewer",
+  "task_description": "Review slice 2 diff",
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 25168,
+    "cache_read_tokens": 65853,
+    "output_tokens": 2896,
+    "api_call_count": 4
+  },
+  "started_at": "2026-11-10T08:48:26.445097537Z",
+  "completed_at": "2026-11-10T08:49:35.377274189Z"
+}

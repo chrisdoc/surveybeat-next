@@ -1,0 +1,451 @@
+Act as the implementation sub-agent for this task.
+
+You orchestrate Release 2 slice #107 ("R2 06: Team health overview on the Team page") in chrisdoc/surveybeat-next. You are the Opus orchestrator for this slice; THIS TASK EXPLICITLY ASKS YOU TO USE SUBAGENTS: the `scoper` agent (pass model "haiku"), the `implementer` agent (pass model "haiku") to write all code, and the `reviewer` agent (pass model "sonnet") to review each implementer diff. Follow ~/.claude/CLAUDE.md (scope → you write the plan and briefs → implementer → reviewer → you verify the diff and run the full suite). Give the Haiku implementer small, exact, file-owned briefs.
+
+Read first: `gh issue view 107`, map #85 (decision on #91), ADRs 0003 (admins see no Results), 0004 (minimum group size; effective N never loosens), AGENTS.md, GLOSSARY.md. The B2 design system lives in apps/web/src/app/components.ts and app.css tokens; Results already draws Dimension trend charts with a table view in apps/web/src/app/results.ts (reuse/generalize those chart helpers rather than duplicating).
+
+Decisions (don't relitigate): the Team page becomes the overview: one trend line per Dimension across ALL shared Rounds of the Team (not just 12), gaps where an aggregate is below N, effective N never loosened; markers for Actions committed and done on their dates, titles shown on hover and keyboard focus, plus a table view; Lead and members see the same; Organization admins outside the Team don't (permission `team.viewResults`); no cross-Team view; must render in under 1.5 s for 104 weekly Rounds (add a performance check/test with 104 Rounds). New API endpoint(s) must be classified in packages/api/src/PrivacyRegistry.ts and covered by registry.privacy.test.ts; all copy in the catalog.
+
+Workflow: branch `r2-107-overview` from origin/main in your worktree. Validation: pnpm typecheck, pnpm typecheck:effect, pnpm lint, pnpm format:check, pnpm test, pnpm test:privacy, pnpm --filter @surveybeat/web build. Commit (subject "R2 06: Team health overview on the Team page", end with "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"), push (retry once if rejected with no reason), open a PR against main with "Closes #107. Part of #101.", summary, verification, ending the body with "🤖 Generated with [Claude Code](https://claude.com/claude-code)". Wait for checks with `gh pr checks <n> --watch`; fix failures. The user authorized squash-merging your own PR once all checks are green: `gh pr merge <n> --squash --delete-branch`. Others work in parallel on #103 (Organization.ts lifecycle, Results domain) and #109 (catalogs/locale); on conflicts rebase on origin/main keeping both sides, re-run tests, force-push only your branch.
+
+Final report (≤ 12 lines): what was built, deviations, reviewer findings and handling, test counts, perf number, PR URL, merge SHA.
+
+---
+
+<task-notification>
+<task-id>a95efe189b22621e6</task-id>
+<tool-use-id>toolu_01AJeUjEPvocsCuMZ76pxxsY</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-fa7bab63-ff5bda9443f4c3bc/8fd96b8f-dc04-44f0-9660-3584e402df1a/tasks/a95efe189b22621e6.output</output-file>
+<status>completed</status>
+<summary>Agent "Scope Team overview slice" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>This report is from what I read. Anything I did not open is marked "not checked".
+
+**Complexity flags (the parent should check this brief closely):** the task touches domain, the Organization DO, `packages/api`, and `apps/web` (more than one subsystem). It adds an endpoint, so it needs a PrivacyRegistry entry (SPEC §7 privacy invariants apply: ADR 0004 minimum group size). It reads cached `round_result` payloads. It has a 1.5 s performance requirement. I also found a likely query-ordering defect (item 2).
+
+## Goal
+Add a Team health overview to the Team page. It shows one trend line per Dimension across all shared Rounds of a Team, with gaps where an aggregate is below the effective minimum group size. It also shows Action markers (committed and done dates, with titles on hover/focus) and a table view. Leads and members can see it. Org admins outside the Team cannot. It must render in under 1.5 s for 104 Rounds.
+
+## Acceptance criteria
+Copied from the issue (I did not fetch the issue with `gh`; these are the criteria from the task text): one trend line per Dimension across all shared Rounds; gaps where an aggregate is below N; markers for Actions committed and done, with titles on hover and focus; a table view; Lead and members can see it; admin outside the Team cannot (`team.viewResults`); under 1.5 s for 104 Rounds.
+
+Added by me (not in the issue): none yet. The "gap" rule should reuse ADR 0004 and effective N; that is an assumption until the parent confirms it.
+
+## Relevant code
+
+**1. Results trend chart (apps/web/src/app/results.ts)**
+- `trendChart&lt;Message&gt;(points, h, unusual = false)`: `results.ts:64`. Hand-built SVG, 360x120. Skips a segment when `p2.hasGap` (~line 97). Aria label `results.trend12Rounds` (`:148`).
+- `trendTable&lt;Message&gt;(points, h)`: `results.ts:155`. Uses `dataTable` with `results.tableDate`, `tableScore`, `tableContributors`.
+- `distributionChart` `:173`, `distributionTable` `:219`.
+- Dimension trends rendered around `:766-780` (toggle between `trendTable` and `trendChart` via `showTable`). Question trends around `:838-852`.
+- `resultsScreenView` `:414`. Actions section comment `:476`.
+- Inputs: `points: ReadonlyArray&lt;TrendPoint | DimensionTrendPoint&gt;`. Data comes from one `RoundResult` (`rounds.getResults`), not a Team-wide endpoint.
+- The "12" is not a constant in this file. It appears only in the message key `results.trend12Rounds` (`:148`, `:772`, `:846`). The real limit is in the server (item 2).
+
+**2. Server side**
+- Endpoint: `packages/api/src/index.ts:331-334`, `RoundsApiGroup`, `HttpApiEndpoint.get("getResults", "/teams/:teamId/rounds/:roundId/results")`, success `RoundResult`. Prefix `/api` at `:341`.
+- No Team-wide trend endpoint exists. The overview needs a new one, or a new query.
+- Schemas in `packages/domain/src/rounds/Results.ts`:
+  - `TrendPoint` `:16-23` (Question). `DimensionTrendPoint` `:26-38` (`roundId`, `plannedOpenDate`, `score`, `usableQuestionCount`, optional `contributors`, `hasGap`).
+  - `DimensionResult` `:98-113` (`score`, `contributors`, `meetsMinimumGroupSize`, `trend`).
+  - `RoundResult` `:126-147` (`effectiveMinimumGroupSize`, `meetsMinimumGroupSize`, `dimensions`, `comments`, `closedAt`, `status`).
+- Aggregate computation: `calculateRoundResult` at `Results.ts:345`. Dimension trends are built in section 4 (`:690-730`, `:744-873`). Contributor counts per Dimension use `meetsN = contributors &gt;= effectiveN` (`:430-467`).
+- History lookup, `Results.ts:293-340`: `pastDimContributors` (`:293`) and `pastDimMeetsN` (`:321`). This applies the "past effective N = max(stored N, current N)" rule (`:555`, `:698`, `:744`).
+- Mask on stricter N: `maskEarlierTrendPoints` (`:931`) and `enforceEffectiveNOnResult(result, currentOrgN)` at `:956`. Effective N = `Math.max(result.effectiveMinimumGroupSize, currentOrgN)`.
+- Handler: `packages/cloudflare/src/RoundHandlers.ts:125-127` calls `viewResults(member, teamId, roundId)`.
+- DO method: `packages/cloudflare/src/Organization.ts` `viewResults` at `:1382-1482`.
+  - Permission: `authorizeRoundAction(dirState, actorId, "team.viewResults", teamId)` at `:1389`.
+  - Effective N: `:1399-1404`, `Math.max(dirState.minimumGroupSize, r.effectiveMinimumGroupSize ?? ...)`.
+  - Open Rounds get only response counts (`:1407-1443`).
+  - Closed Rounds: stored result read via `rounds.getRoundResult`. Otherwise it is computed in place and saved (`:1447-1472`) using `getPastRoundsResultsForPulse(r.pulseId, 12, r.plannedOpenDate)` (`:1450-1453`).
+  - Applies `enforceEffectiveNOnResult` at `:1474`.
+  - Non-Leads get `comments: []` (`:1477-1486`).
+- Permission table: `packages/domain/src/people/Permissions.ts:75`, `"team.viewResults": ["lead", "member", "viewer"]`. Admin is excluded. `authorizeRoundAction` is `packages/domain/src/rounds/Lifecycle.ts:451-466`.
+- Storage: `packages/cloudflare/src/SqlRounds.ts`. `saveRoundResult` `:829-840` (JSON payload into `round_result`, keyed by `round_id`). `getRoundResult` `:842-850`.
+- **Likely defect (verify):** `getPastRoundsResultsForPulse` at `SqlRounds.ts:939-967` uses `ORDER BY r.planned_open_at ASC LIMIT ${limit}`. This returns the earliest 12 Rounds, not the latest 12. With 104 Rounds, a per-Round trend would show the oldest history. An all-Rounds overview must not reuse this query as is.
+- Not checked: whether any other caller relies on the ASC order.
+
+**3. Actions**
+- Domain: `packages/domain/src/actions/Action.ts`.
+  - `ActionStatus` `:12` (`proposed`, `committed`, `done`, `dropped`).
+  - `ActionRecord` `:19-31` (`id`, `teamId`, `roundId`, `title`, `ownerId`, `dueDate`, `dimension`, `status`, `createdAt`, `updatedAt`, `doneAt`).
+  - `ActionItem` `:34-47` (adds `ownerEmail`). `ActionList` `:50-54`.
+  - There is no `committedAt` field. A committed date must be taken from `createdAt`, or `updatedAt`. This is an assumption: I did not read `ActionFlow.ts`.
+  - `doneAt` (`Schema.NullOr(Schema.Int)`) is the done date.
+- Storage: `packages/cloudflare/src/SqlActions.ts`. `decodeAction` `:47`, `getAction` `:82`, `insertAction` `:122`, `getActionsForTeam` `:156`.
+- Endpoints (`packages/api/src/index.ts:355-373`):
+  - `GET /api/teams/:teamId/actions` (`listActions`), success `ActionList`.
+  - `POST` (`createAction`) and `PATCH /teams/:teamId/actions/:actionId` (`updateAction`).
+- Handler: `packages/cloudflare/src/ActionHandlers.ts:17-18`. DO method `listActions` at `Organization.ts:1492-1522`, using `team.viewActions`. No minimum group size.
+- Permission: `Permissions.ts:83`, `"team.viewActions": ["lead", "member", "viewer"]`.
+
+**4. Team page (apps/web)**
+- Routing: `apps/web/src/app/routes.ts:12` (`AppRoute.Team`), `teamRouter` at `:31-35`, `teamHref` at `:70`. `routes.ts:21` also defines `RoundResults`.
+- Load on route: `apps/web/src/app/App.ts:866-867`, `loadActiveRouteCommand` returns `GetTeam({ teamId })`. `RoundResults` (`:877-882`) loads `GetResultsCmd`, `ListActionsCmd`, and `GetTeam`.
+- View: `apps/web/src/app/directory.ts:196`, `teamScreenView(state, actions, h)`. Shows "no results access" text when `detail.team.yourRole === null` (`:244-245`, uses `team.noResultsAccess`). Uses `detail.may.*` flags (`:236-263`). `TeamDetail` is `packages/domain/src/people/Team.ts:88-92` (`team`, `roster`, `may`). `LoadedTeam` is `directory.ts:41-45`.
+- Team screen is dispatched from `App.ts:2254` (`case "Team"`) and passes `model.teamDetail`.
+- Foldkit Model fields: `results: LoadedResults`, `showTable: Schema.Record(...)`, `actions: LoadedActions` (`App.ts` Model, ~`:150-160`). Messages: `GotResults` `App.ts:302`, `ToggleResultsTable` `:303`, `GotActions` `:305`.
+- Results fetch pattern (to copy):
+  - `GetResultsCmd` at `App.ts:702-711`: `Command.define` with `args`, `messages`, `execute` calling `runApi((api) =&gt; api.rounds.getResults(...), onSuccess, onFailure)`.
+  - `ListActionsCmd` at `App.ts:713-722`.
+  - `GetTeam` at `App.ts:~370-378`.
+  - Outcome unions `OutcomeResults` `App.ts:169`, `OutcomeActions` `:173`.
+  - Update handlers: `GotResults` `App.ts:2010-2026`, `ToggleResultsTable` `:2028`.
+- API client and failure mapping: `apps/web/src/app/api.ts` `clientEffect` `:86`, `runApi` `:91`, `failureOf` `:55`, `Failure` `:7`.
+
+**5. Privacy registry**
+- `packages/api/src/PrivacyRegistry.ts`. Keys are `group.endpoint` (`EndpointKey` at `:8-14`). Entries include `"rounds.getResults"` (`:208`) and `"actions.listActions"` (`:212`).
+- Adding an endpoint requires classifying it here, or typecheck fails (per AGENTS.md). I did not read the classification shape beyond these keys (not checked).
+- `packages/api/src/registry.privacy.test.ts`. Four tests: classifies every endpoint (`:33`), lists no nonexistent endpoint (`:38`), enumerates the declaration (`:44`), input generator for every Result-bearing endpoint (`:48`). It imports `RoundResultScenario` from `PrivacyRegistry.ts`.
+- A new Result-bearing endpoint needs an input generator. Otherwise test `:48` fails.
+
+**6. Scene tests**
+- `apps/web/src/app/App.scene.test.ts` (1171 lines). Scene tests drive the Foldkit app through screens and assert DOM. Shared helper name: not checked.
+- Team detail scene: `describe("Team detail screen")` at `:245`, first test `:246`.
+- Results scene example: `describe("Results screen")` at `:580`, first test `:581` ("renders results for a closed round with scores, trends, and comments"). Also `:722` (sub-N placeholder), `:792` (Actions, Lead commits), `:902` (sub-N Actions).
+- Rounds scene: `:940`. Other: `apps/web/src/app/App.story.test.ts` (819 lines), not read.
+
+**7. Performance tests**
+- `packages/cloudflare/src/ResultsStorage.test.ts:127`: "Performance: 104 weekly Rounds (2 years) query renders in under 1.5 seconds". It inserts 104 Rounds into an in-memory SQLite (`:168-172`) and times with `performance.now()` (`:228`, `:245`). It tests storage query and decode, not the HTTP path.
+- Also `apps/web/src/answer/budget.test.ts` (answer bundle budgets), and `infra/scripts/lighthouse-gate.ts` (Lighthouse). Not relevant to the overview.
+
+**8. Catalog**
+- `apps/web/src/messages/catalog.ts`: `export const catalog = {` at `:7`. Flat keys. Plurals use `.one`/`.other`.
+- Team keys: `team.*` at `:28-54` (`team.back`, `team.noResultsAccess` `:38`, `team.pulses` `:51`, etc.).
+- Results keys: `results.*` from `:170` (`results.title`, `results.trend12Rounds` in the `results.*` range, `results.tableDate`, `results.tableScore`, `results.tableContributors`, `results.dash`). `actions.intro` at `:229`.
+- Lookup: `apps/web/src/messages/index.ts` (`message`, `pluralMessage`, `formatDate`).
+- `messages.test.ts` checks only interpolation, plurals, date formatting, and that HTML shells have no visible text. It has no key-parity test.
+- German catalog: I found no German catalog under `apps/web/src/messages` (not checked elsewhere). The commit history mentions "R2 93: Research German localization" (`1c36bd9e`), so a German file may exist elsewhere. Not checked.
+
+**9. Tests and commands**
+- Unit: `pnpm test apps/web/src/app/App.scene.test.ts`
+- Unit: `pnpm test packages/cloudflare/src/ResultsStorage.test.ts` (perf, 104 Rounds)
+- Unit: `pnpm test packages/domain/src/people/Permissions.test.ts`
+- Unit: `pnpm test packages/cloudflare/src/ActionsApi.test.ts` (adapter tests, slow, workerd)
+- Privacy: `pnpm test:privacy` (not part of `pnpm test`). Files: `packages/domain/src/rounds/Results.privacy.test.ts`, `packages/api/src/registry.privacy.test.ts`. Exact single-file syntax under `test:privacy` is not checked.
+- Messages: `pnpm test apps/web/src/messages/messages.test.ts`
+- Typecheck: `pnpm typecheck`, `pnpm typecheck:effect`. Lint: `pnpm lint`. Format: `pnpm format`.
+- End-to-end (only on a deployed stage): `E2E_BASE_URL=https://pr-&lt;n&gt;.app.surveybeat.app pnpm test:e2e`.
+
+## Scope
+Expected to change, from the code read so far: a new Team-wide trend query (not the per-Round `getResults`); a new endpoint in `packages/api/src/index.ts` and `PrivacyRegistry.ts`; a DO handler in `Organization.ts` and `DurableObjectPeople.ts` / `RoundHandlers.ts`; `apps/web/src/app/directory.ts` (Team view), `App.ts` (Model, Message, Cmd, update, route load), `results.ts` (chart reuse); `catalog.ts`; tests.
+Probably untouched: `ResultsStorage.test.ts` (reuse for the benchmark), `SqlRounds.ts` ordering unless the parent decides to fix `getPastRoundsResultsForPulse`. That is a decision for the parent.
+
+## Validation
+- Focused: the unit and privacy commands listed in item 9.
+- Full: `pnpm typecheck:effect &amp;&amp; pnpm typecheck &amp;&amp; pnpm format:check &amp;&amp; pnpm lint &amp;&amp; pnpm test &amp;&amp; pnpm --filter @surveybeat/web build`, plus `pnpm test:privacy`.
+- End-to-end on a deployed stage for the Team page as Lead, member, and an admin outside the Team.
+
+## Risks and unknowns
+1. `getPastRoundsResultsForPulse` uses ASC order with a LIMIT (`SqlRounds.ts:939-967`). It returns the oldest Rounds. Verify before reuse.
+2. "Across all shared Rounds of a Team" may span several Pulses. Dimensions are per Question, and Questions are per Pulse. Whether Dimensions match across Pulses is not checked.
+3. Gap rule: the existing per-Round trend already masks points below N. Whether the overview reuses `enforceEffectiveNOnResult` semantics (`Results.ts:956`) must be decided by the parent.
+4. Which date is "committed": `createdAt` is the likely candidate. Not confirmed in `ActionFlow.ts`.
+5. Performance: no measured HTTP path exists. The existing 1.5 s test covers SQLite only.
+6. German catalog location and any parity test: not checked.
+7. PrivacyRegistry classification shape for a new endpoint: not checked.
+
+## Possible split
+- Group A (domain and DO data): `packages/domain/src/rounds/Results.ts`, `packages/domain/src/people/Permissions.ts`, `packages/cloudflare/src/SqlRounds.ts`, `packages/cloudflare/src/Organization.ts`, `packages/cloudflare/src/RoundHandlers.ts` (or a new handler), with `ResultsStorage.test.ts` and `Permissions.test.ts`. This group is needed before the rest.
+- Group B (API contract): `packages/api/src/index.ts`, `packages/api/src/PrivacyRegistry.ts`, `packages/api/src/registry.privacy.test.ts`. Depends on the schema names from Group A.
+- Group C (web): `apps/web/src/app/directory.ts`, `App.ts`, `routes.ts` (only if a new route is added), `results.ts` (chart reuse), `catalog.ts`, `App.scene.test.ts`. Depends on Group B for the client shape.</result>
+<usage><subagent_tokens>71926</subagent_tokens><tool_uses>1</tool_uses><duration_ms>42208</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>af8ba057bc2934d5d</task-id>
+<tool-use-id>toolu_01PukH9JH6qVhiudAUkW5NAC</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-fa7bab63-ff5bda9443f4c3bc/8fd96b8f-dc04-44f0-9660-3584e402df1a/tasks/af8ba057bc2934d5d.output</output-file>
+<status>completed</status>
+<summary>Agent "Review slice 1 diff" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>No findings. I read the diff and the new files, and ran two test commands: `pnpm test packages/domain/src/rounds/TeamOverview.test.ts` (11 passed) and `pnpm test:privacy packages/api` (6 passed). I did not run typecheck or lint.
+
+**Privacy holes: none found.**
+- `buildTeamOverview` (`TeamOverview.ts`) enforces `enforceEffectiveNOnResult(result, minimumGroupSize)` on each Result before reading any score. That function uses effective N = max(stored, current), so it never loosens.
+- `pointScore` has two gates. It returns null if the Round fails N (`result.meetsMinimumGroupSize`) or if the Dimension fails N (`dimensionResult.meetsMinimumGroupSize`).
+- The enforcement code in `Results.ts` (about lines 998-1055) already sets a Dimension's `score` to null whenever it also sets `meetsMinimumGroupSize` to false. So there is no path where a Dimension score is non-null while the flag is false.
+- When current N is no higher than the stored N, `enforceEffectiveNOnResult` returns the stored Result unchanged. That is correct, because the stored Result was computed at its own N.
+- Overview points carry only `roundId` and `score`. Markers carry Action fields only, which have no N.
+
+**Privacy test refactor: the existing getResults checks are not weakened.**
+- `resultResponders` now returns a list of violation strings. The `getResults` entry is `violations(scenario, buildResult(scenario))`, which is the same call as before.
+- `dimensionContributors` is extracted verbatim from the inline `usable` and `contributors` code. `roundMeetsN` is derived from the same `built.result.status` and `submissionsCount` expressions as before.
+- The "has an input generator..." test still asserts that the `ResultData` keys equal the responder keys, so the new endpoint must have a responder.
+
+**Overview privacy property test: real.**
+- `overviewViolations` builds the overview from `built.stored`, the Result under the Round's own N, with `minimumGroupSize` set to `organizationN`. So the production enforcement path is exercised.
+- It forces the status to "shared" and counts contributors from the raw Submissions, not from the Result under test.
+- It asserts that each non-null point equals `built.direct`'s score at the effective N, and that it has at least one usable Question and at least N contributors.
+- If `buildTeamOverview` skipped enforcement, this would fail whenever `organizationN` is greater than `storedN`. A Dimension that appears in the overview but not in the fresh computation is also caught, because `fresh?.score` would be undefined.
+
+**Domain tests: adequate.** They cover:
+- ordering and the tie-break on Round id;
+- exclusion of non-shared Results;
+- a gap between Rounds that have scores;
+- N raised and N lowered (a Round stored below N is not revealed);
+- a Dimension that was not asked;
+- marker ordering, with proposed and dropped Actions ignored, and a done Action with no `doneAt`;
+- a 104-Round performance smoke test.
+
+**Conventions:** There are no `as` assertions in non-test files. Glossary terms are used correctly (Round, Dimension, Action). The `rounds/index.ts` export, the `OrganizationRounds.overview` and `viewTeamOverview` additions, the `GET /teams/:teamId/overview` endpoint and its `ResultData` registration all follow the neighbouring patterns.
+
+**MINOR, optional, `packages/api/src/registry.privacy.test.ts` (`overviewViolations`):** the check is one-directional. It proves that a shown score is safe, but not that a gap is correct, for example that a null point is not simply a bug dropping valid data. The domain tests cover this for hand-built cases. I would leave it as is.</result>
+<usage><subagent_tokens>30077</subagent_tokens><tool_uses>3</tool_uses><duration_ms>32439</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>a79f8cb45c2cbc744</task-id>
+<tool-use-id>toolu_01HgxtNo2uQP7ApkhVsBTM5z</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-fa7bab63-ff5bda9443f4c3bc/8fd96b8f-dc04-44f0-9660-3584e402df1a/tasks/a79f8cb45c2cbc744.output</output-file>
+<status>completed</status>
+<summary>Agent "Slice 2: Cloudflare adapter" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>## Changes
+
+All six slices are in place, plus the route test from item 7. Nothing was committed.
+
+- `packages/cloudflare/src/SqlRounds.ts`: added `getSharedRoundResultsForTeam(teamId)`, which runs the specified join query, decodes each payload with `decodeRoundResultPayload`, drops nulls, and applies `Effect.orDie`. It sits next to `getRoundResult` and is in the returned object.
+- `packages/cloudflare/src/Organization.ts`: added `viewTeamOverview(actorId, teamId)` as a self-contained block right after `viewResults`. It uses the same `team.viewResults` authorization and `TeamNotFound` handling, then calls `buildTeamOverview` with `dirState.minimumGroupSize` and `getActionsForTeam`. I also added the `buildTeamOverview` and `type TeamOverview` imports.
+- `packages/cloudflare/src/auth/DurableObjectPeople.ts`: added `overview` to `durableObjectRounds`.
+- `packages/cloudflare/src/RoundHandlers.ts`: added the `getTeamOverview` handler after `getResults`, and imported `viewTeamOverview`.
+- `packages/cloudflare/src/auth/testing.ts`: added `overview` to the fake `OrganizationRounds`. It runs the same `authorizeRoundAction` check as `actions.list` before returning an empty overview. This goes beyond the plain stub in the brief, and the reason is in Notes. No other `OrganizationRounds.of(` exists in `packages/` or `apps/`.
+- `packages/cloudflare/src/ResultsStorage.test.ts`: moved the 104-Round setup into module-level helpers (`insertPerfRound`, `seedPerfTeam`). The existing perf test now calls `seedPerfTeam`, and its benchmark and assertions are unchanged. Added the new overview perf test, which also inserts a `closed` Round and another Team's shared Round.
+- `packages/cloudflare/src/TeamOverviewApi.test.ts` (new): fast `SignInWorld` route test, the same pattern as `ActionsApi.test.ts`.
+
+## Validation
+
+- `pnpm typecheck`: exit 0. This included apps/web at the time of the run.
+- `pnpm typecheck:effect`: exit 0. It only printed existing suggestions, none in my new code.
+- `pnpm lint`: exit 1, from one error outside my scope: `apps/web/src/app/App.scene.test.ts:41` imports `GetTeamOverviewCmd` without using it. That is the parallel apps/web slice. Oxlint on my changed files alone is clean.
+- `pnpm exec oxfmt` on my files, then `pnpm format:check`: exit 0.
+- `pnpm test packages/cloudflare/src/ResultsStorage.test.ts`: 5 passed, 5 total.
+- `pnpm test packages/cloudflare/src/TeamOverviewApi.test.ts`: 1 passed.
+- Also ran `ActionsApi`, `PulsesApi`, and `DirectoryApi` tests, since they use the shared `testing.ts` fake. That run was 5 files and 60 tests, all passing.
+
+**Perf:** the overview test (SQL, decode, and `buildTeamOverview` over 104 shared Rounds) took **13.34 ms** against a 1500 ms budget. It asserts 104 Rounds, 2 dimensions with 104 points each, and ascending `plannedOpenDate`.
+
+**Index:** `round_by_team ON round (team_id)` exists in `packages/cloudflare/migrations/0006_rounds.sql:38`, so no migration was added. The `ORDER BY planned_open_at` is a sort over one Team's rows, which is cheap at this size.
+
+## Notes
+
+- **Fake authorization:** the brief said to return a canned `Viewed` stub. A stub would skip the Team check, so the admin-outside-Team 403 assertion would fail against it. The fake now checks authorization first, which is test-only code.
+- **Route test:** the fast `SignInWorld` pattern exists, so I used it. The 403 cases cover an Organization admin outside the Team and an outsider Lead of another Team. The 200 cases cover a member and the Lead.
+- **Existing fixture quirk:** the perf fixture's `dateStr` produces month values above 12 for later rounds, for example `2024-26-01`. This predates my change. The ascending-date assertion still holds because those strings sort lexicographically, but the fixture is not calendar-valid.
+- **Skipped:** the full `pnpm test`, the privacy suite, and the slow workerd adapter tests. I did not run the apps/web tests.
+
+## Files
+
+- /home/ubuntu/.t3/worktrees/surveybeat-next/t3-fa7bab63-ff5bda9443f4c3bc/packages/cloudflare/src/SqlRounds.ts
+- /home/ubuntu/.t3/worktrees/surveybeat-next/t3-fa7bab63-ff5bda9443f4c3bc/packages/cloudflare/src/Organization.ts
+- /home/ubuntu/.t3/worktrees/surveybeat-next/t3-fa7bab63-ff5bda9443f4c3bc/packages/cloudflare/src/RoundHandlers.ts
+- /home/ubuntu/.t3/worktrees/surveybeat-next/t3-fa7bab63-ff5bda9443f4c3bc/packages/cloudflare/src/auth/DurableObjectPeople.ts
+- /home/ubuntu/.t3/worktrees/surveybeat-next/t3-fa7bab63-ff5bda9443f4c3bc/packages/cloudflare/src/auth/testing.ts
+- /home/ubuntu/.t3/worktrees/surveybeat-next/t3-fa7bab63-ff5bda9443f4c3bc/packages/cloudflare/src/ResultsStorage.test.ts
+- /home/ubuntu/.t3/worktrees/surveybeat-next/t3-fa7bab63-ff5bda9443f4c3bc/packages/cloudflare/src/TeamOverviewApi.test.ts (new)</result>
+<usage><subagent_tokens>78946</subagent_tokens><tool_uses>41</tool_uses><duration_ms>407584</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>a6fb77f13a38daf5f</task-id>
+<tool-use-id>toolu_01F1ot613AdRts9SdXKKfjok</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-fa7bab63-ff5bda9443f4c3bc/8fd96b8f-dc04-44f0-9660-3584e402df1a/tasks/a6fb77f13a38daf5f.output</output-file>
+<status>completed</status>
+<summary>Agent "Review slice 2 diff" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>**Verdict: PASS, no blockers.** The two new test files and the existing `ResultsStorage` tests pass, and `pnpm lint` is clean. I did not run `typecheck` or `typecheck:effect`. Findings are minor.
+
+**Auth parity**
+- `Organization.ts:1494-1527` matches `viewResults` (1384-1404) step for step. It calls `authorizeRoundAction(..., "team.viewResults", teamId)`, returns the rejection as-is, and then checks `TeamNotFound`.
+- Rejections map to HTTP the same way as the other round reads. `viewTeamOverview` in `RoundFlow.ts:126` uses the shared `viewed` helper, which turns a `Rejected` into `failRoundRejection`. An Org admin outside the Team gets the same 403 as `viewResults`.
+- `DurableObjectPeople.ts:76` and the handler in `RoundHandlers.ts` are plain wiring. There are no `as` assertions in the production files.
+
+**SQL (`SqlRounds.ts:852-863`)**
+- Team scoping and the `'shared'` status filter are correct. It uses the tagged template, so `teamId` is bound as a parameter and there is no injection risk.
+- Payloads that fail to decode are silently dropped, the same as `getRoundResult`'s null-on-failure behaviour. A corrupt Round then just disappears from the trend, with no signal.
+
+**Findings**
+
+1. MINOR: `SqlRounds.ts:855`. `ORDER BY r.planned_open_at ASC` has no tiebreaker. A Team with two Pulses scheduled at the same instant gets a non-deterministic order. Fix: add `, r.id ASC`, or order by `r.planned_open_date, r.id`. Check this matches whatever order `buildTeamOverview` assumes.
+
+2. MINOR: `ResultsStorage.test.ts` (new perf test, about line 285). The test copy-pastes the SQL string and the decode step instead of calling `makeSqlRounds(...).getSharedRoundResultsForTeam`. It would still pass if the production query lost its `status='shared'` filter or its team scoping. The "excluded" closed and other-Team Rounds only prove the test's own copy of the SQL.
+   - Fix: run the real function against the in-memory DB, or extract the SQL into a shared constant that both use.
+   - If wiring `SqliteClient` over `DatabaseSync` is too heavy, say plainly that the test measures decode and build time only.
+
+3. MINOR: `ResultsStorage.test.ts` seed refactor. The existing perf test's assertions are untouched and it still passes. The shared seed (`insertPerfRound`) now sets every `comment` to `null`, where the original had "Good" and "Awesome" on some answers. The old test therefore exercised comment-bearing payloads and the refactor dropped that. Fix: keep comments on two of the four submissions in `insertPerfRound`.
+
+4. MINOR: `TeamOverviewApi.test.ts` is only partly meaningful.
+   - What it does cover: the Org-admin-outside-Team 403, the outsider 403, and member/lead 200 against the real `authorizeRoundAction`. It also confirms the route and handler are wired through the fake world.
+   - What it does not cover: the fake's `overview` in `auth/testing.ts:493-499` hardcodes an empty overview. The 200 body assertion (`rounds: [], dimensions: [], markers: []`) therefore proves nothing about the DO, SQL or `buildTeamOverview`. The `TeamNotFound` path is also untested.
+   - The fake's auth is faithful in that it uses the same domain function on `organization.state`. The `viewResults` fake always returns `RoundNotFound`, so this one is slightly more realistic.
+   - Fix: keep the test, but rename the case to say it covers authorization and routing only. Optionally add a 404 case for an unknown Team, if the fake supports it.
+
+5. NIT: the seed's `dateStr` (`2024-${i/4+1}-...`) produces month values up to 26, which are invalid dates. This was already in the original test. The new ascending-date assertion passes only because the strings sort lexically. It is not worth fixing here.
+
+**Merge-friendliness:** The changes are additive: a new method placed after `viewResults`, a new `rounds` entry, and a new handler. They don't touch `viewResults` itself. The `ResultsStorage.test.ts` seed refactor is the only larger edit to existing code, and it has a low conflict risk.</result>
+<usage><subagent_tokens>29963</subagent_tokens><tool_uses>4</tool_uses><duration_ms>69454</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>a3cb2c74dc0c88e39</task-id>
+<tool-use-id>toolu_01PXT3eegjVeKVcUixojg6kT</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-fa7bab63-ff5bda9443f4c3bc/8fd96b8f-dc04-44f0-9660-3584e402df1a/tasks/a3cb2c74dc0c88e39.output</output-file>
+<status>completed</status>
+<summary>Agent "Slice 3: web overview UI" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>Slice 3 is implemented: the Team page now shows the health overview (Dimension lines with Action markers and a table toggle), and the Results trend chart now runs through the shared `lineChart`. Everything is green: 66 web tests, lint, both typechecks (exit 0), format check, and the web build. I did not commit.
+
+## Changes
+- **`apps/web/src/app/charts.ts`** (new): `lineChart`, `plotPercent`, `CHART_PAD`, and the `ChartPoint` and `LineChartOptions` types, as specified. Vertical guides are dashed and `aria-hidden`.
+- **`apps/web/src/app/results.ts`**: `trendChart` is now a thin wrapper over `lineChart`. `toggleButton` is exported.
+- **`apps/web/src/app/overview.ts`** (new): `LoadedOverview` and `teamOverviewView(state, isTable, onToggleTable, h)`. It covers loading, forbidden (renders nothing), failure, zero-Round empty state, chart mode (one marker strip plus one chart per Dimension), and table mode (Rounds table plus Actions table). Markers are focusable buttons with a CSS-drawn glyph and a tooltip that shows on hover and focus.
+- **`apps/web/src/app/directory.ts`**: `teamScreenView` takes `overview: Html` before `h`. It renders inside `mt-8` only when `detail.may.viewResults` is true.
+- **`apps/web/src/app/App.ts`**: `teamOverview` model field, `GotTeamOverview` message, `GetTeamOverviewCmd`, route load alongside `GetTeam`, reset on navigation, and the Team view wiring. The toggle reuses `ToggleResultsTable({ key: "overview" })`.
+- **`apps/web/src/messages/catalog.ts`**: the `overview.*` keys. There is no German catalog in the repo, so nothing was added there.
+- **Tests**:
+  - `App.scene.test.ts`: four new tests in "Team health overview". They cover the chart and tooltips, the table toggle, hidden when `viewResults` is false, hidden on a Forbidden failure, and the route-load commands.
+  - `overview.test.ts` (new): the 104-Round performance test.
+- **`apps/web/src/app/App.story.test.ts`**: see deviations.
+
+## Validation
+- `pnpm test apps/web`: 8 files, 66 tests, all pass.
+- `pnpm test apps/web/src/app/App.scene.test.ts apps/web/src/app/overview.test.ts`: 31 tests pass. The existing Results scene tests pass unchanged.
+- Results SVG equivalence: I rendered the old `trendChart` from `HEAD` and the new one through the same builder on five inputs, with and without `unusual`. The VNode output is identical. The comparison file was temporary and is deleted.
+- Performance (104 Rounds, 4 Dimensions, every 9th point null, 30 markers, full App Scene render):
+  - Chart mode: 60 ms and 99 ms over two runs.
+  - Table mode: 32 ms and 21 ms.
+  - Budget is 1500 ms.
+- `pnpm lint`: clean.
+- `pnpm typecheck:effect` and `pnpm typecheck`: both exit 0. The `packages/cloudflare` errors from the parallel slice are gone at the time of the run.
+- `pnpm format:check`: clean.
+- `pnpm --filter @surveybeat/web build`: passes. `answer.html` is 7.28 kB (budget 8 KB), and the answer JS is 4.17 kB gzip. The answer budget test passes.
+
+## Notes
+- **Deviation, outside the listed edit set**: `App.story.test.ts` needed one additive change. The Team route now issues `GetTeamOverviewCmd`, and the existing story "renames team, adds member, and assigns lead" failed on unresolved commands. I resolved it with a Forbidden failure, which is the least intrusive option, and imported the command. No assertions changed. Please confirm you accept this edit.
+- **Route-load test (c)**: Scene has no route-dispatch step, so I call `update(…, Message.UrlChanged)` directly and compare command names. Command objects carry per-call closures, so deep equality fails.
+- **Table dates**: the Rounds table shows the raw `plannedOpenDate` string, not `formatDate`. That matches `trendTable` and the Rounds screen. Marker dates use `formatDate(new Date(at))`.
+- **Layout**: the marker strip and each Dimension chart sit in identical `bg-subtle p-4` boxes inside a panel. This keeps their widths equal so `plotPercent` lines up.
+- **Admins outside the Team**: `GetTeamOverviewCmd` still fires for them on route load, and the server answers Forbidden. This follows the plan but costs one request.
+- **Flaky budget test**: `apps/web/src/answer/budget.test.ts` once timed out at 5 s during the parallel web run. It passes alone in about 250 ms. I did not change it.
+- **Assumed `teamScreenView` parameter position**: I put `overview` before `h` rather than in state, as the plan allowed.</result>
+<usage><subagent_tokens>172354</subagent_tokens><tool_uses>59</tool_uses><duration_ms>622443</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>a397225a5dc6d861b</task-id>
+<tool-use-id>toolu_01MGP1SEf9ZqTH29qii4EGjr</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-fa7bab63-ff5bda9443f4c3bc/8fd96b8f-dc04-44f0-9660-3584e402df1a/tasks/a397225a5dc6d861b.output</output-file>
+<status>completed</status>
+<summary>Agent "Review slice 3 diff" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>Findings for slice 3 of #107. I read the code and did not run any tests.
+
+No BLOCKER.
+
+**MAJOR**
+
+1. **The tests don't exercise the main behaviours.** The tests are at `apps/web/src/app/App.scene.test.ts` (new "Team health overview" block) and `apps/web/src/app/overview.test.ts`.
+   - The chart tests only assert that `role=img` elements and the marker buttons exist.
+   - Nothing checks that a null score breaks the line and draws no dot. If `joinsPrevious` were hard-coded, or the `score !== null` guards were removed, every test would still pass.
+   - Nothing checks the x mapping: the clamp, the single-point case (`tMax === tMin` giving 0.5), or `Date.parse` of a "YYYY-MM-DD" date against epoch-ms markers.
+   - Nothing checks marker alignment, meaning that a marker's `left` equals `plotPercent(x, 720)` and matches the dot's cx.
+   - The brief says the `trendChart` refactor produces identical output, but no test pins that.
+   - Fix: add direct `lineChart` and `plotPercent` unit tests, for example by counting `circle` and `line` children of the VDOM for a [3, null, 4] series. Add a test that the overview renders the right number of circles and segments for the existing fixture, and one for a single-Round overview. Add a snapshot or structural assertion for `trendChart` with one gap and `unusual=true`.
+
+2. **A late response can overwrite the wrong Team's overview.** In `apps/web/src/app/App.ts`, the `GotTeamOverview` case sets `teamOverview` without checking `outcome.overview.teamId` against `model.route.teamId`.
+   - `UrlChanged` resets the model to Loading, but a response still in flight for Team A then lands on Team B's page.
+   - You asked about Team→Team navigation, and this is the gap. `GotTeam` has the same weakness, so it is an existing pattern, but here it shows a different Team's health data under another Team's name.
+   - Fix: on Success, ignore the message unless `model.route._tag === "Team"` and `outcome.overview.teamId === model.route.teamId`. Add a test that sends a mismatched overview and asserts the model is unchanged.
+
+**MINOR**
+
+3. **The perf test measures less than the brief wants** (`overview.test.ts:80-97`). It times `Scene.scene` building the virtual tree and running assertions. That is not real DOM layout or paint, so the 1.5 s budget is almost certainly met trivially. It is still a useful regression guard for algorithmic blow-ups. Either rename it so it doesn't claim to prove the render budget, or note that the budget needs a browser check on a deployed stage.
+   - The `console.log` in the tests is noise.
+   - The row count in table mode (104 + 1 + 30 + 1) does check that all data is present.
+
+4. **Tooltips at the edges can be clipped** (`overview.ts:165-166`). A marker at x=0 or x=1 sits at 3.3% or 96.7% of the strip. The tooltip is `-translate-x-1/2` and `whitespace-nowrap`, with no max width, so a long Action title can run past the panel edge or the viewport. Fix: anchor the tooltip to the left or right edge when x is below about 0.15 or above about 0.85, or allow wrapping with `max-w-xs whitespace-normal`.
+
+5. **Markers that share a date stack.** `Committed` and `Done` for the same Action on the same day, or several Actions that fall close together, overlap in the 24 px buttons. Both stay reachable by Tab, but pointer hover is ambiguous. This is acceptable for now; mention it only if you expect dense data.
+
+6. **Date basis differs between the two time types.** `plannedOpenDate` is a date string parsed as UTC midnight, while marker `at` values are real instants. The mismatch is at most one day against the Team's time zone, which is harmless for placement. `formatDate(new Date(marker.at))` uses the viewer's zone, so a table date could differ from the Team's date by a day. Low impact.
+
+7. **Redundant announcement of the title.** The button has `aria-label` and also contains a `role=tooltip` span with the same text. Because of the `aria-label`, the name is not duplicated. The tooltip is `invisible` until hover or focus, so it is not read twice either. This is fine. If you want it formally associated, add `aria-describedby`, but it is not required.
+
+**Checked and fine**
+- **Line and gap logic:** a segment is drawn only when both scores are non-null and `joinsPrevious` is true. Overview points always pass `joinsPrevious: true`, and a null score on either side removes the segment. A null score also draws no dot.
+- **X mapping:** the clamp is correct, `tMax === tMin` gives 0.5, and rounds and markers share one axis.
+- **`trendChart` refactor:** x is `i/last`, or 0.5 for one point. Y mapping, classes, radius 4 and aria label match the old code arithmetically.
+- **Marker alignment:** the strip and the SVG are both `w-full` inside identical `plotBox` padding. Both use width 720 with the same `CHART_PAD`, and the SVG is `block h-auto`, so the percentages agree.
+- **Focus ring:** `app.css:71-79` gives every `button:focus-visible` an outline.
+- **Key collisions:** Results uses `dim-*` and `q-*`, so `"overview"` does not collide.
+- **Visibility:** the overview is gated on `detail.may.viewResults`, and Forbidden renders `null`.
+- **Copy:** UI text comes from the catalog, with no `as` outside tests and no em dashes in the new strings.
+- **Scope:** `toggleButton` is exported, which is minimal and appropriate.
+
+Relevant files:
+- `/home/ubuntu/.t3/worktrees/surveybeat-next/t3-fa7bab63-ff5bda9443f4c3bc/apps/web/src/app/charts.ts`
+- `/home/ubuntu/.t3/worktrees/surveybeat-next/t3-fa7bab63-ff5bda9443f4c3bc/apps/web/src/app/overview.ts`
+- `/home/ubuntu/.t3/worktrees/surveybeat-next/t3-fa7bab63-ff5bda9443f4c3bc/apps/web/src/app/App.ts`
+- `/home/ubuntu/.t3/worktrees/surveybeat-next/t3-fa7bab63-ff5bda9443f4c3bc/apps/web/src/app/overview.test.ts`
+- `/home/ubuntu/.t3/worktrees/surveybeat-next/t3-fa7bab63-ff5bda9443f4c3bc/apps/web/src/app/App.scene.test.ts`</result>
+<usage><subagent_tokens>38383</subagent_tokens><tool_uses>5</tool_uses><duration_ms>43250</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>a3cb2c74dc0c88e39</task-id>
+<tool-use-id>toolu_01PMutphNJ1KViytbE1f3FmW</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-fa7bab63-ff5bda9443f4c3bc/8fd96b8f-dc04-44f0-9660-3584e402df1a/tasks/a3cb2c74dc0c88e39.output</output-file>
+<status>completed</status>
+<summary>Agent "Slice 3: web overview UI" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>The four review findings are fixed in `apps/web`. `pnpm test apps/web` passes (81 tests, 9 files), and lint, typecheck and format check all pass. I did not commit.
+
+## Changes
+- **`charts.test.ts`** (new, 8 tests): inspects the VNode tree directly.
+  - `lineChart` on `[3, null, 4, 5]` renders 3 dots and 1 `stroke-primary` segment, and that segment runs from the 4 to the 5.
+  - `joinsPrevious: false` removes the incoming segment.
+  - `highlightLast` colours only the last dot brass.
+  - Guides are dashed and brass.
+  - `plotPercent` at 0, 0.5 and 1 (width 720) matches the percentages derived from `CHART_PAD`.
+  - `trendChart` for three points with a gap and `unusual=true`: 3 dots, 1 segment, last dot brass, and the first and last `cx` are 24 and 344.
+- **`overview.ts`**: exports `overviewXs(overview)`, which returns `{ rounds: Map&lt;RoundId, number&gt;, markerX(at) }`. The view now uses it. Tooltips are anchored `left-0` when x &lt; 0.15, `right-0` when x &gt; 0.85, and centred otherwise. The tooltip now has `w-max max-w-xs whitespace-normal` in place of `whitespace-nowrap`.
+- **`overview.test.ts`**:
+  - `overviewXs` unit tests: first Round 0, last Round 1, a marker after the last Round extends the axis, a single Round sits at 0.5, and out-of-range markers clamp.
+  - A scene test checks each marker button's `left` against `plotPercent(markerX(at), 720)`.
+  - A scene test checks the tooltip anchor classes.
+  - The perf test is renamed to "guards the overview view's build time for 104 Rounds (virtual tree + scene)". It has no console output and keeps the &lt; 1500 ms assertion.
+- **`App.ts`**: `GotTeamOverview` Success is dropped unless `model.route` is Team with the same `teamId`.
+- **`App.scene.test.ts`**:
+  - The Workload chart has exactly 2 circles inside its scope. The page has 5 circles in total.
+  - Mismatched `teamId` leaves `teamOverview` Loading.
+  - Matching `teamId` loads.
+  - I checked that the scoped count assertion fails on a wrong count, then restored the file.
+
+## Validation
+- `pnpm test apps/web`: 9 files, 81 tests, all pass.
+- `pnpm lint`: exit 0.
+- `pnpm typecheck`: exit 0. One error in the perf test (`HtmlBuilder&lt;never&gt;` to `HtmlBuilder&lt;string&gt;`) needed an `as unknown as` cast in test code.
+- `pnpm format:check`: exit 0.
+
+**Perf (ms, from the verbose reporter, three runs; the test prints nothing):**
+- Guard test (virtual tree in chart and table mode, plus chart scene): 102, 92, 98.
+- Table-mode scene: 74, 60, 58.
+- Budget is 1500 ms.
+
+## Notes
+- The stale check covers Success only, as requested. A stale Failed response from a previous Team can still set `Failed` briefly until the current Team's response arrives. Guarding that path too is a one-line change if you want it.
+- `packages/domain` shows modifications in `git status`. Those come from the other slices, not from this change.</result>
+<usage><subagent_tokens>219393</subagent_tokens><tool_uses>27</tool_uses><duration_ms>278406</duration_ms></usage>
+</task-notification>

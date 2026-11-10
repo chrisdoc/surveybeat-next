@@ -1,0 +1,69 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "01M72B8YWA4Q1VRCZQ1DGHW1JC",
+  "strategy": "manual-commit",
+  "branch": "r2-107-overview",
+  "checkpoints_count": 5,
+  "files_touched": [
+    "apps/web/src/app/App.scene.test.ts",
+    "apps/web/src/app/App.story.test.ts",
+    "apps/web/src/app/App.ts",
+    "apps/web/src/app/charts.ts",
+    "apps/web/src/app/directory.ts",
+    "apps/web/src/app/overview.test.ts",
+    "apps/web/src/app/overview.ts",
+    "apps/web/src/app/results.ts",
+    "apps/web/src/messages/catalog.ts",
+    "packages/api/src/PrivacyRegistry.ts",
+    "packages/api/src/index.ts",
+    "packages/api/src/registry.privacy.test.ts",
+    "packages/cloudflare/src/Organization.ts",
+    "packages/cloudflare/src/ResultsStorage.test.ts",
+    "packages/cloudflare/src/RoundHandlers.ts",
+    "packages/cloudflare/src/SqlRounds.ts",
+    "packages/cloudflare/src/TeamOverviewApi.test.ts",
+    "packages/cloudflare/src/auth/DurableObjectPeople.ts",
+    "packages/cloudflare/src/auth/testing.ts",
+    "packages/domain/src/rounds/RoundFlow.ts",
+    "packages/domain/src/rounds/TeamOverview.test.ts",
+    "packages/domain/src/rounds/TeamOverview.ts",
+    "packages/domain/src/rounds/index.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 96,
+    "cache_creation_tokens": 145542,
+    "cache_read_tokens": 4906954,
+    "output_tokens": 34619,
+    "api_call_count": 42,
+    "subagent_tokens": {
+      "input_tokens": 320,
+      "cache_creation_tokens": 488085,
+      "cache_read_tokens": 11697521,
+      "output_tokens": 177220,
+      "api_call_count": 158
+    }
+  },
+  "redaction": {
+    "replacements": 5,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 4,
+      "key_context": 1,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
