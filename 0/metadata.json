@@ -1,0 +1,49 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "01M7342ZPWC13P9WDRH2TVKF8V",
+  "session_id": "2bc7ee0d-f920-4d30-8e09-7f1a07d98660",
+  "strategy": "manual-commit",
+  "created_at": "2026-11-10T16:19:05.937662169Z",
+  "branch": "r2-130-submission-credentials",
+  "checkpoints_count": 2,
+  "save_step_count": 1,
+  "files_touched": [
+    "packages/cloudflare/src/SubmissionRoutes.privacy.test.ts",
+    "packages/cloudflare/src/SubmissionRoutes.ts"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-5-5",
+  "turn_id": "2a4fe070602d",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 39,
+    "cache_creation_tokens": 103353,
+    "cache_read_tokens": 1472677,
+    "output_tokens": 11937,
+    "api_call_count": 19,
+    "subagent_tokens": {
+      "input_tokens": 30,
+      "cache_creation_tokens": 81417,
+      "cache_read_tokens": 432258,
+      "output_tokens": 26320,
+      "api_call_count": 15
+    }
+  },
+  "redaction": {
+    "replacements": 12,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 2,
+      "credentialed_uri": 0,
+      "entropy": 8,
+      "key_context": 2,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  },
+  "session_metrics": {
+    "turn_count": 2
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "01M7342ZPWC13P9WDRH2TVKF8V",
+  "strategy": "manual-commit",
+  "branch": "r2-130-submission-credentials",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "packages/cloudflare/src/SubmissionRoutes.privacy.test.ts",
+    "packages/cloudflare/src/SubmissionRoutes.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 39,
+    "cache_creation_tokens": 103353,
+    "cache_read_tokens": 1472677,
+    "output_tokens": 11937,
+    "api_call_count": 19,
+    "subagent_tokens": {
+      "input_tokens": 30,
+      "cache_creation_tokens": 81417,
+      "cache_read_tokens": 432258,
+      "output_tokens": 26320,
+      "api_call_count": 15
+    }
+  },
+  "redaction": {
+    "replacements": 12,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 2,
+      "credentialed_uri": 0,
+      "entropy": 8,
+      "key_context": 2,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}

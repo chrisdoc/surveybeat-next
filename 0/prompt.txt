@@ -1,0 +1,55 @@
+Act as the implementation sub-agent for this task.
+
+You orchestrate issue #130 ("Submission routes accept the Edit key hash and take token/Edit key from the query string") in chrisdoc/surveybeat-next. THIS TASK EXPLICITLY ASKS YOU TO USE SUBAGENTS: `implementer` (model "haiku") writes code, `reviewer` (model "sonnet") reviews the diff; you check facts first, write the brief, check the diff, run suites (follow ~/.claude/CLAUDE.md). One implementer at a time; do git/GitHub steps yourself to save rate limit. This is security-sensitive: decide the exact accepted inputs yourself.
+
+Read: `gh issue view 130`, PR #126 (`gh pr view 126`: SubmissionRoutes.ts extraction and SubmissionRoutes.privacy.test.ts), docs/adr/0005-anonymous-submission-storage.md, docs/adr/0007-one-tap-answer-saved-on-confirm.md, apps/web/src/answer/** (what the answer page actually sends to the Submission Worker: exchange, first-answer, answer), AGENTS.md.
+
+Decided: the Submission Worker accepts the Invitation token and the raw Edit key ONLY in POST bodies (the server hashes the Edit key itself); it never accepts an Edit key hash from any client input, and never reads the token or Edit key from the query string or headers. First confirm the answer page already sends only body credentials; if it uses any query-string or hash path, change the page too (keep it inside its budget, `pnpm --filter @surveybeat/web build && pnpm test apps/web/src/answer/budget.test.ts`). Remove now-dead schema fields (`editKeyHash`, `edit_key_hash`). Extend SubmissionRoutes.privacy.test.ts: on every route, a hash (body or query) and a query-string token/Edit key are refused without reaching an Organization; the valid body path still works. Keep e2e answer flow passing.
+
+Workflow: branch `r2-130-submission-credentials` from origin/main. Validation: pnpm typecheck, pnpm typecheck:effect, pnpm lint, pnpm format:check, pnpm test, pnpm test:privacy, web build + budget test, and the SubmissionWorker workerd adapter test file singly. Commit subject "R2: Submission routes take credentials only from the POST body", message ending "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"; PR "Closes #130. Part of #101.", body ending "🤖 Generated with [Claude Code](https://claude.com/claude-code)". Push (retry once if rejected without reason); wait for checks with `gh pr checks <n> --watch` if your environment allows, otherwise report the PR as pending; if green, squash-merge your own PR (user-authorized): `gh pr merge <n> --squash --delete-branch`. Rebase on origin/main before pushing; never revert others' merged work. #128 runs in parallel (Organization lifecycle).
+
+Final report (≤ 8 lines): facts found (what the answer page sends), what changed, reviewer findings, tests, PR URL, merge SHA or pending.
+
+---
+
+Continue where you left off.
+
+---
+
+<task-notification>
+<task-id>af3bb2a5477135c17</task-id>
+<tool-use-id>toolu_01Co16MbPcQ48wvee5MGnUsa</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-701b0642-ee95b9dd63e5fdc7/2bc7ee0d-f920-4d30-8e09-7f1a07d98660/tasks/af3bb2a5477135c17.output</output-file>
+<status>completed</status>
+<summary>Agent "Review issue 130 diff" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>I found no blockers. The gate in `SubmissionRoutes.ts` is correct, and the real answer page still works. The weaknesses are in the tests.
+
+I ran the privacy file (75 tests) and `SubmissionWorker.test.ts` (2 tests). Both pass.
+
+**Checked, no bypass:**
+- **Query params:** `searchParams.has` covers duplicate params and percent-encoded names. Case variants such as `Token` or `EDITKEY` are never read, so they are harmless.
+- **Headers:** Effect request headers are lowercase, and the server no longer reads them anyway.
+- **Stored hash:** `/answer` refuses `editKeyHash`, and `/exchange` refuses it too. `/first-answer` accepts a hash only together with a valid token, and records it via `ON CONFLICT DO NOTHING`. A hash on its own edits nothing.
+- **Schema decode:** a body whose fields fail to decode becomes `{}`, which still ends in a 400.
+- **Answer page:**
+  - `main.ts` posts `{token}` to `/exchange`, `{token, editKeyHash}` to `/first-answer` and `{editKey, ...}` to `/answer`, all with only a content-type header.
+  - `sha256Hex` emits lowercase hex padded to 64 characters, so it matches `/^[0-9a-f]{64}$/`.
+  - The CORS allow-headers list was narrowed to `Content-Type`, which is compatible.
+
+**Findings (all MINOR, all in `packages/cloudflare/src/SubmissionRoutes.privacy.test.ts`):**
+
+1. **Body refusal cases that pass without the gate (lines ~264-305).**
+   - `/answer` "body editKeyHash of the Edit key", `/answer` "body edit_key_hash" and `/answer` "body token" send no `editKey`. Without the new `/answer` gates they would still return 400 "Missing edit key".
+   - `/first-answer` "token with edit_key_hash" returns 400 "Missing edit key hash" even with no gate.
+   - Fix: give the `/answer` cases a valid `editKey` where the gate is the only thing that can refuse. For `editKeyHash`, send `{editKey: EDIT_KEY, editKeyHash}`. For the token case, the existing A5 test already covers token plus `editKey`, so `{token}` alone cannot prove the `/answer` token gate and that case can be dropped.
+   - The `/exchange` `editKeyHash` and `/first-answer` malformed-hash cases do prove their gates.
+2. **No A5 case on the routes in this file.**
+   - The issue asks for the same refusal on every route. A5 (`{token, editKey}` → 400, no Organization call) is only tested in `SubmissionWorker.test.ts:79`.
+   - Fix: add `{token, editKey}` bodies for `/exchange`, `/first-answer` and `/answer` to `bodyRefusals`, and assert `calls` is empty.
+3. **The `/my-answers` test assertion is looser.**
+   - It now accepts any 4xx instead of a 404, because query and header credentials give 400 before routing.
+   - Fix: assert 400 when the case is a query or header credential, and 404 when it is a body credential.
+4. **Missing `/first-answer` case.** There is no test for uppercase-hex `editKeyHash` (e.g. `"A".repeat(64)`), which the regex should refuse. It is cheap to add.</result>
+<usage><subagent_tokens>34003</subagent_tokens><tool_uses>6</tool_uses><duration_ms>32479</duration_ms></usage>
+</task-notification>
