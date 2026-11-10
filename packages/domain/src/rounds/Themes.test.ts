@@ -38,8 +38,6 @@ const ratingType: QuestionType = { _tag: "Rating", lowLabel: "Low", highLabel: "
 const highlight = (larger: boolean): Highlight => ({
   isLargerThanUsual: larger,
   direction: larger ? "drop" : null,
-  label: larger ? "Larger drop" : "Usual",
-  explanation: "Compared with the usual change.",
 });
 
 const sampleResult = (overrides: Partial<RoundResult> = {}): RoundResult => ({

@@ -190,8 +190,16 @@ test.describe("answer page static entry (Issue #44, ADR 0005, ADR 0007, ADR 0008
       });
     });
 
+    await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/a#t=token-axe-check&v=3");
     await expect(page.locator("#save")).toBeEnabled();
+
+    // The ends of the scale carry the Question's own labels; 2 to 4 are plain numbers
+    await expect(page.locator("#q1low")).toHaveText("1 · Low");
+    await expect(page.locator("#q1high")).toHaveText("5 · High");
+    await expect(page.locator(".scale label span").nth(1)).toHaveText("2");
+    await expect(page.locator(".scale label span").nth(2)).toHaveText("3");
+    await expect(page.locator(".scale label span").nth(3)).toHaveText("4");
 
     // Axe audit on Screen 1
     const screen1Axe = await new AxeBuilder({ page }).analyze();
@@ -201,6 +209,9 @@ test.describe("answer page static entry (Issue #44, ADR 0005, ADR 0007, ADR 0008
     const radioLabel = page.locator(".scale label").first();
     const box = await radioLabel.boundingBox();
     expect(box?.height).toBeGreaterThanOrEqual(44);
+
+    // No horizontal scroll at 390 px
+    expect(await page.evaluate("document.documentElement.scrollWidth")).toBeLessThanOrEqual(390);
   });
 
   test("desktop layout renders all remaining questions on one page", async ({ page }) => {
@@ -278,6 +289,24 @@ test.describe("answer page static entry (Issue #44, ADR 0005, ADR 0007, ADR 0008
     await expect(page.locator("#state-message")).toContainText(
       "You answered this check-in in another browser",
     );
+    await expect(page.locator("#screen-1")).toBeHidden();
+  });
+
+  test("without a token the page shows the error and no form", async ({ page }) => {
+    await page.goto("/a");
+    await expect(page.locator("#err")).toBeVisible();
+    await expect(page.locator("#err")).toHaveText("Something went wrong. Please try again.");
+    await expect(page.locator("#screen-1")).toBeHidden();
+  });
+
+  test("a failed exchange shows the error and no form", async ({ page }) => {
+    await page.route("**/exchange", async (route) => {
+      await route.fulfill({ status: 404, contentType: "application/json", body: "{}" });
+    });
+
+    await page.goto("/a#t=token-expired");
+    await expect(page.locator("#err")).toBeVisible();
+    await expect(page.locator("#err")).toHaveText("Something went wrong. Please try again.");
     await expect(page.locator("#screen-1")).toBeHidden();
   });
 });

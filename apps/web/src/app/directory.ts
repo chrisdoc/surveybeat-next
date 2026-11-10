@@ -345,12 +345,16 @@ export const teamScreenView = <Message>(
         const isLead = entry.role === "lead";
         const mayRemove = isLead ? detail.may.manageLeads : detail.may.manageMembers;
         return h.li(
-          [h.Class("flex items-center justify-between gap-4 border-b border-line-soft py-3 last:border-b-0")],
+          [
+            h.Class(
+              "flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-line-soft py-3 last:border-b-0",
+            ),
+          ],
           [
             h.span(
-              [h.Class("flex flex-wrap items-center gap-x-3 gap-y-1")],
+              [h.Class("flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1")],
               [
-                h.span([h.Class("font-medium")], [entry.email]),
+                h.span([h.Class("break-all font-medium")], [entry.email]),
                 badge("neutral", [roleName(entry.role)], h),
                 h.span(
                   [h.Class("text-sm text-muted")],
@@ -359,16 +363,21 @@ export const teamScreenView = <Message>(
               ],
             ),
             mayRemove
-              ? appButton(
-                  {
-                    text: message(isLead ? "team.removeLead" : "team.removeMember"),
-                    isDisabled: state.rosterBusy,
-                    className: linkButton,
-                    onClick: isLead
-                      ? actions.onRemoveLead(entry.personId)
-                      : actions.onRemoveMember(entry.personId),
-                  },
-                  h,
+              ? h.div(
+                  [h.Class("flex flex-wrap gap-4")],
+                  [
+                    appButton(
+                      {
+                        text: message(isLead ? "team.removeLead" : "team.removeMember"),
+                        isDisabled: state.rosterBusy,
+                        className: linkButton,
+                        onClick: isLead
+                          ? actions.onRemoveLead(entry.personId)
+                          : actions.onRemoveMember(entry.personId),
+                      },
+                      h,
+                    ),
+                  ],
                 )
               : null,
           ].filter(Predicate.isNotNull),
@@ -583,13 +592,13 @@ export const settingsScreenView = <Message>(
             h.p(
               [h.Class("flex flex-wrap items-center gap-2 font-medium")],
               [
-                person.email,
+                h.span([h.Class("min-w-0 break-all")], [person.email]),
                 person.organizationAdmin ? badge("primary", [message("settings.admin")], h) : null,
                 person.linked ? null : badge("neutral", [message("settings.notSignedInYet")], h),
               ].filter(Predicate.isNotNull),
             ),
             h.div(
-              [h.Class("flex gap-4")],
+              [h.Class("flex flex-wrap gap-x-4 gap-y-2")],
               [
                 appButton(
                   {

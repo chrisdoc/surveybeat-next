@@ -210,6 +210,8 @@ describe("Team health overview markers and tooltips", () => {
         teamOverview: { _tag: "Loaded", overview },
       }),
       Scene.expect(Scene.text(markerLabel("committed", earliest, "Early one"))).toHaveClass("left-0"),
+      // A hidden tooltip takes no layout; `invisible` would still widen the page at narrow widths.
+      Scene.expect(Scene.text(markerLabel("committed", earliest, "Early one"))).toHaveClass("hidden"),
       Scene.expect(Scene.text(markerLabel("committed", latest, "Late one"))).toHaveClass("right-0"),
       Scene.expect(Scene.text(markerLabel("done", middle, "Middle one"))).toHaveClass("-translate-x-1/2"),
     );

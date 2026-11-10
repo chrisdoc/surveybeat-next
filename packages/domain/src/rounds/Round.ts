@@ -108,6 +108,7 @@ export type RoundDetail = typeof RoundDetail.Type;
 /** The list of Rounds for a Pulse. */
 export const RoundList = Schema.Struct({
   pulseId: PulseId,
+  paused: Schema.Boolean,
   rounds: Schema.Array(RoundSummary),
 });
 export type RoundList = typeof RoundList.Type;

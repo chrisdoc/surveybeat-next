@@ -84,6 +84,10 @@ legend {
   accent-color: var(--primary);
   flex-shrink: 0;
 }
+.scale label span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
 .scale label:has(input:checked) {
   color: var(--on-primary);
   background: var(--primary);

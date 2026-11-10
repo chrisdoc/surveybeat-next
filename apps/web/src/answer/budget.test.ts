@@ -119,6 +119,13 @@ describe.each(pages)("answer page performance budget ($name)", (page) => {
     expect(html).toContain(`<html lang="${page.lang}">`);
     expect(html).toContain(`<title>${page.title}</title>`);
 
+    // The generic scale words are gone: the ends of the scale carry the Question's own labels.
+    for (const generic of ["Very poor", "Very good", "Sehr schlecht", "Sehr gut"]) {
+      expect(html, `${page.name} shell should not carry the generic scale label "${generic}"`).not.toContain(
+        generic,
+      );
+    }
+
     console.info(
       `[budget ${page.name}] HTML ${(html.length / 1024).toFixed(2)} KB raw, ${(htmlGz / 1024).toFixed(2)} KB gzip; ` +
         `CSS ${(inlineCssGz / 1024).toFixed(2)} KB gzip; ` +

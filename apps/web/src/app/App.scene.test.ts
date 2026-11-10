@@ -582,7 +582,7 @@ describe("App Scenes", () => {
     // The kept answers this device holds for shownRound: a Rating with a comment, a choice, and a long text.
     const kept = {
       "round-a": {
-        "qv-rating": { value: 4, comment: "Priorities keep changing" },
+        "qv-rating": { value: 5, comment: "Priorities keep changing" },
         "qv-choice": { value: 1 },
         "qv-long": { comment: "Nothing more" },
       },
@@ -627,7 +627,7 @@ describe("App Scenes", () => {
         Scene.given(loaded([shownRound], kept)),
         Scene.expect(Scene.role("heading", { name: "Weekly check-in" })).toExist(),
         Scene.expect(Scene.text(meta)).toExist(),
-        Scene.expect(Scene.text("4 · Good")).toExist(),
+        Scene.expect(Scene.text("5 · Clear")).toExist(),
         Scene.expect(Scene.text("3.8 of 5")).toExist(),
         Scene.expect(Scene.text("Your comment: Priorities keep changing")).toExist(),
         Scene.expect(Scene.text("Chat")).toExist(),
@@ -635,6 +635,23 @@ describe("App Scenes", () => {
         Scene.expect(Scene.text(message("history.noAnswersHere"))).toBeAbsent(),
         Scene.expect(Scene.role("button", { name: "Clear my answers on this device" })).toExist(),
       );
+    });
+
+    it("shows the Question's own labels at 1 and 5 and a plain number from 2 to 4", () => {
+      const expectations: ReadonlyArray<readonly [number, string]> = [
+        [1, "1 · Unclear"],
+        [3, "3"],
+        [5, "5 · Clear"],
+      ];
+      for (const [value, text] of expectations) {
+        Scene.scene(
+          { update, view },
+          Scene.given(
+            loaded([soloRound(roundB, "Monthly pulse", "shown")], { "round-b": { "qv-rating": { value } } }),
+          ),
+          Scene.expect(Scene.text(text)).toExist(),
+        );
+      }
     });
 
     it("says so when no Round's answers are on this device", () => {
@@ -918,7 +935,7 @@ describe("App Scenes", () => {
           settingsReviewWindow: detail.settings.reviewWindowDays,
           settingsReminders: detail.settings.reminders,
         }),
-        Scene.expect(Scene.text("How was your workload this week?")).toExist(),
+        Scene.expect(Scene.text("1. How was your workload this week?")).toExist(),
         Scene.expect(Scene.role("heading", { name: "Settings" })).toExist(),
         Scene.expect(Scene.role("button", { name: "Edit" })).toExist(),
         Scene.expect(Scene.role("button", { name: "Remove" })).toExist(),
@@ -1093,8 +1110,6 @@ describe("App Scenes", () => {
               highlight: {
                 isLargerThanUsual: true,
                 direction: "rise",
-                label: "Bigger change",
-                explanation: "Score rose by 0.4",
               },
             },
             typicalChange: {
@@ -1410,6 +1425,122 @@ describe("App Scenes", () => {
         Scene.expect(Scene.text("Not enough answers to protect anonymity")).toExist(),
         Scene.expect(Scene.role("heading", { name: "Actions" })).toExist(),
       );
+    });
+
+    describe("Highlights, German formats, and the Actions panel", () => {
+      /** A closed Round with one flagged Question and one Dimension, so the badge and formats are on screen. */
+      const flaggedResult = (direction: "rise" | "drop", questionScore: number): RoundResult => ({
+        roundId: Schema.decodeSync(RoundId)("round-flagged"),
+        pulseId: decodePulseId("pulse-1"),
+        teamId: decodeTeamId("team-1"),
+        status: "closed",
+        plannedOpenDate: "2026-11-09",
+        anonymityMode: "anonymous",
+        closedAt: 1731140000000,
+        effectiveMinimumGroupSize: 4,
+        meetsMinimumGroupSize: true,
+        eligibleMembersCount: 8,
+        submissionsCount: 6,
+        responseRate: 0.75,
+        delayed: false,
+        questions: [
+          {
+            questionVersionId: decodeVersionId("qv-flagged"),
+            position: 0,
+            text: "How are you feeling?",
+            type: { _tag: "Rating", lowLabel: "Low", highLabel: "High", comment: false },
+            dimension: "clarity",
+            contributors: 6,
+            meetsMinimumGroupSize: true,
+            score: questionScore,
+            distribution: [
+              { option: 3, count: 1 },
+              { option: 4, count: 5 },
+            ],
+            change: {
+              change: direction === "rise" ? 0.7 : -0.7,
+              previousRoundDate: "2026-11-02",
+              previousRoundId: null,
+              highlight: { isLargerThanUsual: true, direction },
+            },
+            typicalChange: {
+              status: "ready",
+              completedUsableRounds: 6,
+              totalRequiredUsableRounds: 6,
+              typicalChange: 0.3,
+            },
+            trend: [],
+          },
+        ],
+        dimensions: [
+          {
+            dimension: "clarity",
+            score: 4,
+            usableQuestionCount: 1,
+            contributors: 6,
+            totalQuestionCount: 1,
+            meetsMinimumGroupSize: true,
+            change: null,
+            typicalChange: null,
+            trend: [],
+          },
+        ],
+        comments: [],
+      });
+
+      const flaggedScene = (result: RoundResult, locale: Locale | null = null) =>
+        Scene.given({
+          ...initialModel(makeUrl("https://app.surveybeat.com/teams/team-1/rounds/round-flagged")),
+          session: { ...signedInAdmin, locale },
+          results: { _tag: "Loaded", result },
+          teamDetail: { _tag: "Loaded", detail: leadTeamDetail(decodeTeamId("team-1")) },
+          actions: { _tag: "Loaded", actions: [] },
+        });
+
+      it("draws an up arrow for a rise and explains the usual move", () => {
+        Scene.scene(
+          { update, view },
+          flaggedScene(flaggedResult("rise", 4.2)),
+          Scene.expect(Scene.text("Bigger change than usual for this team")).toExist(),
+          Scene.expect(Scene.selector('[data-direction="rise"] path')).toHaveAttr("d", "M6 11V4M3 7l3-3 3 3"),
+          Scene.expect(Scene.selector('[data-direction="drop"]')).toBeAbsent(),
+          Scene.expect(Scene.text("Usually moves about ±0.3 between Rounds")).toExist(),
+          Scene.expect(Scene.text("+0.7 since last Round (Nov 2, 2026)")).toExist(),
+        );
+      });
+
+      it("draws a down arrow for a drop", () => {
+        Scene.scene(
+          { update, view },
+          flaggedScene(flaggedResult("drop", 4.2)),
+          Scene.expect(Scene.selector('[data-direction="drop"] path')).toHaveAttr("d", "M6 1v7M3 5l3 3 3-3"),
+          Scene.expect(Scene.selector('[data-direction="rise"]')).toBeAbsent(),
+          Scene.expect(Scene.text("-0.7 since last Round (Nov 2, 2026)")).toExist(),
+        );
+      });
+
+      it("keeps the Actions heading in light text on its dark panel", () => {
+        // Stands in for an axe contrast check in light mode: ink text on evergreen would be invisible.
+        Scene.scene(
+          { update, view },
+          flaggedScene(flaggedResult("rise", 4.2)),
+          Scene.expect(Scene.role("heading", { name: "Actions" })).toHaveClass("text-white"),
+          Scene.expect(Scene.role("heading", { name: "Actions" })).not.toHaveClass("text-ink"),
+        );
+      });
+
+      it("formats scores, changes, Round dates and percentages in German", () => {
+        Scene.scene(
+          { update, view },
+          flaggedScene(flaggedResult("rise", 3.6), "de"),
+          Scene.expect(Scene.text("Runde vom 09.11.2026")).toExist(),
+          Scene.expect(Scene.text("4,0")).toExist(),
+          Scene.expect(Scene.text("3,6")).toExist(),
+          Scene.expect(Scene.text("+0,7 seit der letzten Runde (02.11.2026)")).toExist(),
+          Scene.expect(Scene.text("Bewegt sich zwischen Runden meist um etwa ±0,3")).toExist(),
+          Scene.expect(Scene.text("75\u00a0% Rücklaufquote (6 von 8)")).toExist(),
+        );
+      });
     });
 
     describe("Comment themes and discussion guide", () => {
@@ -2042,6 +2173,7 @@ describe("App Scenes", () => {
     });
     const rounds = {
       pulseId,
+      paused: false,
       rounds: [
         summary(scheduledId, "scheduled", "2026-11-16"),
         summary(openId, "open", "2026-11-09"),
@@ -2090,9 +2222,9 @@ describe("App Scenes", () => {
       roundRates: { [closedId]: 0.75 },
     });
 
-    const reload = () =>
+    const reload = (paused = false) =>
       Scene.Command.resolveAll(
-        [ListRoundsCmd, Message.GotRounds({ outcome: { _tag: "Success", list: rounds } })],
+        [ListRoundsCmd, Message.GotRounds({ outcome: { _tag: "Success", list: { ...rounds, paused } } })],
         [
           GetRoundDetailCmd,
           Message.GotRoundDetail({
@@ -2114,12 +2246,41 @@ describe("App Scenes", () => {
         { update, view },
         Scene.given(given("lead")),
         Scene.expect(Scene.role("heading", { name: "Rounds" })).toExist(),
-        Scene.expect(Scene.text("Round 2026-11-16")).toExist(),
+        Scene.expect(Scene.text("Round Nov 16, 2026")).toExist(),
         Scene.expect(Scene.text("Scheduled")).toExist(),
         Scene.expect(Scene.text("Open")).toExist(),
         Scene.expect(Scene.text("Closed")).toExist(),
         Scene.expect(Scene.text("75% response rate")).toExist(),
         Scene.expect(Scene.role("link", { name: "View Results" })).toExist(),
+      );
+    });
+
+    it("shows Pause Pulse and the running status for a Lead while the Pulse is active", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given(given("lead")),
+        Scene.expect(Scene.text("This Pulse is running.")).toExist(),
+        Scene.expect(Scene.role("button", { name: "Pause Pulse" })).toExist(),
+        Scene.expect(
+          Scene.text("Pausing cancels the Scheduled Round. An open Round runs to its end."),
+        ).toExist(),
+        Scene.expect(Scene.role("button", { name: "Resume Pulse" })).toBeAbsent(),
+      );
+    });
+
+    it("shows Resume Pulse and the paused status for a Lead while the Pulse is paused", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...given("lead"),
+          rounds: { _tag: "Loaded" as const, list: { ...rounds, paused: true } },
+        }),
+        Scene.expect(Scene.text("This Pulse is paused. No new Rounds are scheduled.")).toExist(),
+        Scene.expect(Scene.role("button", { name: "Resume Pulse" })).toExist(),
+        Scene.expect(
+          Scene.text("Pausing cancels the Scheduled Round. An open Round runs to its end."),
+        ).toBeAbsent(),
+        Scene.expect(Scene.role("button", { name: "Pause Pulse" })).toBeAbsent(),
       );
     });
 
@@ -2151,11 +2312,13 @@ describe("App Scenes", () => {
         Scene.click(Scene.role("button", { name: "Pause Pulse" })),
         Scene.Command.expectHas(PausePulseCmd),
         Scene.Command.resolve(PausePulseCmd, Message.RoundCommandDone({ outcome: { _tag: "Success" } })),
-        reload(),
+        reload(true),
+        Scene.expect(Scene.text("This Pulse is paused. No new Rounds are scheduled.")).toExist(),
         Scene.click(Scene.role("button", { name: "Resume Pulse" })),
         Scene.Command.expectHas(ResumePulseCmd),
         Scene.Command.resolve(ResumePulseCmd, Message.RoundCommandDone({ outcome: { _tag: "Success" } })),
-        reload(),
+        reload(false),
+        Scene.expect(Scene.text("This Pulse is running.")).toExist(),
       );
     });
 
@@ -2197,7 +2360,7 @@ describe("App Scenes", () => {
       Scene.scene(
         { update, view },
         Scene.given(given(null)),
-        Scene.expect(Scene.text("Round 2026-11-09")).toExist(),
+        Scene.expect(Scene.text("Round Nov 9, 2026")).toExist(),
         Scene.expect(Scene.role("button", { name: "Close early" })).toBeAbsent(),
         Scene.expect(Scene.role("button", { name: "Cancel Round" })).toBeAbsent(),
         Scene.expect(Scene.role("button", { name: "Skip this week" })).toBeAbsent(),
