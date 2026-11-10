@@ -49,6 +49,8 @@ export const SubmissionRoundContext = Schema.Struct({
   closeTime: Schema.Int,
   state: RoundStatus,
   hasAnswered: Schema.Boolean,
+  /** Whether the Organization processes redacted comments with AI (ADR 0015); the answer page says so. */
+  aiProcessing: Schema.Boolean,
 });
 export type SubmissionRoundContext = typeof SubmissionRoundContext.Type;
 

@@ -15,7 +15,11 @@ import {
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 
-const OrganizationRow = Schema.Struct({ name: Schema.String, minimum_group_size: Schema.Int });
+const OrganizationRow = Schema.Struct({
+  name: Schema.String,
+  minimum_group_size: Schema.Int,
+  ai_processing: Schema.Int,
+});
 const PersonRow = Schema.Struct({
   id: PersonId,
   email: EmailAddress,
@@ -43,9 +47,10 @@ const rows = <S extends Schema.Top & { readonly DecodingServices: never }>(schem
  */
 export const makeSqlDirectory = (sql: SqliteClient.SqliteClient, sends: SendStoreShape) => {
   const load: Effect.Effect<DirectoryState> = Effect.gen(function* () {
-    const [organization] = yield* sql`SELECT name, minimum_group_size FROM organization LIMIT 1`.pipe(
-      Effect.flatMap(rows(OrganizationRow)),
-    );
+    const [organization] =
+      yield* sql`SELECT name, minimum_group_size, ai_processing FROM organization LIMIT 1`.pipe(
+        Effect.flatMap(rows(OrganizationRow)),
+      );
     const people =
       yield* sql`SELECT id, email, workos_user_id, organization_admin, removed_at FROM person`.pipe(
         Effect.flatMap(rows(PersonRow)),
@@ -58,6 +63,7 @@ export const makeSqlDirectory = (sql: SqliteClient.SqliteClient, sends: SendStor
     return {
       organizationName: organization?.name ?? "",
       minimumGroupSize: organization?.minimum_group_size ?? DEFAULT_MINIMUM_GROUP_SIZE,
+      aiProcessing: organization?.ai_processing === 1,
       people: people.map((row) => ({
         id: row.id,
         email: row.email,
@@ -107,7 +113,8 @@ export const makeSqlDirectory = (sql: SqliteClient.SqliteClient, sends: SendStor
       case "MembershipEnded":
         return sql`UPDATE membership SET ended_at = ${change.at} WHERE id = ${change.membershipId}`;
       case "SettingsUpdated":
-        return sql`UPDATE organization SET minimum_group_size = ${change.minimumGroupSize}`;
+        return sql`UPDATE organization SET minimum_group_size = ${change.minimumGroupSize},
+          ai_processing = ${change.aiProcessing ? 1 : 0}`;
       case "EmailRequested":
         return sends.create(change.sendId, change.recipient, change.email);
     }

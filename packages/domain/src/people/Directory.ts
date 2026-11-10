@@ -49,6 +49,8 @@ export interface MembershipRecord {
 export interface DirectoryState {
   readonly organizationName: string;
   readonly minimumGroupSize: number;
+  /** Whether comments may be sent to the AI service (ADR 0015). Off by default. */
+  readonly aiProcessing: boolean;
   readonly people: ReadonlyArray<PersonRecord>;
   readonly teams: ReadonlyArray<TeamRecord>;
   readonly memberships: ReadonlyArray<MembershipRecord>;
@@ -98,7 +100,12 @@ export type DirectoryCommand =
     }
   | { readonly _tag: "RemovePerson"; readonly personId: PersonId }
   | { readonly _tag: "SetAdmin"; readonly personId: PersonId; readonly organizationAdmin: boolean }
-  | { readonly _tag: "UpdateSettings"; readonly minimumGroupSize: number };
+  /** Absent fields keep their current value. */
+  | {
+      readonly _tag: "UpdateSettings";
+      readonly minimumGroupSize?: number | undefined;
+      readonly aiProcessing?: boolean | undefined;
+    };
 
 /** A change to the Organization's own data, applied atomically with the others of a decision. */
 export type DirectoryChange =
@@ -110,7 +117,7 @@ export type DirectoryChange =
   | { readonly _tag: "TeamUpdated"; readonly team: TeamRecord }
   | { readonly _tag: "MembershipStarted"; readonly membership: MembershipRecord }
   | { readonly _tag: "MembershipEnded"; readonly membershipId: MembershipId; readonly at: number }
-  | { readonly _tag: "SettingsUpdated"; readonly minimumGroupSize: number }
+  | { readonly _tag: "SettingsUpdated"; readonly minimumGroupSize: number; readonly aiProcessing: boolean }
   /** Creates the send (idempotent per id) in the same transaction, through the send states. */
   | {
       readonly _tag: "EmailRequested";
@@ -438,7 +445,13 @@ export const decide = (
 
     case "UpdateSettings": {
       if (!can(allowed, "organization.updateSettings", organization)) return forbidden;
-      return accept([{ _tag: "SettingsUpdated", minimumGroupSize: command.minimumGroupSize }]);
+      return accept([
+        {
+          _tag: "SettingsUpdated",
+          minimumGroupSize: command.minimumGroupSize ?? state.minimumGroupSize,
+          aiProcessing: command.aiProcessing ?? state.aiProcessing,
+        },
+      ]);
     }
   }
 };
@@ -482,7 +495,11 @@ export const applyChanges = (
           ),
         };
       case "SettingsUpdated":
-        return { ...current, minimumGroupSize: change.minimumGroupSize };
+        return {
+          ...current,
+          minimumGroupSize: change.minimumGroupSize,
+          aiProcessing: change.aiProcessing,
+        };
       case "EmailRequested":
         return current;
     }
@@ -555,6 +572,7 @@ export const settingsView = (state: DirectoryState, actorId: PersonId): Viewed<O
     value: {
       name: state.organizationName,
       minimumGroupSize: state.minimumGroupSize,
+      aiProcessing: state.aiProcessing,
       people: activePeople(state)
         .map((person) => ({
           personId: person.id,

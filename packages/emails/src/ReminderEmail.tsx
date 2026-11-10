@@ -2,7 +2,15 @@ import type { ReminderEmailWithToken as ReminderEmailData } from "@surveybeat/do
 import { Link } from "react-email";
 import { Layout, textLayout } from "./Layout.tsx";
 import { message } from "./messages/index.ts";
-import { ActionRow, ActionsCard, BodyText, DisplayHeading, Notices, RatingRow } from "./Parts.tsx";
+import {
+  ActionRow,
+  ActionsCard,
+  BodyText,
+  DisplayHeading,
+  FooterNote,
+  Notices,
+  RatingRow,
+} from "./Parts.tsx";
 import { colors } from "./theme.ts";
 
 /** Legacy rows carry their own URL; otherwise it is built from the token. */
@@ -38,6 +46,7 @@ export function ReminderEmailComponent({ email }: { email: ReminderEmailData }) 
               </>
             }
           />
+          {email.aiProcessing === true && <FooterNote>{message("privacy.aiNotice")}</FooterNote>}
         </>
       }
     >
@@ -91,6 +100,7 @@ export const text = (email: ReminderEmailData): string => {
       ...actionLines,
       `${message("invitation.changeWhen")}: ${deliveryUrl}`,
       `${message("reminder.unsubscribe")}: ${unsubscribeUrl(email)}`,
+      ...(email.aiProcessing === true ? [message("privacy.aiNotice")] : []),
       message("invitation.personalNotice"),
     ],
     message("invitation.reason"),

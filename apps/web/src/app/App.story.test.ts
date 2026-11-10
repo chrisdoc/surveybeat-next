@@ -413,6 +413,7 @@ describe("App Stories", () => {
       const settings = {
         name: "Acme",
         minimumGroupSize: decodeSize(4),
+        aiProcessing: false,
         people: [
           {
             personId,

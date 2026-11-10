@@ -40,6 +40,7 @@ The Main Worker handles `/auth/login`, `/auth/callback`, and `/auth/logout` with
 | `WORKOS_API_KEY`, `WORKOS_CLIENT_ID` | The deploying shell's environment, bound as Worker secrets. In CI they are GitHub secrets: the `production` environment holds the SurveyBeat Production values, and every other stage falls back to the repository secrets, which hold the Staging values. |
 | `ORG_CREATION_ALLOWLIST` | `infra/org-creation-allowlist.yaml`, the emails that may create an Organization, keyed by stage with `default` for any stage not listed. `infra/alchemy.run.ts` reads it at deploy time and it wins over the shell; a missing file, an empty list, or a malformed email fails the deploy. Bound as a Worker secret, comma-separated. Emails match case-insensitively and only when WorkOS verified them. A change takes effect at the stage's next deploy. |
 | `WORKOS_COOKIE_PASSWORD` | Generated per stage by Alchemy (`Random`, 32 bytes as hex) and kept in its state. Destroying a stage discards it. |
+| `OPENROUTER_API_KEY` | Optional. The deploying environment's `OPENROUTER_API_KEY` (a GitHub secret in CI), bound as a Worker secret; empty when unset. AI features fail closed (`AiNotConfigured`) without it. Account settings and the EU-only routing are per ADR 0015. |
 
 **WorkOS environments.** `pr-*` and personal stages use **SurveyBeat Staging** (`environment_01M6TXKPTEY2HWYAEFC0XMMVB2`, AuthKit domain `straightforward-mouse-82-staging.authkit.app`). Production is **SurveyBeat Production** (`environment_01M6TXKQ8G5Q9ASGGJCQE1FAFH`). Staging has:
 

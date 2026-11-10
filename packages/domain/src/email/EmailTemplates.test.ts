@@ -43,6 +43,15 @@ describe("withToken", () => {
     }),
   );
 
+  it.effect("carries the AI processing flag through to the rendered email", () =>
+    Effect.gen(function* () {
+      const invited = yield* resolve({ ...invitationEmail, aiProcessing: true });
+      expect(invited).toMatchObject({ _tag: "InvitationEmail", aiProcessing: true });
+      const reminded = yield* resolve({ ...reminderEmail, aiProcessing: true });
+      expect(reminded).toMatchObject({ _tag: "ReminderEmail", aiProcessing: true });
+    }),
+  );
+
   it.effect("keeps the token of a row stored before tokens were derived", () =>
     Effect.gen(function* () {
       const legacy: InvitationEmailWithToken = {
@@ -76,6 +85,19 @@ describe("stored email schemas", () => {
     };
     expect(decodeStored(row)).toEqual(row);
     expect(() => decodeWritable(row)).toThrow();
+  });
+
+  it("decode rows stored before the AI processing flag existed, with no flag", () => {
+    const row = { _tag: "ReminderEmail", ...base, invitation };
+    expect(decodeStored(row)).toEqual(row);
+    expect(decodeWritable(row)).toEqual(row);
+    expect(decodeStored(row)).not.toHaveProperty("aiProcessing");
+  });
+
+  it("round-trip a row with the AI processing flag", () => {
+    const flagged = { ...invitationEmail, aiProcessing: true };
+    expect(decodeStored(flagged)).toEqual(flagged);
+    expect(decodeWritable(flagged)).toEqual(flagged);
   });
 
   it("round-trip a new row without a token", () => {

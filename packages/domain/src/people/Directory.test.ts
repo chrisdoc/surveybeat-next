@@ -22,6 +22,7 @@ const DAY = 86_400_000;
 const initial: DirectoryState = {
   organizationName: "Acme",
   minimumGroupSize: 4,
+  aiProcessing: false,
   people: [
     {
       id: ADMIN,
@@ -528,6 +529,38 @@ describe("the minimum group size", () => {
     expect(rejection(world.run(grace, { _tag: "UpdateSettings", minimumGroupSize: 5 }))).toBe("Forbidden");
     world.ok(ADMIN, { _tag: "UpdateSettings", minimumGroupSize: 5 });
     expect(settingsView(world.state, ADMIN)).toMatchObject({ value: { minimumGroupSize: 5 } });
+  });
+});
+
+describe("the AI processing setting", () => {
+  it("is off by default, only an admin changes it, and it leaves the minimum group size alone", () => {
+    const world = new World();
+    world.createTeam("Platform", "grace@example.com");
+    expect(settingsView(world.state, ADMIN)).toMatchObject({
+      value: { aiProcessing: false, minimumGroupSize: 4 },
+    });
+    const grace = world.personWith("grace@example.com");
+    expect(rejection(world.run(grace, { _tag: "UpdateSettings", aiProcessing: true }))).toBe("Forbidden");
+    expect(settingsView(world.state, ADMIN)).toMatchObject({ value: { aiProcessing: false } });
+
+    const turnedOn = world.ok(ADMIN, { _tag: "UpdateSettings", aiProcessing: true });
+    expect(turnedOn.changes).toEqual([{ _tag: "SettingsUpdated", minimumGroupSize: 4, aiProcessing: true }]);
+    expect(settingsView(world.state, ADMIN)).toMatchObject({
+      value: { aiProcessing: true, minimumGroupSize: 4 },
+    });
+  });
+
+  it("changing the minimum group size alone keeps the AI processing setting", () => {
+    const world = new World();
+    world.ok(ADMIN, { _tag: "UpdateSettings", aiProcessing: true });
+    world.ok(ADMIN, { _tag: "UpdateSettings", minimumGroupSize: 6 });
+    expect(settingsView(world.state, ADMIN)).toMatchObject({
+      value: { aiProcessing: true, minimumGroupSize: 6 },
+    });
+    world.ok(ADMIN, { _tag: "UpdateSettings", aiProcessing: false });
+    expect(settingsView(world.state, ADMIN)).toMatchObject({
+      value: { aiProcessing: false, minimumGroupSize: 6 },
+    });
   });
 });
 

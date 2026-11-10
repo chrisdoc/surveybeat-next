@@ -128,6 +128,10 @@ export const catalog = {
     "Results are shown only when at least this many people contributed. At least 3.",
   "settings.save": "Save",
   "settings.saved": "Saved.",
+  "settings.aiProcessing.title": "AI processing",
+  "settings.aiProcessing.label": "Turn on AI themes and discussion guides",
+  "settings.aiProcessing.help":
+    "When this is on, comments are sent to an AI service only after names, emails, phone numbers, handles and links are removed. The service runs in the EU (Google Cloud or Amazon Web Services, through OpenRouter) and keeps nothing. Members are told on the answer page and in their emails. Off by default.",
   "settings.people": "People",
   "settings.admin": "Organization admin",
   "settings.notSignedInYet": "hasn't signed in yet",
@@ -269,6 +273,8 @@ export const catalog = {
   "answer.loading": "Loading your question\u2026",
   "answer.anonymity":
     "Your lead only sees combined answers from at least {n} people, never who answered what. Your name is never stored with your answers.",
+  "answer.aiNotice":
+    "Comments are summarised by an AI service in the EU after names, emails, phone numbers, handles and links are removed. It keeps nothing.",
   "answer.comment.label": "Want to say more?",
   "answer.comment.hint": "Optional. Names, emails and links are removed.",
   "answer.comment.disclosure":

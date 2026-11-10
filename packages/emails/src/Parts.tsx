@@ -229,6 +229,18 @@ export function PrivacyPanel({ children }: { children: ReactNode }) {
   );
 }
 
+/** A small muted paragraph under the footer notices. */
+export function FooterNote({ children }: { children: ReactNode }) {
+  return (
+    <Text
+      className="sb-muted"
+      style={{ color: colors.muted, fontSize: "12px", lineHeight: "19px", margin: "12px 8px 0" }}
+    >
+      {children}
+    </Text>
+  );
+}
+
 /** Small muted notices under the cards: personal link, change-delivery link, optional extras. */
 export function Notices({ deliveryUrl, extra }: { deliveryUrl: string; extra?: ReactNode }) {
   return (

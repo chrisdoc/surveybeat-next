@@ -41,6 +41,7 @@ async function main() {
             roundId: "round-test-1",
             pulseName: "Weekly Pulse",
             minimumGroupSize: 4,
+            aiProcessing: false,
             questions: [
               {
                 id: "q-1",

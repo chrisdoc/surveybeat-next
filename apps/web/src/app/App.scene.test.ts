@@ -51,6 +51,7 @@ import {
   update,
   UpdateActionCmd,
   UpdatePulseSettingsCmd,
+  UpdateAiProcessing,
   UpdateSettings,
   UpdateTeam,
   view,
@@ -332,6 +333,7 @@ describe("App Scenes", () => {
       const settings = {
         name: "Acme",
         minimumGroupSize: decodeSize(4),
+        aiProcessing: false,
         people: [
           {
             personId,
@@ -364,6 +366,52 @@ describe("App Scenes", () => {
             outcome: {
               _tag: "Success",
               settings: { ...settings, minimumGroupSize: decodeSize(5) },
+            },
+          }),
+        ),
+      );
+    });
+  });
+
+  describe("AI processing setting", () => {
+    it("turns AI processing on and reloads the settings", () => {
+      const personId = decodePersonId("person-1");
+      const settings = {
+        name: "Acme",
+        minimumGroupSize: decodeSize(4),
+        aiProcessing: false,
+        people: [
+          {
+            personId,
+            email: decodeEmail("alice@acme.com"),
+            organizationAdmin: false,
+            linked: true,
+          },
+        ],
+      };
+
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(makeUrl("https://app.surveybeat.com/settings")),
+          session: signedInAdmin,
+          settings: { _tag: "Loaded", settings },
+          size: "4",
+        }),
+        Scene.expect(Scene.text("AI processing")).toExist(),
+        Scene.click(Scene.role("checkbox", { name: "Turn on AI themes and discussion guides" })),
+        Scene.Command.expectHas(UpdateAiProcessing),
+        Scene.Command.resolve(
+          UpdateAiProcessing,
+          Message.UpdatedAiProcessing({ outcome: { _tag: "Success" } }),
+        ),
+        Scene.Command.expectHas(GetSettings),
+        Scene.Command.resolve(
+          GetSettings,
+          Message.GotSettings({
+            outcome: {
+              _tag: "Success",
+              settings: { ...settings, aiProcessing: true },
             },
           }),
         ),

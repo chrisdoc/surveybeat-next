@@ -48,6 +48,7 @@ const membership = (personId: PersonId, role: "lead" | "member", teamId = team) 
 const directory: DirectoryState = {
   organizationName: "Acme",
   minimumGroupSize: 4,
+  aiProcessing: false,
   people: [person(admin, true), person(lead), person(member)],
   teams: [
     { id: team, name: "Platform", timeZone: TimeZone.make("Europe/Berlin") },

@@ -21,6 +21,7 @@ export const SubmissionRoundContext = Schema.Struct({
   closeTime: Schema.Int,
   state: Schema.String,
   hasAnswered: Schema.Boolean,
+  aiProcessing: Schema.Boolean,
 });
 
 const decode = Schema.decodeUnknownOption(SubmissionRoundContext);
