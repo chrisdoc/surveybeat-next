@@ -371,6 +371,90 @@ export const de = {
   "settings.defaultLanguage": "Standardsprache",
   "settings.defaultLanguage.help":
     "Wird für Personen verwendet, die keine Sprache gewählt haben und deren Browsersprache SurveyBeat nicht anbietet, sowie für ihre E-Mails.",
+  "site.title": "SurveyBeat · Anonyme Team-Check-ins per E-Mail",
+  "site.description":
+    "Kurze, regelmäßige Check-ins für Teams. Die erste Frage beantwortet man mit einem Klick direkt aus der E-Mail, und die Teamleitung sieht das gemeinsame Ergebnis, sobald mindestens 4 Personen geantwortet haben.",
+  "site.skip": "Zum Inhalt springen",
+  "site.nav.label": "Hauptmenü",
+  "site.nav.loop": "So funktioniert's",
+  "site.nav.privacy": "Anonymität",
+  "site.nav.results": "Ergebnisse",
+  "site.signIn": "Anmelden",
+  "site.start": "Pulse starten",
+  "site.hero.eyebrow": "Team-Check-ins für Teamleitungen",
+  "site.hero.title": "Kurze, anonyme Check-ins für dein Team",
+  "site.hero.lede":
+    "Du richtest einen Pulse einmal ein. In jeder Runde bekommt dein Team 3 bis 7 Fragen per E-Mail und beantwortet die erste mit einem Klick. Das gemeinsame Ergebnis siehst du, sobald mindestens 4 Personen geantwortet haben.",
+  "site.hero.privacyLink": "Lies, was privat bleibt",
+  "site.mock.label": "Eine Runde in SurveyBeat: die Einladungs-E-Mail und das Ergebnis",
+  "site.mock.from": "SurveyBeat · Wöchentlicher Team-Check",
+  "site.mock.question": "Wie gut ließ sich dein Arbeitspensum diese Woche bewältigen?",
+  "site.mock.low": "Nicht zu bewältigen",
+  "site.mock.high": "Sehr gut zu bewältigen",
+  "site.mock.anonymity": "Anonym. Dein Name wird nie zusammen mit deinen Antworten gespeichert.",
+  "site.mock.result": "Arbeitspensum",
+  "site.mock.answered": "7 von 8 haben geantwortet",
+  "site.mock.change": "+0,4 seit der letzten Runde",
+  "site.mock.theme": "Zu viele Meetings am Montag",
+  "site.mock.themeLabel": "Thema aus Kommentaren",
+  "site.loop.title": "Eine Runde in vier Schritten",
+  "site.loop.lede":
+    "Jeder Teil von SurveyBeat dient einem dieser Schritte. Die meisten Tools hören nach dem dritten auf.",
+  "site.loop.ask.title": "Fragen",
+  "site.loop.ask.body":
+    "Starte mit der Vorlage „Wöchentlicher Team-Check“ und wähle Tag und Uhrzeit. Der Pulse öffnet jede Runde von selbst, und der Editor warnt, wenn er mehr als 7 Fragen bekommt.",
+  "site.loop.answer.title": "Antworten",
+  "site.loop.answer.body":
+    "Jede Bewertung in der E-Mail ist ein Link. Ein Klick öffnet die Antwortseite mit diesem Wert, und er zählt, sobald die Person ihn bestätigt. Ohne Anmeldung, auch am Handy.",
+  "site.loop.understand.title": "Verstehen",
+  "site.loop.understand.body":
+    "Jede Zahl zeigt, auf wie vielen Antworten sie beruht. Trends umfassen die letzten 12 Runden, und Kommentare werden zu Themen zusammengefasst, die umschreiben und nie zitieren.",
+  "site.loop.act.title": "Handeln",
+  "site.loop.act.body":
+    "Vereinbart eine Maßnahme mit verantwortlicher Person und Termin. Die nächste Runde zeigt sie dem Team, damit alle sehen, was sich durch ihre Antworten geändert hat.",
+  "site.privacy.title": "Anonym heißt: kein Name, keine Uhrzeit",
+  "site.privacy.lede":
+    "Diese Regeln stecken in der Art, wie Antworten gespeichert werden. Sie sind keine nachträgliche Schicht, und die Antwortseite nennt sie vor der ersten Frage in einfachen Worten.",
+  "site.privacy.storage.title": "Nichts zurückzuverfolgen",
+  "site.privacy.storage.body":
+    "Eine anonyme Einsendung enthält ihre Runde und ihre Antworten. Sie trägt keine Person und keine Zeitangabe, es gibt also nichts, womit sich abgleichen ließe, wer wann geantwortet hat.",
+  "site.privacy.groupSize.title": "Nichts unter 4 Antworten",
+  "site.privacy.groupSize.body":
+    "Jeder Durchschnitt, jedes Diagramm und jedes Thema wartet, bis mindestens 4 Personen geantwortet haben. Deine Organisation kann die Zahl erhöhen, aber nie unter 3 setzen.",
+  "site.privacy.redaction.title": "Kommentare zuerst geschwärzt",
+  "site.privacy.redaction.body":
+    "Namen von Personen deiner Organisation, E-Mail-Adressen, Telefonnummern und Links werden entfernt, bevor ein Kommentar gespeichert wird. Der Originaltext wird nie aufbewahrt.",
+  "site.privacy.admins.title": "Admins sehen keine Ergebnisse",
+  "site.privacy.admins.body":
+    "Wer die Organisation verwaltet, sieht dadurch keine Ergebnisse, Kommentare oder Maßnahmen eines Teams. Die sehen nur die Mitglieder des Teams.",
+  "site.results.title": "Ergebnisse, über die ein Team reden kann",
+  "site.results.lede":
+    "Wenn eine Runde endet, bekommt die Teamleitung ein Bild vom Team statt einer Tabelle, und alles, was sie für ein kurzes Gespräch darüber braucht.",
+  "site.results.themes.title": "Themen aus Kommentaren",
+  "site.results.themes.body":
+    "Bis zu 5 Themen, jedes mit kurzem Titel und einem neutralen Satz, gestützt auf mindestens zwei Kommentare.",
+  "site.results.guide.title": "Ein Gesprächsleitfaden",
+  "site.results.guide.body":
+    "Fragen für das Teamgespräch, vorbereitet aus dem Ergebnis. Nur die Teamleitung sieht ihn.",
+  "site.results.note.title": "Die Notiz der Teamleitung",
+  "site.results.note.body":
+    "Ein paar Zeilen der Teamleitung dazu, was das Team gehört hat und was als Nächstes passiert, geteilt mit allen.",
+  "site.results.actions.title": "Maßnahmen, die wiederkommen",
+  "site.results.actions.body":
+    "Jede Maßnahme hat eine verantwortliche Person, einen Termin und einen Status und taucht in der nächsten Runde wieder auf.",
+  "site.mock.results.label": "Das Ergebnis einer abgeschlossenen Runde",
+  "site.mock.results.round": "Runde 12 · abgeschlossen",
+  "site.mock.results.dim.safety": "Offen sprechen",
+  "site.mock.results.dim.clarity": "Prioritäten",
+  "site.mock.results.dim.recognition": "Wertschätzung",
+  "site.mock.results.n": "n = 7",
+  "site.mock.results.action": "Planungsmeeting auf Dienstag verlegen",
+  "site.mock.results.actionMeta": "Verantwortlich: Teamleitung · bis Freitag",
+  "site.close.title": "Starte deine erste Runde diese Woche",
+  "site.close.lede":
+    "SurveyBeat gibt es auf Deutsch und Englisch. Melde dich mit deiner Arbeits-E-Mail an und starte mit der Vorlage.",
+  "site.footer.copyright": "© 2026 SurveyBeat",
+  "site.footer.language": "Sprache",
 } as const satisfies Translation;
 
 // Fails to compile, naming the key, when a German string's {placeholders} differ from English.

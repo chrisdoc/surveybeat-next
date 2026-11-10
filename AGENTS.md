@@ -1,6 +1,6 @@
 # SurveyBeat
 
-Cloudflare-only Effect app. One Durable Object per Organization is the system of record; D1 holds only the global index and auth/email bookkeeping, never survey content. Two Workers serve the app/API (`MainWorker`) and the answer page's submission path (`SubmissionWorker`).
+Cloudflare-only Effect app. One Durable Object per Organization is the system of record; D1 holds only the global index and auth/email bookkeeping, never survey content. Three Workers serve the app/API (`MainWorker`), the answer page's submission path (`SubmissionWorker`), and the static landing page (`SiteWorker`, ADR 0020).
 
 Read `SPEC.md` (authoritative spec), `GLOSSARY.md` (domain vocabulary), and `docs/adr/` (binding decisions) before changing behavior. `docs/infra.md` covers stages, WorkOS sign-in, email, and observability.
 
@@ -34,7 +34,7 @@ CI runs `typecheck:effect`, `typecheck`, `format:check`, `lint`, `test`, then th
 - `packages/domain` — Effect schemas and services by concept (`people/`, `email/`); depends only on `effect`.
 - `packages/api` — the `HttpApi` declaration shared by the Worker and the typed web client; depends on `domain`.
 - `packages/cloudflare` — all Cloudflare adapters plus the `MainWorker` and `SubmissionWorker` entries; the only package that touches the Alchemy runtime.
-- `apps/web` — one Vite project with two entries: the Foldkit app (`index.html`) and the plain-TypeScript answer page (`answer.html`).
+- `apps/web` — one Vite project with two entries, the Foldkit app (`index.html`) and the plain-TypeScript answer page (`answer.html`), plus a separate build (`vite.site.config.ts`) that prerenders the landing page (`site.html`, `src/site/`) into `dist-site`.
 - `packages/emails` — React Email templates and rendering. `packages/testing` — privacy harness. `infra` — Alchemy stack, scripts, Playwright e2e, privacy sweep. `tools/oxlint-plugin-surveybeat` — local lint rules.
 
 ## Toolchain traps
