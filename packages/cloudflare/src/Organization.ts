@@ -2258,13 +2258,6 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
               Effect.catchTag("RoundNotOpen", () => Effect.succeed({ _tag: "RoundNotOpen" as const })),
             );
           }),
-        getMyAnswers: (editKeyHash: string) =>
-          rounds.getMyAnswers(editKeyHash).pipe(
-            Effect.map((answers) => ({ _tag: "Success" as const, answers })),
-            Effect.catchTag("SubmissionNotFound", () =>
-              Effect.succeed({ _tag: "SubmissionNotFound" as const }),
-            ),
-          ),
         deleteParticipationForPerson: (personId: string) =>
           rounds.deleteParticipationForPerson(PersonId.make(personId)),
 
