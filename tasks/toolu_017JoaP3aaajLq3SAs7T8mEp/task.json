@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_017JoaP3aaajLq3SAs7T8mEp",
+  "agent_id": "aef0d1b43a03944ee",
+  "subagent_type": "scoper",
+  "task_description": "Scope bilingual Template",
+  "token_usage": {
+    "input_tokens": 24,
+    "cache_creation_tokens": 56830,
+    "cache_read_tokens": 392883,
+    "output_tokens": 6995,
+    "api_call_count": 12
+  },
+  "started_at": "2026-11-10T09:25:17.56836054Z",
+  "completed_at": "2026-11-10T09:57:23.451994152Z"
+}

@@ -1,0 +1,25 @@
+Act as the implementation sub-agent for this task.
+
+You orchestrate Release 2 slice #111 ("R2 10: Bilingual Template and German redaction") in chrisdoc/surveybeat-next. You are the Opus orchestrator; THIS TASK EXPLICITLY ASKS YOU TO USE SUBAGENTS: `scoper` (model "haiku"), `implementer` (model "haiku") writes all code, `reviewer` (model "sonnet") reviews each implementer diff. Follow ~/.claude/CLAUDE.md: scope → you write the plan and small, exact, file-owned briefs → implementer → reviewer → you check the diff and run the full suite.
+
+Read first: `gh issue view 111`, docs/adr/0018-german-localization.md, docs/adr/0009-comments-redacted-at-store-time.md, AGENTS.md, GLOSSARY.md. German landed in PR #113: `Locale` domain module, `de.ts` catalogs, Person/Organization language, `session.locale` in the app. Template lives in packages/domain/src/pulses/Template.ts ("Template's text in code never changes a Pulse"); redaction in the domain `redact` function (find it; table + property tests exist).
+
+Decisions (don't relitigate): the weekly team health Template carries its Questions, labels, and choice options in English and German; a new Pulse copies them in the Lead's language (from the creating Person's resolved locale); existing Pulses are unchanged; Template keys stay the same. German wording: informal "du", product nouns per ADR 0018 (Pulse and Team stay English; Runde, Teamleitung). Draft German Question texts yourself, natural and neutral (they are survey questions — keep the scales' meaning identical), and note in the PR that the product owner reviews them. Redaction recognises German phone formats (+49 / 0049 / leading 0 prefixes; spaces, slashes, dashes, parentheses; mobile 015x/016x/017x and landline area codes) with table tests, without regressing existing cases or over-matching dates/years/plain numbers (add negative cases such as "12.11.2026", "2026", "Raum 3/12").
+
+Workflow: branch `r2-111-template-de` from origin/main. Validation: pnpm typecheck, pnpm typecheck:effect, pnpm lint, pnpm format:check, pnpm test, pnpm test:privacy, pnpm --filter @surveybeat/web build. Commit (subject "R2 10: Bilingual Template and German redaction", end with "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"), push (retry once if rejected without reason), PR with "Closes #111. Part of #101.", summary, verification, a note that German Question wording awaits the product owner's review, body ending "🤖 Generated with [Claude Code](https://claude.com/claude-code)" (restore attribution if the shipper drops it). Wait for checks (`gh pr checks <n> --watch`), fix failures, squash-merge your own PR (user-authorized): `gh pr merge <n> --squash --delete-branch`. Others work in parallel (#103, #105, #108); rebase on conflicts keeping both sides; force-push only your branch.
+
+Final report (≤ 10 lines): what was built, deviations, reviewer findings and handling, test counts, PR URL, merge SHA.
+
+---
+
+<task-notification>
+<task-id>aef0d1b43a03944ee</task-id>
+<tool-use-id>toolu_017JoaP3aaajLq3SAs7T8mEp</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-4489afcd-9256957e8ff1b83e/930bf514-4be3-4546-8b66-4019a45d831f/tasks/aef0d1b43a03944ee.output</output-file>
+<status>completed</status>
+<summary>Agent "Scope bilingual Template" stopped at its 12-turn limit (partial result; SendMessage to task-id to continue)</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>NOTE: this agent stopped at its 12-turn limit before finishing. It was still calling tools and had produced no report. Send the agent a message (SendMessage) to let it continue from where it stopped.
+</result>
+<usage><subagent_tokens>57625</subagent_tokens><tool_uses>12</tool_uses><duration_ms>53756</duration_ms></usage>
+</task-notification>
