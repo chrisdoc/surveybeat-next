@@ -22,7 +22,15 @@ import {
 import { Option, Predicate, Schema } from "effect";
 import type { Html, HtmlBuilder } from "foldkit/html";
 import { defineTaggedUnion } from "foldkit/schema";
-import { formatDate, message, pluralMessage } from "../messages/locale.ts";
+import {
+  formatChange,
+  formatDate,
+  formatPercent,
+  formatRoundDate,
+  formatScore,
+  message,
+  pluralMessage,
+} from "../messages/locale.ts";
 import { Failure, failureMessage } from "./api.ts";
 import { lineChart } from "./charts.ts";
 import { resultsSummary } from "./resultsSummary.ts";
@@ -111,57 +119,51 @@ export const trendTable = <Message>(
   return dataTable(
     [message("results.tableDate"), message("results.tableScore"), message("results.tableContributors")],
     points.map((p) => [
-      p.plannedOpenDate,
-      p.score !== null ? String(p.score) : message("results.dash"),
+      formatRoundDate(p.plannedOpenDate),
+      p.score !== null ? formatScore(p.score) : message("results.dash"),
       p.contributors !== undefined ? String(p.contributors) : message("results.dash"),
     ]),
     h,
   );
 };
 
-/** Hand-built SVG distribution bar chart. */
+/** Distribution bars, one row per option: the label on its own line, then a bar sized to the largest count. */
 export const distributionChart = <Message>(
   distribution: ReadonlyArray<DistributionOption>,
   h: HtmlBuilder<Message>,
 ): Html => {
   if (distribution.length === 0) return null;
   const maxCount = Math.max(...distribution.map((d) => d.count), 1);
-  const width = 300;
-  const barHeight = 20;
-  const gap = 8;
-  const height = distribution.length * (barHeight + gap);
 
-  const rects = distribution.map((d, idx) => {
-    const y = idx * (barHeight + gap);
-    const barW = Math.max((d.count / maxCount) * (width - 60), 2);
-    return h.g(
-      [],
-      [
-        h.rect([
-          h.X("40"),
-          h.Y(String(y)),
-          h.Width(String(barW)),
-          h.Height(String(barHeight)),
-          h.Rx("4"),
-          h.Class("fill-primary"),
-        ]),
-        h.text([h.X("10"), h.Y(String(y + barHeight - 4)), h.Class("fill-ink text-xs")], [String(d.option)]),
-        h.text(
-          [h.X(String(45 + barW)), h.Y(String(y + barHeight - 4)), h.Class("fill-muted text-xs")],
-          [String(d.count)],
-        ),
-      ],
-    );
-  });
-
-  return h.svg(
+  return h.div(
     [
-      h.ViewBox(`0 0 ${width} ${height}`),
-      h.Class("w-full max-w-xs overflow-hidden"),
+      h.Class("flex w-full max-w-xs flex-col gap-3"),
       h.Role("img"),
       h.AriaLabel(message("results.distributionTitle")),
     ],
-    rects,
+    distribution.map((d) =>
+      h.div(
+        [h.Class("flex flex-col gap-1")],
+        [
+          h.span([h.Class("text-sm break-words text-ink")], [String(d.option)]),
+          h.div(
+            [h.Class("flex items-center gap-3")],
+            [
+              h.div(
+                [h.Class("min-w-0 flex-1")],
+                [
+                  h.div([
+                    h.Class("h-5 rounded bg-primary"),
+                    h.Style({ width: `${(d.count / maxCount) * 100}%`, minWidth: "2px" }),
+                  ]),
+                ],
+              ),
+              h.span([h.Class("text-xs text-muted tabular-nums")], [String(d.count)]),
+            ],
+          ),
+        ],
+      ),
+    ),
   );
 };
 
@@ -178,7 +180,7 @@ export const distributionTable = <Message>(
     distribution.map((d) => [
       String(d.option),
       String(d.count),
-      `${total > 0 ? Math.round((d.count / total) * 100) : 0}%`,
+      formatPercent(total > 0 ? d.count / total : 0),
     ]),
     h,
   );
@@ -208,49 +210,75 @@ const protectionLine = <Message>(count: number, minimum: number, h: HtmlBuilder<
     ],
   );
 
-const highlightBadge = <Message>(highlight: Highlight | null, h: HtmlBuilder<Message>): Html => {
+const highlightArrows: Record<"rise" | "drop", string> = {
+  rise: "M6 11V4M3 7l3-3 3 3",
+  drop: "M6 1v7M3 5l3 3 3-3",
+};
+
+/** The brass badge for a larger-than-usual change; its explanation comes from the Team's typical change. */
+const highlightBadge = <Message>(
+  highlight: Highlight | null,
+  typical: TypicalChange | null,
+  h: HtmlBuilder<Message>,
+): Html => {
   if (highlight === null || !highlight.isLargerThanUsual) return null;
+  const direction = highlight.direction;
   return h.div(
     [h.Class("flex flex-wrap items-center gap-2")],
     [
       badge(
         "brass",
         [
-          h.svg(
-            [h.ViewBox("0 0 12 12"), h.Width("12"), h.Height("12"), h.AriaHidden(true)],
-            [
-              h.path([
-                h.D("M6 1v7M3 5l3 3 3-3"),
-                h.Fill("none"),
-                h.Class("stroke-brass"),
-                h.StrokeWidth("1.6"),
-                h.StrokeLinecap("round"),
-                h.StrokeLinejoin("round"),
-              ]),
-            ],
-          ),
+          direction === null
+            ? null
+            : h.svg(
+                [
+                  h.ViewBox("0 0 12 12"),
+                  h.Width("12"),
+                  h.Height("12"),
+                  h.AriaHidden(true),
+                  h.DataAttribute("direction", direction),
+                ],
+                [
+                  h.path([
+                    h.D(highlightArrows[direction]),
+                    h.Fill("none"),
+                    h.Class("stroke-brass"),
+                    h.StrokeWidth("1.6"),
+                    h.StrokeLinecap("round"),
+                    h.StrokeLinejoin("round"),
+                  ]),
+                ],
+              ),
           message("results.biggerChangeThanUsual"),
-        ],
+        ].filter(Predicate.isNotNull),
         h,
       ),
-      h.span([h.Class("text-sm text-muted")], [highlight.explanation]),
-    ],
+      typical?.status === "ready" && typical.typicalChange !== null
+        ? h.span(
+            [h.Class("text-sm text-muted")],
+            [message("results.highlight.usualMove", { change: formatScore(typical.typicalChange) })],
+          )
+        : null,
+    ].filter(Predicate.isNotNull),
   );
 };
 
 const changeView = <Message>(change: QuestionChange | null, h: HtmlBuilder<Message>): Html => {
   if (change === null || change.change === null || change.previousRoundDate === null) return null;
-  const d = change.previousRoundDate;
-  if (change.change > 0) {
+  const d = formatRoundDate(change.previousRoundDate);
+  // Branch on the one-decimal value shown, so a change of 0.04 reads "No change" rather than "+0.0".
+  const shown = Math.round(change.change * 10) / 10;
+  if (shown > 0) {
     return h.span(
       [h.Class("text-sm font-semibold tabular-nums")],
-      [message("results.changeRise", { change: String(change.change), date: d })],
+      [message("results.changeRise", { change: formatChange(change.change), date: d })],
     );
   }
-  if (change.change < 0) {
+  if (shown < 0) {
     return h.span(
       [h.Class("text-sm font-semibold tabular-nums")],
-      [message("results.changeDrop", { change: String(change.change), date: d })],
+      [message("results.changeDrop", { change: formatChange(change.change), date: d })],
     );
   }
   return h.span([h.Class("text-sm text-muted")], [message("results.noChange", { date: d })]);
@@ -330,10 +358,7 @@ const resultsLayout = <Message>(
                 [
                   statList(
                     [
-                      [
-                        message("results.stat.responseRate"),
-                        `${Math.round((result.responseRate ?? 0) * 100)}%`,
-                      ],
+                      [message("results.stat.responseRate"), formatPercent(result.responseRate ?? 0)],
                       [
                         message("results.stat.contributors"),
                         message("results.stat.ofEligible", {
@@ -680,7 +705,10 @@ export const resultsScreenView = <Message>(
   const children: Array<Html> = [
     h.a([h.Href(teamHref(result.teamId)), h.Class(linkClass)], [message("results.back")]),
     h.div([h.Class("mt-4")], [pageTitle(message("results.title"), h)]),
-    h.p([h.Class("text-muted")], [message("results.roundDate", { date: result.plannedOpenDate })]),
+    h.p(
+      [h.Class("text-muted")],
+      [message("results.roundDate", { date: formatRoundDate(result.plannedOpenDate) })],
+    ),
   ];
   if (isLead && result.status === "ready") {
     children.push(
@@ -847,9 +875,14 @@ export const resultsScreenView = <Message>(
                         h.div(
                           [h.Class("flex flex-wrap items-center gap-3 text-sm text-mint-text")],
                           [
-                            h.span([], [message("actions.ownerLabel", { owner: action.ownerEmail })]),
+                            action.ownerEmail.trim() !== ""
+                              ? h.span([], [message("actions.ownerLabel", { owner: action.ownerEmail })])
+                              : null,
                             action.dueDate !== null
-                              ? h.span([], [message("actions.dueLabel", { date: action.dueDate })])
+                              ? h.span(
+                                  [],
+                                  [message("actions.dueLabel", { date: formatRoundDate(action.dueDate) })],
+                                )
                               : null,
                             action.dimension !== null
                               ? badge("neutral", [dimensionName(action.dimension)], h)
@@ -965,7 +998,7 @@ export const resultsScreenView = <Message>(
     [
       darkPanel(
         [
-          sectionTitle(message("actions.title"), h),
+          sectionTitle(message("actions.title"), h, "onDark"),
           h.p([h.Class("mt-2 text-mint-text")], [message("actions.intro")]),
           h.div([h.Class("mt-6 flex flex-col gap-4")], actionsItems),
           commitForm,
@@ -1024,7 +1057,7 @@ export const resultsScreenView = <Message>(
             [h.Class("mt-1 text-sm text-muted")],
             [
               message("results.responseRate", {
-                rate: String(Math.round((result.responseRate ?? 0) * 100)),
+                rate: formatPercent(result.responseRate ?? 0),
                 responses: String(result.submissionsCount),
                 eligible: String(result.eligibleMembersCount),
               }),
@@ -1043,7 +1076,7 @@ export const resultsScreenView = <Message>(
       [h.Class("text-muted")],
       [
         message("results.responseRate", {
-          rate: String(Math.round((result.responseRate ?? 0) * 100)),
+          rate: formatPercent(result.responseRate ?? 0),
           responses: String(result.submissionsCount),
           eligible: String(result.eligibleMembersCount),
         }),
@@ -1070,7 +1103,10 @@ export const resultsScreenView = <Message>(
                   [h.Class("flex items-baseline justify-between gap-4")],
                   [
                     subSectionTitle(dimensionName(dim.dimension), h),
-                    scoreView(dim.score !== null ? String(dim.score) : message("results.subNPlaceholder"), h),
+                    scoreView(
+                      dim.score !== null ? formatScore(dim.score) : message("results.subNPlaceholder"),
+                      h,
+                    ),
                   ],
                 ),
                 dim.contributors !== undefined && dim.contributors !== null
@@ -1082,7 +1118,7 @@ export const resultsScreenView = <Message>(
                       )
                   : null,
                 changeView(dim.change, h),
-                highlightBadge(dim.change?.highlight ?? null, h),
+                highlightBadge(dim.change?.highlight ?? null, dim.typicalChange, h),
                 baselineNote(dim.typicalChange, h),
                 h.div(
                   [h.Class("mt-4 rounded-control bg-subtle p-4")],
@@ -1129,7 +1165,7 @@ export const resultsScreenView = <Message>(
                     subSectionTitle(q.text, h),
                     scoreView(
                       q.score !== null
-                        ? String(q.score)
+                        ? formatScore(q.score)
                         : q.meetsMinimumGroupSize
                           ? message("results.dash")
                           : message("results.subNQuestion", { n: String(minimum) }),
@@ -1144,7 +1180,7 @@ export const resultsScreenView = <Message>(
                       [pluralMessage("results.contributors", q.contributors)],
                     ),
                 changeView(q.change, h),
-                highlightBadge(q.change?.highlight ?? null, h),
+                highlightBadge(q.change?.highlight ?? null, q.typicalChange, h),
                 baselineNote(q.typicalChange, h),
                 // Distribution
                 q.distribution !== null && q.distribution.length > 0

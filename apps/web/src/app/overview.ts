@@ -1,7 +1,7 @@
 import { type ActionMarker, type DimensionOverview, type RoundId, TeamOverview } from "@surveybeat/domain";
 import type { Html, HtmlBuilder } from "foldkit/html";
 import { defineTaggedUnion } from "foldkit/schema";
-import { formatDate, message } from "../messages/locale.ts";
+import { formatDate, formatRoundDate, formatScore, message } from "../messages/locale.ts";
 import { Failure } from "./api.ts";
 import { type ChartPoint, lineChart, plotPercent } from "./charts.ts";
 import { dataTable, emptyState, panel, problemView, sectionTitle, subSectionTitle } from "./components.ts";
@@ -41,7 +41,7 @@ const markerText = (marker: ActionMarker): string =>
   });
 
 const tooltipBaseClass =
-  "pointer-events-none invisible absolute bottom-full z-10 mb-1 w-max max-w-xs whitespace-normal rounded-control bg-evergreen px-2 py-1 text-xs text-on-primary group-hover:visible group-focus-visible:visible group-focus:visible";
+  "pointer-events-none hidden absolute bottom-full z-10 mb-1 w-max max-w-[min(20rem,calc(100vw-2rem))] whitespace-normal rounded-control bg-evergreen px-2 py-1 text-xs text-on-primary group-hover:block group-focus-visible:block group-focus:block";
 
 /** Anchors the tooltip to the marker's left edge near the start of the axis, its right edge near the end, and centred otherwise. */
 const tooltipAnchor = (x: number): string => {
@@ -161,10 +161,10 @@ const roundsTable = <Message>(overview: TeamOverview, h: HtmlBuilder<Message>): 
   return dataTable(
     [message("overview.tableRoundDate"), ...overview.dimensions.map((d) => dimensionName(d.dimension))],
     overview.rounds.map((round) => [
-      round.plannedOpenDate,
+      formatRoundDate(round.plannedOpenDate),
       ...scoresByDimension.map((scores) => {
         const score = scores.get(round.roundId) ?? null;
-        return score !== null ? String(score) : message("overview.gap");
+        return score !== null ? formatScore(score) : message("overview.gap");
       }),
     ]),
     h,

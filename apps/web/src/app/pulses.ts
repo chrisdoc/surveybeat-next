@@ -437,7 +437,7 @@ export const pulseEditorView = <Message>(
           [
             h.p(
               [h.Class("font-medium")],
-              [message("pulse.question.number", { number: index + 1 }), question.text],
+              [message("pulse.question.numbered", { number: index + 1, text: question.text })],
             ),
             h.p(
               [h.Class("text-sm text-muted")],

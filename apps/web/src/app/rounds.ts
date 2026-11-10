@@ -10,7 +10,7 @@ import type { RoundDetail } from "@surveybeat/domain";
 import { Predicate, Schema } from "effect";
 import type { Html, HtmlBuilder } from "foldkit/html";
 import { defineTaggedUnion } from "foldkit/schema";
-import { formatDate, message } from "../messages/locale.ts";
+import { formatDate, formatPercent, formatRoundDate, message } from "../messages/locale.ts";
 import { Failure } from "./api.ts";
 import {
   appButton,
@@ -104,32 +104,35 @@ export const roundsScreenView = <Message>(
   const { rounds } = state.rounds.list;
 
   if (lead) {
+    const { paused } = state.rounds.list;
     children.push(
       h.div(
         [h.Class("mt-6 flex flex-col gap-3")],
         [
-          h.p([h.Class("text-muted")], [message("rounds.pauseHelp")]),
+          h.p([h.Class("font-medium")], [message(paused ? "rounds.status.paused" : "rounds.status.active")]),
+          paused ? null : h.p([h.Class("text-muted")], [message("rounds.pauseHelp")]),
           h.div(
             [h.Class("flex gap-4")],
             [
-              appButton(
-                {
-                  text: message("rounds.pause"),
-                  isDisabled: state.busy,
-                  className: linkButton,
-                  onClick: actions.onPause,
-                },
-                h,
-              ),
-              appButton(
-                {
-                  text: message("rounds.resume"),
-                  isDisabled: state.busy,
-                  className: linkButton,
-                  onClick: actions.onResume,
-                },
-                h,
-              ),
+              paused
+                ? appButton(
+                    {
+                      text: message("rounds.resume"),
+                      isDisabled: state.busy,
+                      className: linkButton,
+                      onClick: actions.onResume,
+                    },
+                    h,
+                  )
+                : appButton(
+                    {
+                      text: message("rounds.pause"),
+                      isDisabled: state.busy,
+                      className: linkButton,
+                      onClick: actions.onPause,
+                    },
+                    h,
+                  ),
             ],
           ),
           h.form(
@@ -154,7 +157,7 @@ export const roundsScreenView = <Message>(
               ),
             ],
           ),
-        ],
+        ].filter(Predicate.isNotNull),
       ),
     );
   }
@@ -184,7 +187,7 @@ export const roundsScreenView = <Message>(
               [
                 h.span(
                   [h.Class("font-semibold")],
-                  [message("rounds.round", { date: round.plannedOpenDate })],
+                  [message("rounds.round", { date: formatRoundDate(round.plannedOpenDate) })],
                 ),
                 badge(
                   round.status === "open" ? "primary" : "neutral",
@@ -197,7 +200,7 @@ export const roundsScreenView = <Message>(
             lead && hasResults(round) && rate !== undefined && rate !== null
               ? h.p(
                   [h.Class("text-sm text-muted")],
-                  [message("rounds.responseRate", { rate: String(Math.round(rate * 100)) })],
+                  [message("rounds.responseRate", { rate: formatPercent(rate) })],
                 )
               : null,
             lead && hasResults(round)

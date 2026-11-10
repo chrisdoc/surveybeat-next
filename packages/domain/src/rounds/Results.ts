@@ -41,8 +41,6 @@ export type DimensionTrendPoint = typeof DimensionTrendPoint.Type;
 export const Highlight = Schema.Struct({
   isLargerThanUsual: Schema.Boolean,
   direction: Schema.NullOr(Schema.Literals(["rise", "drop"])),
-  label: Schema.String,
-  explanation: Schema.String,
 });
 export type Highlight = typeof Highlight.Type;
 
@@ -297,14 +295,8 @@ export const evaluateHighlight = (change: number, typicalChangeVal: number): Hig
   const threshold = roundDecimals(2 * typicalChangeVal, 4);
   const isLarger = absChange >= threshold && absChange >= 0.3;
   const direction = change > 0 ? ("rise" as const) : change < 0 ? ("drop" as const) : null;
-  const roundedTypical = roundDecimals(typicalChangeVal, 1);
 
-  return {
-    isLargerThanUsual: isLarger,
-    direction,
-    label: "Bigger change than usual for this team",
-    explanation: `Usually moves about ±${roundedTypical.toFixed(1)} between rounds`,
-  };
+  return { isLargerThanUsual: isLarger, direction };
 };
 
 /** Fisher-Yates non-deterministic shuffle for unlinkability of comments (R4). */

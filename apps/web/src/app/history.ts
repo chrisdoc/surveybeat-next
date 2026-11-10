@@ -7,7 +7,7 @@ import {
 import { Schema } from "effect";
 import type { Html, HtmlBuilder } from "foldkit/html";
 import { defineTaggedUnion } from "foldkit/schema";
-import { formatDate, message } from "../messages/locale.ts";
+import { formatRoundDate, formatScore, message } from "../messages/locale.ts";
 import { Failure } from "./api.ts";
 import {
   appButton,
@@ -33,19 +33,15 @@ export type LoadedHistory = typeof LoadedHistory.Type;
 const isScaleValue = (value: number): value is 1 | 2 | 3 | 4 | 5 =>
   Number.isInteger(value) && value >= 1 && value <= 5;
 
-const scaleLabel = (value: 1 | 2 | 3 | 4 | 5): string => {
-  switch (value) {
-    case 1:
-      return message("answer.scale.1");
-    case 2:
-      return message("answer.scale.2");
-    case 3:
-      return message("answer.scale.3");
-    case 4:
-      return message("answer.scale.4");
-    case 5:
-      return message("answer.scale.5");
-  }
+/** The Question's own labels sit at 1 and 5; 2 to 4, and an end with no label, show the number alone. */
+const ratingText = (
+  value: 1 | 2 | 3 | 4 | 5,
+  lowLabel: string | undefined,
+  highLabel: string | undefined,
+): string => {
+  const label = value === 1 ? lowLabel : value === 5 ? highLabel : undefined;
+  if (label === undefined || label === "") return String(value);
+  return message("history.yours.rating", { value: String(value), label });
 };
 
 const nonEmpty = (text: string | undefined): string | undefined =>
@@ -62,7 +58,7 @@ const yourAnswer = (
       return {
         main:
           value !== undefined && isScaleValue(value)
-            ? message("history.yours.rating", { value: String(value), label: scaleLabel(value) })
+            ? ratingText(value, type.lowLabel, type.highLabel)
             : undefined,
         comment: nonEmpty(answer?.comment),
       };
@@ -99,7 +95,7 @@ const yourAnswerView = <Message>(
 
 const teamScoreText = (round: HistoryRound, question: HistoryQuestion): string => {
   if (question.teamScore !== null)
-    return message("history.team.score", { score: String(question.teamScore) });
+    return message("history.team.score", { score: formatScore(question.teamScore) });
   if (round.teamResult === "shown" && question.type._tag === "Rating") return message("history.team.hidden");
   return message("results.dash");
 };
@@ -152,8 +148,7 @@ const questionsTable = <Message>(
 };
 
 const roundView = <Message>(round: HistoryRound, kept: KeptAnswers, h: HtmlBuilder<Message>): Html => {
-  // Noon UTC keeps the calendar day the same in every time zone.
-  const date = formatDate(new Date(`${round.plannedOpenDate}T12:00:00Z`));
+  const date = formatRoundDate(round.plannedOpenDate);
   const note = teamResultNote(round.teamResult);
   return panel(
     [

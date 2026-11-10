@@ -552,7 +552,7 @@ export class MemoryOrganizations {
   readonly rounds = OrganizationRounds.of({
     run: (_organizationId, _actorId, _command, _now) => Effect.succeed({ _tag: "Accepted" }),
     rounds: (_organizationId, _actorId, _teamId, pulseId) =>
-      Effect.succeed({ _tag: "Viewed", value: { pulseId, rounds: [] } }),
+      Effect.succeed({ _tag: "Viewed", value: { pulseId, paused: false, rounds: [] } }),
     round: (_organizationId, _actorId, _teamId, _roundId) =>
       Effect.succeed({ _tag: "Rejected", rejection: { _tag: "RoundNotFound" } }),
     results: (_organizationId, _actorId, _teamId, _roundId) =>

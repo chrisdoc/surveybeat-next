@@ -106,8 +106,20 @@ export const pageTitle = <Message>(text: string, h: HtmlBuilder<Message>): Html 
     [text],
   );
 
-export const sectionTitle = <Message>(text: string, h: HtmlBuilder<Message>): Html =>
-  h.h2([h.Class("font-display text-[30px] leading-tight font-normal text-ink")], [text]);
+/** `onDark` is for a heading inside a `darkPanel`, where `text-ink` would be ink on evergreen. */
+export const sectionTitle = <Message>(
+  text: string,
+  h: HtmlBuilder<Message>,
+  tone: "default" | "onDark" = "default",
+): Html =>
+  h.h2(
+    [
+      h.Class(
+        `font-display text-[30px] leading-tight font-normal ${tone === "onDark" ? "text-white" : "text-ink"}`,
+      ),
+    ],
+    [text],
+  );
 
 export const subSectionTitle = <Message>(
   text: string,

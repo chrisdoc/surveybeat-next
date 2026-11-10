@@ -29,7 +29,7 @@ const dimension = (
           matchedQuestionCount: 1,
           currentQuestionCount: 1,
           annotation: null,
-          highlight: { isLargerThanUsual: true, direction: options.flagged, label: "", explanation: "" },
+          highlight: { isLargerThanUsual: true, direction: options.flagged },
         },
   typicalChange:
     options.baseline === true ? { ...ready, status: "buildingBaseline", completedUsableRounds: 3 } : ready,

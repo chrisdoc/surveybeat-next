@@ -1746,10 +1746,12 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
               return rejected;
             }
             const all = yield* rounds.getRoundsForPulse(pulseId);
+            const paused = yield* rounds.isPulsePaused(pulseId);
             const viewed: RoundViewed<RoundList> = {
               _tag: "Viewed",
               value: {
                 pulseId,
+                paused,
                 rounds: all.map((r): RoundSummary => ({
                   id: r.id,
                   pulseId: r.pulseId,

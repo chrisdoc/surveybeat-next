@@ -26,6 +26,14 @@ export interface Messages {
   readonly message: MessageFn;
   readonly pluralMessage: <B extends PluralKey>(base: B, count: number, params?: PluralParams<B>) => string;
   readonly formatDate: (date: Date, options?: Intl.DateTimeFormatOptions) => string;
+  /** A Dimension or Question score, one decimal place: "4.0", "3,6" in German. */
+  readonly formatScore: (score: number) => string;
+  /** A signed score change, one decimal place, with a sign on every non-zero value: "+0.5", "+0,5". */
+  readonly formatChange: (change: number) => string;
+  /** A ratio as a whole percentage: "75%", "75 %" in German. */
+  readonly formatPercent: (ratio: number) => string;
+  /** A `YYYY-MM-DD` Round date as a medium date; the input unchanged when it is not a date. */
+  readonly formatRoundDate: (isoDate: string) => string;
 }
 
 const isMessageKey = (table: Translation, key: string): key is MessageKey => Object.hasOwn(table, key);
@@ -34,6 +42,13 @@ const build = (locale: Locale): Messages => {
   const table = tables[locale];
   const pluralRules = new Intl.PluralRules(locale);
   const numberFormat = new Intl.NumberFormat(locale);
+  const scoreFormat = new Intl.NumberFormat(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  const changeFormat = new Intl.NumberFormat(locale, {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+    signDisplay: "exceptZero",
+  });
+  const percentFormat = new Intl.NumberFormat(locale, { style: "percent", maximumFractionDigits: 0 });
 
   function message<K extends KeysWithoutParams>(key: K): string;
   function message<K extends KeysWithParams>(key: K, params: Params<K>): string;
@@ -51,7 +66,34 @@ const build = (locale: Locale): Messages => {
     return new Intl.DateTimeFormat(locale, options).format(date);
   }
 
-  return { locale, message, pluralMessage, formatDate };
+  function formatScore(score: number): string {
+    return scoreFormat.format(score);
+  }
+
+  function formatChange(change: number): string {
+    return changeFormat.format(change);
+  }
+
+  function formatPercent(ratio: number): string {
+    return percentFormat.format(ratio);
+  }
+
+  function formatRoundDate(isoDate: string): string {
+    const date = new Date(`${isoDate}T12:00:00Z`);
+    if (Number.isNaN(date.getTime())) return isoDate;
+    return formatDate(date, { dateStyle: "medium", timeZone: "UTC" });
+  }
+
+  return {
+    locale,
+    message,
+    pluralMessage,
+    formatDate,
+    formatScore,
+    formatChange,
+    formatPercent,
+    formatRoundDate,
+  };
 };
 
 const cache = new Map<Locale, Messages>();
@@ -70,6 +112,10 @@ export let currentLocale: Locale = "en";
 export let message: Messages["message"] = messagesFor("en").message;
 export let pluralMessage: Messages["pluralMessage"] = messagesFor("en").pluralMessage;
 export let formatDate: Messages["formatDate"] = messagesFor("en").formatDate;
+export let formatScore: Messages["formatScore"] = messagesFor("en").formatScore;
+export let formatChange: Messages["formatChange"] = messagesFor("en").formatChange;
+export let formatPercent: Messages["formatPercent"] = messagesFor("en").formatPercent;
+export let formatRoundDate: Messages["formatRoundDate"] = messagesFor("en").formatRoundDate;
 
 /** Switches every later `message` call to `locale` and sets `<html lang>`. The browser app has one reader, so module state is safe here; Workers must use `messagesFor`. */
 export const setLocale = (locale: Locale): void => {
@@ -78,5 +124,9 @@ export const setLocale = (locale: Locale): void => {
   message = messages.message;
   pluralMessage = messages.pluralMessage;
   formatDate = messages.formatDate;
+  formatScore = messages.formatScore;
+  formatChange = messages.formatChange;
+  formatPercent = messages.formatPercent;
+  formatRoundDate = messages.formatRoundDate;
   if (typeof document !== "undefined") document.documentElement.lang = locale;
 };

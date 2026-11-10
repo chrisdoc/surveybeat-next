@@ -88,7 +88,7 @@ export const de = {
   "pulse.warning.TeamBelowMinimumGroupSize":
     "Dieses Team hat {members} Personen, weniger als die {minimumGroupSize}, die vor der Anzeige eines Ergebnisses nötig sind. Du kannst den Pulse trotzdem einrichten.",
   "pulse.questions": "Fragen",
-  "pulse.question.number": "{number}.",
+  "pulse.question.numbered": "{number}. {text}",
   "pulse.question.meta": "{type} · {dimension} · etwa {seconds} s",
   "pulse.question.up": "Nach oben",
   "pulse.question.down": "Nach unten",
@@ -177,11 +177,13 @@ export const de = {
   "rounds.status.shared": "Geteilt",
   "rounds.status.cancelled": "Abgebrochen",
   "rounds.dates": "{from} bis {to}",
-  "rounds.responseRate": "{rate} % Rücklaufquote",
+  "rounds.responseRate": "{rate} Rücklaufquote",
   "rounds.viewResults": "Ergebnisse ansehen",
   "rounds.skip": "Diese Woche überspringen",
   "rounds.skipDate.label": "Eine Woche überspringen (Datum, JJJJ-MM-TT)",
   "rounds.skipDate.action": "Woche überspringen",
+  "rounds.status.active": "Dieser Pulse läuft.",
+  "rounds.status.paused": "Dieser Pulse ist pausiert. Es werden keine neuen Runden geplant.",
   "rounds.pause": "Pulse pausieren",
   "rounds.resume": "Pulse fortsetzen",
   "rounds.pauseHelp": "Pausieren sagt die geplante Runde ab. Eine offene Runde läuft bis zu ihrem Ende.",
@@ -208,7 +210,7 @@ export const de = {
   "results.summary.steady": "Für dieses Team hat sich nichts stärker verändert als üblich.",
   "results.summary.baseline":
     "Dieses Team baut noch seine Ausgangswerte auf, deshalb wird noch keine Veränderung bewertet.",
-  "results.responseRate": "{rate} % Rücklaufquote ({responses} von {eligible})",
+  "results.responseRate": "{rate} Rücklaufquote ({responses} von {eligible})",
   "results.submissionCount.one": "{count} Einsendung",
   "results.submissionCount.other": "{count} Einsendungen",
   "results.openNotice":
@@ -220,7 +222,8 @@ export const de = {
   "results.buildingBaseline":
     "Ausgangswerte des Teams werden aufgebaut ({count} von {total} nutzbaren Runden)",
   "results.biggerChangeThanUsual": "Stärkere Veränderung als üblich für dieses Team",
-  "results.changeRise": "+{change} seit der letzten Runde ({date})",
+  "results.highlight.usualMove": "Bewegt sich zwischen Runden meist um etwa ±{change}",
+  "results.changeRise": "{change} seit der letzten Runde ({date})",
   "results.changeDrop": "{change} seit der letzten Runde ({date})",
   "results.noChange": "Keine Veränderung seit der letzten Runde ({date})",
   "results.contributors.one": "{count} beitragende Person",

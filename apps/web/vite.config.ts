@@ -77,19 +77,12 @@ const prerenderAnswer = (): Plugin => {
       const table: AnswerTranslation = ctx.path.endsWith("de/answer.html") ? answerDe : answerCatalog;
       const message = answerMessages(table);
 
-      const scaleKeys = [
-        "answer.scale.1",
-        "answer.scale.2",
-        "answer.scale.3",
-        "answer.scale.4",
-        "answer.scale.5",
-      ] as const;
-
-      const scale = scaleKeys
-        .map(
-          (key, idx) =>
-            `<label><input type="radio" name="q1" value="${idx + 1}"><span>${idx + 1} · ${message(key)}</span></label>`,
-        )
+      // Plain numbers here; main.ts fills the ends with the Question's own labels once the context arrives.
+      const scale = [1, 2, 3, 4, 5]
+        .map((value) => {
+          const id = value === 1 ? ' id="q1low"' : value === 5 ? ' id="q1high"' : "";
+          return `<label><input type="radio" name="q1" value="${value}"><span${id}>${value}</span></label>`;
+        })
         .join("");
 
       const body = `<main>

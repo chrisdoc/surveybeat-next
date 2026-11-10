@@ -79,8 +79,6 @@ describe("Typical change and highlights (Issue #4)", () => {
     const h1 = evaluateHighlight(-0.35, typical);
     assert.isTrue(h1.isLargerThanUsual);
     assert.strictEqual(h1.direction, "drop");
-    assert.strictEqual(h1.label, "Bigger change than usual for this team");
-    assert.strictEqual(h1.explanation, "Usually moves about ±0.2 between rounds");
 
     // change of -0.25: |-0.25| = 0.25 < 0.30 -> not highlighted
     const h2 = evaluateHighlight(-0.25, typical);

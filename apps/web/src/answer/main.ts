@@ -1,6 +1,7 @@
 import type { AnswerMessage } from "./answer-messages.ts";
 import { keepAnswer } from "./kept-answers.ts";
 import { anonymityStatement, type QuestionData, parseRoundContext } from "./round-context.ts";
+import { scaleText } from "./scale.ts";
 
 declare global {
   interface Window {
@@ -98,6 +99,24 @@ function showError(msg: string): void {
   }
 }
 
+/** A save that succeeds after a failed one clears the stale error. */
+function clearError(): void {
+  const err = document.getElementById("err");
+  if (err instanceof HTMLElement) {
+    err.hidden = true;
+    err.textContent = "";
+  }
+}
+
+function hideFormScreens(): void {
+  for (const id of ["screen-1", "remaining-screens", "screen-thanks"]) {
+    const el = document.getElementById(id);
+    if (el instanceof HTMLElement) {
+      el.hidden = true;
+    }
+  }
+}
+
 function showStateMessage(msg: string): void {
   const box = document.getElementById("state-message");
   if (box instanceof HTMLElement) {
@@ -107,29 +126,14 @@ function showStateMessage(msg: string): void {
     box.replaceChildren(p);
     box.hidden = false;
   }
-  const s1 = document.getElementById("screen-1");
-  if (s1 instanceof HTMLElement) {
-    s1.hidden = true;
-  }
-  const rem = document.getElementById("remaining-screens");
-  if (rem instanceof HTMLElement) {
-    rem.hidden = true;
-  }
-  const thanks = document.getElementById("screen-thanks");
-  if (thanks instanceof HTMLElement) {
-    thanks.hidden = true;
-  }
+  hideFormScreens();
 }
 
-type ScaleKey = "answer.scale.1" | "answer.scale.2" | "answer.scale.3" | "answer.scale.4" | "answer.scale.5";
-
-const scaleKeys: ReadonlyArray<ScaleKey> = [
-  "answer.scale.1",
-  "answer.scale.2",
-  "answer.scale.3",
-  "answer.scale.4",
-  "answer.scale.5",
-];
+/** For failures before the form can work (no token, failed exchange, unreadable context): the form is hidden. */
+function showFatalError(msg: string): void {
+  showError(msg);
+  hideFormScreens();
+}
 
 async function run(message: AnswerMessage): Promise<void> {
   document.title = message("answer.title");
@@ -167,7 +171,7 @@ async function run(message: AnswerMessage): Promise<void> {
   let exchangePromise = window.__exchangePromise;
   if (!exchangePromise) {
     if (token.length === 0) {
-      showError(message("answer.error"));
+      showFatalError(message("answer.error"));
       return;
     }
     exchangePromise = postJson(`${submitOrigin}/exchange`, { token });
@@ -176,18 +180,14 @@ async function run(message: AnswerMessage): Promise<void> {
   let rawContext: unknown;
   try {
     rawContext = await exchangePromise;
-  } catch (err: unknown) {
-    if (typeof err === "object" && err !== null && "status" in err && err.status === 404) {
-      showError(message("answer.error"));
-      return;
-    }
-    showError(message("answer.error"));
+  } catch {
+    showFatalError(message("answer.error"));
     return;
   }
 
   const context = parseRoundContext(rawContext);
   if (context === null) {
-    showError(message("answer.error"));
+    showFatalError(message("answer.error"));
     return;
   }
 
@@ -244,6 +244,17 @@ async function run(message: AnswerMessage): Promise<void> {
     if (q1text instanceof HTMLElement) {
       q1text.textContent = q1.text;
     }
+    // The ends of the scale carry the Question's own labels; the prerendered page shows plain numbers until now.
+    const lowLabel = q1.type._tag === "Rating" ? q1.type.lowLabel : undefined;
+    const highLabel = q1.type._tag === "Rating" ? q1.type.highLabel : undefined;
+    const q1low = document.getElementById("q1low");
+    if (q1low instanceof HTMLElement) {
+      q1low.textContent = scaleText(1, lowLabel, highLabel);
+    }
+    const q1high = document.getElementById("q1high");
+    if (q1high instanceof HTMLElement) {
+      q1high.textContent = scaleText(5, lowLabel, highLabel);
+    }
   }
 
   if (saveBtn instanceof HTMLButtonElement) {
@@ -271,6 +282,7 @@ async function run(message: AnswerMessage): Promise<void> {
         questionVersionId: q1 ? q1.id : "",
         value: ratingVal,
       });
+      clearError();
 
       // A test's answers stay out of the browser's kept answers, so member history never shows them (ADR 0017).
       if (q1 && !context.test) {
@@ -421,10 +433,7 @@ async function run(message: AnswerMessage): Promise<void> {
           });
 
           const span = document.createElement("span");
-          const scaleKey = scaleKeys[i - 1];
-          if (scaleKey !== undefined) {
-            span.textContent = `${i} · ${message(scaleKey)}`;
-          }
+          span.textContent = scaleText(i, q.type.lowLabel, q.type.highLabel);
           lbl.appendChild(radio);
           lbl.appendChild(span);
           scaleDiv.appendChild(lbl);
@@ -564,6 +573,7 @@ async function run(message: AnswerMessage): Promise<void> {
       questionVersionId,
       ...body,
     });
+    clearError();
     if (!context.test) {
       keepAnswer(() => window.localStorage, context.roundId, questionVersionId, body, Date.now());
     }
