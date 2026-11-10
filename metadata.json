@@ -1,0 +1,76 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "01M73C4P1W0QRW6Y89N8VVR1R5",
+  "strategy": "manual-commit",
+  "branch": "polish-143-bugs",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "apps/web/src/answer/budget.test.ts",
+    "apps/web/src/answer/main.ts",
+    "apps/web/src/answer/scale.test.ts",
+    "apps/web/src/answer/scale.ts",
+    "apps/web/src/answer/style.css",
+    "apps/web/src/app/App.scene.test.ts",
+    "apps/web/src/app/App.story.test.ts",
+    "apps/web/src/app/components.ts",
+    "apps/web/src/app/directory.ts",
+    "apps/web/src/app/history.ts",
+    "apps/web/src/app/overview.test.ts",
+    "apps/web/src/app/overview.ts",
+    "apps/web/src/app/pulses.ts",
+    "apps/web/src/app/results.ts",
+    "apps/web/src/app/resultsSummary.test.ts",
+    "apps/web/src/app/rounds.ts",
+    "apps/web/src/messages/answer.de.ts",
+    "apps/web/src/messages/answer.ts",
+    "apps/web/src/messages/catalog.ts",
+    "apps/web/src/messages/de.ts",
+    "apps/web/src/messages/locale.test.ts",
+    "apps/web/src/messages/locale.ts",
+    "apps/web/vite.config.ts",
+    "infra/tests/e2e/answer.spec.ts",
+    "packages/cloudflare/src/Organization.ts",
+    "packages/cloudflare/src/auth/testing.ts",
+    "packages/domain/src/rounds/Results.test.ts",
+    "packages/domain/src/rounds/Results.ts",
+    "packages/domain/src/rounds/Round.ts",
+    "packages/domain/src/rounds/Themes.test.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 74,
+    "cache_creation_tokens": 129297,
+    "cache_read_tokens": 3662446,
+    "output_tokens": 24860,
+    "api_call_count": 37,
+    "subagent_tokens": {
+      "input_tokens": 330,
+      "cache_creation_tokens": 442429,
+      "cache_read_tokens": 12544074,
+      "output_tokens": 138304,
+      "api_call_count": 165
+    }
+  },
+  "redaction": {
+    "replacements": 5,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 4,
+      "key_context": 1,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}

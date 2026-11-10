@@ -1,0 +1,109 @@
+Act as the implementation sub-agent for this task.
+
+You orchestrate issue #143 ("Polish A: bugs to fix before the first real Round") in chrisdoc/surveybeat-next. THIS TASK EXPLICITLY ASKS YOU TO USE SUBAGENTS: `implementer` (model "haiku") writes code, `reviewer` (model "sonnet") reviews each diff; use `scoper` (model "haiku") only if needed. Follow ~/.claude/CLAUDE.md: you write small, exact, file-owned briefs, check diffs, run suites. One implementer at a time; do git/GitHub steps yourself (rate limits).
+
+Read: `gh issue view 143` (decisions made — don't relitigate), the audit `docs/research/dashboard-ui-audit.md` (on main once PR #142 merges; until then `git fetch origin t3/wayfinder-issue-138 && git show FETCH_HEAD:docs/research/dashboard-ui-audit.md`) with its screenshots for B1–B12, AGENTS.md, ADR 0008 (answer page budget, per-locale pages), ADR 0018 (German). Components in apps/web/src/app/components.ts; messages in apps/web/src/messages (catalog.ts, de.ts, answer.ts, answer.de.ts, locale helpers).
+
+You may ship this as one PR or split into 2 (e.g. web app vs answer page) if diffs get large. All new copy in English and German. Tests: scene tests for B1/B2 and the localized formats in German; answer-page tests for the scale labels; a 390 px overflow assertion in the e2e axe pass (infra/tests/e2e).
+
+Workflow: branch(es) from origin/main (`polish-143-bugs`). Validation: pnpm typecheck, pnpm typecheck:effect, pnpm lint, pnpm format:check, pnpm test, pnpm test:privacy, web build + per-page answer budget test. Commit subject "Polish A: bugs before the first real Round", message ending "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"; PR "Closes #143. Part of #137.", body ending "🤖 Generated with [Claude Code](https://claude.com/claude-code)". Push (retry once if rejected without reason). If you can wait on checks, squash-merge when green (user-authorized); otherwise report pending. Rebase on origin/main before pushing; never revert others' merged work (#136 "Send me a test" is landing in parallel and touches the Pulse editor and answer page).
+
+Final report (≤ 10 lines): what was fixed per bug, deviations, reviewer findings, tests, PR URL(s), merge SHA or pending.
+
+---
+
+<task-notification>
+<task-id>af0d6e9bbac3f4906</task-id>
+<tool-use-id>toolu_01B8GzSM73QakqDkoXrbxnq5</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-c354501d-b07008ca06213de5/b28ff453-44b4-480d-83a4-96b4a1825b24/tasks/af0d6e9bbac3f4906.output</output-file>
+<status>completed</status>
+<summary>Agent "Review slice 1 diff" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>No blocking or major issues found. The 273 unit tests in `apps/web/src` and `packages/domain/src/rounds` pass, and `pnpm typecheck` is clean. I did not run lint or the privacy suite.
+
+**Acceptance criteria**
+- **B1:** `sectionTitle` takes an `onDark` tone that renders `text-white`, and the Actions panel uses it. A scene test checks the `text-white` class and the absence of `text-ink`.
+- **B2:** The arrow is drawn from `direction`: up for rise, down for drop, no icon when null. Scene tests cover rise and drop.
+- **B3:** Stored `RoundResult` payloads still decode. I removed `label` and `explanation` from `Highlight` and added no new required fields. As far as I know Effect `Schema.Struct` ignores excess properties on decode, but I did not confirm that for this version or run the SqlRounds decode path. `results.highlight.usualMove` exists in en and de with matching `{change}` placeholders. The German wording reads correctly.
+- **B4:**
+  - The four new helpers follow the live-binding pattern, including `setLocale`, and `locale.test.ts` covers them.
+  - Grep of `apps/web/src/app` found no remaining raw ISO dates, `String(score)` or hand-built `%` at the display sites. The trend table, overview rounds table, rounds list, history, results header and action due date are all converted.
+  - The `{rate}%` suffix is removed from both catalogs.
+  - The sign moved out of the `changeRise` string, and `formatChange` now supplies it.
+- **B7:** The owner span is dropped when `ownerEmail.trim() === ""`.
+- **B8:** The distribution chart is now a flex column with the label on its own line and a percentage-width bar. It stays within `max-w-xs` and wraps long labels, so it should not overflow 390 px. Whether the labels and bars no longer overlap is unverified by a render. The percentage `h.Style` width is the same inline-style pattern already used in `overview.ts:61`.
+- **Rules:** No `as` was added outside tests. All copy is in the catalogs, and the glossary terms are respected. No test was weakened; the removed assertions were only for the dropped `label` and `explanation` fields, and the date expectations were updated to the new format.
+
+**MINOR**
+1. `apps/web/src/messages/locale.ts`, `formatChange`: changes and scores are stored at two decimals (`roundDecimals(..., 2)` in `Results.ts` around lines 467 and 687). A change such as `0.04` now shows "+0.0 since last Round", and the code treats it as a rise because it is greater than zero. `0.25` shows "+0.3", which sits next to the 0.3 highlight threshold. Neither is a regression, since the spec asked for one decimal, but it can look odd. Consider showing "No change" when the change rounds to 0.0, for example by branching in `changeView` on `Number(change.toFixed(1)) === 0`.
+2. `apps/web/src/app/overview.ts:39` and `:178` (not in the acceptance criteria): Action marker dates still use `formatDate(new Date(marker.at))` with the browser's local time zone. That is localized, so it is not a raw-ISO leak. I left it alone as out of scope.</result>
+<usage><subagent_tokens>39920</subagent_tokens><tool_uses>7</tool_uses><duration_ms>67954</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>a87779cfe1f471ade</task-id>
+<tool-use-id>toolu_01AC22E3F7By3kG15wCjsNCn</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-c354501d-b07008ca06213de5/b28ff453-44b4-480d-83a4-96b4a1825b24/tasks/a87779cfe1f471ade.output</output-file>
+<status>completed</status>
+<summary>Agent "Review slice 2 diff" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>**Verdict: no BLOCKER or MAJOR findings.** Two MINOR items are listed below. I read the diffs and grepped the repo. I did not run the test suite or the e2e tests.
+
+What I checked and found fine:
+- **XSS:** `scaleText` output only ever goes into `textContent` (`main.ts` for `#q1low`/`#q1high` and the remaining-screen spans). The prerender in `vite.config.ts` interpolates only numeric values, so no label reaches `innerHTML`.
+- **Removed keys:** a repo-wide grep finds no remaining `answer.scale.*` references, and no remaining "Very poor", "Very good", "Sehr schlecht" or "Sehr gut" strings in any `.ts`, `.tsx` or `.md` file. That covers `packages/emails`, `infra` and the tests. The new `budget.test.ts` assertion also checks both prerendered shells, English and German.
+- **ADR 0007 / `#v=` preselect:** radio `name="q1"` and values 1–5 are unchanged in the prerender, so the email preselect is unaffected.
+- **Flash:** the prerender shows plain numbers and the labels are filled in when the context arrives. This is consistent with the Rating labels on the remaining screens and does not briefly show a wrong label.
+- **a11y:** the label wraps the input, so association is preserved. The legend and `q1text` handling are untouched, and the new span CSS is `min-width: 0` with `overflow-wrap: anywhere` to avoid overflow.
+- **German page:** only the generic scale strings were removed. The labels come from the Question itself, so nothing is left untranslated.
+- **B10 fatal paths:** the no-token, failed-exchange and unparsable-context paths all call `showFatalError`, which hides `screen-1`, `remaining-screens` and `screen-thanks`. The old 404 branch in `main.ts` was redundant, since both of its branches did the same thing. Hiding `screen-1` also hides the whole form, since the `q1` fieldset sits inside it.
+- **History:** `ratingText` in `history.ts` matches `scaleText` for 1, 5, plain numbers 2–4, and an empty or undefined label.
+
+**MINOR 1: stale error after a retried first save.**
+- **Where:** `apps/web/src/answer/main.ts`, `showError` at lines 94–99 and `doFirstSave` at lines 247–285.
+- **Problem:** nothing ever sets `#err.hidden = true` again (the grep shows only `err.hidden = false`). If the first save fails, `#err` shows and the button is re-enabled. If the retry then succeeds, "Something went wrong" stays visible above screen 2, because `#err` sits outside the screens. The same happens when a comment save fails and a later one succeeds. The form stays usable, but the page misleads the user.
+- **Fix:** add a `clearError()` that sets `hidden = true` and empties the text, and call it at the start of `doFirstSave` and `saveComment`.
+
+**MINOR 2: some tests are weaker than the requirement.**
+- **Where:** `apps/web/src/app/App.scene.test.ts` around line 639, and `infra/tests/e2e/answer.spec.ts`.
+- **Problem:**
+  - The History scene test checks only values 1, 3 and 5, and `Scene.text("3")` is a loose match. Add a stricter check, or at least values 2 and 4.
+  - It also does not cover a Question with an empty or missing label, which `scaleText.test.ts` covers only at the unit level.
+  - There is no e2e test for B10's "retryable failure after a failed first save keeps the form usable". The new e2e tests cover only no-token and a 404 exchange. One test with `/first-answer` stubbed to 500 would show the error, keep `#screen-1` visible and keep `#save` enabled. A second attempt that succeeds would also cover MINOR 1.
+- **Why it matters:** the retry requirement is not exercised, and the History assertions could pass without checking the plain-number rule.
+
+The 390 px overflow assertion sits after the axe pass in the same test, and the viewport is set before `goto`, so it measures the right layout.</result>
+<usage><subagent_tokens>31904</subagent_tokens><tool_uses>5</tool_uses><duration_ms>27082</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>a8df1669596af6356</task-id>
+<tool-use-id>toolu_01JzJyEDLuuFTZNK8zagMCaR</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-c354501d-b07008ca06213de5/b28ff453-44b4-480d-83a4-96b4a1825b24/tasks/a8df1669596af6356.output</output-file>
+<status>completed</status>
+<summary>Agent "Review slice 3 diff" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>No blocking or major issues found in slice 3. This was a read-only review of the diff; I ran no tests.
+
+**Checks against your brief**
+
+- **Constructors of `RoundList`:** there are only two. `Organization.ts` (viewRounds, around line 1670) now fills `paused` from `rounds.isPulsePaused(pulseId)`, and `auth/testing.ts:511` (MemoryOrganizations) sets `paused: false`. The `App.story.test.ts:802` fixture and the Rounds scene fixtures in `App.scene.test.ts` are also updated. `RoundFlow.ts`, `api/src/index.ts` and `App.ts` only reference the type or schema. The API test files don't build a `RoundList`.
+- **Persistence:** `RoundList` is never stored or decoded from storage. It exists only as the HTTP response (`api/src/index.ts:300`), as the Rounds model field in `App.ts:217`, and in tests. The new required `paused` field therefore breaks nothing persisted or cached. A new web client against an old server would fail to decode, but the Worker serves both from one deploy, so I'm not counting that.
+- **B6 tooltip:** `markerButton` in `overview.ts` is a real `&lt;button type="button"&gt;` with the `group` class, so it is focusable. `hidden` with `group-hover:block`, `group-focus:block` and `group-focus-visible:block` therefore works.
+  - Keyboard access: the button carries an `aria-label` with the same text, so a screen reader doesn't depend on the `display:none` tooltip span. The `role="tooltip"` span stays, and the new scene assertion checks the `hidden` class.
+  - Width: `max-w-[min(20rem,calc(100vw-2rem))]` caps the tooltip at the viewport width.
+- **B6 rows:** the Team roster `li` wraps, with `min-w-0 break-all` on the email. The Settings People rows wrap too.
+- **B9:** `pulse.question.numbered` is `"{number}. {text}"` in both `catalog.ts` and `de.ts`. The old `pulse.question.number` key is gone and nothing else references it.
+- **B12:** the Rounds screen shows `rounds.status.active` or `rounds.status.paused` and only the relevant Pause or Resume button. `RoundCommandDone` in `App.ts:2314` reloads the list through `ListRoundsCmd`, and the scenes cover both states plus the reload.
+- **German:** "Dieser Pulse läuft." and "Dieser Pulse ist pausiert. Es werden keine neuen Runden geplant." are correct.
+
+**MINOR**
+
+1. `apps/web/src/app/directory.ts`, around line 366: the Remove button is wrapped in a `div` with `flex flex-wrap gap-4`, but the div holds a single button. It does no harm. It is only worth dropping, or keeping for the follow-up buttons it seems to anticipate.
+2. `apps/web/src/app/overview.ts`, `tooltipBaseClass`: the `max-w` cap stops the tooltip being wider than the screen. For a marker in the middle of the axis, `left-1/2 -translate-x-1/2` can still push it a few pixels past the viewport edge while it is shown. This is a transient overflow on hover or focus only, so I would not fix it now.</result>
+<usage><subagent_tokens>31510</subagent_tokens><tool_uses>5</tool_uses><duration_ms>24141</duration_ms></usage>
+</task-notification>
