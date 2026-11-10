@@ -14,9 +14,11 @@ import {
   type RoundDetail,
   type RoundResult,
   type RoundSummary,
+  SendId,
   SendTime,
   TeamId,
   type TeamOverview,
+  type TestSendStatus,
   TemplateQuestionKey,
   TimeZone,
 } from "@surveybeat/domain";
@@ -48,6 +50,7 @@ import {
   ListTeams,
   LoadSession,
   localeOf,
+  PollTestSendCmd,
   Message,
   Navigate,
   PausePulseCmd,
@@ -87,6 +90,7 @@ const decodeTimeZone = Schema.decodeSync(TimeZone);
 const decodeEmail = Schema.decodeSync(EmailAddress);
 const decodeSize = Schema.decodeSync(MinimumGroupSize);
 const decodeSendTime = Schema.decodeSync(SendTime);
+const decodeSendId = Schema.decodeSync(SendId);
 
 const makeUrl = (str: string) => Option.getOrThrow(fromString(str));
 
@@ -756,6 +760,102 @@ describe("App Scenes", () => {
     });
   });
 
+  describe("Failed emails", () => {
+    const settings = {
+      name: "Acme",
+      minimumGroupSize: decodeSize(4),
+      aiProcessing: false,
+      defaultLocale: "en" as const,
+      people: [],
+    };
+    const failedAt = 1_800_000_000_000;
+
+    it("shows that no email has failed", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(makeUrl("https://app.surveybeat.com/settings")),
+          session: signedInAdmin,
+          settings: { _tag: "Loaded", settings },
+          size: "4",
+          failedEmails: { _tag: "Loaded", list: { emails: [] } },
+        }),
+        Scene.expect(Scene.role("heading", { name: "Failed emails" })).toExist(),
+        Scene.expect(Scene.text("No failed emails.")).toExist(),
+      );
+    });
+
+    it("lists each failed send with its kind, recipient, reason, code, and time", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(makeUrl("https://app.surveybeat.com/settings")),
+          session: signedInAdmin,
+          settings: { _tag: "Loaded", settings },
+          size: "4",
+          failedEmails: {
+            _tag: "Loaded",
+            list: {
+              emails: [
+                {
+                  sendId: decodeSendId("send-1"),
+                  kind: "TestInvitationEmail",
+                  recipient: decodeEmail("ada@acme.com"),
+                  reason: "rejected",
+                  code: "E_SENDER_NOT_VERIFIED",
+                  failedAt,
+                },
+                {
+                  sendId: decodeSendId("send-2"),
+                  kind: "ReminderEmail",
+                  recipient: decodeEmail("grace@acme.com"),
+                  reason: "unknown",
+                  code: null,
+                  failedAt,
+                },
+              ],
+            },
+          },
+        }),
+        Scene.expect(Scene.role("heading", { name: "Failed emails" })).toExist(),
+        Scene.expect(Scene.text("Test invitation")).toExist(),
+        Scene.expect(Scene.text("ada@acme.com")).toExist(),
+        Scene.expect(Scene.text("the email service refused it (E_SENDER_NOT_VERIFIED)")).toExist(),
+        Scene.expect(Scene.text("Reminder")).toExist(),
+        Scene.expect(Scene.text("grace@acme.com")).toExist(),
+        Scene.expect(Scene.text("the outcome is unknown")).toExist(),
+        Scene.expect(
+          Scene.text(formatDate(new Date(failedAt), { dateStyle: "medium", timeStyle: "short" })),
+        ).toExist(),
+        Scene.expect(Scene.text("No failed emails.")).toBeAbsent(),
+      );
+    });
+
+    it("shows a load failure as a short error line", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(makeUrl("https://app.surveybeat.com/settings")),
+          session: signedInAdmin,
+          settings: { _tag: "Loaded", settings },
+          size: "4",
+          failedEmails: { _tag: "Failed", failure: "Unavailable" },
+        }),
+        Scene.expect(Scene.role("heading", { name: "Failed emails" })).toExist(),
+        Scene.expect(Scene.text("Something went wrong. Try again in a moment.")).toExist(),
+      );
+    });
+
+    it("loads the failed emails when the settings screen opens", () => {
+      const result = update(
+        { ...initialModel(makeUrl("https://app.surveybeat.com/teams")), session: signedInAdmin },
+        Message.UrlChanged({ url: makeUrl("https://app.surveybeat.com/settings") }),
+      );
+      expect(result.model.failedEmails).toEqual({ _tag: "Loading" });
+      expect(result.commands?.map((command) => command.name)).toEqual(["GetSettings", "ListFailedEmails"]);
+    });
+  });
+
   describe("AI processing setting", () => {
     it("turns AI processing on and reloads the settings", () => {
       const personId = decodePersonId("person-1");
@@ -1019,7 +1119,27 @@ describe("App Scenes", () => {
       settingsReminders: detail.settings.reminders,
     });
 
-    it("sends the test to the sender and shows the address it went to", () => {
+    const sendId = decodeSendId("send-1");
+    /** Queue and read times of a send read `minutes` after it was queued (server clock). */
+    const waited = (minutes: number) => {
+      const queuedAt = 1_800_000_000_000;
+      return { queuedAt, checkedAt: queuedAt + minutes * 60_000 };
+    };
+    const polled = (state: TestSendStatus["state"], times = waited(0), id = sendId) =>
+      Message.PolledTestSend({ sendId: id, outcome: { _tag: "Success", status: { ...times, state } } });
+    const pollCmd = () => PollTestSendCmd({ teamId, pulseId, sendId });
+    /** Sends a test and lets the send succeed, so the editor's first status read is pending. */
+    const sentSteps = [
+      Scene.click(Scene.role("button", { name: "Send me a test" })),
+      Scene.Command.resolve(
+        SendTestInvitationCmd,
+        Message.SentTestInvitation({
+          outcome: { _tag: "Success", email: decodeEmail("ada@acme.com"), sendId, pulseId },
+        }),
+      ),
+    ];
+
+    it("sends the test to the sender, shows the address it went to, and checks its state", () => {
       Scene.scene(
         { update, view },
         Scene.given(editorModel()),
@@ -1029,11 +1149,124 @@ describe("App Scenes", () => {
         Scene.Command.resolve(
           SendTestInvitationCmd,
           Message.SentTestInvitation({
-            outcome: { _tag: "Success", email: decodeEmail("ada@acme.com") },
+            outcome: { _tag: "Success", email: decodeEmail("ada@acme.com"), sendId, pulseId },
           }),
         ),
-        Scene.expect(Scene.text("Test sent to ada@acme.com. Answers to a test are never saved.")).toExist(),
+        Scene.expect(
+          Scene.text("Test email to ada@acme.com requested. Answers to a test are never saved."),
+        ).toExist(),
+        Scene.expect(Scene.text("Queued…")).toExist(),
         Scene.expect(Scene.role("button", { name: "Send me a test" })).toBeEnabled(),
+        Scene.Command.expectHas(pollCmd()),
+        Scene.Command.resolve(pollCmd(), polled({ _tag: "Sent", sentAt: 1_800_000_000_000 })),
+      );
+    });
+
+    it("shows a queued test and checks it again", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given(editorModel()),
+        ...sentSteps,
+        Scene.Command.resolve(pollCmd(), polled({ _tag: "Queued", attempts: 0, lastCode: null })),
+        Scene.expect(Scene.text("Queued…")).toExist(),
+        Scene.Command.expectHas(pollCmd()),
+        Scene.Command.resolve(pollCmd(), polled({ _tag: "Sent", sentAt: 1_800_000_000_000 })),
+      );
+    });
+
+    it("says when a test has been queued for five minutes or more, and keeps checking", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given(editorModel()),
+        ...sentSteps,
+        Scene.Command.resolve(pollCmd(), polled({ _tag: "Queued", attempts: 0, lastCode: null }, waited(6))),
+        Scene.expect(
+          Scene.text("Still queued after 6 minutes. The email service may not be processing sends."),
+        ).toExist(),
+        Scene.Command.expectHas(pollCmd()),
+        Scene.Command.resolve(pollCmd(), polled({ _tag: "Sent", sentAt: 1_800_000_000_000 })),
+      );
+    });
+
+    it("shows that a test is being sent", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given(editorModel()),
+        ...sentSteps,
+        Scene.Command.resolve(pollCmd(), polled({ _tag: "Sending", attempt: 1 })),
+        Scene.expect(Scene.text("Sending…")).toExist(),
+        Scene.Command.expectHas(pollCmd()),
+        Scene.Command.resolve(pollCmd(), polled({ _tag: "Sent", sentAt: 1_800_000_000_000 })),
+      );
+    });
+
+    it("shows that a test was sent and stops checking", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given(editorModel()),
+        ...sentSteps,
+        Scene.Command.resolve(pollCmd(), polled({ _tag: "Sent", sentAt: 1_800_000_000_000 })),
+        Scene.expect(Scene.text("Sent. Check your inbox (and spam folder).")).toExist(),
+        Scene.Command.expectNone(),
+      );
+    });
+
+    it("shows why a test failed, with its code, and stops checking", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given(editorModel()),
+        ...sentSteps,
+        Scene.Command.resolve(
+          pollCmd(),
+          polled({ _tag: "Failed", reason: "rejected", code: "E_SENDER_NOT_VERIFIED", failedAt: 1 }),
+        ),
+        Scene.expect(Scene.text("Not sent: the email service refused it (E_SENDER_NOT_VERIFIED)")).toExist(),
+        Scene.Command.expectNone(),
+      );
+    });
+
+    it("stops checking a test that is still queued after fifteen minutes", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given(editorModel()),
+        ...sentSteps,
+        Scene.Command.resolve(pollCmd(), polled({ _tag: "Queued", attempts: 0, lastCode: null }, waited(15))),
+        Scene.expect(
+          Scene.text("Still queued after 15 minutes. The email service may not be processing sends."),
+        ).toExist(),
+        Scene.Command.expectNone(),
+      );
+    });
+
+    it("ignores a read for a test that is no longer the one on screen", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given(editorModel()),
+        ...sentSteps,
+        Scene.Command.resolve(
+          pollCmd(),
+          polled({ _tag: "Sent", sentAt: 1_800_000_000_000 }, waited(0), decodeSendId("send-0")),
+        ),
+        Scene.expect(Scene.text("Queued…")).toExist(),
+        Scene.Command.expectNone(),
+      );
+    });
+
+    it("says the state could not be read and stops checking when the read fails", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given(editorModel()),
+        ...sentSteps,
+        Scene.Command.resolve(
+          pollCmd(),
+          Message.PolledTestSend({ sendId, outcome: { _tag: "Failure", failure: "NotFound" } }),
+        ),
+        Scene.expect(
+          Scene.text(
+            "Couldn't check this test's status. Check your inbox, or see Failed emails in Organization settings.",
+          ),
+        ).toExist(),
+        Scene.Command.expectNone(),
       );
     });
 
@@ -1051,6 +1284,7 @@ describe("App Scenes", () => {
         ),
         Scene.expect(Scene.text("You've sent 5 tests in the last hour. Try again later.")).toExist(),
         Scene.expect(Scene.role("button", { name: "Send me a test" })).toBeEnabled(),
+        Scene.Command.expectNone(),
       );
     });
   });

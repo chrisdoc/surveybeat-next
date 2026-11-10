@@ -33,6 +33,7 @@ import {
   GetTeamOverviewCmd,
   GrantAdmin,
   initialModel,
+  ListFailedEmails,
   ListPulses,
   ListRoundsCmd,
   ListTeams,
@@ -472,12 +473,16 @@ describe("App Stories", () => {
             },
           }),
         ),
-        Story.Command.expectHas(GetSettings),
+        Story.Command.expectHas(GetSettings, ListFailedEmails),
         Story.Command.resolve(
           GetSettings,
           Message.GotSettings({
             outcome: { _tag: "Success", settings },
           }),
+        ),
+        Story.Command.resolve(
+          ListFailedEmails,
+          Message.GotFailedEmails({ outcome: { _tag: "Success", list: { emails: [] } } }),
         ),
         Story.model((m) => {
           expect(m.settings._tag).toBe("Loaded");
@@ -1106,12 +1111,16 @@ describe("App Stories", () => {
             },
           }),
         ),
-        Story.Command.expectExact(GetSettings),
+        Story.Command.expectExact(GetSettings, ListFailedEmails),
         Story.Command.resolve(
           GetSettings,
           Message.GotSettings({
             outcome: { _tag: "Success", settings: { ...settings, defaultLocale: "de" } },
           }),
+        ),
+        Story.Command.resolve(
+          ListFailedEmails,
+          Message.GotFailedEmails({ outcome: { _tag: "Success", list: { emails: [] } } }),
         ),
         Story.model((m) => {
           expect(m.session).toMatchObject({ organizationLocale: "de" });

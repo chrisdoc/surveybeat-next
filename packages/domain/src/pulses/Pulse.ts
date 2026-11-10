@@ -1,5 +1,6 @@
 import { Schema } from "effect";
-import { EmailAddress } from "../email/Email.ts";
+import { EmailAddress, SendId } from "../email/Email.ts";
+import { FailureReason } from "../email/SendState.ts";
 import { TeamSummary } from "../people/Team.ts";
 import { QuestionContent, QuestionId, QuestionVersionId } from "./Question.ts";
 import { TemplateQuestion, TemplateQuestionKey } from "./Template.ts";
@@ -211,6 +212,32 @@ export class TestSendLimitReached extends Schema.TaggedError<
   { readonly brand: unique symbol }
 >()("TestSendLimitReached", { perHour: Schema.Int }, { httpApiStatus: 429 }) {}
 
-/** What the sender is told once a test Invitation is sent: the address it went to, which is their own. */
-export const TestInvitationSent = Schema.Struct({ email: EmailAddress });
+/** What the sender is told once a test Invitation is sent: the address it went to, which is their own, and the send to poll. */
+export const TestInvitationSent = Schema.Struct({ email: EmailAddress, sendId: SendId });
 export type TestInvitationSent = typeof TestInvitationSent.Type;
+
+/**
+ * Where the sender's test Invitation stands in the email queue (ADR 0006): what the editor shows until
+ * it settles. Carries no messageId, token, body, or recipient.
+ */
+export const TestSendStatus = Schema.Struct({
+  /** When the test was queued (epoch ms). */
+  queuedAt: Schema.Int,
+  /** When this status was read (epoch ms). */
+  checkedAt: Schema.Int,
+  state: Schema.TaggedUnion({
+    /** Waiting to be sent; `attempts` earlier tries were clearly rejected with `lastCode`. */
+    Queued: { attempts: Schema.Int, lastCode: Schema.NullOr(Schema.String) },
+    /** A delivery is talking to the provider now. */
+    Sending: { attempt: Schema.Int },
+    Sent: { sentAt: Schema.Int },
+    Failed: { reason: FailureReason, code: Schema.NullOr(Schema.String), failedAt: Schema.Int },
+  }),
+});
+export type TestSendStatus = typeof TestSendStatus.Type;
+
+/** The test send is not the sender's, is not this Pulse's, has expired, or never existed. */
+export class TestSendNotFound extends Schema.TaggedError<
+  TestSendNotFound,
+  { readonly brand: unique symbol }
+>()("TestSendNotFound", {}, { httpApiStatus: 404 }) {}

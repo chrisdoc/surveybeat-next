@@ -8,6 +8,7 @@ import {
   type NewMember,
   type OrganizationDirectory,
   runDirectoryCommand,
+  viewFailedEmails,
   viewSettings,
   viewTeam,
   viewTeams,
@@ -136,6 +137,7 @@ export const directoryHandlers = <R>(
         ),
       )
       .handle("getSettings", () => provide(Effect.flatMap(currentMember, viewSettings)))
+      .handle("listFailedEmails", () => provide(Effect.flatMap(currentMember, viewFailedEmails)))
       .handle("updateSettings", ({ payload }) =>
         provide(
           change(() =>

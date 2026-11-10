@@ -143,6 +143,10 @@ export const privacyRegistry: { readonly [K in EndpointKey<typeof SurveyBeatApi>
     _tag: "NoResultData",
     why: "returns the Organization's name, minimum group size, and People with their admin flag",
   },
+  "directory.listFailedEmails": {
+    _tag: "NoResultData",
+    why: "returns, for Organization admins, the kind, recipient address, reason code, and time of the last 50 failed sends; never a body, a token, or Result data",
+  },
   "directory.updateSettings": {
     _tag: "NoResultData",
     why: "sets the minimum group size, AI processing, and the default language; no content",
@@ -194,7 +198,11 @@ export const privacyRegistry: { readonly [K in EndpointKey<typeof SurveyBeatApi>
   },
   "pulses.sendTestInvitation": {
     _tag: "NoResultData",
-    why: "emails the signed-in Person a test Invitation of the Pulse (ADR 0021); stores no Submission or Participation; returns the address",
+    why: "emails the signed-in Person a test Invitation of the Pulse (ADR 0021); stores no Submission or Participation; returns the address and the send id",
+  },
+  "pulses.getTestInvitation": {
+    _tag: "NoResultData",
+    why: "returns the state of the signed-in Person's own test send (queued, sending, sent, or failed with a reason code and times); never a body, token, recipient, or Result data",
   },
   "rounds.listRounds": {
     _tag: "NoResultData",

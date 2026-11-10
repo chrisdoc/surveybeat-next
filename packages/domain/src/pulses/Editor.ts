@@ -1,4 +1,5 @@
 import { Option } from "effect";
+import type { SendState } from "../email/SendState.ts";
 import {
   actorOf,
   type DirectoryState,
@@ -23,6 +24,8 @@ import {
   RECOMMENDED_MAX_SECONDS,
   SendTime,
   type NewPulseQuestion,
+  testInvitationLifetimeMs,
+  type TestSendStatus,
 } from "./Pulse.ts";
 import {
   firstVersionId,
@@ -153,7 +156,8 @@ export type PulseRejection =
   | { readonly _tag: "PulseNeedsAQuestion" }
   | { readonly _tag: "PulseFull"; readonly maximum: number }
   | { readonly _tag: "OrderMismatch" }
-  | { readonly _tag: "TestSendLimitReached"; readonly perHour: number };
+  | { readonly _tag: "TestSendLimitReached"; readonly perHour: number }
+  | { readonly _tag: "TestSendNotFound" };
 
 export type PulseDecision =
   | { readonly _tag: "Rejected"; readonly rejection: PulseRejection }
@@ -564,3 +568,60 @@ export const pulseView = (
       },
     };
   });
+
+/** A test send as the Durable Object found it: whose it is, which Pulse it tests, when it was queued, and its email's state. */
+export interface TestSendFound {
+  readonly personId: PersonId;
+  readonly pulseId: PulseId;
+  readonly sentAt: number;
+  readonly state: SendState;
+}
+
+/** A send's state as the editor shows it (ADR 0006). `queuedAt` is when the test was sent, `checkedAt` when it is read. */
+export const testSendStatusOf = (state: SendState, queuedAt: number, checkedAt: number): TestSendStatus => {
+  switch (state._tag) {
+    case "Pending":
+      return {
+        queuedAt,
+        checkedAt,
+        state: { _tag: "Queued", attempts: state.attempts, lastCode: state.lastCode },
+      };
+    case "Sending":
+      return { queuedAt, checkedAt, state: { _tag: "Sending", attempt: state.attempt } };
+    case "Sent":
+      return { queuedAt, checkedAt, state: { _tag: "Sent", sentAt: state.sentAt } };
+    case "Failed":
+      return {
+        queuedAt,
+        checkedAt,
+        state: { _tag: "Failed", reason: state.reason, code: state.code, failedAt: state.failedAt },
+      };
+  }
+};
+
+/**
+ * The state of the sender's own test send, for the Pulse editor to poll (ADR 0021). Whoever may edit the
+ * Pulse may read it, but only the Person who sent it, for the Pulse it tests, within the test's lifetime.
+ * Everything else is "not found", so a send id reveals nothing about another Person's send. `found` is
+ * `null` when the Durable Object has no test row for the id.
+ */
+export const testSendView = (
+  directory: DirectoryState,
+  actorId: PersonId,
+  teamId: TeamId,
+  pulseId: PulseId,
+  found: TestSendFound | null,
+  now: number,
+): PulseViewed<TestSendStatus> => {
+  const allowed = authorize(directory, actorId, "team.editPulse", teamId);
+  if (allowed._tag === "Rejected") return allowed;
+  if (
+    found === null ||
+    found.personId !== actorId ||
+    found.pulseId !== pulseId ||
+    found.sentAt <= now - testInvitationLifetimeMs
+  ) {
+    return reject({ _tag: "TestSendNotFound" });
+  }
+  return { _tag: "Viewed", value: testSendStatusOf(found.state, found.sentAt, now) };
+};

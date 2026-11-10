@@ -5,6 +5,11 @@ import {
   decide,
   decidePulse,
   decideTestSend,
+  failedEmailsView,
+  FailedEmail,
+  pending,
+  testSendView,
+  type TestSendFound,
   type PulseCommand,
   type PulseCommandResult,
   PulseId,
@@ -126,6 +131,9 @@ const randomId = (): string =>
   );
 
 const TestSendCount = Schema.Struct({ n: Schema.Int });
+
+/** A test send's row: whose it is, and which Pulse it tests. */
+const TestSendRow = Schema.Struct({ person_id: PersonId, pulse_id: PulseId, sent_at: Schema.Int });
 
 const AttemptsPayload = Schema.Struct({ attempts: Schema.Int });
 const parseAttempts = (payload: string | null): number => {
@@ -1422,6 +1430,69 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
             }),
             Effect.orDie,
           ),
+
+        /**
+         * The state of a test send the actor made (ADR 0021), read from its test row and its email's state. A
+         * send whose email row is missing is still queued: nothing has been recorded for it yet.
+         */
+        viewTestSend: (actorId: PersonId, teamId: TeamId, pulseId: PulseId, sendId: SendId, now: number) =>
+          Effect.gen(function* () {
+            const dirState = yield* directory.load;
+            const rows =
+              yield* sql`SELECT person_id, pulse_id, sent_at FROM test_send WHERE send_id = ${sendId}`.pipe(
+                Effect.flatMap(Schema.decodeUnknownEffect(Schema.Array(TestSendRow))),
+                Effect.orDie,
+              );
+            const row = rows[0];
+            const record = yield* sends.get(sendId);
+            const found: TestSendFound | null =
+              row === undefined
+                ? null
+                : {
+                    personId: row.person_id,
+                    pulseId: row.pulse_id,
+                    sentAt: row.sent_at,
+                    state: Option.match(record, {
+                      onNone: () => pending,
+                      onSome: (each) => each.state,
+                    }),
+                  };
+            return testSendView(dirState, actorId, teamId, pulseId, found, now);
+          }),
+        /**
+         * The Organization's last 50 failed sends, newest first, for its admins (ADR 0006). Reads the kind, the
+         * recipient, and the state's reason, code, and time, never `content` or `state` whole: a legacy row's
+         * content may still hold a token. A row this build cannot read is skipped, not fatal.
+         */
+        listFailedEmails: (actorId: PersonId) =>
+          Effect.gen(function* () {
+            const dirState = yield* directory.load;
+            const rows = yield* sql<{
+              id: string;
+              recipient: string;
+              kind: string | null;
+              reason: string | null;
+              code: string | null;
+              failed_at: number | null;
+            }>`SELECT id, recipient, json_extract(content, '$._tag') AS kind,
+                   json_extract(state, '$.reason') AS reason, json_extract(state, '$.code') AS code,
+                   json_extract(state, '$.failedAt') AS failed_at
+              FROM email_send WHERE status = 'Failed' ORDER BY failed_at DESC, id DESC LIMIT 50`.pipe(
+              Effect.orDie,
+            );
+            const failed = rows.flatMap((row) => {
+              const decoded = Schema.decodeUnknownOption(FailedEmail)({
+                sendId: row.id,
+                kind: row.kind,
+                recipient: row.recipient,
+                reason: row.reason,
+                code: row.code,
+                failedAt: row.failed_at,
+              });
+              return Option.isSome(decoded) ? [decoded.value] : [];
+            });
+            return failedEmailsView(dirState, actorId, failed);
+          }),
 
         /** Lead controls: skip, pause, resume, close early, cancel. Authorised through permission table. */
         runRoundCommand: (actorId: PersonId, command: RoundCommand, now: number) =>

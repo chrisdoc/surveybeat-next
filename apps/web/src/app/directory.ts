@@ -1,5 +1,6 @@
 import {
   EmailAddress,
+  FailedEmails,
   Locale,
   MinimumGroupSize,
   OrganizationSettings,
@@ -18,6 +19,7 @@ import {
   type Child,
   appButton,
   badge,
+  dataTable,
   emptyState,
   linkButton,
   linkClass,
@@ -32,6 +34,7 @@ import {
   textField,
 } from "./components.ts";
 import { historyHref, privacyHref, pulsesHref, settingsHref, teamHref, teamsHref } from "./routes.ts";
+import { failureReasonText } from "./pulses.ts";
 
 export const LoadedTeams = defineTaggedUnion({
   Loading: {},
@@ -53,6 +56,13 @@ export const LoadedSettings = defineTaggedUnion({
   Failed: { failure: Failure },
 });
 export type LoadedSettings = typeof LoadedSettings.Type;
+
+export const LoadedFailedEmails = defineTaggedUnion({
+  Loading: {},
+  Loaded: { list: FailedEmails },
+  Failed: { failure: Failure },
+});
+export type LoadedFailedEmails = typeof LoadedFailedEmails.Type;
 
 const formPanelClass = "mt-8 flex flex-col gap-4 rounded-panel border border-line bg-surface p-6 sm:p-8";
 
@@ -460,9 +470,52 @@ export const teamScreenView = <Message>(
   return h.section([], children);
 };
 
+/** The failed sends of the Organization, for admins: what each was, who it was for, why it failed, and when. */
+const failedEmailsView = <Message>(failedEmails: LoadedFailedEmails, h: HtmlBuilder<Message>): Html => {
+  const children: Array<Child> = [subSectionTitle(message("settings.failedEmails.title"), h, 2)];
+  if (failedEmails._tag === "Failed") {
+    children.push(problemView(failedEmails.failure, h)!);
+  } else if (failedEmails._tag === "Loaded") {
+    const { emails } = failedEmails.list;
+    if (emails.length === 0) {
+      children.push(emptyState(message("settings.failedEmails.empty"), h));
+    } else {
+      children.push(
+        h.div(
+          [h.Class("mt-3 overflow-x-auto rounded-panel border border-line bg-surface px-6")],
+          [
+            dataTable(
+              [
+                message("settings.failedEmails.kind"),
+                message("settings.failedEmails.recipient"),
+                message("settings.failedEmails.reason"),
+                message("settings.failedEmails.time"),
+              ],
+              emails.map((email) => [
+                message(`email.kind.${email.kind}`),
+                email.recipient,
+                email.code === null
+                  ? failureReasonText(email.reason)
+                  : message("email.reasonCode", {
+                      reason: failureReasonText(email.reason),
+                      code: email.code,
+                    }),
+                formatDate(new Date(email.failedAt), { dateStyle: "medium", timeStyle: "short" }),
+              ]),
+              h,
+            ),
+          ],
+        ),
+      );
+    }
+  }
+  return h.div([h.Class("mt-8")], children);
+};
+
 export const settingsScreenView = <Message>(
   state: {
     readonly settings: LoadedSettings;
+    readonly failedEmails: LoadedFailedEmails;
     readonly size: string;
     readonly sizeSaved: boolean;
     readonly sizeBusy: boolean;
@@ -633,6 +686,8 @@ export const settingsScreenView = <Message>(
   if (state.peopleFailure) {
     children.push(problemView(state.peopleFailure, h)!);
   }
+
+  children.push(failedEmailsView(state.failedEmails, h));
 
   return h.section([], children);
 };

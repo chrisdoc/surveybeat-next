@@ -285,6 +285,82 @@ test(
 );
 
 test(
+  "shows a test send's state to its sender, and lists the failed sends newest first, fifty at most (issue 147)",
+  Effect.gen(function* () {
+    const { url } = yield* stack;
+    const run = crypto.randomUUID();
+    const response = yield* Effect.promise(() => fetch(`${url}/__test/test-invitations?run=${run}`));
+    assert.strictEqual(response.status, 200);
+    const body = (yield* Effect.promise(() => response.json())) as {
+      sentAt: number;
+      queued: unknown;
+      memberRead: unknown;
+      failing: string;
+      failedStatus: unknown;
+      failedBefore: unknown;
+      failedAfter: unknown;
+    };
+    const sentAt = body.sentAt;
+    // Queued before the queue has touched it: no attempts, and it reads as the Person's own send.
+    assert.deepStrictEqual(body.queued, {
+      _tag: "Viewed",
+      value: {
+        queuedAt: sentAt,
+        checkedAt: sentAt,
+        state: { _tag: "Queued", attempts: 0, lastCode: null },
+      },
+    });
+    // Another Person's read is refused, as the editor's permission table decides.
+    assert.deepStrictEqual(body.memberRead, { _tag: "Rejected", rejection: { _tag: "Forbidden" } });
+    // The send the queue rejected for good: its reason and code, and the time it failed.
+    assert.deepStrictEqual(body.failedStatus, {
+      _tag: "Viewed",
+      value: {
+        queuedAt: sentAt,
+        checkedAt: sentAt + 3,
+        state: { _tag: "Failed", reason: "rejected", code: "E_SENDER_NOT_VERIFIED", failedAt: sentAt + 2 },
+      },
+    });
+    // The Organization's admins see it in the failed list: kind, recipient, reason, code, and time, no body.
+    assert.deepStrictEqual(body.failedBefore, {
+      _tag: "Viewed",
+      value: {
+        emails: [
+          {
+            sendId: body.failing,
+            kind: "TestInvitationEmail",
+            recipient: "admin@example.com",
+            reason: "rejected",
+            code: "E_SENDER_NOT_VERIFIED",
+            failedAt: sentAt + 2,
+          },
+        ],
+      },
+    });
+    // Fifty-one later failures: the list holds the newest fifty, newest first; the older test send drops out.
+    const after = body.failedAfter as { _tag: string; value: { emails: Array<unknown> } };
+    assert.strictEqual(after._tag, "Viewed");
+    assert.strictEqual(after.value.emails.length, 50);
+    assert.deepStrictEqual(after.value.emails[0], {
+      sendId: `bulk-${run}-50`,
+      kind: "AddedToTeam",
+      recipient: "grace@example.com",
+      reason: "abandoned",
+      code: null,
+      failedAt: sentAt + 150,
+    });
+    assert.deepStrictEqual(after.value.emails[49], {
+      sendId: `bulk-${run}-1`,
+      kind: "AddedToTeam",
+      recipient: "grace@example.com",
+      reason: "abandoned",
+      code: null,
+      failedAt: sentAt + 101,
+    });
+  }),
+);
+
+test(
   "Round lifecycle engine: alarm points at earliest due job, next Round is never duplicated, and jobs are idempotent",
   Effect.gen(function* () {
     const { url } = yield* stack;

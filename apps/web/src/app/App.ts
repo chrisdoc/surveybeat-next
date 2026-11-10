@@ -6,6 +6,7 @@ import {
   browserLocale,
   Dimension,
   EmailAddress,
+  FailedEmails,
   Locale,
   MemberHistory,
   MinimumGroupSize,
@@ -27,12 +28,14 @@ import {
   RoundList,
   RoundNoteView,
   RoundResult,
+  SendId,
   TeamDetail,
   TeamId,
   TeamName,
   TeamOverview,
   TeamSummary,
   TemplateQuestionKey,
+  TestSendStatus,
   TimeZone,
   Weekday,
 } from "@surveybeat/domain";
@@ -49,6 +52,7 @@ import {
   decodeName,
   decodeSize,
   decodeZone,
+  LoadedFailedEmails,
   LoadedSettings,
   LoadedTeam,
   LoadedTeams,
@@ -67,7 +71,9 @@ import {
   LoadedPulses,
   pulseEditorView,
   pulsesScreenView,
+  TEST_SEND_POLL_INTERVAL,
   TestSendResult,
+  testSendKeepsPolling,
 } from "./pulses.ts";
 import { GuideCopy, LoadedActions, LoadedNote, LoadedResults, resultsScreenView } from "./results.ts";
 import { isLead, LoadedRounds, RoundConfirm, roundsScreenView } from "./rounds.ts";
@@ -131,6 +137,7 @@ export const Model = Schema.Struct({
   defaultLanguageFailure: Schema.Option(Failure),
   peopleBusy: Schema.Boolean,
   peopleFailure: Schema.Option(Failure),
+  failedEmails: LoadedFailedEmails,
   // Pulses list screen
   pulses: LoadedPulses,
   createPulseBusy: Schema.Boolean,
@@ -253,7 +260,15 @@ export const OutcomePulseDetail = Schema.Union([
   Schema.TaggedStruct("Failure", { failure: Failure }),
 ]);
 export const OutcomeTestSent = Schema.Union([
-  Schema.TaggedStruct("Success", { email: Schema.String }),
+  Schema.TaggedStruct("Success", { email: Schema.String, sendId: SendId, pulseId: PulseId }),
+  Schema.TaggedStruct("Failure", { failure: Failure }),
+]);
+export const OutcomeTestSendStatus = Schema.Union([
+  Schema.TaggedStruct("Success", { status: TestSendStatus }),
+  Schema.TaggedStruct("Failure", { failure: Failure }),
+]);
+export const OutcomeFailedEmails = Schema.Union([
+  Schema.TaggedStruct("Success", { list: FailedEmails }),
   Schema.TaggedStruct("Failure", { failure: Failure }),
 ]);
 export const OutcomeVoid = Schema.Union([
@@ -307,6 +322,7 @@ export const Message = defineMessageUnion({
   UpdatedAiProcessing: { outcome: OutcomeVoid },
   DefaultLanguageChanged: { value: Schema.String },
   UpdatedDefaultLanguage: { outcome: OutcomeVoid },
+  GotFailedEmails: { outcome: OutcomeFailedEmails },
   GrantAdminClicked: { personId: PersonId },
   GrantedAdmin: { outcome: OutcomeVoid },
   RevokeAdminClicked: { personId: PersonId },
@@ -342,6 +358,7 @@ export const Message = defineMessageUnion({
   SubmitSettings: {},
   SendTestInvitationClicked: {},
   SentTestInvitation: { outcome: OutcomeTestSent },
+  PolledTestSend: { sendId: SendId, outcome: OutcomeTestSendStatus },
   // Rounds screen
   GotRounds: { outcome: OutcomeRounds },
   GotRoundDetail: { roundId: RoundId, outcome: OutcomeRoundDetail },
@@ -545,6 +562,17 @@ export const GetSettings = Command.define("GetSettings", {
   ),
 });
 
+export const ListFailedEmails = Command.define("ListFailedEmails", {
+  messages: [Message.GotFailedEmails],
+  execute: Effect.suspend(() =>
+    runApi(
+      (api) => api.directory.listFailedEmails(),
+      (list) => Message.GotFailedEmails({ outcome: { _tag: "Success", list } }),
+      (failure) => Message.GotFailedEmails({ outcome: { _tag: "Failure", failure } }),
+    ),
+  ),
+});
+
 export const UpdateSettings = Command.define("UpdateSettings", {
   args: { minimumGroupSize: MinimumGroupSize },
   messages: [Message.UpdatedSettings],
@@ -661,8 +689,27 @@ export const SendTestInvitationCmd = Command.define("SendTestInvitationCmd", {
   execute: ({ teamId, pulseId }) =>
     runApi(
       (api) => api.pulses.sendTestInvitation({ params: { teamId, pulseId } }),
-      (sent) => Message.SentTestInvitation({ outcome: { _tag: "Success", email: sent.email } }),
+      (sent) =>
+        Message.SentTestInvitation({
+          outcome: { _tag: "Success", email: sent.email, sendId: sent.sendId, pulseId },
+        }),
       (failure) => Message.SentTestInvitation({ outcome: { _tag: "Failure", failure } }),
+    ),
+});
+
+/** Reads a test send's state after the poll interval. The update decides whether to read it again. */
+export const PollTestSendCmd = Command.define("PollTestSendCmd", {
+  args: { teamId: TeamId, pulseId: PulseId, sendId: SendId },
+  messages: [Message.PolledTestSend],
+  execute: ({ teamId, pulseId, sendId }) =>
+    Effect.sleep(TEST_SEND_POLL_INTERVAL).pipe(
+      Effect.andThen(
+        runApi(
+          (api) => api.pulses.getTestInvitation({ params: { teamId, pulseId, sendId } }),
+          (status) => Message.PolledTestSend({ sendId, outcome: { _tag: "Success", status } }),
+          (failure) => Message.PolledTestSend({ sendId, outcome: { _tag: "Failure", failure } }),
+        ),
+      ),
     ),
 });
 
@@ -1034,6 +1081,7 @@ export const initialModel = (url: Url): Model => {
     defaultLanguageFailure: Option.none(),
     peopleBusy: false,
     peopleFailure: Option.none(),
+    failedEmails: { _tag: "Loading" },
     pulses: { _tag: "Loading" },
     createPulseBusy: false,
     createPulseFailure: Option.none(),
@@ -1101,7 +1149,7 @@ export const loadActiveRouteCommand = (route: AppRoute) => {
     case "History":
       return [GetMyHistoryCmd()];
     case "Settings":
-      return [GetSettings()];
+      return [GetSettings(), ListFailedEmails()];
     case "Pulses":
       return [ListPulses({ teamId: route.teamId })];
     case "Pulse":
@@ -1183,6 +1231,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         testSendBusy: false,
         testSendResult: Option.none(),
         settings: { _tag: "Loading" },
+        failedEmails: { _tag: "Loading" },
         teams: { _tag: "Loading" },
         results: { _tag: "Loading" },
         guideCopy: "idle",
@@ -1680,6 +1729,17 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
           settings: { _tag: "Failed", failure: outcome.failure },
         },
       };
+    }
+
+    case "GotFailedEmails": {
+      const { outcome } = message;
+      if (outcome._tag === "Success") {
+        return { model: { ...model, failedEmails: { _tag: "Loaded", list: outcome.list } } };
+      }
+      if (outcome.failure === "Unauthenticated") {
+        return { model, commands: [LoadSession()] };
+      }
+      return { model: { ...model, failedEmails: { _tag: "Failed", failure: outcome.failure } } };
     }
 
     case "SizeChanged":
@@ -2205,12 +2265,24 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     case "SentTestInvitation": {
       const { outcome } = message;
       if (outcome._tag === "Success") {
+        // Only the editor of the Pulse that was sent from shows the result; a send that returns after the user left is dropped.
+        if (model.route._tag !== "Pulse" || model.route.pulseId !== outcome.pulseId) {
+          return { model: { ...model, testSendBusy: false } };
+        }
         return {
           model: {
             ...model,
             testSendBusy: false,
-            testSendResult: Option.some({ _tag: "Sent", email: outcome.email }),
+            testSendResult: Option.some({
+              _tag: "Sent",
+              email: outcome.email,
+              sendId: outcome.sendId,
+              statusUnavailable: false,
+            }),
           },
+          commands: [
+            PollTestSendCmd({ teamId: model.route.teamId, pulseId: outcome.pulseId, sendId: outcome.sendId }),
+          ],
         };
       }
       if (outcome.failure === "Unauthenticated") {
@@ -2222,6 +2294,32 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
           testSendBusy: false,
           testSendResult: Option.some({ _tag: "Failed", failure: outcome.failure }),
         },
+      };
+    }
+
+    case "PolledTestSend": {
+      const { sendId, outcome } = message;
+      const current = Option.getOrUndefined(model.testSendResult);
+      // Only the send on screen is updated; a read that returns after the user left or sent another test is dropped.
+      if (current?._tag !== "Sent" || current.sendId !== sendId) return { model };
+      if (outcome._tag === "Failure") {
+        const failed: Model = {
+          ...model,
+          testSendResult: Option.some({ ...current, statusUnavailable: true }),
+        };
+        return outcome.failure === "Unauthenticated"
+          ? { model: failed, commands: [LoadSession()] }
+          : { model: failed };
+      }
+      const { status } = outcome;
+      const next: Model = {
+        ...model,
+        testSendResult: Option.some({ ...current, status, statusUnavailable: false }),
+      };
+      if (model.route._tag !== "Pulse" || !testSendKeepsPolling(status)) return { model: next };
+      return {
+        model: next,
+        commands: [PollTestSendCmd({ teamId: model.route.teamId, pulseId: model.route.pulseId, sendId })],
       };
     }
 
@@ -2905,6 +3003,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
             defaultLanguageFailure: Option.getOrUndefined(model.defaultLanguageFailure),
             peopleBusy: model.peopleBusy,
             peopleFailure: Option.getOrUndefined(model.peopleFailure),
+            failedEmails: model.failedEmails,
           },
           {
             onSizeChange: (size) => Message.SizeChanged({ size }),

@@ -2,6 +2,12 @@ import { SurveyBeatApi } from "@surveybeat/api";
 import {
   applyChanges,
   applyPulseChanges,
+  failedEmailsView,
+  type FailedEmail,
+  pending,
+  type SendState,
+  testSendView,
+  type TestSendFound,
   decidePulse,
   decideTestSend,
   EMPTY_PULSE_STATE,
@@ -366,7 +372,16 @@ interface MemoryOrganization {
   rounds: Map<RoundId, TeamId>;
   /** The Lead's Note per Round. */
   notes: Map<RoundId, RoundNote>;
-  readonly sends: Map<SendId, { readonly recipient: EmailAddress; readonly email: TransactionalEmail }>;
+  /** Each send, with its state: the fake never delivers, so a test sets a state by hand. */
+  readonly sends: Map<
+    SendId,
+    { readonly recipient: EmailAddress; readonly email: TransactionalEmail; readonly state: SendState }
+  >;
+  /** Who sent each test of a Pulse, which Pulse, and when (ADR 0021). */
+  readonly testSends: Map<
+    SendId,
+    { readonly personId: PersonId; readonly pulseId: PulseId; readonly sentAt: number }
+  >;
   /** When each Person sent a test of a Pulse, for the hourly limit (ADR 0021). */
   readonly testSendTimes: Map<PersonId, ReadonlyArray<number>>;
 }
@@ -397,6 +412,7 @@ export class MemoryOrganizations {
       rounds: new Map(),
       notes: new Map(),
       sends: new Map(),
+      testSends: new Map(),
       testSendTimes: new Map(),
     };
   }
@@ -430,6 +446,7 @@ export class MemoryOrganizations {
           rounds: new Map(),
           notes: new Map(),
           sends: new Map(),
+          testSends: new Map(),
           testSendTimes: new Map(),
         });
       }),
@@ -471,7 +488,11 @@ export class MemoryOrganizations {
         organization.state = applyChanges(organization.state, decision.changes);
         for (const change of decision.changes) {
           if (change._tag === "EmailRequested" && !organization.sends.has(change.sendId)) {
-            organization.sends.set(change.sendId, { recipient: change.recipient, email: change.email });
+            organization.sends.set(change.sendId, {
+              recipient: change.recipient,
+              email: change.email,
+              state: pending,
+            });
           }
         }
         return {
@@ -488,6 +509,28 @@ export class MemoryOrganizations {
       Effect.sync(() => teamView(this.organization(organizationId).state, actorId, teamId)),
     settings: (organizationId, actorId) =>
       Effect.sync(() => settingsView(this.organization(organizationId).state, actorId)),
+    failedEmails: (organizationId, actorId) =>
+      Effect.sync(() => {
+        const organization = this.organization(organizationId);
+        // Newest first, the last 50, as the Durable Object's query reads them.
+        const failed = [...organization.sends]
+          .flatMap(([sendId, send]): ReadonlyArray<FailedEmail> => {
+            if (send.state._tag !== "Failed") return [];
+            return [
+              {
+                sendId,
+                kind: send.email._tag,
+                recipient: send.recipient,
+                reason: send.state.reason,
+                code: send.state.code,
+                failedAt: send.state.failedAt,
+              },
+            ];
+          })
+          .sort((a, b) => b.failedAt - a.failedAt)
+          .slice(0, 50);
+        return failedEmailsView(organization.state, actorId, failed);
+      }),
   });
 
   /** The question library and Pulses, decided and applied as the real object does in SQL. */
@@ -510,6 +553,16 @@ export class MemoryOrganizations {
       Effect.sync(() => {
         const organization = this.organization(organizationId);
         return pulseView(organization.state, organization.pulses, actorId, teamId, pulseId);
+      }),
+    testSend: (organizationId, actorId, teamId, pulseId, sendId, now) =>
+      Effect.sync(() => {
+        const organization = this.organization(organizationId);
+        const test = organization.testSends.get(sendId);
+        const send = organization.sends.get(sendId);
+        // The fake's send with no email row is queued, as the Durable Object reads it.
+        const found: TestSendFound | null =
+          test === undefined ? null : { ...test, state: send?.state ?? pending };
+        return testSendView(organization.state, actorId, teamId, pulseId, found, now);
       }),
     sendTest: (organizationId, actorId, teamId, pulseId, now) =>
       Effect.sync((): TestSendResult => {
@@ -544,7 +597,8 @@ export class MemoryOrganizations {
           aiProcessing: organization.state.aiProcessing,
         };
         const sendId = SendId.make(crypto.randomUUID());
-        organization.sends.set(sendId, { recipient: person.email, email: testEmail });
+        organization.sends.set(sendId, { recipient: person.email, email: testEmail, state: pending });
+        organization.testSends.set(sendId, { personId: actorId, pulseId, sentAt: now });
         return { _tag: "Accepted", sendId, email: person.email };
       }),
   });
@@ -813,6 +867,7 @@ export class SignInWorld {
       rounds: new Map(),
       notes: new Map(),
       sends: new Map(),
+      testSends: new Map(),
       testSendTimes: new Map(),
     });
     return { id, name, workos };

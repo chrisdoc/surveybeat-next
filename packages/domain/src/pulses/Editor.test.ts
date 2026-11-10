@@ -2,6 +2,7 @@ import { describe, expect, it } from "@effect/vitest";
 import { Schema } from "effect";
 import type { DirectoryState } from "../people/Directory.ts";
 import { EmailAddress } from "../email/Email.ts";
+import type { SendState } from "../email/SendState.ts";
 import { PersonId } from "../people/Identity.ts";
 import type { Locale } from "../people/Locale.ts";
 import { MembershipId, TeamId, TimeZone } from "../people/Team.ts";
@@ -18,8 +19,10 @@ import {
   pulseView,
   pulsesView,
   pulseWarnings,
+  testSendStatusOf,
+  testSendView,
 } from "./Editor.ts";
-import { MAX_QUESTIONS, PulseId, PulseSettings, SendTime } from "./Pulse.ts";
+import { MAX_QUESTIONS, PulseId, PulseSettings, SendTime, testInvitationLifetimeMs } from "./Pulse.ts";
 import { firstVersionId, type QuestionContent, QuestionId, QuestionType } from "./Question.ts";
 import { TemplateQuestionKey, weeklyTeamHealth } from "./Template.ts";
 
@@ -655,5 +658,102 @@ describe("a test of a Pulse (ADR 0021)", () => {
       pulses: withPulse.pulses.map((pulse) => ({ ...pulse, questions: [] })),
     };
     expect(outcome(empty, admin)).toBe("PulseNeedsAQuestion");
+  });
+});
+
+describe("the state of a test send (ADR 0021, issue 147)", () => {
+  it("shows a queued send with its attempts and last code", () => {
+    expect(testSendStatusOf({ _tag: "Pending", attempts: 0, lastCode: null }, 100, 150)).toEqual({
+      queuedAt: 100,
+      checkedAt: 150,
+      state: { _tag: "Queued", attempts: 0, lastCode: null },
+    });
+    expect(
+      testSendStatusOf({ _tag: "Pending", attempts: 2, lastCode: "E_RATE_LIMIT" }, 100, 150).state,
+    ).toEqual({ _tag: "Queued", attempts: 2, lastCode: "E_RATE_LIMIT" });
+  });
+
+  it("shows a send being delivered by its attempt number, without the lease", () => {
+    const sending: SendState = { _tag: "Sending", attempt: 3, leaseExpiresAt: 9_999 };
+    expect(testSendStatusOf(sending, 100, 150)).toEqual({
+      queuedAt: 100,
+      checkedAt: 150,
+      state: { _tag: "Sending", attempt: 3 },
+    });
+  });
+
+  it("shows a sent send by when it was sent, without its message id", () => {
+    const sent: SendState = { _tag: "Sent", messageId: "provider-message-1", sentAt: 120 };
+    expect(testSendStatusOf(sent, 100, 150)).toEqual({
+      queuedAt: 100,
+      checkedAt: 150,
+      state: { _tag: "Sent", sentAt: 120 },
+    });
+  });
+
+  it("shows a failed send with its reason, code, and time", () => {
+    const failed: SendState = {
+      _tag: "Failed",
+      reason: "rejected",
+      code: "E_SENDER_NOT_VERIFIED",
+      failedAt: 130,
+    };
+    expect(testSendStatusOf(failed, 100, 150)).toEqual({
+      queuedAt: 100,
+      checkedAt: 150,
+      state: { _tag: "Failed", reason: "rejected", code: "E_SENDER_NOT_VERIFIED", failedAt: 130 },
+    });
+  });
+});
+
+describe("reading a test send (ADR 0021, issue 147)", () => {
+  const now = 1_000_000_000;
+  const sentAt = now - 1_000;
+  const own = (by: PersonId, state: SendState = { _tag: "Pending", attempts: 0, lastCode: null }) => ({
+    personId: by,
+    pulseId,
+    sentAt,
+    state,
+  });
+  const read = (
+    found: Parameters<typeof testSendView>[4],
+    by: PersonId = lead,
+    teamId = team,
+    pulse = pulseId,
+    at = now,
+  ) => {
+    const view = testSendView(directory, by, teamId, pulse, found, at);
+    return view._tag === "Viewed" ? view.value : view.rejection._tag;
+  };
+
+  it("shows the sender their own send", () => {
+    expect(read(own(lead))).toEqual({
+      queuedAt: sentAt,
+      checkedAt: now,
+      state: { _tag: "Queued", attempts: 0, lastCode: null },
+    });
+  });
+
+  it("hides another Person's send, a send of another Pulse, an unknown send, and an expired one", () => {
+    expect(read(own(admin))).toEqual("TestSendNotFound");
+    expect(read({ ...own(lead), pulseId: PulseId.make("other") })).toEqual("TestSendNotFound");
+    expect(read(null)).toEqual("TestSendNotFound");
+    expect(read(own(lead), lead, team, pulseId, sentAt + testInvitationLifetimeMs)).toEqual(
+      "TestSendNotFound",
+    );
+    expect(read(own(lead), lead, team, pulseId, sentAt + testInvitationLifetimeMs - 1)).toMatchObject({
+      state: { _tag: "Queued" },
+    });
+  });
+
+  it("is refused a plain member, and a Lead of another Team, before anything is looked at", () => {
+    expect(read(own(member), member)).toEqual("Forbidden");
+    expect(read(own(lead), lead, otherTeam)).toEqual("Forbidden");
+  });
+
+  it("reports the send's state as it stands", () => {
+    expect(read(own(lead, { _tag: "Failed", reason: "unknown", code: null, failedAt: now }))).toMatchObject({
+      state: { _tag: "Failed", reason: "unknown", code: null, failedAt: now },
+    });
   });
 });

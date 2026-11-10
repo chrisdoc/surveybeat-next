@@ -53,6 +53,8 @@ export const durableObjectDirectory = (organizations: Organizations) =>
     team: (organizationId, actorId, teamId) =>
       organizations.getByName(organizationId).viewTeam(actorId, teamId),
     settings: (organizationId, actorId) => organizations.getByName(organizationId).viewSettings(actorId),
+    failedEmails: (organizationId, actorId) =>
+      organizations.getByName(organizationId).listFailedEmails(actorId),
   });
 
 /** `OrganizationPulses` on the same objects: the question library and Pulses live with the directory. */
@@ -66,6 +68,8 @@ export const durableObjectPulses = (organizations: Organizations) =>
       organizations.getByName(organizationId).viewPulse(actorId, teamId, pulseId),
     sendTest: (organizationId, actorId, teamId, pulseId, now) =>
       organizations.getByName(organizationId).sendTestInvitation(actorId, teamId, pulseId, now),
+    testSend: (organizationId, actorId, teamId, pulseId, sendId, now) =>
+      organizations.getByName(organizationId).viewTestSend(actorId, teamId, pulseId, sendId, now),
   });
 
 /** `OrganizationRounds` on the same objects: the Round lifecycle engine and schedule table. */
