@@ -27,7 +27,15 @@ export const PlannedOpenDate = Schema.String.pipe(
 );
 export type PlannedOpenDate = typeof PlannedOpenDate.Type;
 
-export const ScheduleJobType = Schema.Literals(["open", "close", "compute", "send", "remind", "themes"]);
+export const ScheduleJobType = Schema.Literals([
+  "open",
+  "close",
+  "compute",
+  "send",
+  "remind",
+  "themes",
+  "share",
+]);
 export type ScheduleJobType = typeof ScheduleJobType.Type;
 
 export const ScheduleJobStatus = Schema.Literals(["pending", "running", "completed", "cancelled"]);

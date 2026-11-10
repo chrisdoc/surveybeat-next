@@ -71,6 +71,14 @@ export const WINDOWS = () =>
   [1, 2, 3, 4, 5, 6].map((days) => [days, pluralMessage("pulse.settings.days", days)] as const);
 export const REMINDERS = () =>
   [0, 1, 2].map((count) => [count, pluralMessage("pulse.settings.reminderCount", count)] as const);
+export const REVIEW_WINDOWS = () =>
+  [0, 1, 2, 3, 4, 5, 6, 7].map(
+    (days) =>
+      [
+        days,
+        days === 0 ? message("pulse.settings.reviewWindow.none") : pluralMessage("pulse.settings.days", days),
+      ] as const,
+  );
 
 export type Kind = QuestionType["_tag"];
 export const KINDS = () =>
@@ -324,6 +332,7 @@ export const pulseEditorView = <Message>(
     readonly settingsDay: Weekday;
     readonly settingsTime: string;
     readonly settingsWindow: number;
+    readonly settingsReviewWindow: number;
     readonly settingsReminders: number;
     readonly settingsSaved: boolean;
     readonly settingsBusy: boolean;
@@ -347,6 +356,7 @@ export const pulseEditorView = <Message>(
     readonly onSettingsDayChange: (day: string) => Message;
     readonly onSettingsTimeChange: (time: string) => Message;
     readonly onSettingsWindowChange: (days: string) => Message;
+    readonly onSettingsReviewWindowChange: (days: string) => Message;
     readonly onSettingsRemindersChange: (reminders: string) => Message;
     readonly onSubmitSettings: Message;
   },
@@ -655,6 +665,18 @@ export const pulseEditorView = <Message>(
           },
           h,
         ),
+        selectField(
+          {
+            id: "pulse-setting-review-window",
+            label: message("pulse.settings.reviewWindow"),
+            value: state.settingsReviewWindow,
+            options: REVIEW_WINDOWS(),
+            isDisabled: state.settingsBusy,
+            onChange: actions.onSettingsReviewWindowChange,
+          },
+          h,
+        ),
+        h.p([h.Class("text-sm text-muted")], [message("pulse.settings.reviewWindow.help")]),
         h.p([h.Class("text-sm text-muted")], [message("pulse.settings.anonymous")]),
         h.p([h.Class("text-sm text-muted")], [message("pulse.settings.invitation")]),
         problemView(state.settingsFailure, h),

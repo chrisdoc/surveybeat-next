@@ -24,6 +24,8 @@ export interface RoundRecord {
   readonly openedAt: number | null;
   readonly plannedCloseAt: number;
   readonly closedAt: number | null;
+  /** When the Review window ends (fixed at close); null for Rounds closed before it existed. */
+  readonly reviewEndsAt: number | null;
   readonly effectiveMinimumGroupSize: number | null;
   readonly pulseName: string;
   readonly answerWindowDays: number;
@@ -335,6 +337,11 @@ export type RoundCommand =
     }
   | {
       readonly _tag: "CloseRoundEarly";
+      readonly teamId: TeamId;
+      readonly roundId: RoundId;
+    }
+  | {
+      readonly _tag: "ShareResults";
       readonly teamId: TeamId;
       readonly roundId: RoundId;
     }

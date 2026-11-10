@@ -54,6 +54,11 @@ export const AnswerWindowDays = Schema.Int.pipe(
   Schema.check(Schema.isGreaterThanOrEqualTo(1), Schema.isLessThanOrEqualTo(6)),
 );
 
+/** How long the Review window lasts after a Round closes, in days: 0 to 7. 0 shares at once. */
+export const ReviewWindowDays = Schema.Int.pipe(
+  Schema.check(Schema.isGreaterThanOrEqualTo(0), Schema.isLessThanOrEqualTo(7)),
+);
+
 /** Reminders per Round, at fixed points in the answer window: 0 to 2. */
 export const ReminderCount = Schema.Int.pipe(
   Schema.check(Schema.isGreaterThanOrEqualTo(0), Schema.isLessThanOrEqualTo(2)),
@@ -72,6 +77,7 @@ export const PulseSettings = Schema.Struct({
   name: PulseName,
   cadence: Cadence,
   answerWindowDays: AnswerWindowDays,
+  reviewWindowDays: ReviewWindowDays,
   reminders: ReminderCount,
   anonymityMode: AnonymityMode,
   distribution: Distribution,

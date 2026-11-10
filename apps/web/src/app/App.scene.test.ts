@@ -39,6 +39,7 @@ import {
   CopyGuideTextCmd,
   CreateTeam,
   GetRoundDetailCmd,
+  GetResultsCmd,
   GetRoundRateCmd,
   GetSettings,
   GetTeam,
@@ -55,6 +56,7 @@ import {
   ResendInvitationCmd,
   ResumePulseCmd,
   SaveRoundNoteCmd,
+  ShareResultsCmd,
   SkipWeekCmd,
   update,
   UpdateActionCmd,
@@ -834,6 +836,7 @@ describe("App Scenes", () => {
                   name: "Pulse 2",
                   cadence: { _tag: "Weekly", day: "friday", time: decodeSendTime("09:00") },
                   answerWindowDays: 3,
+                  reviewWindowDays: 3,
                   reminders: 1,
                   anonymityMode: "anonymous",
                   distribution: "invitation",
@@ -870,6 +873,7 @@ describe("App Scenes", () => {
           name: "Sprint Pulse",
           cadence: { _tag: "Weekly" as const, day: "monday" as const, time: decodeSendTime("09:00") },
           answerWindowDays: 3,
+          reviewWindowDays: 3,
           reminders: 1,
           anonymityMode: "anonymous" as const,
           distribution: "invitation" as const,
@@ -909,6 +913,7 @@ describe("App Scenes", () => {
           settingsDay: detail.settings.cadence.day,
           settingsTime: detail.settings.cadence.time,
           settingsWindow: detail.settings.answerWindowDays,
+          settingsReviewWindow: detail.settings.reviewWindowDays,
           settingsReminders: detail.settings.reminders,
         }),
         Scene.expect(Scene.text("How was your workload this week?")).toExist(),
@@ -929,9 +934,21 @@ describe("App Scenes", () => {
           }),
         ),
         // Save settings
+        Scene.expect(Scene.label("Review window")).toExist(),
+        Scene.change(Scene.label("Review window"), "0"),
         Scene.type(Scene.label("Name"), "Updated Pulse Name"),
         Scene.click(Scene.role("button", { name: "Save settings" })),
-        Scene.Command.expectHas(UpdatePulseSettingsCmd),
+        Scene.Command.expectHas(
+          UpdatePulseSettingsCmd({
+            teamId,
+            pulseId,
+            settings: {
+              ...detail.settings,
+              name: "Updated Pulse Name",
+              reviewWindowDays: 0,
+            },
+          }),
+        ),
         Scene.Command.resolve(
           UpdatePulseSettingsCmd,
           Message.UpdatedPulse({ outcome: { _tag: "Success", detail } }),
@@ -941,6 +958,18 @@ describe("App Scenes", () => {
   });
 
   describe("Results screen", () => {
+    const leadTeamDetail = (teamId: TeamId, yourRole: "lead" | "member" = "lead") => ({
+      team: { id: teamId, name: "Platform", timeZone: decodeTimeZone("Europe/Berlin"), yourRole },
+      roster: [],
+      abilities: {
+        update: true,
+        manageLeads: true,
+        manageMembers: true,
+        managePulses: true,
+        viewResults: true,
+      },
+    });
+
     it("renders results for a closed round with scores, trends, and comments", () => {
       const teamId = decodeTeamId("team-1");
       const roundId = Schema.decodeSync(RoundId)("round-1");
@@ -1052,6 +1081,7 @@ describe("App Scenes", () => {
           ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}/rounds/${roundId}`)),
           session: signedInAdmin,
           results: { _tag: "Loaded", result: mockResult },
+          teamDetail: { _tag: "Loaded", detail: leadTeamDetail(teamId) },
         }),
         Scene.expect(Scene.role("heading", { name: "Results" })).toExist(),
         Scene.expect(Scene.text("75% response rate (6 of 8)")).toExist(),
@@ -1091,7 +1121,7 @@ describe("App Scenes", () => {
         roundId,
         pulseId,
         teamId,
-        status: "closed",
+        status: "shared",
         plannedOpenDate: "2026-11-09",
         anonymityMode: "anonymous",
         closedAt: 1731140000000,
@@ -1112,6 +1142,7 @@ describe("App Scenes", () => {
           ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}/rounds/${roundId}`)),
           session: signedInAdmin,
           results: { _tag: "Loaded", result: mockSubNResult },
+          teamDetail: { _tag: "Loaded", detail: leadTeamDetail(teamId) },
         }),
         Scene.expect(Scene.text("Not enough answers to protect anonymity")).toExist(),
       );
@@ -1271,7 +1302,7 @@ describe("App Scenes", () => {
         roundId,
         pulseId,
         teamId,
-        status: "closed",
+        status: "shared",
         plannedOpenDate: "2026-11-09",
         anonymityMode: "anonymous",
         closedAt: 1731140000000,
@@ -1292,6 +1323,7 @@ describe("App Scenes", () => {
           ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}/rounds/${roundId}`)),
           session: signedInAdmin,
           results: { _tag: "Loaded", result: mockSubNResult },
+          teamDetail: { _tag: "Loaded", detail: leadTeamDetail(teamId) },
           actions: { _tag: "Loaded", actions: [] },
         }),
         Scene.expect(Scene.text("Not enough answers to protect anonymity")).toExist(),
@@ -1310,7 +1342,7 @@ describe("App Scenes", () => {
         roundId,
         pulseId,
         teamId,
-        status: "closed",
+        status: "shared",
         plannedOpenDate: "2026-11-09",
         anonymityMode: "anonymous",
         closedAt: 1731140000000,
@@ -1518,7 +1550,7 @@ describe("App Scenes", () => {
       roundId,
       pulseId,
       teamId,
-      status: "closed",
+      status: "shared",
       plannedOpenDate: "2026-11-09",
       anonymityMode: "anonymous",
       closedAt: 1731140000000,
@@ -1701,6 +1733,118 @@ describe("App Scenes", () => {
         Scene.expect(Scene.role("button", { name: "Save note" })).toBeEnabled(),
         Scene.expect(Scene.role("button", { name: "Cancel" })).toBeEnabled(),
       );
+    });
+
+    describe("Review window", () => {
+      const leadTeamDetail = (teamId: TeamId, yourRole: "lead" | "member" = "lead") => ({
+        team: { id: teamId, name: "Platform", timeZone: decodeTimeZone("Europe/Berlin"), yourRole },
+        roster: [],
+        abilities: {
+          update: true,
+          manageLeads: true,
+          manageMembers: true,
+          managePulses: true,
+          viewResults: true,
+        },
+      });
+
+      const teamId = decodeTeamId("team-1");
+      const roundId = Schema.decodeSync(RoundId)("round-ready");
+      const pulseId = decodePulseId("pulse-1");
+      const reviewEndsAt = 1731400000000;
+      const reviewDate = formatDate(new Date(reviewEndsAt));
+
+      const readyResult: RoundResult = {
+        roundId,
+        pulseId,
+        teamId,
+        status: "ready",
+        plannedOpenDate: "2026-11-09",
+        anonymityMode: "anonymous",
+        closedAt: 1731140000000,
+        reviewEndsAt,
+        effectiveMinimumGroupSize: 4,
+        meetsMinimumGroupSize: true,
+        eligibleMembersCount: 8,
+        submissionsCount: 6,
+        responseRate: 0.75,
+        delayed: false,
+        questions: [],
+        dimensions: [],
+        comments: [],
+      };
+
+      it("lets the Lead share a ready Result and reloads it once shared", () => {
+        Scene.scene(
+          { update, view },
+          Scene.given({
+            ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}/rounds/${roundId}`)),
+            session: signedInAdmin,
+            results: { _tag: "Loaded", result: readyResult },
+            teamDetail: { _tag: "Loaded", detail: leadTeamDetail(teamId) },
+            actions: { _tag: "Loaded", actions: [] },
+          }),
+          Scene.expect(Scene.text("Only you can see these Results")).toExist(),
+          Scene.expect(
+            Scene.text(`They'll be shared with the team automatically on ${reviewDate}.`),
+          ).toExist(),
+          Scene.click(Scene.role("button", { name: "Share with the team" })),
+          Scene.Command.expectHas(ShareResultsCmd),
+          Scene.expect(Scene.role("button", { name: "Sharing…" })).toExist(),
+          Scene.Command.resolve(ShareResultsCmd, Message.ResultsShareDone({ outcome: { _tag: "Success" } })),
+          Scene.Command.expectHas(GetResultsCmd),
+          Scene.Command.resolve(
+            GetResultsCmd,
+            Message.GotResults({
+              outcome: { _tag: "Success", result: { ...readyResult, status: "shared" } },
+            }),
+          ),
+          Scene.expect(Scene.text("Only you can see these Results")).toBeAbsent(),
+        );
+      });
+
+      it("shows the Lead a failed share and keeps the share button", () => {
+        Scene.scene(
+          { update, view },
+          Scene.given({
+            ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}/rounds/${roundId}`)),
+            session: signedInAdmin,
+            results: { _tag: "Loaded", result: readyResult },
+            teamDetail: { _tag: "Loaded", detail: leadTeamDetail(teamId) },
+            actions: { _tag: "Loaded", actions: [] },
+          }),
+          Scene.click(Scene.role("button", { name: "Share with the team" })),
+          Scene.Command.expectHas(ShareResultsCmd),
+          Scene.Command.resolve(
+            ShareResultsCmd,
+            Message.ResultsShareDone({ outcome: { _tag: "Failure", failure: "Forbidden" } }),
+          ),
+          Scene.Command.expectNone(),
+          Scene.expect(Scene.role("alert")).toExist(),
+          Scene.expect(Scene.role("button", { name: "Share with the team" })).toExist(),
+        );
+      });
+
+      it("shows a Member the review notice for a ready Result and no scores or summary", () => {
+        // The server withholds questions, dimensions, comments and themes from a Member in the Review window.
+        Scene.scene(
+          { update, view },
+          Scene.given({
+            ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}/rounds/${roundId}`)),
+            session: signedInAdmin,
+            results: { _tag: "Loaded", result: readyResult },
+            teamDetail: { _tag: "Loaded", detail: leadTeamDetail(teamId, "member") },
+            actions: { _tag: "Loaded", actions: [] },
+          }),
+          Scene.expect(
+            Scene.text(`Your Lead is reviewing these Results. They'll be shared by ${reviewDate}.`),
+          ).toExist(),
+          Scene.expect(Scene.text("6 of 8 people checked in.")).toBeAbsent(),
+          Scene.expect(Scene.role("button", { name: "Share with the team" })).toBeAbsent(),
+          Scene.expect(Scene.role("heading", { name: "Commit an action" })).toBeAbsent(),
+          Scene.expect(Scene.role("heading", { name: "Actions" })).toExist(),
+        );
+      });
     });
   });
 

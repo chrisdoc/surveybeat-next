@@ -153,6 +153,7 @@ export const Model = Schema.Struct({
   settingsDay: Weekday,
   settingsTime: Schema.String,
   settingsWindow: Schema.Finite,
+  settingsReviewWindow: Schema.Finite,
   settingsReminders: Schema.Finite,
   settingsSaved: Schema.Boolean,
   settingsBusy: Schema.Boolean,
@@ -171,6 +172,8 @@ export const Model = Schema.Struct({
   // History screen
   history: LoadedHistory,
   guideCopy: GuideCopy,
+  shareBusy: Schema.Boolean,
+  shareFailure: Schema.Option(Failure),
   // Actions
   actions: LoadedActions,
   actionTitle: Schema.String,
@@ -325,6 +328,7 @@ export const Message = defineMessageUnion({
   SettingsDayChanged: { day: Weekday },
   SettingsTimeChanged: { time: Schema.String },
   SettingsWindowChanged: { days: Schema.String },
+  SettingsReviewWindowChanged: { days: Schema.String },
   SettingsRemindersChanged: { reminders: Schema.String },
   SubmitSettings: {},
   // Rounds screen
@@ -350,6 +354,8 @@ export const Message = defineMessageUnion({
   ToggleResultsTable: { key: Schema.String },
   CopyGuide: { text: Schema.String },
   CopiedGuide: { ok: Schema.Boolean },
+  ShareResultsClicked: {},
+  ResultsShareDone: { outcome: OutcomeVoid },
   // Actions
   GotActions: { outcome: OutcomeActions },
   ActionTitleChanged: { title: Schema.String },
@@ -845,6 +851,17 @@ export const CopyGuideTextCmd = Command.define("CopyGuideTextCmd", {
     ),
 });
 
+export const ShareResultsCmd = Command.define("ShareResultsCmd", {
+  args: { teamId: TeamId, roundId: RoundId },
+  messages: [Message.ResultsShareDone],
+  execute: ({ teamId, roundId }) =>
+    runApi(
+      (api) => api.rounds.shareResults({ params: { teamId, roundId } }),
+      () => Message.ResultsShareDone({ outcome: { _tag: "Success" } }),
+      (failure) => Message.ResultsShareDone({ outcome: { _tag: "Failure", failure } }),
+    ),
+});
+
 export const ListActionsCmd = Command.define("ListActionsCmd", {
   args: { teamId: TeamId },
   messages: [Message.GotActions],
@@ -1003,6 +1020,7 @@ export const initialModel = (url: Url): Model => {
     settingsDay: "monday",
     settingsTime: "09:00",
     settingsWindow: 3,
+    settingsReviewWindow: 3,
     settingsReminders: 1,
     settingsSaved: false,
     settingsBusy: false,
@@ -1018,6 +1036,8 @@ export const initialModel = (url: Url): Model => {
     showTable: {},
     history: { _tag: "Loading" },
     guideCopy: "idle",
+    shareBusy: false,
+    shareFailure: Option.none(),
     actions: { _tag: "Loading" },
     actionTitle: "",
     actionOwnerId: Option.none(),
@@ -1125,6 +1145,8 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         teams: { _tag: "Loading" },
         results: { _tag: "Loading" },
         guideCopy: "idle",
+        shareBusy: false,
+        shareFailure: Option.none(),
         rounds: { _tag: "Loading" },
         roundDetails: {},
         roundRates: {},
@@ -1848,6 +1870,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
             settingsDay: detail.settings.cadence.day,
             settingsTime: detail.settings.cadence.time,
             settingsWindow: detail.settings.answerWindowDays,
+            settingsReviewWindow: detail.settings.reviewWindowDays,
             settingsReminders: detail.settings.reminders,
           },
         };
@@ -2085,6 +2108,11 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         model: { ...model, settingsWindow: Number(message.days), settingsSaved: false },
       };
 
+    case "SettingsReviewWindowChanged":
+      return {
+        model: { ...model, settingsReviewWindow: Number(message.days), settingsSaved: false },
+      };
+
     case "SettingsRemindersChanged":
       return {
         model: { ...model, settingsReminders: Number(message.reminders), settingsSaved: false },
@@ -2102,6 +2130,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
           time: model.settingsTime,
         },
         answerWindowDays: model.settingsWindow,
+        reviewWindowDays: model.settingsReviewWindow,
         reminders: model.settingsReminders,
       });
 
@@ -2371,6 +2400,26 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
 
     case "CopiedGuide":
       return { model: { ...model, guideCopy: message.ok ? "copied" : "failed" } };
+    case "ShareResultsClicked": {
+      if (model.route._tag !== "RoundResults" || model.shareBusy) return { model };
+      return {
+        model: { ...model, shareBusy: true, shareFailure: Option.none() },
+        commands: [ShareResultsCmd({ teamId: model.route.teamId, roundId: model.route.roundId })],
+      };
+    }
+
+    case "ResultsShareDone": {
+      const { outcome } = message;
+      if (outcome._tag === "Failure") {
+        return { model: { ...model, shareBusy: false, shareFailure: Option.some(outcome.failure) } };
+      }
+      // Sharing changes what the page shows, so reload the Results the same way the page loads them.
+      const reload =
+        model.route._tag === "RoundResults"
+          ? [GetResultsCmd({ teamId: model.route.teamId, roundId: model.route.roundId })]
+          : [];
+      return { model: { ...model, shareBusy: false, shareFailure: Option.none() }, commands: reload };
+    }
 
     // ----------------------------------------
     // Actions
@@ -2812,6 +2861,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
           settingsDay: model.settingsDay,
           settingsTime: model.settingsTime,
           settingsWindow: model.settingsWindow,
+          settingsReviewWindow: model.settingsReviewWindow,
           settingsReminders: model.settingsReminders,
           settingsSaved: model.settingsSaved,
           settingsBusy: model.settingsBusy,
@@ -2844,6 +2894,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
             }),
           onSettingsTimeChange: (time) => Message.SettingsTimeChanged({ time }),
           onSettingsWindowChange: (days) => Message.SettingsWindowChanged({ days }),
+          onSettingsReviewWindowChange: (days) => Message.SettingsReviewWindowChanged({ days }),
           onSettingsRemindersChange: (reminders) => Message.SettingsRemindersChanged({ reminders }),
           onSubmitSettings: Message.SubmitSettings(),
         },
@@ -2888,6 +2939,8 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
           teamDetail: model.teamDetail,
           showTable: model.showTable,
           guideCopy: model.guideCopy,
+          shareBusy: model.shareBusy,
+          shareFailure: model.shareFailure,
           actionTitle: model.actionTitle,
           actionOwnerId: model.actionOwnerId,
           actionDueDate: model.actionDueDate,
@@ -2907,6 +2960,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
           onNoteCancel: Message.NoteCancelClicked(),
           onSubmitNote: Message.SubmitNote(),
           onCopyGuide: (text) => Message.CopyGuide({ text }),
+          onShareResults: Message.ShareResultsClicked(),
           onActionTitleChange: (title) => Message.ActionTitleChanged({ title }),
           onActionOwnerChange: (personId) =>
             Message.ActionOwnerChanged({ personId: PersonId.make(personId) }),

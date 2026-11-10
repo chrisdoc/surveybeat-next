@@ -14,6 +14,7 @@ import {
   QuestionType,
   QuestionVersionId,
   ReminderCount,
+  ReviewWindowDays,
   SendTime,
   TeamId,
   TemplateQuestionKey,
@@ -46,6 +47,7 @@ const PulseRow = Schema.Struct({
   weekday: Weekday,
   send_time: SendTime,
   answer_window_days: AnswerWindowDays,
+  review_window_days: ReviewWindowDays,
   reminders: ReminderCount,
   anonymity_mode: AnonymityMode,
   distribution: Distribution,
@@ -71,8 +73,8 @@ export const makeSqlPulses = (sql: SqliteClient.SqliteClient) => {
       Effect.flatMap(rows(VersionRow)),
     );
     const pulses = yield* sql`
-      SELECT id, team_id, name, cadence, weekday, send_time, answer_window_days, reminders,
-             anonymity_mode, distribution, created_at
+      SELECT id, team_id, name, cadence, weekday, send_time, answer_window_days, review_window_days,
+             reminders, anonymity_mode, distribution, created_at
         FROM pulse`.pipe(Effect.flatMap(rows(PulseRow)));
     const asked = yield* sql`
       SELECT pulse_id, question_version_id FROM pulse_question ORDER BY pulse_id, position`.pipe(
@@ -98,6 +100,7 @@ export const makeSqlPulses = (sql: SqliteClient.SqliteClient) => {
           name: row.name,
           cadence: { _tag: "Weekly", day: row.weekday, time: row.send_time },
           answerWindowDays: row.answer_window_days,
+          reviewWindowDays: row.review_window_days,
           reminders: row.reminders,
           anonymityMode: row.anonymity_mode,
           distribution: row.distribution,
@@ -128,10 +131,10 @@ export const makeSqlPulses = (sql: SqliteClient.SqliteClient) => {
         const { settings } = pulse;
         return Effect.andThen(
           sql`INSERT INTO pulse (id, team_id, name, cadence, weekday, send_time, answer_window_days,
-                                 reminders, anonymity_mode, distribution, created_at)
+                                 review_window_days, reminders, anonymity_mode, distribution, created_at)
               VALUES (${pulse.id}, ${pulse.teamId}, ${settings.name}, 'weekly', ${settings.cadence.day},
-                      ${settings.cadence.time}, ${settings.answerWindowDays}, ${settings.reminders},
-                      ${settings.anonymityMode}, ${settings.distribution}, ${pulse.createdAt})`,
+                      ${settings.cadence.time}, ${settings.answerWindowDays}, ${settings.reviewWindowDays},
+                      ${settings.reminders}, ${settings.anonymityMode}, ${settings.distribution}, ${pulse.createdAt})`,
           setQuestions(pulse.id, pulse.questions),
         );
       }
@@ -140,7 +143,7 @@ export const makeSqlPulses = (sql: SqliteClient.SqliteClient) => {
         return sql`UPDATE pulse
           SET name = ${settings.name}, cadence = 'weekly', weekday = ${settings.cadence.day},
               send_time = ${settings.cadence.time}, answer_window_days = ${settings.answerWindowDays},
-              reminders = ${settings.reminders}, anonymity_mode = ${settings.anonymityMode},
+              review_window_days = ${settings.reviewWindowDays}, reminders = ${settings.reminders}, anonymity_mode = ${settings.anonymityMode},
               distribution = ${settings.distribution}
           WHERE id = ${change.pulseId}`;
       }

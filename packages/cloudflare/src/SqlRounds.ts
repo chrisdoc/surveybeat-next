@@ -51,6 +51,7 @@ const RoundRow = Schema.Struct({
   opened_at: Schema.NullOr(Schema.Int),
   planned_close_at: Schema.Int,
   closed_at: Schema.NullOr(Schema.Int),
+  review_ends_at: Schema.NullOr(Schema.Int),
   effective_minimum_group_size: Schema.NullOr(Schema.Int),
   pulse_name: Schema.String,
   answer_window_days: AnswerWindowDays,
@@ -179,6 +180,7 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
     openedAt: row.opened_at,
     plannedCloseAt: row.planned_close_at,
     closedAt: row.closed_at,
+    reviewEndsAt: row.review_ends_at,
     effectiveMinimumGroupSize: row.effective_minimum_group_size,
     pulseName: row.pulse_name,
     answerWindowDays: row.answer_window_days,
@@ -351,15 +353,43 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
       );
     }).pipe(Effect.orDie);
 
-  const closeRound = (roundId: RoundId, closedAt: number, effectiveN: number): Effect.Effect<void> =>
+  const closeRound = (
+    roundId: RoundId,
+    closedAt: number,
+    effectiveN: number,
+    reviewEndsAt: number,
+  ): Effect.Effect<void> =>
     sql`UPDATE round
-        SET status = 'closed', closed_at = ${closedAt}, effective_minimum_group_size = ${effectiveN}, updated_at = ${closedAt}
+        SET status = 'closed', closed_at = ${closedAt}, effective_minimum_group_size = ${effectiveN},
+            review_ends_at = ${reviewEndsAt}, updated_at = ${closedAt}
         WHERE id = ${roundId} AND status = 'open'`.pipe(Effect.asVoid, Effect.orDie);
 
-  const markRoundReadyAndShared = (roundId: RoundId, now: number): Effect.Effect<void> =>
+  const markRoundReady = (roundId: RoundId, now: number): Effect.Effect<void> =>
     sql`UPDATE round
-        SET status = 'shared', updated_at = ${now}
+        SET status = 'ready', updated_at = ${now}
         WHERE id = ${roundId} AND status = 'closed'`.pipe(Effect.asVoid, Effect.orDie);
+
+  /** True when this call shared the Round; false when it was already shared, so a repeat is a no-op. */
+  const shareRound = (roundId: RoundId, now: number): Effect.Effect<boolean> =>
+    sql<{ id: RoundId }>`UPDATE round
+        SET status = 'shared', updated_at = ${now}
+        WHERE id = ${roundId} AND status = 'ready'
+        RETURNING id`.pipe(
+      Effect.map((rows) => rows.length > 0),
+      Effect.orDie,
+    );
+
+  /** Ready Rounds of a Pulse planned before `plannedOpenDate`, earliest first. */
+  const getReadyRoundIdsForPulseBefore = (
+    pulseId: PulseId,
+    plannedOpenDate: string,
+  ): Effect.Effect<ReadonlyArray<RoundId>> =>
+    sql<{ id: RoundId }>`SELECT id FROM round
+        WHERE pulse_id = ${pulseId} AND status = 'ready' AND planned_open_date < ${plannedOpenDate}
+        ORDER BY planned_open_date ASC`.pipe(
+      Effect.map((all) => all.map((row) => row.id)),
+      Effect.orDie,
+    );
 
   const cancelRound = (roundId: RoundId, now: number): Effect.Effect<void> =>
     sql`UPDATE round
@@ -1111,7 +1141,9 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
     updateScheduledRound,
     openRound,
     closeRound,
-    markRoundReadyAndShared,
+    markRoundReady,
+    shareRound,
+    getReadyRoundIdsForPulseBefore,
     cancelRound,
     deleteSubmissionsAndParticipations,
     deleteParticipationForPerson,

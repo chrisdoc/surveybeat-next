@@ -332,6 +332,11 @@ export class RoundsApiGroup extends HttpApiGroup.make("rounds")
       success: RoundDetail,
       error: roundErrors,
     }),
+    HttpApiEndpoint.post("shareResults", "/teams/:teamId/rounds/:roundId/share", {
+      params: { teamId: TeamId, roundId: RoundId },
+      success: Schema.Void,
+      error: roundErrors,
+    }),
     HttpApiEndpoint.post("cancelRound", "/teams/:teamId/rounds/:roundId/cancel", {
       params: { teamId: TeamId, roundId: RoundId },
       success: RoundDetail,

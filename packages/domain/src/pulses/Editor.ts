@@ -161,12 +161,13 @@ const accept = (changes: ReadonlyArray<PulseChange>): PulseDecision => ({ _tag: 
 
 /**
  * The settings of a new Pulse in `locale`, named after the Template: Monday 09:00, a three-day
- * window, one reminder, anonymous, by Invitation.
+ * window, a three-day Review window, one reminder, anonymous, by Invitation.
  */
 export const defaultPulseSettings = (locale: Locale): PulseSettings => ({
   name: weeklyTeamHealth(locale).name,
   cadence: { _tag: "Weekly", day: "monday", time: SendTime.make("09:00") },
   answerWindowDays: 3,
+  reviewWindowDays: 3,
   reminders: 1,
   anonymityMode: "anonymous",
   distribution: "invitation",

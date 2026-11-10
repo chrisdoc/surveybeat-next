@@ -97,6 +97,17 @@ export const roundHandlers = <R>(services: Effect.Effect<Context.Context<RoundSe
           }),
         ),
       )
+      .handle("shareResults", ({ params }) =>
+        provide(
+          change(
+            Effect.succeed({
+              _tag: "ShareResults",
+              teamId: params.teamId,
+              roundId: params.roundId,
+            }),
+          ),
+        ),
+      )
       .handle("cancelRound", ({ params }) =>
         provide(
           Effect.gen(function* () {

@@ -383,6 +383,7 @@ describe("the Pulse editor", () => {
       name: "Friday check-in",
       cadence: { _tag: "Weekly", day: "friday", time: "15:30" },
       answerWindowDays: 1,
+      reviewWindowDays: 3,
       reminders: 0,
       anonymityMode: "anonymous",
       distribution: "invitation",
@@ -556,6 +557,7 @@ describe("the settings schema", () => {
     name: "Weekly",
     cadence: { _tag: "Weekly", day: "monday", time: "09:00" },
     answerWindowDays: 3,
+    reviewWindowDays: 3,
     reminders: 1,
     anonymityMode: "anonymous",
     distribution: "invitation",
@@ -566,6 +568,8 @@ describe("the settings schema", () => {
     ["the latest send time", { cadence: { _tag: "Weekly", day: "sunday", time: "21:00" } }],
     ["a one-day window and no reminders", { answerWindowDays: 1, reminders: 0 }],
     ["a six-day window and two reminders", { answerWindowDays: 6, reminders: 2 }],
+    ["no Review window", { reviewWindowDays: 0 }],
+    ["a seven-day Review window", { reviewWindowDays: 7 }],
   ])("accepts %s", (_, patch) => {
     expect(decode({ ...valid, ...patch })._tag).toBe("Some");
   });
@@ -578,6 +582,8 @@ describe("the settings schema", () => {
     ["another cadence", { cadence: { _tag: "Monthly", day: "monday", time: "09:00" } }],
     ["no answer window", { answerWindowDays: 0 }],
     ["a seven-day window", { answerWindowDays: 7 }],
+    ["an eight-day Review window", { reviewWindowDays: 8 }],
+    ["a negative Review window", { reviewWindowDays: -1 }],
     ["three reminders", { reminders: 3 }],
     ["attributed mode", { anonymityMode: "attributed" }],
     ["a shared link", { distribution: "link" }],

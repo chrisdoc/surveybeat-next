@@ -16,6 +16,7 @@ import * as Redacted from "effect/Redacted";
 import { HttpServerRequest } from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import type { Organizations } from "./EmailDelivery.ts";
+import { setReviewWindowDays } from "./ReviewWindowTestRoutes.ts";
 
 export const THEMES_TEST_ROUTE = "/__test/themes";
 
@@ -126,6 +127,8 @@ const scenario = (organizations: Organizations, label: string, aiProcessing: boo
       now,
     );
     yield* organization.runPulseCommand(admin, { _tag: "CreatePulse", pulseId, teamId }, now);
+    // Shared at close, so the members' view below is the full Result (the Review window is 0).
+    yield* setReviewWindowDays(organization, admin, teamId, pulseId, 0, now);
 
     const listed = yield* organization.viewRounds(admin, teamId, pulseId);
     const roundId = RoundId.make(listed._tag === "Viewed" ? (listed.value.rounds[0]?.id ?? "") : "");

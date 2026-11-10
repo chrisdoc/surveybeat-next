@@ -139,6 +139,7 @@ test(
       name: "Friday check-in",
       cadence: { _tag: "Weekly", day: "friday", time: "15:30" },
       answerWindowDays: 6,
+      reviewWindowDays: 5,
       reminders: 0,
       anonymityMode: "anonymous",
       distribution: "invitation",
@@ -308,6 +309,108 @@ test(
     assert.include(unsubGetDeHtml, '<html lang="de">');
     assert.include(unsubGetDeHtml, "Erinnerungen ausschalten");
   }),
+);
+
+test(
+  "Review window: window 0 shares at close, a Lead shares by hand, and the window's end shares automatically",
+  Effect.gen(function* () {
+    const { url } = yield* stack;
+    const run = crypto.randomUUID();
+    const response = yield* Effect.promise(() => fetch(`${url}/__test/review?run=${run}`));
+    assert.strictEqual(response.status, 200);
+    const body: unknown = yield* Effect.promise(() => response.json());
+    assert.deepStrictEqual(body, {
+      // Window 0 (R1 behaviour): shared at close, no share job, and every Person gets a results-ready email.
+      zero: {
+        roundStatus: "shared",
+        shareJobs: 0,
+        resultsReadyFor: ["lead", "member", "other"],
+        memberSeesQuestions: true,
+      },
+      // Window 3, shared by hand: ready at close, share job three days later, only the Lead has an email yet.
+      manual: {
+        roundStatus: "ready",
+        shareJobDueDays: 3,
+        shareJobStatus: "pending",
+        resultsReadyBefore: ["lead"],
+        leadView: {
+          status: "ready",
+          seesQuestions: true,
+          seesDimensions: true,
+          seesComments: true,
+          seesGuideKey: true,
+          reviewEndsAtIsShareDue: true,
+        },
+        memberView: {
+          status: "ready",
+          seesQuestions: false,
+          seesDimensions: false,
+          seesComments: false,
+          seesGuideKey: false,
+          reviewEndsAtIsShareDue: true,
+        },
+        memberCommand: "Forbidden",
+        adminCommand: "Forbidden",
+        leadFirstShare: "Accepted",
+        leadSecondShare: "Accepted",
+        roundStatusAfterShare: "shared",
+        shareJobStatusAfterShare: "cancelled",
+        resultsReadyAfter: ["lead", "member", "other"],
+        leadViewAfter: {
+          status: "shared",
+          seesQuestions: true,
+          seesDimensions: true,
+          seesComments: true,
+          seesGuideKey: true,
+          reviewEndsAtIsShareDue: false,
+        },
+        memberViewAfter: {
+          status: "shared",
+          seesQuestions: true,
+          seesDimensions: true,
+          seesComments: false,
+          seesGuideKey: false,
+          reviewEndsAtIsShareDue: false,
+        },
+        leadSeesNoteBefore: true,
+        memberSeesNoteBefore: false,
+        memberSeesNoteAfter: true,
+      },
+      // Window 3, changed to 7 after close: the share job keeps its due time; running it twice and then the
+      // due jobs shares the Round once.
+      auto: {
+        roundStatus: "ready",
+        shareJobDueDays: 3,
+        roundStatusAfterWindow: "shared",
+        shareJobStatusAfterWindow: "completed",
+        resultsReadyAfter: ["lead", "member", "other"],
+        memberSeesQuestionsAfter: true,
+      },
+      // Cascade (window 7): A is Ready, then the next Round B is Ready too. Sharing B shares A as well: both
+      // Rounds are shared, both share jobs cancelled, and each Person has exactly one results-ready job per Round.
+      cascade: {
+        shareCommand: "Accepted",
+        roundA: {
+          roundStatus: "shared",
+          shareJobStatus: "cancelled",
+          resultsReadyFor: ["lead", "member", "other"],
+        },
+        roundB: {
+          roundStatus: "shared",
+          shareJobStatus: "cancelled",
+          resultsReadyFor: ["lead", "member", "other"],
+        },
+      },
+      // Close early (window 2): the Round is Ready, and its share job is due two days after it closed.
+      closeEarly: {
+        command: "Accepted",
+        roundStatus: "ready",
+        shareJobStatus: "pending",
+        shareJobDueDays: 2,
+      },
+    });
+  }),
+  { timeout: 240_000 },
 );
 
 test(

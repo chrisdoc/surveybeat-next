@@ -77,6 +77,9 @@ const guide: DiscussionGuide = {
   questions: ["What would give you protected time?"],
 };
 
+/** The Round's current row for these tests: shared, so a member sees the full Result (ADR 0016, 0019). */
+const SHARED = { status: "shared", reviewEndsAt: null } as const;
+
 const readyRecord: RoundThemesRecord = {
   status: "ready",
   themes: {
@@ -146,7 +149,7 @@ describe("Themes Privacy & Rule Table Invariants (ADR 0004, 0016, 0019)", () => 
     // Stored at N = 4 with 6 submissions; the Organization raises N to 10, so the Round no longer meets it.
     const stored = resultFor(6, COMMENTS);
     for (const isLead of [true, false]) {
-      const view = viewRoundResult({ stored, organizationN: 10, isLead, themes: readyRecord });
+      const view = viewRoundResult({ stored, organizationN: 10, isLead, themes: readyRecord, round: SHARED });
       expect(view.meetsMinimumGroupSize).toBe(false);
       expect(view.themes).toEqual([]);
       expect(view.themesStatus).toBe("notRequested");
@@ -201,6 +204,7 @@ describe("Themes Privacy & Rule Table Invariants (ADR 0004, 0016, 0019)", () => 
       organizationN: 4,
       isLead: false,
       themes: readyRecord,
+      round: SHARED,
     });
     expect(view.themes).toHaveLength(1);
     for (const theme of view.themes ?? []) {
@@ -215,6 +219,7 @@ describe("Themes Privacy & Rule Table Invariants (ADR 0004, 0016, 0019)", () => 
       organizationN: 4,
       isLead: true,
       themes: readyRecord,
+      round: SHARED,
     });
     expect(view.discussionGuide).toBeNull();
     expect(JSON.stringify(view)).not.toContain("Calendars fill up quickly");
@@ -233,6 +238,7 @@ describe("Themes Privacy & Rule Table Invariants (ADR 0004, 0016, 0019)", () => 
         organizationN: 4,
         isLead: false,
         themes,
+        round: SHARED,
       });
       expect(view).not.toHaveProperty("discussionGuide");
       expect(JSON.stringify(view)).not.toContain("Calendars fill up quickly");

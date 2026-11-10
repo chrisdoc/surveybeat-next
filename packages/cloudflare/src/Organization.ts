@@ -305,6 +305,7 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
             openedAt: null,
             plannedCloseAt: instants.closeInstant,
             closedAt: null,
+            reviewEndsAt: null,
             effectiveMinimumGroupSize: null,
             pulseName: pulse.settings.name,
             answerWindowDays: pulse.settings.answerWindowDays,
@@ -394,6 +395,12 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
           yield* rounds.updateJobDueAt(scheduled.id, "open", instants.openInstant);
           yield* repairAlarm();
         });
+
+      /** When a Round closing now leaves its Review window: the Pulse's window in days, copied at close (issue 106). */
+      const reviewEndsAtOf = (pulseState: PulseState, pulseId: PulseId, now: number) => {
+        const pulse = pulseState.pulses.find((p) => p.id === pulseId);
+        return now + (pulse?.settings.reviewWindowDays ?? 0) * 86_400_000;
+      };
 
       const firstRatingQuestionOf = (pulse: PulseRecord, pulseState: PulseState) => {
         const firstVersionId = pulse.questions[0];
@@ -820,14 +827,15 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
             return;
           }
 
-          const dirState = yield* directory.load;
+          const [dirState, pulseState] = yield* both;
           // Stricter of Organization's current N and round's stored N (ADR 0004)
           const effectiveN = Math.max(
             dirState.minimumGroupSize,
             round.effectiveMinimumGroupSize ?? dirState.minimumGroupSize,
           );
+          const reviewEndsAt = reviewEndsAtOf(pulseState, round.pulseId, now);
 
-          yield* rounds.closeRound(roundId, now, effectiveN);
+          yield* rounds.closeRound(roundId, now, effectiveN, reviewEndsAt);
           yield* rounds.cancelJobsForRound(roundId, ["send", "remind"]);
           yield* rounds.markJobCompleted(jobId, now);
 
@@ -845,6 +853,95 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
           });
 
           yield* executeComputeJob(computeJobId, roundId, now);
+        });
+
+      /** The Persons with `role` in the Team: active Memberships only. */
+      const activePersonsWithRole = (dirState: DirectoryState, teamId: TeamId, role: "lead" | "member") =>
+        dirState.memberships
+          .filter((m) => m.teamId === teamId && m.endedAt === null && m.role === role)
+          .map((m) => m.personId);
+
+      /**
+       * Schedules each person's results-ready email for their own morning, or sends it at once when that time
+       * has passed. Job ids are per Round and person, so scheduling twice adds nothing.
+       */
+      const scheduleResultsReady = (round: RoundRecord, personIds: ReadonlyArray<PersonId>, now: number) =>
+        Effect.gen(function* () {
+          const dirState = yield* directory.load;
+          const team = dirState.teams.find((t) => t.id === round.teamId);
+          const teamTimeZone = team?.timeZone ?? "UTC";
+
+          for (const personId of personIds) {
+            const personTz = yield* rounds.getPersonTimeZone(personId);
+            const effectiveTz = personTz ?? teamTimeZone;
+            const deliveryTime = calculateResultsReadyDeliveryTime(now, effectiveTz);
+            const resultsJobId = JobId.make(`results-ready-${round.id}-${personId}`);
+
+            yield* rounds.insertJob({
+              id: resultsJobId,
+              roundId: round.id,
+              type: "send",
+              dueAt: deliveryTime,
+              status: "pending",
+              payload: JSON.stringify({
+                kind: "resultsReady",
+                personId,
+                roundId: round.id,
+              }),
+              createdAt: now,
+              completedAt: null,
+            });
+
+            if (deliveryTime <= now) {
+              yield* executeSendJob(resultsJobId, round.id, now);
+            }
+          }
+        });
+
+      /**
+       * Shares a Ready Round's Result with the Team (ADR 0004 and the Review window, Issue #106). Idempotent, and
+       * it runs inside the caller's transaction. Earlier Ready Rounds of the Pulse are shared with it: a later
+       * Round's trend and change already carry their scores, so no Result may reach a member before its Round is
+       * Shared. Members get their results-ready email as each Round is shared; Leads got theirs at close.
+       */
+      const shareResults = (roundId: RoundId, now: number) =>
+        Effect.gen(function* () {
+          const target = yield* rounds.getRound(roundId);
+          if (target === null || target.status !== "ready") return;
+
+          const dirState = yield* directory.load;
+          const earlier = yield* rounds.getReadyRoundIdsForPulseBefore(
+            target.pulseId,
+            target.plannedOpenDate,
+          );
+          for (const id of [...earlier, roundId]) {
+            const round = yield* rounds.getRound(id);
+            if (round === null) continue;
+            const changed = yield* rounds.shareRound(id, now);
+            if (!changed) continue;
+
+            yield* rounds.cancelJobsForRound(id, ["share"]);
+            // Leads already have theirs from close (same job id, so this adds none); a member made Lead since still gets one.
+            yield* scheduleResultsReady(
+              round,
+              [
+                ...activePersonsWithRole(dirState, round.teamId, "lead"),
+                ...activePersonsWithRole(dirState, round.teamId, "member"),
+              ],
+              now,
+            );
+          }
+          yield* repairAlarm();
+        });
+
+      /** Idempotent: the Review window has ended, so the Round's Result is shared (a no-op if it already is). */
+      const executeShareJob = (jobId: JobId, roundId: RoundId, now: number) =>
+        Effect.gen(function* () {
+          const job = yield* rounds.getJob(jobId);
+          if (job === null || job.status !== "pending") return;
+
+          yield* shareResults(roundId, now);
+          yield* rounds.markJobCompleted(jobId, now);
         });
 
       /** Idempotent DO method: computes Result, saves to round_result, moves to Ready then Shared. */
@@ -894,7 +991,7 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
             });
 
             yield* rounds.saveRoundResult(roundId, result, now);
-            yield* rounds.markRoundReadyAndShared(roundId, now);
+            yield* rounds.markRoundReady(roundId, now);
 
             // The one themes call for this Round (ADR 0016, 0019). It runs as its own job, never inside this transaction.
             if (shouldRequestThemes(result, dirState.aiProcessing)) {
@@ -913,38 +1010,25 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
               }
             }
 
-            // Schedule results-ready emails for active members and leads of the team
-            const team = dirState.teams.find((t) => t.id === round.teamId);
-            const teamTimeZone = team?.timeZone ?? "UTC";
-            const activeMembers = dirState.memberships.filter(
-              (m) =>
-                m.teamId === round.teamId && m.endedAt === null && (m.role === "lead" || m.role === "member"),
-            );
+            // Leads get their results-ready email now. Members get theirs when the Round is Shared.
+            yield* scheduleResultsReady(round, activePersonsWithRole(dirState, round.teamId, "lead"), now);
 
-            for (const member of activeMembers) {
-              const personTz = yield* rounds.getPersonTimeZone(member.personId);
-              const effectiveTz = personTz ?? teamTimeZone;
-              const deliveryTime = calculateResultsReadyDeliveryTime(now, effectiveTz);
-              const resultsJobId = JobId.make(`results-ready-${roundId}-${member.personId}`);
-
+            // Shared at once when the Review window is zero (or already over); otherwise a share job at its end.
+            const readied = yield* rounds.getRound(roundId);
+            const reviewEndsAt = readied?.reviewEndsAt ?? null;
+            if (reviewEndsAt === null || reviewEndsAt <= now) {
+              yield* shareResults(roundId, now);
+            } else {
               yield* rounds.insertJob({
-                id: resultsJobId,
+                id: JobId.make(`share-${roundId}`),
                 roundId,
-                type: "send",
-                dueAt: deliveryTime,
+                type: "share",
+                dueAt: reviewEndsAt,
                 status: "pending",
-                payload: JSON.stringify({
-                  kind: "resultsReady",
-                  personId: member.personId,
-                  roundId,
-                }),
+                payload: null,
                 createdAt: now,
                 completedAt: null,
               });
-
-              if (deliveryTime <= now) {
-                yield* executeSendJob(resultsJobId, roundId, now);
-              }
             }
 
             yield* repairAlarm();
@@ -1100,6 +1184,8 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
                     yield* executeSendJob(job.id, job.roundId, now);
                   } else if (job.type === "remind") {
                     yield* executeRemindJob(job.id, job.roundId, now);
+                  } else if (job.type === "share") {
+                    yield* executeShareJob(job.id, job.roundId, now);
                   }
                 }),
               );
@@ -1328,7 +1414,12 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
                       dirState.minimumGroupSize,
                       round.effectiveMinimumGroupSize ?? dirState.minimumGroupSize,
                     );
-                    yield* rounds.closeRound(round.id, now, effectiveN);
+                    yield* rounds.closeRound(
+                      round.id,
+                      now,
+                      effectiveN,
+                      reviewEndsAtOf(pulseState, round.pulseId, now),
+                    );
                     yield* rounds.cancelJobsForRound(round.id, ["send", "remind", "close"]);
 
                     const computeJobId = JobId.make(randomId());
@@ -1344,6 +1435,35 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
                     });
                     yield* executeComputeJob(computeJobId, round.id, now);
                     yield* repairAlarm();
+                    return { _tag: "Accepted" } satisfies RoundCommandResult;
+                  }
+
+                  case "ShareResults": {
+                    const round = yield* rounds.getRound(command.roundId);
+                    if (round === null || round.teamId !== command.teamId) {
+                      return {
+                        _tag: "Rejected",
+                        rejection: { _tag: "RoundNotFound" },
+                      } satisfies RoundCommandResult;
+                    }
+                    // Only a Lead shares: an admin may manage Rounds but sees no Result before it is shared.
+                    if (auth.actor.roles.get(command.teamId) !== "lead") {
+                      return {
+                        _tag: "Rejected",
+                        rejection: { _tag: "Forbidden" },
+                      } satisfies RoundCommandResult;
+                    }
+                    if (round.status === "shared") {
+                      return { _tag: "Accepted" } satisfies RoundCommandResult;
+                    }
+                    if (round.status !== "ready") {
+                      return {
+                        _tag: "Rejected",
+                        rejection: { _tag: "InvalidRoundState", status: round.status },
+                      } satisfies RoundCommandResult;
+                    }
+
+                    yield* shareResults(round.id, now);
                     return { _tag: "Accepted" } satisfies RoundCommandResult;
                   }
 
@@ -1645,6 +1765,7 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
               organizationN: dirState.minimumGroupSize,
               isLead,
               themes,
+              round: { status: r.status, reviewEndsAt: r.reviewEndsAt },
             });
 
             const viewed: RoundViewed<RoundResult> = {
@@ -1912,7 +2033,9 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
               };
               return rejected;
             }
-            const note = yield* notes.getNote(roundId);
+            // During the Review window only the Lead sees the Note; the Team sees it once the Round is Shared.
+            const isLead = auth.actor.roles.get(teamId) === "lead";
+            const note = isLead || round.status === "shared" ? yield* notes.getNote(roundId) : null;
             const viewed: NoteViewed<RoundNoteView> = { _tag: "Viewed", value: { roundId, note } };
             return viewed;
           }).pipe(Effect.orDie),
@@ -2024,6 +2147,8 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
                   yield* executeSendJob(job.id, job.roundId, now);
                 } else if (job.type === "remind") {
                   yield* executeRemindJob(job.id, job.roundId, now);
+                } else if (job.type === "share") {
+                  yield* executeShareJob(job.id, job.roundId, now);
                 }
                 yield* repairAlarm();
               }),

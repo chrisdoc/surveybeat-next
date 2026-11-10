@@ -172,6 +172,8 @@ export const RoundResult = Schema.Struct({
   themes: Schema.optionalKey(Schema.Array(CommentTheme)),
   /** Lead only. */
   discussionGuide: Schema.optionalKey(Schema.NullOr(DiscussionGuide)),
+  /** Set while the Round is Ready: when the Review window ends and the Result is shared. */
+  reviewEndsAt: Schema.optionalKey(Schema.Int),
 });
 export type RoundResult = typeof RoundResult.Type;
 

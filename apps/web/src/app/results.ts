@@ -634,10 +634,13 @@ export const resultsScreenView = <Message>(
     readonly actionDimension: Dimension | "none";
     readonly actionBusy: boolean;
     readonly actionFailure: Option.Option<Failure>;
+    readonly shareBusy: boolean;
+    readonly shareFailure: Option.Option<Failure>;
   },
   callbacks: {
     readonly onToggleTable: (key: string) => Message;
     readonly onCopyGuide: (text: string) => Message;
+    readonly onShareResults: Message;
     readonly onActionTitleChange: (title: string) => Message;
     readonly onActionOwnerChange: (personId: string) => Message;
     readonly onActionDueDateChange: (date: string) => Message;
@@ -661,13 +664,52 @@ export const resultsScreenView = <Message>(
 
   const result = state.results.result;
   const minimum = result.effectiveMinimumGroupSize;
+  const isLead = state.teamDetail._tag === "Loaded" && state.teamDetail.detail.team.yourRole === "lead";
+  const roster = state.teamDetail._tag === "Loaded" ? state.teamDetail.detail.roster : [];
+  const reviewDate = result.reviewEndsAt !== undefined ? formatDate(new Date(result.reviewEndsAt)) : null;
+  // The server withholds a closed or ready Round's Questions from everyone but the Lead (Review window), so
+  // decide from the Result itself: no flash of the notice for a Lead while the Team is still loading.
+  const isMemberReview =
+    (result.status === "closed" || result.status === "ready") &&
+    !result.delayed &&
+    result.questions.length === 0;
 
   const children: Array<Html> = [
     h.a([h.Href(teamHref(result.teamId)), h.Class(linkClass)], [message("results.back")]),
     h.div([h.Class("mt-4")], [pageTitle(message("results.title"), h)]),
     h.p([h.Class("text-muted")], [message("results.roundDate", { date: result.plannedOpenDate })]),
   ];
-  const summary = resultsSummary(result);
+  if (isLead && result.status === "ready") {
+    children.push(
+      panel(
+        [
+          h.h2([h.Class("text-base font-semibold")], [message("results.review.leadTitle")]),
+          reviewDate !== null
+            ? h.p(
+                [h.Class("mt-1 text-sm text-muted")],
+                [message("results.review.leadBody", { date: reviewDate })],
+              )
+            : null,
+          h.div(
+            [h.Class("mt-4 flex flex-wrap items-center gap-3")],
+            [
+              appButton(
+                {
+                  text: state.shareBusy ? message("results.review.sharing") : message("results.review.share"),
+                  onClick: callbacks.onShareResults,
+                  isDisabled: state.shareBusy,
+                },
+                h,
+              ),
+            ],
+          ),
+          problemView(Option.getOrUndefined(state.shareFailure), h),
+        ].filter(Predicate.isNotNull),
+        h,
+      ),
+    );
+  }
+  const summary = isMemberReview ? null : resultsSummary(result);
   if (summary !== null) {
     children.push(
       h.p(
@@ -689,9 +731,6 @@ export const resultsScreenView = <Message>(
     );
   }
 
-  const isLead = state.teamDetail._tag === "Loaded" && state.teamDetail.detail.team.yourRole === "lead";
-  const roster = state.teamDetail._tag === "Loaded" ? state.teamDetail.detail.roster : [];
-
   const noteNode = noteSection(
     state,
     {
@@ -704,7 +743,8 @@ export const resultsScreenView = <Message>(
     h,
   );
   // Like Actions, the Note belongs to a closed Round: the Lead writes it after the team conversation.
-  if (noteNode !== null && result.status !== "open") {
+  // A member sees no Note during the Review window.
+  if (noteNode !== null && result.status !== "open" && !isMemberReview) {
     children.push(noteNode);
   }
 
@@ -906,6 +946,27 @@ export const resultsScreenView = <Message>(
       ),
     ],
   );
+
+  // Review window, Member view: only the notice and the Actions; no scores, themes, or summary
+  if (isMemberReview) {
+    children.push(
+      panel(
+        [
+          h.p(
+            [h.Class("font-semibold")],
+            [
+              reviewDate !== null
+                ? message("results.review.memberNotice", { date: reviewDate })
+                : message("results.review.memberNoticeNoDate"),
+            ],
+          ),
+        ],
+        h,
+      ),
+      actionsNode,
+    );
+    return resultsLayout(children, result, h);
+  }
 
   // Open round check: response count only
   if (result.status === "open") {
