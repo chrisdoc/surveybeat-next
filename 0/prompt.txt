@@ -1,0 +1,24 @@
+Delegated task node:delegated-task:command%3Amcp%3A7aa672c1-afe7-48cf-bcf1-28859b62d109%3Adelegate-task%3A7c0fa534-c846-4c96-95f4-9dd42ed38bda (Research #93 German translation) [completed]:
+I wrote the research note for #93, merged it, and deleted the remote branch. I merged before CI finished: the `check` and `privacy` jobs show as failed, but they were cancelled after 2 s without running any steps. The PR only adds `docs/research/german-localization.md`. I didn't touch #93 or the map.
+
+- **Catalog shape:** Keep the TypeScript catalogs and add a `de.ts` next to each one, typed `as const satisfies Translation`. I tested this with the repo's `tsc`: a missing key, an extra key, or a misspelt `{placeholder}` each fails typecheck. The format doesn't change, so no ADR is needed for it. German plurals use the same `one`/`other` forms as English, and dates and numbers come from `Intl` once the hard-coded `LOCALE = "en"` becomes a parameter.
+- **Choosing the language:**
+  - **App:** add nullable `person.locale` and `person.detected_locale`, plus `organization.default_locale`, in the Organization Durable Object. The order is the Person's setting, then the browser (`navigator.languages`), then the Organization.
+  - **Emails:** the Durable Object works out the language when it creates the send and stores it in `StoredEmail`. The Queue consumer renders with it and sets `<Html lang>`.
+- **Answer page:** I measured the current critical path at 9,243 B gzip of the 10,240 B budget: 4,057 B for `answer.js` and 5,186 B for the shared `messages` chunk, which holds all 269 keys but the page uses 27. Adding German to that chunk would bring it to about 14.4 KB, over budget.
+  - **Recommendation:** prerender one page per language (`/a` and `/de/a`), each loading only its own answer catalog: 756 B gzip for English, 831 B for my German draft. That brings the critical path to an estimated 5.2 KB.
+  - The answer page knows no Person before the token exchange, but the email is rendered for one known recipient, so its link can pick the page.
+  - This beats choosing a catalog in a head script, which would flash English text and add a request.
+- **Glossary in German:** Pulse and Team stay English; Round → Runde, Lead → Teamleitung, Organization → Organisation, Submission → Einsendung. I suggest the informal *du*. The product owner decides these when reviewing.
+- **Risks:**
+  - The delivery-time and unsubscribe pages in `MainWorker.ts` have hard-coded English and `lang="en"`, and the lint rule doesn't check that package.
+  - The Template's Question text is English and gets copied into each Pulse, so a German team would see English Questions.
+  - `budget.test.ts` has to be rewritten per page before the split, or it stops checking the real files.
+  - The language must never be stored with a Submission: in a small Team it could identify the one German reader.
+  - Redaction has no test cases for German phone number formats.
+
+PR https://github.com/chrisdoc/surveybeat-next/pull/98, head 1159d73ba5ba20237037e46da7906adb5dd2398a (squash-merged as 1c36bd9e), checks: `check` and `privacy` cancelled without running, `deploy` pending; no reviews.
+
+---
+
+yes
