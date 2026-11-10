@@ -20,6 +20,7 @@ import type { Html, HtmlBuilder } from "foldkit/html";
 import { defineTaggedUnion } from "foldkit/schema";
 import { message, pluralMessage } from "../messages/index.ts";
 import { Failure, failureMessage } from "./api.ts";
+import { resultsSummary } from "./resultsSummary.ts";
 import {
   alertView,
   appButton,
@@ -450,6 +451,15 @@ export const resultsScreenView = <Message>(
     h.div([h.Class("mt-4")], [pageTitle(message("results.title"), h)]),
     h.p([h.Class("text-muted")], [message("results.roundDate", { date: result.plannedOpenDate })]),
   ];
+  const summary = resultsSummary(result);
+  if (summary !== null) {
+    children.push(
+      h.p(
+        [h.Class("mt-6 font-display text-[26px] leading-[1.25] tracking-tight text-ink sm:text-[32px]")],
+        [summary],
+      ),
+    );
+  }
 
   if (result.delayed) {
     children.push(
