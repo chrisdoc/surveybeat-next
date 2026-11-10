@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01R1UEZyJDFmndMN7PMGwa8t",
+  "agent_id": "a6189b1b413793c5a",
+  "subagent_type": "scoper",
+  "task_description": "Scope issue 103 themes",
+  "token_usage": {
+    "input_tokens": 30,
+    "cache_creation_tokens": 74969,
+    "cache_read_tokens": 586669,
+    "output_tokens": 13529,
+    "api_call_count": 14
+  },
+  "started_at": "2026-11-10T08:31:18.654959091Z",
+  "completed_at": "2026-11-10T08:32:46.88486609Z"
+}

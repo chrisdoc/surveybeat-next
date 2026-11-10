@@ -1,0 +1,380 @@
+Act as the implementation sub-agent for this task.
+
+You orchestrate Release 2 slice #103 ("R2 02: Themes and discussion guide computed at Round close") in chrisdoc/surveybeat-next. You are the Opus orchestrator for this slice; THIS TASK EXPLICITLY ASKS YOU TO USE SUBAGENTS: the `scoper` agent (pass model "haiku"), the `implementer` agent (pass model "haiku") to write all code, and the `reviewer` agent (pass model "sonnet") to review each implementer diff. Follow ~/.claude/CLAUDE.md (scope → you write the plan and briefs → implementer → reviewer → you verify the diff and run the full suite). Keep judgment-heavy and security/privacy-sensitive design in your own hands; give the Haiku implementer small, exact, file-owned briefs.
+
+Read first: `gh issue view 103`, map #85, ADRs docs/adr/0015 (OpenRouter, exact request, what may be sent), 0016 (themes rules), 0019 (discussion guide), 0004 (minimum group size), 0006 (Round lifecycle in the Organization DO), 0009 (redaction), AGENTS.md, GLOSSARY.md. The AiClient service and OpenRouter adapter already exist on main (packages/domain/src/ai, packages/cloudflare/src/ai, fakeAiClient in packages/domain/src/ai/testing.ts); the Organization setting `aiProcessing` exists in DirectoryState.
+
+Key decisions already made (don't relitigate): one model call per Round at close, only when the Round meets N and aiProcessing is on; at most 5 themes (label + one neutral sentence + supporting comment indexes); drop themes with < 2 supporting comments; drop any theme repeating 6+ consecutive words of a comment; the guide (what stood out, what people raised, Actions to check on, ≤ 3 questions) is dropped whole if any section fails the 6-word check; input = Dimension scores/changes (+ larger-than-usual flags), redacted comments, Question text, redacted open Action titles (never owners, names, ids, times); retries with backoff up to 24 h via the DO schedule table, then give up; stored once with the Result, never recomputed; members' API view shows only theme label+sentence; Lead-only: support counts and the guide (classify in packages/api/src/PrivacyRegistry.ts). UI is NOT in this slice (#104 does it). Add the privacy rule-table rows from ADR 0016/0019 as privacy tests (`*.privacy.test.ts`).
+
+Workflow: work in your worktree on a branch `r2-103-themes` from origin/main. Validation: pnpm typecheck, pnpm typecheck:effect, pnpm lint, pnpm format:check, pnpm test, pnpm test:privacy, pnpm --filter @surveybeat/web build. Then commit (subject "R2 02: Themes and discussion guide computed at close", end message with "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"), push (if rejected with no reason, retry once), open a PR against main with "Closes #103. Part of #101." plus a short summary and verification, ending the body with "🤖 Generated with [Claude Code](https://claude.com/claude-code)". Wait for checks (check, privacy, deploy, e2e, preview-privacy) with `gh pr checks <n> --watch`; if a check fails, fix and push. The user authorized you to squash-merge your own PR once all checks are green: `gh pr merge <n> --squash --delete-branch`. If main moved and conflicts appear, rebase on origin/main, re-run tests, force-push your own branch only. Other orchestrators are working in parallel on #109 (German catalogs) and #107 (Team overview); expect catalog.ts / Organization.ts conflicts and resolve them by keeping both sides.
+
+Final report (≤ 12 lines): what was built, deviations, reviewer findings and how handled, test counts, PR URL, merge commit SHA, anything left for #104.
+
+---
+
+<task-notification>
+<task-id>a6189b1b413793c5a</task-id>
+<tool-use-id>toolu_01R1UEZyJDFmndMN7PMGwa8t</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-d14d5ffd-4a6a858c5e1507c2/d1d301a4-70cf-41e9-a77c-67520d88b7a4/tasks/a6189b1b413793c5a.output</output-file>
+<status>completed</status>
+<summary>Agent "Scope issue 103 themes" stopped at its 12-turn limit (partial result; SendMessage to task-id to continue)</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>NOTE: this agent stopped at its 12-turn limit before finishing. It was still calling tools and had produced no report. Send the agent a message (SendMessage) to let it continue from where it stopped.
+</result>
+<usage><subagent_tokens>70411</subagent_tokens><tool_uses>21</tool_uses><duration_ms>51063</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>a6189b1b413793c5a</task-id>
+<tool-use-id>toolu_01YJ8nUHW2EiwDmQFy5JBuN3</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-d14d5ffd-4a6a858c5e1507c2/d1d301a4-70cf-41e9-a77c-67520d88b7a4/tasks/a6189b1b413793c5a.output</output-file>
+<status>completed</status>
+<summary>Agent "Scope issue 103 themes" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>## Scoping brief: issue #103 (R2 02: themes and discussion guide at Round close)
+
+**Scoper note:** The coordinator asked for a shorter report and skipped item 1 because the main session has already read the close and compute code. Item 1 is therefore covered only briefly below. The task is complex. It touches the DO, domain, API, privacy registry and a new AI call path, and it has a retry/backoff requirement that the existing job code does not meet (see Risks). Please read the key files named here yourself before planning.
+
+## Goal
+When a Round closes at or above N, with `aiProcessing` on, the Organization DO makes one AI call. The call produces at most 5 Comment themes and a Lead-only discussion guide. Both are validated, stored with the Result once, and never recomputed. `RoundResult` gains a members' `themes` view and Lead-only fields. Failures retry with backoff for up to 24 h. The Results view must respect the privacy rules.
+
+## Acceptance criteria
+Copied from the issue:
+- One model call per Round, scheduled by the Round lifecycle after the Result is computed. Retry with backoff for up to 24 h through the schedule table, then the Round has neither themes nor guide.
+- Prompt plus strict JSON schema. At most 5 themes (label, one neutral sentence, supporting comment indexes). Guide has four sections and at most 3 questions.
+- Checks before storing: drop a theme with fewer than 2 supporting comments; drop a theme that repeats 6+ consecutive words of a comment; drop the whole guide if any section fails. Store once; never recompute.
+- Not run when the Round is below N or AI processing is off. Rounds closed before AI was turned on get nothing.
+- `RoundResult` gains `themes` (members see label and sentence). Lead-only fields (support counts, guide) go only to the Lead. Classify in `PrivacyRegistry.ts`.
+
+Tests from the issue: domain tests for the checks; lifecycle test with the fake `AiClient` covering success, retry, give-up after 24 h, AI off, and below N; privacy rule-table rows from ADR 0016 and 0019.
+
+Added by me, not in the issue: the ADR 0016/0019 "privacy rule table" is referenced but not written down anywhere. Rules R1–R11 exist only as code comments in `Results.ts` and `Results.test.ts`. The issue's rows therefore have no existing home to extend.
+
+## Relevant code
+
+**1. Close lifecycle and schedule table (Organization DO)**
+- `packages/cloudflare/src/Organization.ts:770` `executeCloseJob` closes the Round and inserts a `compute` job with `dueAt: now`, then runs it inline. The Result-computation path is at `:809` `executeComputeJob`, and the Result is saved at `:854`.
+- Compute failure handling is at `:898–926`. It counts attempts in the job payload (`parseAttempts`, `:91`). After 3 attempts it saves a "delayed" Result. Below 3 it only updates the payload and does not move `dueAt`, so the retry is immediate, not backed off.
+- `:932` `runDueJobs` loops over `rounds.getDueJobs(now)` and dispatches by job type. `:961` is the `alarm` handler. `:168` `repairAlarm` arms the alarm to the earliest pending job.
+- Schedule table DDL: `packages/cloudflare/migrations/0006_rounds.sql:61`. Columns are `id, round_id, type IN ('open','close','compute','send','remind'), due_at, status IN ('pending','running','completed','cancelled'), payload, created_at, completed_at`. Adding an AI job type needs a CHECK change, which means a new migration.
+- Latest migration: `0011_ai_processing.sql`, so the next is `0012`.
+
+**2. RoundResult shape and API**
+- Schema: `packages/domain/src/rounds/Results.ts:126–147`. Fields include `questions: QuestionResult[]` (`text` at `:98`, `change` and `typicalChange` per question, `trend`), `dimensions: DimensionResult[]` (`score`, `contributors` optional, `change` with `highlight`), and `comments: CommentResult[]` (`questionVersionId`, `text`, at `:115–119`).
+- "Larger than usual" is `Highlight` (`Results.ts:40–47`), produced by `evaluateHighlight` (`:262`). It appears on question and dimension changes.
+- Built by `calculateRoundResult` (`Results.ts:345–362`). Comments are shuffled (`shuffleComments`, `:278`) and masked below round N (`:1089–1098`).
+- Stored via `SqlRounds.ts:828` `saveRoundResult` and `:842` `getRoundResult`, as a JSON payload in `round_result` (`0009_results.sql`), decoded at `SqlRounds.ts:192`.
+- Endpoint: `packages/api/src/index.ts:331` `rounds.getResults` at `GET /teams/:teamId/rounds/:roundId/results`. Handler is `packages/cloudflare/src/RoundHandlers.ts:125–127`, which calls `viewResults` with `currentMember`.
+- Role logic is in the DO at `packages/cloudflare/src/Organization.ts:1382–1490`. Authorization uses `authorizeRoundAction(..., "team.viewResults")`. Rounds that are scheduled or open return only the response count (`:1417`). Closed, ready or shared Rounds read the stored Result (`:1443`), or compute it in place if missing. The Result is then passed through `enforceEffectiveNOnResult` (`:1474`). Non-Leads have `comments` set to `[]` (`:1478–1483`), so a members' view check happens here.
+- Hook point for `themes` and Lead-only fields: this same block, `:1474–1490`.
+
+**3. Actions and title redaction**
+- Actions are stored in the DO table `action` (`packages/cloudflare/migrations/0010_actions.sql`). `title TEXT NOT NULL`, with `owner_id`.
+- Domain: `packages/domain/src/actions/Action.ts:14–50`. `ActionRecord.title` is `NonEmptyString`. `ActionItem` adds `ownerEmail`.
+- SQL: `packages/cloudflare/src/SqlActions.ts`. `:123` inserts and `:143` updates `title` as-is. Nothing redacts it.
+- Redaction function: `packages/domain/src/privacy/Redaction.ts:185` `redact(text, roster)`. It is called at store time only, in `packages/cloudflare/src/SqlRounds.ts:642` and `:684` for comments. Action titles would need the same call before they reach the AI input. This is an open question: ADR 0019 says titles pass through the same Redaction, but nothing currently does that.
+
+**4. AiClient, adapter, wiring, and the aiProcessing setting**
+- Interface: `packages/domain/src/ai/AiClient.ts`. `RedactedText` brand (`:8–12`). `AiInput` (`:16–41`) has questions, comments and actions. `AiRequest` has `instructions`, `input`, `schemaName`, `schema`, `maxTokens` (`:44–50`). Errors are `AiNotConfigured`, `AiRejected` and `AiUnavailable`. The Context service is at `:73`.
+- Fake: `packages/domain/src/ai/testing.ts`. `fakeAiClient(responses)` returns `{layer, requests}`. It dies if called more times than scripted.
+- Adapter: `packages/cloudflare/src/ai/OpenRouterAiClient.ts`. `makeOpenRouterAiClient` (`:137`) retries 408/429/502/503, timeouts and network errors, up to 3 times. `OpenRouterAiClientLive` (`:191`) reads `OPENROUTER_API_KEY`.
+- **Not wired.** `OpenRouterAiClientLive` is not referenced by any layer. `MainWorker.ts` and `Organization.ts` never provide `AiClient`. `infra/alchemy.run.ts` has no `OPENROUTER` binding. The Organization DO would need an `AiClient` layer and a secret binding.
+- `aiProcessing` in DirectoryState: `packages/domain/src/people/Directory.ts:53`. Set on update at `:452` and `:501`. Read from D1-less DO SQL in `packages/cloudflare/src/SqlDirectory.ts:51–66` (from `organization.ai_processing`, migration `0011`). Also read from `SqlRounds.ts:787–791`. `Organization.ts:471` passes it to the invitation and reminder emails.
+
+**5. PrivacyRegistry**
+- `packages/api/src/PrivacyRegistry.ts`. Every endpoint is a key `"group.endpoint"` in `privacyRegistry`, typed against `EndpointKey&lt;typeof SurveyBeatApi&gt;`. Each entry is either `{_tag: "NoResultData", why: string}` or `{_tag: "ResultData", inputs: Arbitrary}`.
+- `rounds.getResults` is `ResultData` with `roundResultScenarios` (`:74–75`). `RoundResultScenario` is at `:60`. Its `Arbitrary` generator drives a property test.
+- The matching check is `packages/api/src/registry.privacy.test.ts`. It requires that every endpoint is classified, that there are no stale keys, and that every `ResultData` endpoint has a responder. The responder builds the Result the way the handler does and runs `violations(...)`. This test will need to change if `themes` or the guide become Result-bearing fields.
+
+**6. Privacy tests**
+- Files: `packages/cloudflare/src/SubmissionWorker.privacy.test.ts`, `packages/cloudflare/src/Submissions.privacy.test.ts`, `packages/api/src/registry.privacy.test.ts`, `packages/domain/src/privacy/Redaction.privacy.test.ts`, `packages/domain/src/rounds/Results.privacy.test.ts`, `packages/testing/src/Unlinkability.privacy.test.ts`.
+- `Results.privacy.test.ts` uses named invariants P1–P5: subtraction (P1), unlinked comments (P2), a 50-round property test (P3), role access (P4, admin and outsiders get nothing), and open rounds hiding everything (P5). It calls `calculateRoundResult` directly, with no DO.
+- `Submissions.privacy.test.ts` uses A1–A9 and inspects the SQL schema, for example that anonymous tables are `WITHOUT ROWID`.
+- No existing privacy test drives the DO or a stored Result end to end. The new theme and guide rows would be the first. For the "Lead only" rule, look at P4 and the `isLead` branch in `Organization.ts:1478`.
+- ADR 0016 and 0019 "privacy rule table" rows: no table file exists in `SPEC.md` (§7 at `:236` has no table) or `docs/`. The implementer would need to decide where the rows live.
+
+**7. Lifecycle tests**
+- `packages/domain/src/rounds/Lifecycle.test.ts:143` `it.effect("simulates skip, pause, close, and cancel using Effect TestClock")`. This is domain only.
+- `packages/cloudflare/src/Organization.test.ts`. It is a single test (`:159`, "Round lifecycle engine: alarm points at earliest due job…"). It drives the DO through `RoundTestRoutes.ts` (HTTP, `:105–231`). It uses `organization.runScheduleJob(closeJob.id, closeJob.due_at)` and `getAlarm()` and `getEarliestPendingJobDueAt()`. It checks close idempotence and reads `getRoundResult`.
+- `packages/cloudflare/src/ResultsStorage.test.ts` covers `saveRoundResult` and decoding. `ActionsApi.test.ts` covers the Action API.
+- No existing test covers retry timing or 24 h give-up. Time is driven by passing `nowMs` to `runScheduleJob`, not by a TestClock, on the DO side.
+
+## Scope
+- Change: a new `ai` job type in the schedule table (new migration `0012`). An AI step in the close and compute path, guarded by `aiProcessing` and N. Checks (2-supporter, 6-word run, schema) in the domain. `themes` and Lead-only guide fields on `RoundResult` and `getResults`. Privacy registry update. Tests as listed above.
+- Leave alone: the answer page, the Submission Worker, email templates, the Review window (#89), and the Note feature.
+
+## Validation
+- Focused: `pnpm test packages/domain/src/rounds/Results.test.ts`, `pnpm test packages/domain/src/ai`, `pnpm test packages/cloudflare/src/ai/OpenRouterAiClient.test.ts`, `pnpm test packages/cloudflare/src/Organization.test.ts` (adapter test, slow), `pnpm test packages/api/src/registry.privacy.test.ts`.
+- Privacy: `pnpm test:privacy` (not part of `pnpm test`).
+- Typecheck: `pnpm typecheck:effect` then `pnpm typecheck`.
+- End-to-end: a user-facing change, so it needs a deployed stage. `E2E_BASE_URL=https://pr-&lt;n&gt;.app.surveybeat.app pnpm test:e2e`. The stage needs `OPENROUTER_API_KEY` set, or the AI path fails closed.
+
+## Risks and unknowns
+1. **Retry is not backed off.** Existing compute retries have no `dueAt` change and run immediately, up to 3 attempts. The 24 h backoff needs a new retry mechanism in the schedule table.
+2. **AiClient is not provided to the DO.** The adapter exists, but the layer and the `OPENROUTER_API_KEY` binding are missing.
+3. **Action titles are not redacted** before they would reach the AI input (ADR 0019 requires it).
+4. **Privacy rule table has no home.** The ADR rows have nowhere to go yet.
+5. **The members' view of themes.** The issue says members see label and sentence only. The `CommentResult` shape currently carries `questionVersionId` and `text`, and the new `themes` shape is undefined. The "Themes are being prepared" state needs a representation in `RoundResult` or the API response, which is not decided.
+6. **Schema compatibility.** `RoundResult` is stored as JSON and decoded in `SqlRounds.ts:192`. Adding fields needs optional keys, as `DimensionResult.contributors` already does (`Results.ts:65`).
+
+## Possible split
+- **Slice A (domain, no DO):** `packages/domain/src/ai/` checks and the theme and guide schema, plus `packages/domain/src/rounds/Results.ts` `RoundResult` additions. Its tests are the domain check tests. No dependencies.
+- **Slice B (DO schedule and job):** `packages/cloudflare/migrations/0012_*.sql`, `packages/cloudflare/src/SqlRounds.ts` (job types and retry), `packages/cloudflare/src/Organization.ts` (the AI step after compute). Depends on A for the types.
+- **Slice C (Results view and API):** `packages/cloudflare/src/Organization.ts:1382–1490`, `packages/cloudflare/src/RoundHandlers.ts`, `packages/api/src/index.ts` and `PrivacyRegistry.ts`, `registry.privacy.test.ts`. Depends on A.
+- **Slice D (wiring and privacy tests):** `packages/cloudflare/src/MainWorker.ts` and `infra/alchemy.run.ts` for the `AiClient` layer and secret, plus privacy tests. Depends on B and C.
+
+Nothing was edited.</result>
+<usage><subagent_tokens>80428</subagent_tokens><tool_uses>22</tool_uses><duration_ms>88593</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>a352c51ca719478b0</task-id>
+<tool-use-id>toolu_01Rw6NMPTqFasSbEwFpS4VC2</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-d14d5ffd-4a6a858c5e1507c2/d1d301a4-70cf-41e9-a77c-67520d88b7a4/tasks/a352c51ca719478b0.output</output-file>
+<status>completed</status>
+<summary>Agent "Review slice A diff" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>No BLOCKER or MAJOR issues in the domain slice. The Themes tests (32) and the privacy suite (42) pass, and `pnpm typecheck` and `pnpm lint` are clean. I did not run `typecheck:effect` or `format`. I checked the privacy rules, the 6-word check, the three functions you named, and the tests against the brief and ADRs 0016, 0019, 0015 and 0004.
+
+**Findings**
+
+1. MAJOR for slice B, not this slice: `packages/cloudflare/migrations/0006_rounds.sql:64`. The schedule-job table has `CHECK (type IN ('open','close','compute','send','remind'))`. `ScheduleJobType` now includes `"themes"` (`packages/domain/src/rounds/Round.ts:30`). Inserting a themes job will fail the constraint at runtime, and the typecheck won't catch it. The fix is a new numbered migration that rebuilds the table, since SQLite cannot alter a CHECK constraint. Make sure the cloudflare slice does this.
+
+2. MINOR: `packages/domain/src/rounds/Themes.ts`, `wordsOf` and `runsOf` (around line 150). The check splits on non-letter, non-number characters. Scripts written without spaces (Chinese, Japanese, Thai) become one long "word", so a copied run never forms a 6-word window and the quote check cannot catch them. The product is aimed at English and German (ADR 0018), where the check works. I'd add a one-line comment, or an ADR 0016 note, that quote detection is word-based and does not cover unspaced scripts.
+
+3. MINOR: `Themes.ts` `checkThemesReply`. Each string is checked separately. A quote split between a theme's label and its sentence, or across two guide entries, is not caught. Each half is under 6 words, so this is only a partial gap against ADR 0016. Checking `label + " " + sentence` as well would close the label/sentence case cheaply.
+
+4. MINOR (test strength): `Themes.privacy.test.ts`, `generatedReply`. The generated replies always carry the fixed clean `guide`. So T3's loop over guide strings never runs on a quoting guide, and only G3 covers that rule. G3 does fail if the guide check is removed, so the rule is still protected. I'd have the generator sometimes put a quoted comment run into a random guide section.
+
+5. MINOR: `Themes.ts` `viewRoundResult` (`hidden` and the ready branch). They spread `...shown`, which carries any `themes` or `discussionGuide` already on the stored Result. Today nothing stores them, since the keys are optional and only the view sets them. If a stored payload ever contained them, a member view could pass them through. Setting `discussionGuide: undefined` is not possible under `exactOptionalPropertyTypes`, so the safe fix is to destructure `themes`, `themesStatus` and `discussionGuide` out of `r` before spreading. This is cheap hardening.
+
+**Correct as written**
+- **Members:** the member view has no `discussionGuide` key at any status and no `supportingComments`, as T4 and G2 assert.
+- **Below N:** `enforceEffectiveNOnResult` runs first, and its `meetsMinimumGroupSize` gates themes and the guide. T1 exercises this by raising the Organization N from 4 to 10.
+- **`buildThemesInput`:** it sends no ids, times or names, and comments are empty below N. Question changes are already null when a question is masked (`Results.ts:1019`). Action titles are redacted with the roster, and G4 checks distinctive ids.
+- **6-word check:** the NFKD and `\p{M}` stripping, lowercasing, and per-comment windows are correct. Cross-comment windows are not formed, which is right. The tests compute their reference runs independently of the code under test.
+- **`checkThemesReply`:**
+  - Supporters are distinct, in-range indexes.
+  - Only the first 5 entries are considered.
+  - A malformed entry is dropped, and a bad guide becomes `null`.
+  - It fails only on a bad envelope.
+  - `Schema.Int` rejects non-integers.
+- **`nextThemesAttemptAt`:** the backoff, the 4 h cap and the 24 h cutoff match the brief.
+- **`runThemesAttempt`:**
+  - Every `AiClient` error is handled, and `AiNotConfigured` gives up.
+  - Rejected, unavailable and invalid replies retry or give up.
+  - Nothing is logged.
+  - `AiClient.use` and `catchTags` are the right Effect 4 idioms.
+- **AGENTS.md:** there are no `as` casts outside tests.</result>
+<usage><subagent_tokens>42891</subagent_tokens><tool_uses>7</tool_uses><duration_ms>114367</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>ac1394356ed042b94</task-id>
+<tool-use-id>toolu_01BvcaUhoxz6hhT86vrMgyA2</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-d14d5ffd-4a6a858c5e1507c2/d1d301a4-70cf-41e9-a77c-67520d88b7a4/tasks/ac1394356ed042b94.output</output-file>
+<status>completed</status>
+<summary>Agent "Slice B privacy registry" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>## Changes
+
+Slice B is implemented in the two files I own. Nothing is committed.
+
+- **`packages/api/src/PrivacyRegistry.ts`**
+  - Added `LeadOnlyField` (`comments`, `themes.supportingComments`, `discussionGuide`).
+  - The `ResultData` variant now carries `leadOnly: ReadonlyArray&lt;LeadOnlyField&gt;`. The doc comment says the property test also checks member leaks and themes or guide below N.
+  - `rounds.getResults` sets `leadOnly` to the three fields.
+  - `RoundResultScenario` gains `viewer` (`lead`/`member`) and `themes` (`none`/`pending`/`ready`/`failed`), both documented.
+- **`packages/api/src/registry.privacy.test.ts`**
+  - `buildResult` now calls `viewRoundResult` instead of `enforceEffectiveNOnResult`. A `themesRecordOf` helper maps the scenario state to a `RoundThemesRecord`. A fixed `READY_THEMES` fixture has two themes (2 and 3 supporters) and a non-null guide.
+  - `violations(scenario, built, leadOnly)` keeps every existing rule and adds: themes below N, guide below N, a theme with fewer than 2 supporters, and, for a member, each `leadOnly` field through the `leadOnlyLeaks` checker table.
+  - New non-property test: "a Lead receives the Lead-only fields of a ready Round that meets N". The Lead side has comments, themes with `supportingComments`, and a guide. The member side has no comments, themes with exactly `label` and `sentence`, and no `discussionGuide`.
+  - The property test still runs 500 times with seed `20261109`.
+  - Removed the unused `enforceEffectiveNOnResult` import.
+
+## Validation
+
+- `pnpm typecheck:effect`: exit 0. The only suggestion in my file is on the `Schema.decodeUnknownSync` line inside the generator, which was already there before my change.
+- `pnpm typecheck`: fails only in `packages/cloudflare` (`Organization.ts` imports `THEMES_LEASE_MS`, which is not exported yet; `SqlRounds.ts` has a type mismatch). `pnpm exec tsc -b packages/api` exits 0.
+- `pnpm lint`: the only error is `packages/cloudflare/src/Organization.ts:66`, an unused `viewRoundResult` import from the other agent's in-progress work. `oxlint --type-aware packages/api packages/domain` is clean.
+- `pnpm format` ran and reformatted my test file. `pnpm format:check` passes.
+- `pnpm test:privacy`: 7 files, 43 tests, all pass.
+- `pnpm test packages/api`: 1 file, 2 tests, both pass.
+
+Test count in `registry.privacy.test.ts`: 6 tests (4 structural, 1 property test for `rounds.getResults`, 1 new Lead/member test).
+
+## Notes
+
+- **Deviation (harness only):** the first run failed. The generator produced an `open` Round with themes `ready`, and `viewRoundResult` showed themes and a guide for it, because the stored `meetsMinimumGroupSize` is true there. In the real system themes are requested only at close (ADR 0016; `shouldRequestThemes` requires closed/ready/shared). So `buildResult` maps an open Round to `themes: null`. This is a modelling choice in my file, not a change to the brief's mapping for closed Rounds.
+- **Domain gap to decide:** `viewRoundResult` in `packages/domain/src/rounds/Themes.ts` does not check `status`. It would show stored themes for an open Round if such a record ever existed. The fix is a one-line guard there, which is outside my ownership, so I did not make it.
+- **Organization not yet wired:** `packages/cloudflare/src/Organization.ts` still calls `enforceEffectiveNOnResult` (line 1474) and does not call `viewRoundResult`. The comment in `buildResult` says Organization calls it, so it is ahead of the code until the other agent's change lands.
+- Brief's literal `&lt; 2` is used in the theme check rather than `MIN_SUPPORTING_COMMENTS`, to keep the privacy check independent of the domain constant.</result>
+<usage><subagent_tokens>73289</subagent_tokens><tool_uses>27</tool_uses><duration_ms>313186</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>addef8ce828e31101</task-id>
+<tool-use-id>toolu_01Sh4Wxuzwqp1gSfVsuemWHe</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-d14d5ffd-4a6a858c5e1507c2/d1d301a4-70cf-41e9-a77c-67520d88b7a4/tasks/addef8ce828e31101.output</output-file>
+<status>completed</status>
+<summary>Agent "Slice C Organization DO themes" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>Slice C is implemented in `/home/ubuntu/.t3/worktrees/surveybeat-next/t3-d14d5ffd-4a6a858c5e1507c2`, nothing committed. All validation passes, including the adapter test that exercises a real meets-N Round end to end.
+
+## Changes
+
+- **`packages/cloudflare/migrations/0012_round_themes.sql`** (new): rebuilds `schedule_job` with the `themes` type (copies rows, recreates both indexes), then creates `round_themes` as specified.
+- **`packages/cloudflare/src/SqlRounds.ts`**: added and exported `requestThemes` (uses `INSERT … ON CONFLICT DO NOTHING RETURNING`, true when a row was inserted), `getRoundThemes`, `recordThemesAttemptFailed`, `storeThemes`, `giveUpThemes` (all `WHERE status = 'pending'`), and `updateJobDueAtById`.
+- **`packages/cloudflare/src/SqlActions.ts`**: added `getOpenActionTitlesForTeam` (titles only, `proposed`/`committed`).
+- **`packages/cloudflare/src/Organization.ts`**:
+  - Builds the OpenRouter client at activation; it is provided only to `runThemesAttempt`.
+  - The compute success path requests the themes job after `markRoundReadyAndShared`.
+  - New `executeThemesJob` runs as three steps: check and lease inside a transaction, the network call outside any transaction, then record the outcome inside a transaction followed by `repairAlarm`.
+  - `runDueJobs` and `runScheduleJob` route `themes` jobs past the transaction.
+  - `viewResults` now uses `viewRoundResult`.
+  - Exposed `getRoundThemes` on the object, next to `getRoundResult`, so the test can read the stored status.
+- **`packages/cloudflare/src/ThemesTestRoutes.ts`** (new) and **`MainWorker.ts`**: `/__test/themes` route, registered in `runWorkerFirst` and dispatched under `isTestStage`.
+- **`packages/cloudflare/src/Organization.test.ts`**: one adapter test with exact expectations for both scenarios.
+
+## Validation
+
+- `pnpm typecheck:effect`: exit 0. Only pre-existing suggestions, none from my code.
+- `pnpm typecheck`: pass.
+- `pnpm lint`: pass.
+- `pnpm format:check`: pass. I used `format:check` rather than `pnpm format`, because `format` rewrites every file and would touch the other agent's `packages/api` work.
+- `pnpm test`: 39 files, 614 tests pass. This includes `ResultsStorage.test.ts` and `SubmissionRoundContext.test.ts`, which apply the migration chain.
+- `pnpm test:privacy`: 7 files, 43 tests pass.
+- `pnpm test packages/cloudflare/src/Organization.test.ts` (adapter, local workerd): 6 of 6 pass, about 41 s. The new test asserts:
+  - AI on: themes job exists and completes, stored status `failed`, Lead sees `unavailable` with a null `discussionGuide`, member has no `discussionGuide` key and no themes.
+  - AI off: no themes job or record, Lead sees `notRequested`.
+
+I also ran a temporary SQL check for the new methods and the rebuilt `schedule_job` (store-once, the give-up path, index preservation, action title ordering). It passed and I deleted it afterwards.
+
+## Notes
+
+- **Deviation: lease constant.** `THEMES_LEASE_MS` is defined locally in `Organization.ts` (10 min), because the brief's `THEMES_LEASE_MS` import does not exist in the domain module.
+- **Addition: `getRoundThemes` RPC.** Not in the brief, but the test needs the stored status, and it mirrors `getRoundResult`.
+- **Addition: `runScheduleJob` pre-read.** It reads the job once before the transaction to detect `themes`. This is an extra read outside the transaction; the original transactional logic is unchanged.
+- **Not verified: real OpenRouter call.** The adapter test covers the no-key path only (`AiNotConfigured` gives up). The Store and RetryAt branches are exercised only by the domain tests, not against the adapter.
+- **Not verified: lease expiry on a dead object.** The 10-minute lease and retry after a mid-call crash are reasoned from the code, not tested.
+- **Other agent's files.** I did not modify anything in `packages/api`, `apps/web` or `packages/domain`. The `packages/api` changes in the tree are the other agent's, and they were in the tree during my validation runs.</result>
+<usage><subagent_tokens>164450</subagent_tokens><tool_uses>60</tool_uses><duration_ms>679237</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>a105060e03ca2b16d</task-id>
+<tool-use-id>toolu_016EqW12SLWA5F3vHMzrSKx4</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-d14d5ffd-4a6a858c5e1507c2/d1d301a4-70cf-41e9-a77c-67520d88b7a4/tasks/a105060e03ca2b16d.output</output-file>
+<status>completed</status>
+<summary>Agent "Review slices B and C" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>I found one major and three minor issues. I did not run the adapter test (`Organization.test.ts`). `pnpm typecheck` and `pnpm test:privacy` pass (7 files, 43 tests).
+
+**What checks out**
+- **No network call in a transaction.** `executeThemesJob` (`Organization.ts:~969-1052`) runs prepare, the AI call and store as separate steps. Only the first and last are in `withTransaction`. The call sits between them.
+- **Lease, store-once and the AI-off check.**
+  - The lease moves `due_at` ahead by 10 minutes inside the first transaction.
+  - `storeThemes` and `giveUpThemes` are guarded by `status='pending'`.
+  - The third step re-reads the row before writing.
+  - The AI-off check runs before any call, so nothing is sent in that case.
+  - The OpenRouter client's worst case (4 tries at 60 s plus up to 30 s backoff each) is about 5.5 minutes, under the lease.
+- **Job idempotency.** `requestThemes` uses `ON CONFLICT DO NOTHING ... RETURNING`, so a compute re-run cannot insert a second `themes-&lt;roundId&gt;` job.
+- **Migration 0012.**
+  - The rebuilt DDL matches `0006_rounds.sql` (same columns, `WITHOUT ROWID`, both indexes).
+  - The `INSERT ... SELECT` copies every column.
+  - Nothing references `schedule_job`, so the DROP is safe.
+- **Job dispatch.** The `runDueJobs` and `runScheduleJob` branches handle `themes`. `cancelJobsForRound` only runs for scheduled Rounds, so it cannot cancel a themes job. The `getDueJobs` loop terminates, because retries get a future `dueAt`.
+- **`viewResults`.**
+  - Every closed-Round path (stored or computed in place) goes through `viewRoundResult`.
+  - The open branch is untouched.
+  - The only other `enforceEffectiveNOnResult` use is the guard in the themes job.
+- **Logging.** The new code has no `Effect.log*`.
+- **Test routes.** Both the `runWorkerFirst` entry and the dispatch are behind `isTestStage` (`MainWorker.ts:123, 484-489`).
+- **Registry property test.** It runs the real `viewRoundResult` over all viewer and themes states. It checks member leaks via `leadOnly`, and themes or guide below N. The fixed Lead test shows the checks are not vacuous.
+
+## Findings
+
+**MAJOR — the model input uses the stored N, not the current N** (`Organization.ts:~1011`).
+- The guard calls `enforceEffectiveNOnResult(stored, N)`, but `buildThemesInput(stored, ...)` is given the unenforced `stored`.
+- If an admin raises the Organization N after close, a pending or retrying themes call still sends per-Question and per-Dimension scores (and the larger-than-usual flags) that the Lead can no longer see. `meetsMinimumGroupSize` in the input still reflects the old N.
+- The retry window is up to 24 hours, so this is realistic. It breaks ADR 0004 and the privacy invariant that every aggregate obeys N.
+- Fix: compute `const effective = enforceEffectiveNOnResult(stored, dirState.minimumGroupSize)` once and pass `effective` to both `shouldRequestThemes` and `buildThemesInput`. Add a test where N is raised between request and attempt.
+
+**MAJOR — the adapter test only covers the give-up path** (`ThemesTestRoutes.ts`, `Organization.test.ts:276+`).
+- The key is empty, so every run ends in `AiNotConfigured` and `GiveUp`.
+- Untested at the adapter level: `storeThemes` and the JSON round trip through `getRoundThemes` (the ready-row decode), `RetryAt` and `recordThemesAttemptFailed` with the lease update, the "AI turned off between request and attempt" branch, and the "themes settled meanwhile" branch.
+- A bug in the ready-row JSON or decode would only appear in production.
+- Fix: add a test-stage route that calls the `rounds` methods directly (`storeThemes`, then `viewResults` as Lead and member). Also drive `executeThemesJob` with an injectable `AiClient`, for example a test-only DO method that takes a fake client, to cover Store, RetryAt and AI-off. Add an upgrade test that runs migrations 0001-0011 with an existing `schedule_job` row, then 0012.
+
+**MINOR — the alarm is not re-armed after the lease** (`Organization.ts:~1013`).
+- `repairAlarm` runs only at the end of step 3. After the lease is taken, the alarm may point at nothing or at a later job.
+- If the object dies mid-call, recovery relies on the platform retrying the in-flight alarm.
+- Fix: call `yield* repairAlarm()` after the lease transaction, so the alarm is armed for lease expiry.
+
+**MINOR — a decode defect on the stored themes could write text to logs** (`SqlRounds.ts:~1018`, `decodeStoredThemes`).
+- A corrupt `ready` payload becomes an `orDie` defect whose parse-error message carries the stored values (AI-derived text). The runtime logs defects.
+- Fix: map the decode failure to a fixed-message defect, for example `Effect.mapError(() =&gt; new Error("round_themes payload invalid"))`, or fall back to `failed`.
+
+**MINOR — the new test only works on stages without a key** (`ThemesTestRoutes.ts` and its docs).
+- It asserts `failed`/`unavailable`, which only holds when `OPENROUTER_API_KEY` is empty. On a deployed stage with the secret set, the route would send synthetic comments to OpenRouter and return something different.
+- Not a problem for the local-workerd test as written. A comment saying so would help.
+
+Relevant files:
+- `/home/ubuntu/.t3/worktrees/surveybeat-next/t3-d14d5ffd-4a6a858c5e1507c2/packages/cloudflare/src/Organization.ts`
+- `/home/ubuntu/.t3/worktrees/surveybeat-next/t3-d14d5ffd-4a6a858c5e1507c2/packages/cloudflare/src/SqlRounds.ts`
+- `/home/ubuntu/.t3/worktrees/surveybeat-next/t3-d14d5ffd-4a6a858c5e1507c2/packages/cloudflare/src/ThemesTestRoutes.ts`
+- `/home/ubuntu/.t3/worktrees/surveybeat-next/t3-d14d5ffd-4a6a858c5e1507c2/packages/cloudflare/src/Organization.test.ts`</result>
+<usage><subagent_tokens>69980</subagent_tokens><tool_uses>10</tool_uses><duration_ms>101087</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>addef8ce828e31101</task-id>
+<tool-use-id>toolu_01HzWw4PRzF3GvZjVnDvkrrv</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-d14d5ffd-4a6a858c5e1507c2/d1d301a4-70cf-41e9-a77c-67520d88b7a4/tasks/addef8ce828e31101.output</output-file>
+<status>completed</status>
+<summary>Agent "Slice C Organization DO themes" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>All four items are done, and the full validation chain passes on the final state. Nothing is committed.
+
+## Changes
+
+1. **New `packages/cloudflare/src/RoundThemesStorage.test.ts`** (6 tests, all passing). It uses ResultsStorage's `readdirSync`/`readFileSync` approach on a `node:sqlite` database, with `makeSqlRounds` built on it.
+   - **(a) Upgrade:** applies 0001–0011, seeds a `close` job, applies 0012. The row is unchanged, a `themes` job inserts, an unknown type is rejected by the CHECK, and both indexes exist. Piecewise application works in this harness; the migrations are plain SQL run on the same connection.
+   - **(b)** `requestThemes` returns true, then false; pending with `attempts` 0; after `recordThemesAttemptFailed(…, 2)`, attempts 2.
+   - **(c)** `storeThemes` round-trips with a guide and with a null guide. A later store or give-up changes nothing.
+   - **(d)** `giveUpThemes` on pending gives `failed`, and a later store does not revive it.
+   - **(e)** `updateJobDueAtById` moves a pending job and leaves a completed one alone.
+   - Extra: a corrupt ready payload yields a defect whose text contains `round_themes payload invalid` and not the stored text.
+2. **`Organization.ts`, `executeThemesJob`:** `yield* repairAlarm()` runs right after the lease transaction succeeds (after the `prepared === null` return), so the alarm is armed for lease expiry. I left your `enforceEffectiveNOnResult` change as it was.
+3. **`SqlRounds.ts`, `getRoundThemes`:** payload decode failures become `Effect.mapError(() =&gt; new Error("round_themes payload invalid"))` followed by `Effect.orDie`. `Effect.orDieWith` does not exist in Effect 4.1.2; the first draft failed the new test, which is how I found it.
+4. **`ThemesTestRoutes.ts`:** reads `OPENROUTER_API_KEY` with `Config.Redacted(…).pipe(Config.withDefault(Redacted.make("")), Effect.orDie)`, the same read the DO does. If it is non-empty, the route returns `{"error":"ai_key_configured"}` before creating anything. The doc comment states the no-key assumption.
+
+## Validation
+
+- `pnpm typecheck:effect`: exit 0.
+- `pnpm typecheck`: exit 0.
+- `pnpm lint`: exit 0. My first run failed on `require-yield` in the upgrade test; it is now a plain `it`.
+- `pnpm format:check`: exit 0.
+- `pnpm test`: 40 files, 620 tests pass.
+- `pnpm test:privacy`: 7 files, 43 tests pass.
+- `pnpm test packages/cloudflare/src/Organization.test.ts` (adapter): 6 of 6 pass.
+- `pnpm test packages/cloudflare/src/ResultsStorage.test.ts`: pass.
+
+## Notes
+
+- **Key-set refusal branch is untested.** The adapter runs with no key, so only the pass-through path is exercised. Nothing tests `ai_key_configured` on a stage that has the secret.
+- **Lint and format.** I used `oxfmt` on my own files and `format:check` for the repo, not the writing `pnpm format`, so the other agent's `packages/api` files stay untouched.</result>
+<usage><subagent_tokens>194692</subagent_tokens><tool_uses>20</tool_uses><duration_ms>515799</duration_ms></usage>
+</task-notification>
