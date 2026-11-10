@@ -36,6 +36,7 @@ import {
   CancelRoundCmd,
   ClearKeptAnswersCmd,
   CloseRoundEarlyCmd,
+  CopyGuideTextCmd,
   CreateTeam,
   GetRoundDetailCmd,
   GetRoundRateCmd,
@@ -1296,6 +1297,213 @@ describe("App Scenes", () => {
         Scene.expect(Scene.text("Not enough answers to protect anonymity")).toExist(),
         Scene.expect(Scene.role("heading", { name: "Actions" })).toExist(),
       );
+    });
+
+    describe("Comment themes and discussion guide", () => {
+      const teamId = decodeTeamId("team-1");
+      const roundId = Schema.decodeSync(RoundId)("round-themes");
+      const pulseId = decodePulseId("pulse-1");
+      const qvId = decodeVersionId("qv-1");
+      const url = makeUrl(`https://app.surveybeat.com/teams/${teamId}/rounds/${roundId}`);
+
+      const meetingResult = (overrides: Partial<RoundResult>): RoundResult => ({
+        roundId,
+        pulseId,
+        teamId,
+        status: "closed",
+        plannedOpenDate: "2026-11-09",
+        anonymityMode: "anonymous",
+        closedAt: 1731140000000,
+        effectiveMinimumGroupSize: 4,
+        meetsMinimumGroupSize: true,
+        eligibleMembersCount: 8,
+        submissionsCount: 6,
+        responseRate: 0.75,
+        delayed: false,
+        questions: [],
+        dimensions: [],
+        comments: [],
+        ...overrides,
+      });
+
+      const teamDetail = (yourRole: "lead" | "member") => ({
+        team: { id: teamId, name: "Platform", timeZone: decodeTimeZone("Europe/Berlin"), yourRole },
+        roster: [],
+        abilities: {
+          update: false,
+          manageLeads: false,
+          manageMembers: false,
+          managePulses: false,
+          viewResults: true,
+        },
+      });
+
+      const givenResults = (result: RoundResult, yourRole: "lead" | "member") => ({
+        ...initialModel(url),
+        session: signedInAdmin,
+        results: { _tag: "Loaded" as const, result },
+        teamDetail: { _tag: "Loaded" as const, detail: teamDetail(yourRole) },
+        actions: { _tag: "Loaded" as const, actions: [] },
+      });
+
+      const guide = {
+        whatStoodOut: ["Workload moved more than usual."],
+        whatPeopleRaised: [],
+        actionsToCheckOn: [],
+        questions: ["What would make busy weeks easier?"],
+      };
+
+      it("shows a member the themes without counts, and neither the guide nor the admin line", () => {
+        Scene.scene(
+          { update, view },
+          Scene.given(
+            givenResults(
+              meetingResult({
+                themesStatus: "ready",
+                themes: [
+                  { label: "Workload", sentence: "Busy weeks leave little room for planned work." },
+                  { label: "Priorities", sentence: "Several people would like clearer priorities." },
+                ],
+                discussionGuide: null,
+              }),
+              "member",
+            ),
+          ),
+          Scene.expect(Scene.role("heading", { name: "What people raised" })).toExist(),
+          Scene.expect(Scene.role("heading", { name: "Workload" })).toExist(),
+          Scene.expect(Scene.text("Busy weeks leave little room for planned work.")).toExist(),
+          Scene.expect(Scene.text("Several people would like clearer priorities.")).toExist(),
+          Scene.expect(Scene.text("Raised in 2 comments")).toBeAbsent(),
+          Scene.expect(Scene.role("heading", { name: "Discussion guide" })).toBeAbsent(),
+          Scene.expect(
+            Scene.text(
+              "An Organization admin can turn on AI processing in Settings to get themes and a discussion guide.",
+            ),
+          ).toBeAbsent(),
+        );
+      });
+
+      it("shows the Lead the supporting counts, the comment, and the guide, which copies as text", () => {
+        Scene.scene(
+          { update, view },
+          Scene.given(
+            givenResults(
+              meetingResult({
+                comments: [{ questionVersionId: qvId, text: "Great progress this week!" }],
+                themesStatus: "ready",
+                themes: [
+                  {
+                    label: "Workload",
+                    sentence: "Busy weeks leave little room for planned work.",
+                    supportingComments: 2,
+                  },
+                  {
+                    label: "Priorities",
+                    sentence: "Several people would like clearer priorities.",
+                    supportingComments: 3,
+                  },
+                ],
+                discussionGuide: guide,
+              }),
+              "lead",
+            ),
+          ),
+          Scene.expect(Scene.text("Raised in 2 comments")).toExist(),
+          Scene.expect(Scene.text("Raised in 3 comments")).toExist(),
+          Scene.expect(Scene.text("Great progress this week!")).toExist(),
+          Scene.expect(Scene.role("heading", { name: "Discussion guide" })).toExist(),
+          Scene.expect(
+            Scene.text(
+              "Only you see this. Written by AI from this Round's scores, comments, and open Actions.",
+            ),
+          ).toExist(),
+          Scene.expect(Scene.text("Workload moved more than usual.")).toExist(),
+          Scene.expect(Scene.text("What would make busy weeks easier?")).toExist(),
+          // Empty sections are skipped
+          Scene.expect(Scene.role("heading", { name: "Actions to check on" })).toBeAbsent(),
+          Scene.click(Scene.role("button", { name: "Copy as text" })),
+          Scene.Command.expectHas(CopyGuideTextCmd),
+          Scene.Command.resolve(CopyGuideTextCmd, Message.CopiedGuide({ ok: true })),
+          Scene.expect(Scene.text("Copied.")).toExist(),
+          Scene.click(Scene.role("button", { name: "Copy as text" })),
+          Scene.Command.expectHas(CopyGuideTextCmd),
+          Scene.Command.resolve(CopyGuideTextCmd, Message.CopiedGuide({ ok: false })),
+          Scene.expect(Scene.text("Couldn't copy. Select the text and copy it instead.")).toExist(),
+          Scene.expect(Scene.text("Copied.")).toBeAbsent(),
+        );
+      });
+
+      for (const yourRole of ["member", "lead"] as const) {
+        it(`tells a ${yourRole} that themes are being prepared`, () => {
+          Scene.scene(
+            { update, view },
+            Scene.given(givenResults(meetingResult({ themesStatus: "preparing", themes: [] }), yourRole)),
+            Scene.expect(Scene.role("heading", { name: "What people raised" })).toExist(),
+            Scene.expect(Scene.text("Themes are being prepared.")).toExist(),
+          );
+        });
+      }
+
+      it("tells only the Lead that themes are unavailable", () => {
+        const unavailable = meetingResult({ themesStatus: "unavailable", themes: [] });
+
+        Scene.scene(
+          { update, view },
+          Scene.given(givenResults(unavailable, "lead")),
+          Scene.expect(Scene.role("heading", { name: "What people raised" })).toExist(),
+          Scene.expect(Scene.text("Themes aren't available for this Round.")).toExist(),
+        );
+
+        Scene.scene(
+          { update, view },
+          Scene.given(givenResults(unavailable, "member")),
+          Scene.expect(Scene.role("heading", { name: "What people raised" })).toBeAbsent(),
+          Scene.expect(Scene.text("Themes aren't available for this Round.")).toBeAbsent(),
+        );
+      });
+
+      it("explains to the Lead, and only the Lead, how to turn on themes when AI is off", () => {
+        const aiOff = meetingResult({ themesStatus: "notRequested", themes: [] });
+        const adminLine =
+          "An Organization admin can turn on AI processing in Settings to get themes and a discussion guide.";
+
+        Scene.scene(
+          { update, view },
+          Scene.given(givenResults(aiOff, "lead")),
+          Scene.expect(Scene.text(adminLine)).toExist(),
+        );
+
+        Scene.scene(
+          { update, view },
+          Scene.given(givenResults(aiOff, "member")),
+          Scene.expect(Scene.text(adminLine)).toBeAbsent(),
+          Scene.expect(Scene.role("heading", { name: "What people raised" })).toBeAbsent(),
+        );
+      });
+
+      it("shows no themes, admin line, or guide to anyone below N", () => {
+        const belowN = meetingResult({
+          meetsMinimumGroupSize: false,
+          submissionsCount: 2,
+          responseRate: 0.25,
+          themesStatus: "notRequested",
+          themes: [],
+          discussionGuide: guide,
+        });
+
+        Scene.scene(
+          { update, view },
+          Scene.given(givenResults(belowN, "lead")),
+          Scene.expect(Scene.text("Not enough answers to protect anonymity")).toExist(),
+          Scene.expect(Scene.role("heading", { name: "What people raised" })).toBeAbsent(),
+          Scene.expect(
+            Scene.text(
+              "An Organization admin can turn on AI processing in Settings to get themes and a discussion guide.",
+            ),
+          ).toBeAbsent(),
+          Scene.expect(Scene.role("heading", { name: "Discussion guide" })).toBeAbsent(),
+        );
+      });
     });
   });
 

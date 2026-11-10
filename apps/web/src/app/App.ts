@@ -68,7 +68,7 @@ import {
   pulseEditorView,
   pulsesScreenView,
 } from "./pulses.ts";
-import { LoadedActions, LoadedNote, LoadedResults, resultsScreenView } from "./results.ts";
+import { GuideCopy, LoadedActions, LoadedNote, LoadedResults, resultsScreenView } from "./results.ts";
 import { isLead, LoadedRounds, RoundConfirm, roundsScreenView } from "./rounds.ts";
 import { AppRoute, pulseHref, teamHref, urlToAppRoute } from "./routes.ts";
 import {
@@ -170,6 +170,7 @@ export const Model = Schema.Struct({
   showTable: Schema.Record(Schema.String, Schema.Boolean),
   // History screen
   history: LoadedHistory,
+  guideCopy: GuideCopy,
   // Actions
   actions: LoadedActions,
   actionTitle: Schema.String,
@@ -347,6 +348,8 @@ export const Message = defineMessageUnion({
   // Results screen
   GotResults: { outcome: OutcomeResults },
   ToggleResultsTable: { key: Schema.String },
+  CopyGuide: { text: Schema.String },
+  CopiedGuide: { ok: Schema.Boolean },
   // Actions
   GotActions: { outcome: OutcomeActions },
   ActionTitleChanged: { title: Schema.String },
@@ -827,6 +830,21 @@ export const ClearKeptAnswersCmd = Command.define("ClearKeptAnswersCmd", {
   }),
 });
 
+export const CopyGuideTextCmd = Command.define("CopyGuideTextCmd", {
+  args: { text: Schema.String },
+  messages: [Message.CopiedGuide],
+  execute: ({ text }) =>
+    Effect.tryPromise({
+      try: () => navigator.clipboard.writeText(text),
+      catch: (): "copyFailed" => "copyFailed",
+    }).pipe(
+      Effect.match({
+        onSuccess: () => Message.CopiedGuide({ ok: true }),
+        onFailure: () => Message.CopiedGuide({ ok: false }),
+      }),
+    ),
+});
+
 export const ListActionsCmd = Command.define("ListActionsCmd", {
   args: { teamId: TeamId },
   messages: [Message.GotActions],
@@ -999,6 +1017,7 @@ export const initialModel = (url: Url): Model => {
     results: { _tag: "Loading" },
     showTable: {},
     history: { _tag: "Loading" },
+    guideCopy: "idle",
     actions: { _tag: "Loading" },
     actionTitle: "",
     actionOwnerId: Option.none(),
@@ -1105,6 +1124,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         settings: { _tag: "Loading" },
         teams: { _tag: "Loading" },
         results: { _tag: "Loading" },
+        guideCopy: "idle",
         rounds: { _tag: "Loading" },
         roundDetails: {},
         roundRates: {},
@@ -2316,6 +2336,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         return {
           model: {
             ...model,
+            guideCopy: "idle",
             results: { _tag: "Loaded", result: outcome.result },
           },
         };
@@ -2323,6 +2344,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       return {
         model: {
           ...model,
+          guideCopy: "idle",
           results: { _tag: "Failed", failure: outcome.failure },
         },
       };
@@ -2340,6 +2362,15 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         },
       };
     }
+
+    case "CopyGuide":
+      return {
+        model: { ...model, guideCopy: "idle" },
+        commands: [CopyGuideTextCmd({ text: message.text })],
+      };
+
+    case "CopiedGuide":
+      return { model: { ...model, guideCopy: message.ok ? "copied" : "failed" } };
 
     // ----------------------------------------
     // Actions
@@ -2856,6 +2887,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
           actions: model.actions,
           teamDetail: model.teamDetail,
           showTable: model.showTable,
+          guideCopy: model.guideCopy,
           actionTitle: model.actionTitle,
           actionOwnerId: model.actionOwnerId,
           actionDueDate: model.actionDueDate,
@@ -2874,6 +2906,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
           onNoteDraftChange: (text) => Message.NoteDraftChanged({ text }),
           onNoteCancel: Message.NoteCancelClicked(),
           onSubmitNote: Message.SubmitNote(),
+          onCopyGuide: (text) => Message.CopyGuide({ text }),
           onActionTitleChange: (title) => Message.ActionTitleChanged({ title }),
           onActionOwnerChange: (personId) =>
             Message.ActionOwnerChanged({ personId: PersonId.make(personId) }),
