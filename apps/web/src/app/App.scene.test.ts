@@ -644,6 +644,11 @@ describe("App Scenes", () => {
         }),
         Scene.expect(Scene.role("heading", { name: "Results" })).toExist(),
         Scene.expect(Scene.text("75% response rate (6 of 8)")).toExist(),
+        Scene.expect(
+          Scene.text(
+            "6 of 8 people checked in. This Team is still building its baseline, so no change is judged yet.",
+          ),
+        ).toExist(),
         Scene.expect(Scene.text("How are you feeling?")).toExist(),
         Scene.expect(Scene.text("Great progress this week!")).toExist(),
         Scene.expect(Scene.text("6 people, above your minimum of 4.")).toExist(),
