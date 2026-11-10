@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import answerHtml from "../../answer.html?raw";
 import deAnswerHtml from "../../de/answer.html?raw";
 import indexHtml from "../../index.html?raw";
+import siteHtml from "../../site.html?raw";
 import { catalog } from "./catalog.ts";
 import { de } from "./de.ts";
 import { formatDate, type Mismatched, message, pluralMessage } from "./index.ts";
@@ -122,6 +123,7 @@ describe("HTML entries", () => {
     ["index.html", indexHtml],
     ["answer.html", answerHtml],
     ["de/answer.html", deAnswerHtml],
+    ["site.html", siteHtml],
   ])("%s has no user-facing text outside the catalog", (_name, html) => {
     expect(visibleText(html)).toBe("");
   });
@@ -130,6 +132,7 @@ describe("HTML entries", () => {
     ["index.html", indexHtml],
     ["answer.html", answerHtml],
     ["de/answer.html", deAnswerHtml],
+    ["site.html", siteHtml],
   ])("%s leaves the title to the catalog", (_name, html) => {
     expect(/<title>\s*<\/title>/.test(html)).toBe(true);
   });

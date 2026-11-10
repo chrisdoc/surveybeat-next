@@ -11,6 +11,16 @@ The stack is `infra/alchemy.run.ts` (stack name `Surveybeat`). Run Alchemy from 
 
 A new custom hostname takes about a minute to get its certificate, so the first requests fail the TLS handshake. `infra/scripts/smoke.ts` retries.
 
+The landing page (`SiteWorker`, ADR 0020) uses the stage's own name without `app` or `submit`: `pr-<n>.surveybeat.app` and `staging.surveybeat.app`. `production` serves it on workers.dev until the apex cutover below, and every other stage stays on workers.dev. On a stage without an `app` hostname (personal `dev-*` stages), the page's sign-in links (`/app`) cannot know the app's workers.dev URL and lead back to the landing page; open `mainUrl` from the deploy output instead.
+
+## Apex cutover (landing page)
+
+`surveybeat.app` and `www.surveybeat.app` still point at the old app on Vercel, and production deploys on every merge to main. Do these steps in this order, or the production deploy collides with the old records:
+
+1. Remove the Vercel records for `surveybeat.app` and `www.surveybeat.app` from the Cloudflare zone. This is a one-time manual change, made by the owner.
+2. Set `APEX_SERVED_BY_SITE` to `true` in `packages/cloudflare/src/Hostnames.ts`. Production then serves `surveybeat.app` from the Site Worker, and `www.surveybeat.app` redirects to it.
+3. Merge to main. The production deploy claims the apex.
+
 ## Commands
 
 ```sh

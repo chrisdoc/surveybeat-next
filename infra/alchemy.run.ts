@@ -1,6 +1,6 @@
 import * as Cloudflare from "@alchemy.run/cloudflare";
 import { SurveyBeatApi } from "@surveybeat/api";
-import { Database, MainWorker, ProductionEmail, SubmissionWorker } from "@surveybeat/cloudflare";
+import { Database, MainWorker, ProductionEmail, SiteWorker, SubmissionWorker } from "@surveybeat/cloudflare";
 import * as Alchemy from "alchemy";
 import * as Secrets from "alchemy/Secrets";
 import { Stack } from "alchemy/Stack";
@@ -43,12 +43,14 @@ export default Alchemy.Stack(
     const database = yield* Database;
     const main = yield* MainWorker;
     const submission = yield* SubmissionWorker;
+    const site = yield* SiteWorker;
     // Production only. PR and personal stages send no real email (docs/infra.md).
     const sending = yield* ProductionEmail;
     return {
       databaseId: database.databaseId,
       mainUrl: main.url.as<string>(),
       submissionUrl: submission.url.as<string>(),
+      siteUrl: site.url.as<string>(),
       ...(sending === undefined ? {} : { sendingDomainEnabled: sending.enabled }),
     };
   }),

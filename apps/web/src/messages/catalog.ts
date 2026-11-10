@@ -364,4 +364,87 @@ export const catalog = {
   "settings.defaultLanguage": "Default language",
   "settings.defaultLanguage.help":
     "Used for People who have not chosen a language and whose browser language SurveyBeat does not offer, and for their emails.",
+  "site.title": "SurveyBeat · Anonymous team check-ins by email",
+  "site.description":
+    "Short, recurring check-ins for teams. People answer the first question from the email in one tap, and the Lead sees combined results once at least 4 people have answered.",
+  "site.skip": "Skip to content",
+  "site.nav.label": "Main",
+  "site.nav.loop": "How it works",
+  "site.nav.privacy": "Anonymity",
+  "site.nav.results": "Results",
+  "site.signIn": "Sign in",
+  "site.start": "Start a Pulse",
+  "site.hero.eyebrow": "Team check-ins for Leads",
+  "site.hero.title": "Short, anonymous check-ins for your team",
+  "site.hero.lede":
+    "Set up a Pulse once. Every Round, your Team gets 3 to 7 questions by email and answers the first in one tap. You see the combined result once at least 4 people have answered.",
+  "site.hero.privacyLink": "Read what stays private",
+  "site.mock.label": "A Round in SurveyBeat: the Invitation email and the Result",
+  "site.mock.from": "SurveyBeat · Weekly team health",
+  "site.mock.question": "How manageable was your workload this week?",
+  "site.mock.low": "Not manageable",
+  "site.mock.high": "Very manageable",
+  "site.mock.anonymity": "Anonymous. Your name is never stored with your answers.",
+  "site.mock.result": "Workload",
+  "site.mock.answered": "7 of 8 answered",
+  "site.mock.change": "+0.4 since last Round",
+  "site.mock.theme": "Too many meetings on Mondays",
+  "site.mock.themeLabel": "Theme from comments",
+  "site.loop.title": "One Round in four steps",
+  "site.loop.lede": "Every part of SurveyBeat serves one of these steps. Most tools stop after the third.",
+  "site.loop.ask.title": "Ask",
+  "site.loop.ask.body":
+    "Start from the weekly team health Template and pick a day and time. The Pulse opens each Round on its own, and the editor warns you when it grows past 7 questions.",
+  "site.loop.answer.title": "Answer",
+  "site.loop.answer.body":
+    "Each rating in the email is a link. One tap opens the answer page with that value chosen, and it counts once the person confirms it. No sign-in, works on a phone.",
+  "site.loop.understand.title": "Understand",
+  "site.loop.understand.body":
+    "Every number shows how many people it rests on. Trends cover the last 12 Rounds, and comments are grouped into themes that paraphrase, never quote.",
+  "site.loop.act.title": "Act",
+  "site.loop.act.body":
+    "Agree on an Action with an owner and a due date. The next Round shows it to the Team, so people see what changed because they answered.",
+  "site.privacy.title": "Anonymous means no name and no time",
+  "site.privacy.lede":
+    "These rules are built into how answers are stored. They are not a layer on top, and the answer page states them in plain words before the first question.",
+  "site.privacy.storage.title": "Nothing to trace back",
+  "site.privacy.storage.body":
+    "An anonymous Submission holds its Round and its answers. It has no Person on it and no time at all, so there is nothing to match against who answered when.",
+  "site.privacy.groupSize.title": "Nothing shown below 4",
+  "site.privacy.groupSize.body":
+    "Every average, chart and theme waits until at least 4 people have answered. Your Organization can raise that number, never set it below 3.",
+  "site.privacy.redaction.title": "Comments redacted first",
+  "site.privacy.redaction.body":
+    "Names of people in your Organization, email addresses, phone numbers and links are removed before a comment is saved. The original text is never kept.",
+  "site.privacy.admins.title": "Admins see no Results",
+  "site.privacy.admins.body":
+    "Running the Organization gives no access to any Team's Results, comments or Actions. Only the Team's own members see them.",
+  "site.results.title": "Results a Team can talk about",
+  "site.results.lede":
+    "When a Round closes, the Lead gets a picture of the Team, not a spreadsheet, and everything needed to run a short conversation about it.",
+  "site.results.themes.title": "Themes from comments",
+  "site.results.themes.body":
+    "Up to 5 themes, each a short label and one neutral sentence, backed by at least two comments.",
+  "site.results.guide.title": "A discussion guide",
+  "site.results.guide.body":
+    "Questions for the team conversation, prepared from the Result. Only the Lead sees it.",
+  "site.results.note.title": "The Lead's Note",
+  "site.results.note.body":
+    "A few lines from the Lead on what the Team heard and what happens next, shared with everyone.",
+  "site.results.actions.title": "Actions that come back",
+  "site.results.actions.body":
+    "Each Action has an owner, a due date and a status, and shows up again in the next Round.",
+  "site.mock.results.label": "The Result of a closed Round",
+  "site.mock.results.round": "Round 12 · closed",
+  "site.mock.results.dim.safety": "Speaking up",
+  "site.mock.results.dim.clarity": "Priorities",
+  "site.mock.results.dim.recognition": "Recognition",
+  "site.mock.results.n": "n = 7",
+  "site.mock.results.action": "Move the planning meeting to Tuesday",
+  "site.mock.results.actionMeta": "Owner: Lead · due Friday",
+  "site.close.title": "Run your first Round this week",
+  "site.close.lede":
+    "SurveyBeat speaks English and German. Sign in with your work email and start from the Template.",
+  "site.footer.copyright": "© 2026 SurveyBeat",
+  "site.footer.language": "Language",
 } as const;
