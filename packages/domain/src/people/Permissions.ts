@@ -38,7 +38,9 @@ export type TeamAction =
   | "team.manageRounds"
   | "team.viewActions"
   | "team.createAction"
-  | "team.updateAction";
+  | "team.updateAction"
+  | "team.viewNote"
+  | "team.writeNote";
 
 export type Action = OrganizationAction | TeamAction;
 
@@ -83,6 +85,9 @@ export const PERMISSIONS: { readonly [A in Action]: ReadonlyArray<Grantee> } = {
   "team.viewActions": ["lead", "member", "viewer"],
   "team.createAction": ["lead"],
   "team.updateAction": ["lead"],
+  // The Lead's Note on a Round: the Team reads it; only the Lead writes it (ADR 0003: admins never).
+  "team.viewNote": ["lead", "member", "viewer"],
+  "team.writeNote": ["lead"],
 };
 
 /** Whether `actor` may do `action` to `resource`. */

@@ -51,6 +51,7 @@ import {
   RemoveQuestionCmd,
   ResendInvitationCmd,
   ResumePulseCmd,
+  SaveRoundNoteCmd,
   SkipWeekCmd,
   update,
   UpdateActionCmd,
@@ -1114,6 +1115,203 @@ describe("App Scenes", () => {
         }),
         Scene.expect(Scene.text("Not enough answers to protect anonymity")).toExist(),
         Scene.expect(Scene.role("heading", { name: "Actions" })).toExist(),
+      );
+    });
+  });
+
+  describe("Note from your Lead", () => {
+    const teamId = decodeTeamId("team-1");
+    const roundId = Schema.decodeSync(RoundId)("round-note");
+    const pulseId = decodePulseId("pulse-1");
+    const personId = decodePersonId("person-1");
+    const url = makeUrl(`https://app.surveybeat.com/teams/${teamId}/rounds/${roundId}`);
+
+    const closedResult: RoundResult = {
+      roundId,
+      pulseId,
+      teamId,
+      status: "closed",
+      plannedOpenDate: "2026-11-09",
+      anonymityMode: "anonymous",
+      closedAt: 1731140000000,
+      effectiveMinimumGroupSize: 4,
+      meetsMinimumGroupSize: true,
+      eligibleMembersCount: 8,
+      submissionsCount: 6,
+      responseRate: 0.75,
+      delayed: false,
+      questions: [],
+      dimensions: [],
+      comments: [],
+    };
+
+    const teamDetailFor = (yourRole: "lead" | "member") => ({
+      team: {
+        id: teamId,
+        name: "Platform",
+        timeZone: decodeTimeZone("Europe/Berlin"),
+        yourRole,
+      },
+      roster: [
+        {
+          personId,
+          email: decodeEmail("grace@example.com"),
+          role: "lead" as const,
+          since: 1700000000000,
+        },
+      ],
+      abilities: {
+        update: yourRole === "lead",
+        manageLeads: yourRole === "lead",
+        manageMembers: yourRole === "lead",
+        managePulses: yourRole === "lead",
+        viewResults: true,
+      },
+    });
+
+    const noteText = "We agreed to shorten pairing sessions.";
+    const updatedAt = 1731150000000;
+    const savedNote = {
+      roundId,
+      text: noteText,
+      updatedAt,
+    };
+
+    it("lets the Lead write a Note, save it, and then see it with its date", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(url),
+          session: signedInAdmin,
+          results: { _tag: "Loaded", result: closedResult },
+          teamDetail: { _tag: "Loaded", detail: teamDetailFor("lead") },
+          actions: { _tag: "Loaded", actions: [] },
+          roundNote: { _tag: "Loaded", note: null },
+        }),
+        Scene.expect(Scene.role("heading", { name: "Note from your Lead" })).toExist(),
+        Scene.expect(
+          Scene.text("After you talk with the Team, write down what you agreed. The Team sees it here."),
+        ).toExist(),
+        Scene.click(Scene.role("button", { name: "Write note" })),
+        Scene.type(Scene.label("Note"), noteText),
+        Scene.click(Scene.role("button", { name: "Save note" })),
+        Scene.Command.expectHas(SaveRoundNoteCmd({ teamId, roundId, text: noteText })),
+        Scene.Command.resolve(
+          SaveRoundNoteCmd,
+          Message.SavedNote({ outcome: { _tag: "Success", view: { roundId, note: savedNote } } }),
+        ),
+        Scene.expect(Scene.text(noteText)).toExist(),
+        Scene.expect(Scene.text(`Last changed ${formatDate(new Date(updatedAt))}`)).toExist(),
+        Scene.expect(Scene.role("button", { name: "Edit note" })).toExist(),
+      );
+    });
+
+    it("shows a member the Note text and date without any edit control", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(url),
+          session: signedInAdmin,
+          results: { _tag: "Loaded", result: closedResult },
+          teamDetail: { _tag: "Loaded", detail: teamDetailFor("member") },
+          actions: { _tag: "Loaded", actions: [] },
+          roundNote: { _tag: "Loaded", note: savedNote },
+        }),
+        Scene.expect(Scene.role("heading", { name: "Note from your Lead" })).toExist(),
+        Scene.expect(Scene.text(noteText)).toExist(),
+        Scene.expect(Scene.text(`Last changed ${formatDate(new Date(updatedAt))}`)).toExist(),
+        Scene.expect(Scene.role("button", { name: "Edit note" })).toBeAbsent(),
+        Scene.expect(Scene.role("button", { name: "Write note" })).toBeAbsent(),
+      );
+    });
+
+    it("hides the Note section from a member when the Lead has written no Note", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(url),
+          session: signedInAdmin,
+          results: { _tag: "Loaded", result: closedResult },
+          teamDetail: { _tag: "Loaded", detail: teamDetailFor("member") },
+          actions: { _tag: "Loaded", actions: [] },
+          roundNote: { _tag: "Loaded", note: null },
+        }),
+        Scene.expect(Scene.role("heading", { name: "Note from your Lead" })).toBeAbsent(),
+        Scene.expect(
+          Scene.text("After you talk with the Team, write down what you agreed. The Team sees it here."),
+        ).toBeAbsent(),
+      );
+    });
+
+    it("blocks saving and shows a too-long message when the Lead's draft exceeds 2,000 characters", () => {
+      const tooLong = "x".repeat(2001);
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(url),
+          session: signedInAdmin,
+          results: { _tag: "Loaded", result: closedResult },
+          teamDetail: { _tag: "Loaded", detail: teamDetailFor("lead") },
+          actions: { _tag: "Loaded", actions: [] },
+          roundNote: { _tag: "Loaded", note: null },
+        }),
+        Scene.click(Scene.role("button", { name: "Write note" })),
+        Scene.type(Scene.label("Note"), tooLong),
+        Scene.expect(Scene.text("2,001 of 2,000 characters")).toExist(),
+        Scene.expect(Scene.text("Notes can be up to 2,000 characters. Shorten yours to save it.")).toExist(),
+        Scene.expect(Scene.role("button", { name: "Save note" })).toBeDisabled(),
+      );
+    });
+
+    it("hides the Note section on an open Round, even for the Lead", () => {
+      const openResult: RoundResult = {
+        ...closedResult,
+        status: "open",
+        closedAt: null,
+        submissionsCount: 3,
+        responseRate: 0.375,
+      };
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(url),
+          session: signedInAdmin,
+          results: { _tag: "Loaded", result: openResult },
+          teamDetail: { _tag: "Loaded", detail: teamDetailFor("lead") },
+          actions: { _tag: "Loaded", actions: [] },
+          roundNote: { _tag: "Loaded", note: savedNote },
+        }),
+        Scene.expect(Scene.text("3 Submissions received so far.")).toExist(),
+        Scene.expect(Scene.role("heading", { name: "Note from your Lead" })).toBeAbsent(),
+        Scene.expect(Scene.text(noteText)).toBeAbsent(),
+        Scene.expect(Scene.role("button", { name: "Edit note" })).toBeAbsent(),
+      );
+    });
+
+    it("keeps the editor and draft open after a failed save and leaves Save enabled", () => {
+      const draft = "We agreed to shorten pairing sessions.";
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(url),
+          session: signedInAdmin,
+          results: { _tag: "Loaded", result: closedResult },
+          teamDetail: { _tag: "Loaded", detail: teamDetailFor("lead") },
+          actions: { _tag: "Loaded", actions: [] },
+          roundNote: { _tag: "Loaded", note: null },
+        }),
+        Scene.click(Scene.role("button", { name: "Write note" })),
+        Scene.type(Scene.label("Note"), draft),
+        Scene.click(Scene.role("button", { name: "Save note" })),
+        Scene.Command.expectHas(SaveRoundNoteCmd({ teamId, roundId, text: draft })),
+        Scene.Command.resolve(
+          SaveRoundNoteCmd,
+          Message.SavedNote({ outcome: { _tag: "Failure", failure: "Forbidden" } }),
+        ),
+        Scene.expect(Scene.text("You can't do that here.")).toExist(),
+        Scene.expect(Scene.label("Note")).toHaveValue(draft),
+        Scene.expect(Scene.role("button", { name: "Save note" })).toBeEnabled(),
+        Scene.expect(Scene.role("button", { name: "Cancel" })).toBeEnabled(),
       );
     });
   });

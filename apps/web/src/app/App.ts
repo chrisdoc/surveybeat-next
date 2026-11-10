@@ -9,6 +9,7 @@ import {
   Locale,
   MinimumGroupSize,
   NewPulseQuestion,
+  NOTE_MAX_LENGTH,
   OrganizationId,
   OrganizationSettings,
   PersonId,
@@ -23,6 +24,7 @@ import {
   RoundDetail,
   RoundId,
   RoundList,
+  RoundNoteView,
   RoundResult,
   TeamDetail,
   TeamId,
@@ -63,7 +65,7 @@ import {
   pulseEditorView,
   pulsesScreenView,
 } from "./pulses.ts";
-import { LoadedActions, LoadedResults, resultsScreenView } from "./results.ts";
+import { LoadedActions, LoadedNote, LoadedResults, resultsScreenView } from "./results.ts";
 import { isLead, LoadedRounds, RoundConfirm, roundsScreenView } from "./rounds.ts";
 import { AppRoute, pulseHref, teamHref, urlToAppRoute } from "./routes.ts";
 import {
@@ -171,6 +173,12 @@ export const Model = Schema.Struct({
   actionDimension: Schema.Union([Dimension, Schema.Literal("none")]),
   actionBusy: Schema.Boolean,
   actionFailure: Schema.Option(Failure),
+  // Lead's Note on the Round
+  roundNote: LoadedNote,
+  noteDraft: Schema.String,
+  noteEditing: Schema.Boolean,
+  noteBusy: Schema.Boolean,
+  noteFailure: Schema.Option(Failure),
 });
 export type Model = typeof Model.Type;
 
@@ -188,6 +196,10 @@ export const OutcomeActions = Schema.Union([
 ]);
 export const OutcomeActionItem = Schema.Union([
   Schema.TaggedStruct("Success", { action: ActionItem }),
+  Schema.TaggedStruct("Failure", { failure: Failure }),
+]);
+export const OutcomeRoundNote = Schema.Union([
+  Schema.TaggedStruct("Success", { view: RoundNoteView }),
   Schema.TaggedStruct("Failure", { failure: Failure }),
 ]);
 export const OutcomeRounds = Schema.Union([
@@ -332,6 +344,13 @@ export const Message = defineMessageUnion({
   CreatedAction: { outcome: OutcomeActionItem },
   UpdateActionStatus: { actionId: ActionId, status: ActionStatus },
   UpdatedAction: { outcome: OutcomeActionItem },
+  // Lead's Note on the Round
+  GotRoundNote: { outcome: OutcomeRoundNote },
+  NoteEditClicked: {},
+  NoteDraftChanged: { text: Schema.String },
+  NoteCancelClicked: {},
+  SubmitNote: {},
+  SavedNote: { outcome: OutcomeRoundNote },
 });
 export type Message = typeof Message.Type;
 
@@ -822,6 +841,28 @@ export const UpdateActionCmd = Command.define("UpdateActionCmd", {
     ),
 });
 
+export const GetRoundNoteCmd = Command.define("GetRoundNoteCmd", {
+  args: { teamId: TeamId, roundId: RoundId },
+  messages: [Message.GotRoundNote],
+  execute: ({ teamId, roundId }) =>
+    runApi(
+      (api) => api.notes.getRoundNote({ params: { teamId, roundId } }),
+      (view) => Message.GotRoundNote({ outcome: { _tag: "Success", view } }),
+      (failure) => Message.GotRoundNote({ outcome: { _tag: "Failure", failure } }),
+    ),
+});
+
+export const SaveRoundNoteCmd = Command.define("SaveRoundNoteCmd", {
+  args: { teamId: TeamId, roundId: RoundId, text: Schema.String },
+  messages: [Message.SavedNote],
+  execute: ({ teamId, roundId, text }) =>
+    runApi(
+      (api) => api.notes.saveRoundNote({ params: { teamId, roundId }, payload: { text } }),
+      (view) => Message.SavedNote({ outcome: { _tag: "Success", view } }),
+      (failure) => Message.SavedNote({ outcome: { _tag: "Failure", failure } }),
+    ),
+});
+
 export const Navigate = Command.define("Navigate", {
   args: { url: Schema.String },
   messages: [Message.Navigated],
@@ -926,6 +967,11 @@ export const initialModel = (url: Url): Model => {
     actionDimension: "none",
     actionBusy: false,
     actionFailure: Option.none(),
+    roundNote: { _tag: "Loading" },
+    noteDraft: "",
+    noteEditing: false,
+    noteBusy: false,
+    noteFailure: Option.none(),
   };
 };
 
@@ -948,6 +994,7 @@ export const loadActiveRouteCommand = (route: AppRoute) => {
       return [
         GetResultsCmd({ teamId: route.teamId, roundId: route.roundId }),
         ListActionsCmd({ teamId: route.teamId }),
+        GetRoundNoteCmd({ teamId: route.teamId, roundId: route.roundId }),
         GetTeam({ teamId: route.teamId }),
       ];
     case "Privacy":
@@ -970,6 +1017,10 @@ const languageChoice = (value: string): Locale | null | undefined => {
   if (value === "") return null;
   return Schema.is(Locale)(value) ? value : undefined;
 };
+
+/** True when a Note response belongs to the Round on screen. */
+const isCurrentRoundNote = (model: Model, roundId: RoundId): boolean =>
+  model.route._tag === "RoundResults" && model.route.roundId === roundId;
 
 export const update = (model: Model, message: Message): Update.Return<Model, Message> => {
   switch (message._tag) {
@@ -1026,6 +1077,11 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         actionDimension: "none",
         actionBusy: false,
         actionFailure: Option.none(),
+        roundNote: { _tag: "Loading" },
+        noteDraft: "",
+        noteEditing: false,
+        noteBusy: false,
+        noteFailure: Option.none(),
       };
       if (model.session._tag === "SignedIn") {
         return {
@@ -2326,6 +2382,83 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       }
       return { model: { ...model, actionFailure: Option.some(outcome.failure) } };
     }
+
+    // ----------------------------------------
+    // Lead's Note on the Round
+    // ----------------------------------------
+    case "GotRoundNote": {
+      const { outcome } = message;
+      if (outcome._tag === "Success") {
+        // Drop a late response for a Round the person has already left.
+        if (!isCurrentRoundNote(model, outcome.view.roundId)) return { model };
+        return {
+          model: {
+            ...model,
+            roundNote: LoadedNote.Loaded({ note: outcome.view.note }),
+          },
+        };
+      }
+      return {
+        model: {
+          ...model,
+          roundNote: LoadedNote.Failed({ failure: outcome.failure }),
+        },
+      };
+    }
+
+    case "NoteEditClicked": {
+      const current =
+        model.roundNote._tag === "Loaded" && model.roundNote.note !== null ? model.roundNote.note.text : "";
+      return {
+        model: { ...model, noteDraft: current, noteEditing: true, noteFailure: Option.none() },
+      };
+    }
+
+    case "NoteDraftChanged":
+      return { model: { ...model, noteDraft: message.text } };
+
+    case "NoteCancelClicked":
+      return { model: { ...model, noteEditing: false, noteFailure: Option.none() } };
+
+    case "SubmitNote": {
+      if (model.route._tag !== "RoundResults" || model.noteBusy || model.noteDraft.length > NOTE_MAX_LENGTH) {
+        return { model };
+      }
+      return {
+        model: { ...model, noteBusy: true, noteFailure: Option.none() },
+        commands: [
+          SaveRoundNoteCmd({
+            teamId: model.route.teamId,
+            roundId: model.route.roundId,
+            text: model.noteDraft,
+          }),
+        ],
+      };
+    }
+
+    case "SavedNote": {
+      const { outcome } = message;
+      if (outcome._tag === "Success") {
+        if (!isCurrentRoundNote(model, outcome.view.roundId)) return { model };
+        return {
+          model: {
+            ...model,
+            roundNote: LoadedNote.Loaded({ note: outcome.view.note }),
+            noteDraft: "",
+            noteEditing: false,
+            noteBusy: false,
+            noteFailure: Option.none(),
+          },
+        };
+      }
+      return {
+        model: {
+          ...model,
+          noteBusy: false,
+          noteFailure: Option.some(outcome.failure),
+        },
+      };
+    }
   }
 };
 
@@ -2650,9 +2783,18 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
           actionDimension: model.actionDimension,
           actionBusy: model.actionBusy,
           actionFailure: model.actionFailure,
+          roundNote: model.roundNote,
+          noteDraft: model.noteDraft,
+          noteEditing: model.noteEditing,
+          noteBusy: model.noteBusy,
+          noteFailure: model.noteFailure,
         },
         {
           onToggleTable: (key) => Message.ToggleResultsTable({ key }),
+          onNoteEdit: Message.NoteEditClicked(),
+          onNoteDraftChange: (text) => Message.NoteDraftChanged({ text }),
+          onNoteCancel: Message.NoteCancelClicked(),
+          onSubmitNote: Message.SubmitNote(),
           onActionTitleChange: (title) => Message.ActionTitleChanged({ title }),
           onActionOwnerChange: (personId) =>
             Message.ActionOwnerChanged({ personId: PersonId.make(personId) }),

@@ -69,6 +69,9 @@ import {
   runThemesAttempt,
   shouldRequestThemes,
   viewRoundResult,
+  type NoteViewed,
+  type RoundNoteView,
+  noteChange,
 } from "@surveybeat/domain";
 import * as Clock from "effect/Clock";
 import * as Config from "effect/Config";
@@ -80,6 +83,7 @@ import * as Schema from "effect/Schema";
 import * as Scope from "effect/Scope";
 import { makeOpenRouterAiClient } from "./ai/OpenRouterAiClient.ts";
 import { makeSqlActions } from "./SqlActions.ts";
+import { makeSqlNotes } from "./SqlNotes.ts";
 import { makeSqlDirectory } from "./SqlDirectory.ts";
 import { makeSqlPulses } from "./SqlPulses.ts";
 import { makeSqlRounds, secureRandomBytes } from "./SqlRounds.ts";
@@ -183,6 +187,8 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
       const rounds = makeSqlRounds(sql, secureRandomBytes);
       // Actions committed from Results (slice 13).
       const actions = makeSqlActions(sql);
+      // The Lead's Note on a Round (R2 04).
+      const notes = makeSqlNotes(sql);
       const both = Effect.all([directory.load, pulses.load]);
 
       /** Only sends still waiting go back to the queue; one already sent or failed stays as it is. */
@@ -1861,6 +1867,77 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
                   _tag: "Viewed",
                   value: item!,
                 };
+                return viewed;
+              }),
+            )
+            .pipe(Effect.orDie),
+
+        viewRoundNote: (
+          actorId: PersonId,
+          teamId: TeamId,
+          roundId: RoundId,
+        ): Effect.Effect<NoteViewed<RoundNoteView>, never, never> =>
+          Effect.gen(function* () {
+            const dirState = yield* directory.load;
+            const auth = authorizeRoundAction(dirState, actorId, "team.viewNote", teamId);
+            if (auth._tag === "Rejected") {
+              const rejected: NoteViewed<RoundNoteView> = {
+                _tag: "Rejected",
+                rejection: { _tag: auth.rejection._tag === "TeamNotFound" ? "TeamNotFound" : "Forbidden" },
+              };
+              return rejected;
+            }
+            const round = yield* rounds.getRound(roundId);
+            if (round === null || round.teamId !== teamId) {
+              const rejected: NoteViewed<RoundNoteView> = {
+                _tag: "Rejected",
+                rejection: { _tag: "RoundNotFound" },
+              };
+              return rejected;
+            }
+            const note = yield* notes.getNote(roundId);
+            const viewed: NoteViewed<RoundNoteView> = { _tag: "Viewed", value: { roundId, note } };
+            return viewed;
+          }).pipe(Effect.orDie),
+
+        saveRoundNote: (
+          actorId: PersonId,
+          teamId: TeamId,
+          roundId: RoundId,
+          text: string,
+          now: number,
+        ): Effect.Effect<NoteViewed<RoundNoteView>, never, never> =>
+          sql
+            .withTransaction(
+              Effect.gen(function* () {
+                const dirState = yield* directory.load;
+                const auth = authorizeRoundAction(dirState, actorId, "team.writeNote", teamId);
+                if (auth._tag === "Rejected") {
+                  const rejected: NoteViewed<RoundNoteView> = {
+                    _tag: "Rejected",
+                    rejection: {
+                      _tag: auth.rejection._tag === "TeamNotFound" ? "TeamNotFound" : "Forbidden",
+                    },
+                  };
+                  return rejected;
+                }
+                const round = yield* rounds.getRound(roundId);
+                if (round === null || round.teamId !== teamId) {
+                  const rejected: NoteViewed<RoundNoteView> = {
+                    _tag: "Rejected",
+                    rejection: { _tag: "RoundNotFound" },
+                  };
+                  return rejected;
+                }
+                // Blank text after trimming clears the Note; anything else replaces it.
+                const change = noteChange(text);
+                if (change._tag === "Delete") {
+                  yield* notes.deleteNote(roundId);
+                } else {
+                  yield* notes.upsertNote({ roundId, teamId, text: change.text, updatedAt: now });
+                }
+                const note = yield* notes.getNote(roundId);
+                const viewed: NoteViewed<RoundNoteView> = { _tag: "Viewed", value: { roundId, note } };
                 return viewed;
               }),
             )

@@ -40,6 +40,8 @@ import {
   ActionNotFound,
   CreateAction,
   OwnerNotInTeam,
+  RoundNoteView,
+  SaveNote,
   UpdateAction,
   SessionState,
   TeamDetail,
@@ -389,10 +391,33 @@ export class ActionsApiGroup extends HttpApiGroup.make("actions")
   )
   .prefix("/api") {}
 
+const noteErrors = [Unauthenticated, Forbidden, AuthUnavailable, TeamNotFound, RoundNotFound] as const;
+
+/**
+ * The Lead's Note on a Round (R2 04). The Lead writes it; the Team reads it. Organization admins
+ * outside the Team get 403 on both (ADR 0003). Free text, so no minimum group size applies.
+ */
+export class NotesApiGroup extends HttpApiGroup.make("notes")
+  .add(
+    HttpApiEndpoint.get("getRoundNote", "/teams/:teamId/rounds/:roundId/note", {
+      params: { teamId: TeamId, roundId: RoundId },
+      success: RoundNoteView,
+      error: noteErrors,
+    }),
+    HttpApiEndpoint.put("saveRoundNote", "/teams/:teamId/rounds/:roundId/note", {
+      params: { teamId: TeamId, roundId: RoundId },
+      payload: SaveNote,
+      success: RoundNoteView,
+      error: noteErrors,
+    }),
+  )
+  .prefix("/api") {}
+
 /** The HttpApi declaration shared by the server and the clients. */
 export class SurveyBeatApi extends HttpApi.make("surveybeat")
   .add(AuthApiGroup)
   .add(DirectoryApiGroup)
   .add(PulsesApiGroup)
   .add(RoundsApiGroup)
-  .add(ActionsApiGroup) {}
+  .add(ActionsApiGroup)
+  .add(NotesApiGroup) {}
