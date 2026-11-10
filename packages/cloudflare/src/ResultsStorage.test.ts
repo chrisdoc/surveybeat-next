@@ -183,6 +183,7 @@ describe("RoundResult storage and performance (Issue #45, ADR 0004)", () => {
         teamId: teamPerfId,
         status: "shared",
         plannedOpenDate: dateStr,
+        anonymityMode: "anonymous",
         closedAt: closeAt,
         effectiveMinimumGroupSize: 4,
         eligibleMembersCount: 8,

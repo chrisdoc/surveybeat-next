@@ -194,7 +194,7 @@ export const catalog = {
   "results.aboveMinimum.one": "{count} person, above your minimum of {minimum}.",
   "results.aboveMinimum.other": "{count} people, above your minimum of {minimum}.",
   "results.protects.title": "How this page protects people",
-  "results.protects.noName": "Answers are never shown with a name.",
+  "results.protects.anonymous": "Anonymous Rounds store answers without a name or a time.",
   "results.protects.minimum": "A number appears only when at least {minimum} people contributed to it.",
   "results.protects.comments":
     "Names, emails, phone numbers and links are removed from comments before they're saved.",

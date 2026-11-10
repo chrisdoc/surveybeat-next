@@ -1,4 +1,5 @@
 import { assert, describe, it } from "@effect/vitest";
+import { Schema } from "effect";
 import { TeamId } from "../people/Team.ts";
 import { PulseId } from "../pulses/Pulse.ts";
 import { QuestionType, QuestionVersionId } from "../pulses/Question.ts";
@@ -9,6 +10,7 @@ import {
   type HistoricalRoundData,
   median,
   type QuestionInput,
+  RoundResult,
 } from "./Results.ts";
 import { RoundId } from "./Round.ts";
 import type { SubmissionAnswer } from "./Submission.ts";
@@ -119,6 +121,7 @@ describe("Minimum group size rules R1–R11 (Issue #3 / ADR 0004)", () => {
       teamId: TEAM_ID,
       status: "closed",
       plannedOpenDate: "2026-11-02",
+      anonymityMode: "anonymous",
       closedAt: 1730592000000,
       effectiveMinimumGroupSize: 4,
       eligibleMembersCount: 8,
@@ -194,6 +197,7 @@ describe("Minimum group size rules R1–R11 (Issue #3 / ADR 0004)", () => {
       teamId: TEAM_ID,
       status: "closed",
       plannedOpenDate: "2026-11-02",
+      anonymityMode: "anonymous",
       closedAt: 1730592000000,
       effectiveMinimumGroupSize: 4,
       eligibleMembersCount: 5,
@@ -246,6 +250,7 @@ describe("Minimum group size rules R1–R11 (Issue #3 / ADR 0004)", () => {
       teamId: TEAM_ID,
       status: "closed",
       plannedOpenDate: "2026-11-02",
+      anonymityMode: "anonymous",
       closedAt: 1730592000000,
       effectiveMinimumGroupSize: 4,
       eligibleMembersCount: 6,
@@ -296,6 +301,7 @@ describe("Minimum group size rules R1–R11 (Issue #3 / ADR 0004)", () => {
       teamId: TEAM_ID,
       status: "open",
       plannedOpenDate: "2026-11-02",
+      anonymityMode: "anonymous",
       closedAt: null,
       effectiveMinimumGroupSize: 4,
       eligibleMembersCount: 10,
@@ -333,6 +339,7 @@ describe("Minimum group size rules R1–R11 (Issue #3 / ADR 0004)", () => {
       teamId: TEAM_ID,
       status: "closed",
       plannedOpenDate: "2026-11-02",
+      anonymityMode: "anonymous",
       closedAt: 1730592000000,
       effectiveMinimumGroupSize: 4,
       eligibleMembersCount: 6,
@@ -371,6 +378,7 @@ describe("Minimum group size rules R1–R11 (Issue #3 / ADR 0004)", () => {
       teamId: TEAM_ID,
       status: "closed",
       plannedOpenDate: "2026-11-02",
+      anonymityMode: "anonymous",
       closedAt: 1730592000000,
       effectiveMinimumGroupSize: 4,
       eligibleMembersCount: 6,
@@ -397,6 +405,7 @@ describe("Minimum group size rules R1–R11 (Issue #3 / ADR 0004)", () => {
       teamId: TEAM_ID,
       status: "closed",
       plannedOpenDate: "2026-11-02",
+      anonymityMode: "anonymous",
       closedAt: 1730592000000,
       effectiveMinimumGroupSize: 5,
       eligibleMembersCount: 6,
@@ -441,6 +450,7 @@ describe("Raised Organization N masks derived values (ADR 0004)", () => {
       teamId: TEAM_ID,
       status: "closed",
       plannedOpenDate: "2026-11-02",
+      anonymityMode: "anonymous",
       closedAt: 1730592000000,
       effectiveMinimumGroupSize: 4,
       eligibleMembersCount: 10,
@@ -545,6 +555,7 @@ describe("12-Round history, trends, warm-up, and gap handling (Issue #4)", () =>
       teamId: TEAM_ID,
       status: "closed",
       plannedOpenDate: "2026-11-02",
+      anonymityMode: "anonymous",
       closedAt: 1730592000000,
       effectiveMinimumGroupSize: 4,
       eligibleMembersCount: 6,
@@ -661,6 +672,7 @@ describe("12-Round history, trends, warm-up, and gap handling (Issue #4)", () =>
       teamId: TEAM_ID,
       status: "closed",
       plannedOpenDate: "2026-10-20",
+      anonymityMode: "anonymous",
       closedAt: 800,
       effectiveMinimumGroupSize: 4,
       eligibleMembersCount: 5,
@@ -729,6 +741,7 @@ describe("12-Round history, trends, warm-up, and gap handling (Issue #4)", () =>
       teamId: TEAM_ID,
       status: "closed",
       plannedOpenDate: "2026-10-08",
+      anonymityMode: "anonymous",
       closedAt: 200,
       effectiveMinimumGroupSize: 4,
       eligibleMembersCount: 6,
@@ -745,5 +758,52 @@ describe("12-Round history, trends, warm-up, and gap handling (Issue #4)", () =>
     assert.strictEqual(dim?.change?.matchedQuestionCount, 1);
     assert.strictEqual(dim?.change?.currentQuestionCount, 2);
     assert.strictEqual(dim?.change?.annotation, "Based on 1 of 2 questions");
+  });
+});
+
+describe("RoundResult anonymity mode (issue #79)", () => {
+  it("decodes a Result stored before the field existed as anonymous", () => {
+    const stored = {
+      roundId: "round-1",
+      pulseId: "pulse-1",
+      teamId: "team-1",
+      status: "closed",
+      plannedOpenDate: "2026-11-02",
+      closedAt: 1000,
+      effectiveMinimumGroupSize: 4,
+      meetsMinimumGroupSize: true,
+      eligibleMembersCount: 9,
+      submissionsCount: 7,
+      responseRate: 0.78,
+      delayed: false,
+      questions: [],
+      dimensions: [],
+      comments: [],
+    };
+    const decoded = Schema.decodeUnknownSync(RoundResult)(stored);
+    assert.strictEqual(decoded.anonymityMode, "anonymous");
+  });
+
+  it("refuses an anonymity mode Release 1 does not know", () => {
+    assert.throws(() =>
+      Schema.decodeUnknownSync(RoundResult)({
+        roundId: "round-1",
+        pulseId: "pulse-1",
+        teamId: "team-1",
+        status: "closed",
+        plannedOpenDate: "2026-11-02",
+        anonymityMode: "confidential",
+        closedAt: 1000,
+        effectiveMinimumGroupSize: 4,
+        meetsMinimumGroupSize: true,
+        eligibleMembersCount: 9,
+        submissionsCount: 7,
+        responseRate: 0.78,
+        delayed: false,
+        questions: [],
+        dimensions: [],
+        comments: [],
+      }),
+    );
   });
 });

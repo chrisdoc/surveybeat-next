@@ -1,6 +1,7 @@
 import {
   type ActionId,
   ActionItem,
+  type AnonymityMode,
   type ActionStatus,
   Dimension,
   type DimensionResult,
@@ -335,16 +336,30 @@ const scoreView = <Message>(text: string, h: HtmlBuilder<Message>): Html =>
     [text],
   );
 
+/**
+ * What the Round's anonymity mode promises about storage. A Record, so adding a mode (confidential,
+ * Release 3) fails to compile until its statement is written.
+ */
+const storageStatement: Record<AnonymityMode, () => string> = {
+  anonymous: () => message("results.protects.anonymous"),
+};
+
 /** The side panel stating, in plain words, what protects people on this page. */
-const protectsPanel = <Message>(minimum: number, h: HtmlBuilder<Message>): Html =>
+const protectsPanel = <Message>(result: RoundResult, h: HtmlBuilder<Message>): Html =>
   panel(
     [
       h.h2([h.Class("text-base font-semibold")], [message("results.protects.title")]),
       h.ul(
         [h.Class("mt-4 flex list-none flex-col gap-4 p-0 text-sm leading-normal text-muted")],
         [
-          [["M3.5 8h11v8h-11z", "M6 8V5.5a3 3 0 0 1 6 0V8"], message("results.protects.noName")] as const,
-          [[SHIELD_PATH], message("results.protects.minimum", { minimum: String(minimum) })] as const,
+          [
+            ["M3.5 8h11v8h-11z", "M6 8V5.5a3 3 0 0 1 6 0V8"],
+            storageStatement[result.anonymityMode](),
+          ] as const,
+          [
+            [SHIELD_PATH],
+            message("results.protects.minimum", { minimum: String(result.effectiveMinimumGroupSize) }),
+          ] as const,
           [["M2.5 4h13v10h-13z", "M5 9h8"], message("results.protects.comments")] as const,
           [
             ["M9 2l6 2.4v4.4c0 3.6-2.6 6-6 7.2-3.4-1.2-6-3.6-6-7.2V4.4z"],
@@ -370,7 +385,7 @@ const resultsLayout = <Message>(
       h.aside(
         [h.Class("flex min-w-0 flex-[1_1_260px] flex-col gap-4")],
         [
-          protectsPanel(result.effectiveMinimumGroupSize, h),
+          protectsPanel(result, h),
           showStats
             ? panel(
                 [
