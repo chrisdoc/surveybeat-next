@@ -6,9 +6,11 @@
 
 production:
   - me@chrisdoc.dev
+  - c.kieslich@gmail.com
 
 staging:
   - me@chrisdoc.dev
+  - c.kieslich@gmail.com
 
 default:
   - me@chrisdoc.dev
