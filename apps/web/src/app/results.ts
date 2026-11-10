@@ -3,9 +3,11 @@ import {
   ActionItem,
   type AnonymityMode,
   type ActionStatus,
+  type CommentTheme,
   Dimension,
   type DimensionResult,
   type DimensionTrendPoint,
+  type DiscussionGuide,
   type DistributionOption,
   type Highlight,
   NOTE_MAX_LENGTH,
@@ -71,6 +73,10 @@ export const LoadedNote = defineTaggedUnion({
 export type LoadedNote = typeof LoadedNote.Type;
 
 const smallHeading = "text-[13px] font-semibold text-muted";
+
+/** The outcome of the last "Copy as text" press on the discussion guide. */
+export const GuideCopy = Schema.Literals(["idle", "copied", "failed"]);
+export type GuideCopy = typeof GuideCopy.Type;
 
 /** The 12-round trend line chart of a Dimension or Question. `unusual` marks the latest point in brass. */
 export const trendChart = <Message>(
@@ -355,6 +361,146 @@ export const toggleButton = <Message>(isTable: boolean, onClick: Message, h: Htm
     h,
   );
 
+type GuideSection = {
+  readonly heading: string;
+  readonly items: ReadonlyArray<string>;
+  readonly ordered: boolean;
+};
+
+/** The guide's non-empty sections, in reading order. */
+const guideSections = (guide: DiscussionGuide): ReadonlyArray<GuideSection> =>
+  [
+    { heading: message("results.guide.whatStoodOut"), items: guide.whatStoodOut, ordered: false },
+    { heading: message("results.guide.whatPeopleRaised"), items: guide.whatPeopleRaised, ordered: false },
+    { heading: message("results.guide.actionsToCheckOn"), items: guide.actionsToCheckOn, ordered: false },
+    { heading: message("results.guide.questions"), items: guide.questions, ordered: true },
+  ].filter((section) => section.items.length > 0);
+
+/** The discussion guide as plain text, for pasting into a meeting document. */
+export const discussionGuideText = (guide: DiscussionGuide): string =>
+  [
+    message("results.guide.title"),
+    ...guideSections(guide).map((section) =>
+      [
+        section.heading,
+        ...section.items.map((item, index) => (section.ordered ? `${index + 1}. ${item}` : `- ${item}`)),
+      ].join("\n"),
+    ),
+  ].join("\n\n");
+
+const guideCopyStatus = <Message>(copy: GuideCopy, h: HtmlBuilder<Message>): Html => {
+  if (copy === "idle") return null;
+  return h.p(
+    [h.Role("status"), h.Class("text-sm font-medium text-primary")],
+    [message(copy === "copied" ? "results.guide.copied" : "results.guide.copyFailed")],
+  );
+};
+
+/** The Lead-only discussion guide panel (ADR 0019). */
+const discussionGuideView = <Message>(
+  guide: DiscussionGuide,
+  guideCopy: GuideCopy,
+  onCopyGuide: (text: string) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  panel(
+    [
+      sectionTitle(message("results.guide.title"), h),
+      h.p([h.Class("mt-2 text-sm text-muted")], [message("results.guide.intro")]),
+      ...guideSections(guide).map((section) => {
+        const items = section.items.map((item) => h.li([], [item]));
+        return h.div(
+          [h.Class("flex flex-col gap-2")],
+          [
+            subSectionTitle(section.heading, h),
+            section.ordered
+              ? h.ol([h.Class("flex list-decimal flex-col gap-2 pl-6 text-[17px] leading-relaxed")], items)
+              : h.ul([h.Class("flex list-disc flex-col gap-2 pl-6 text-[17px] leading-relaxed")], items),
+          ],
+        );
+      }),
+      h.div(
+        [h.Class("flex flex-wrap items-center gap-4")],
+        [
+          appButton(
+            {
+              text: message("results.guide.copy"),
+              onClick: onCopyGuide(discussionGuideText(guide)),
+              className: secondaryButtonClass,
+            },
+            h,
+          ),
+          guideCopyStatus(guideCopy, h),
+        ],
+      ),
+    ],
+    h,
+    "flex flex-col gap-6",
+  );
+
+const themeCard = <Message>(theme: CommentTheme, h: HtmlBuilder<Message>): Html =>
+  h.div(
+    [h.Class("rounded-[16px] border border-line bg-surface px-6 py-5")],
+    [
+      subSectionTitle(theme.label, h, 3),
+      h.p([h.Class("mt-2 text-[17px] leading-relaxed")], [theme.sentence]),
+      theme.supportingComments !== undefined
+        ? h.p(
+            [h.Class("mt-2 text-[13px] text-muted")],
+            [pluralMessage("results.themes.support", theme.supportingComments)],
+          )
+        : null,
+    ].filter(Predicate.isNotNull),
+  );
+
+/**
+ * What people raised (ADR 0016). Everyone sees the themes and the preparing state; only the Lead sees
+ * why a Round has no themes.
+ */
+const themesSection = <Message>(result: RoundResult, isLead: boolean, h: HtmlBuilder<Message>): Html => {
+  const status = result.themesStatus ?? "notRequested";
+  const themes = result.themes ?? [];
+
+  if (status === "ready" && themes.length > 0) {
+    return h.section(
+      [h.Class("mt-8 flex flex-col gap-4")],
+      [
+        sectionTitle(message("results.themes.title"), h),
+        h.div(
+          [h.Class("flex flex-col gap-3")],
+          themes.map((theme) => themeCard(theme, h)),
+        ),
+      ],
+    );
+  }
+
+  if (status === "preparing") {
+    return h.section(
+      [h.Class("mt-8 flex flex-col gap-4")],
+      [
+        sectionTitle(message("results.themes.title"), h),
+        h.p(
+          [h.Class("rounded-control border border-line bg-subtle p-4 text-muted")],
+          [message("results.themes.preparing")],
+        ),
+      ],
+    );
+  }
+
+  if (!isLead) return null;
+
+  const reason =
+    status === "ready"
+      ? message("results.themes.none")
+      : status === "unavailable"
+        ? message("results.themes.unavailable")
+        : message("results.themes.aiOff");
+  return h.section(
+    [h.Class("mt-8 flex flex-col gap-4")],
+    [sectionTitle(message("results.themes.title"), h), h.p([h.Class("text-muted")], [reason])],
+  );
+};
+
 const noteSection = <Message>(
   state: {
     readonly roundNote: LoadedNote;
@@ -481,6 +627,7 @@ export const resultsScreenView = <Message>(
     readonly noteFailure: Option.Option<Failure>;
     readonly teamDetail: LoadedTeam;
     readonly showTable: Record<string, boolean>;
+    readonly guideCopy: GuideCopy;
     readonly actionTitle: string;
     readonly actionOwnerId: Option.Option<PersonId>;
     readonly actionDueDate: string;
@@ -490,6 +637,7 @@ export const resultsScreenView = <Message>(
   },
   callbacks: {
     readonly onToggleTable: (key: string) => Message;
+    readonly onCopyGuide: (text: string) => Message;
     readonly onActionTitleChange: (title: string) => Message;
     readonly onActionOwnerChange: (personId: string) => Message;
     readonly onActionDueDateChange: (date: string) => Message;
@@ -947,6 +1095,9 @@ export const resultsScreenView = <Message>(
     );
   }
 
+  // Themes: shown after the Questions, before the Comments (ADR 0016)
+  children.push(themesSection(result, isLead, h));
+
   // Comments (Lead only, behind N)
   if (result.comments.length > 0) {
     children.push(
@@ -971,6 +1122,12 @@ export const resultsScreenView = <Message>(
         ],
       ),
     );
+  }
+
+  // Discussion guide: Lead only (ADR 0019), after the Comments and before the Actions
+  const guide = result.discussionGuide;
+  if (isLead && guide) {
+    children.push(discussionGuideView(guide, state.guideCopy, callbacks.onCopyGuide, h));
   }
 
   children.push(actionsNode);

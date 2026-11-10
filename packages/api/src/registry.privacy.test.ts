@@ -10,7 +10,7 @@ import {
   type QuestionInput,
   QuestionVersionId,
   RoundId,
-  type RoundResult,
+  RoundResult,
   roundDecimals,
   type RoundThemesRecord,
   type StoredThemes,
@@ -123,6 +123,38 @@ describe("privacy registry", () => {
       ],
     );
     assert.isFalse(Object.hasOwn(asMember, "discussionGuide"));
+  });
+
+  it("a member's encoded Results response never carries counts, raw comments, or the guide", () => {
+    for (const themes of ["none", "pending", "ready", "failed"] as const) {
+      const member: RoundResultScenario = {
+        status: "closed",
+        storedN: 2,
+        organizationN: 2,
+        eligibleMembers: 5,
+        questions: [
+          { kind: "text", dimension: null },
+          { kind: "rating", dimension: "workload" },
+        ],
+        submissions: [0, 1, 2, 3].map((s) => [
+          { answered: true, value: 0, comment: s % 2 === 0 ? "too much work" : "fine" },
+          { answered: true, value: 2, comment: null },
+          { answered: false, value: 0, comment: null },
+          { answered: false, value: 0, comment: null },
+          { answered: false, value: 0, comment: null },
+        ]),
+        history: [],
+        viewer: "member",
+        themes,
+      };
+      const { result } = buildResult(member);
+      const wire = JSON.stringify(Schema.encodeSync(RoundResult)(result));
+      if (themes === "ready") assert.isNotEmpty(result.themes ?? [], "the ready member view carries themes");
+
+      assert.notInclude(wire, "supportingComments", `themes ${themes}`);
+      assert.notInclude(wire, "discussionGuide", `themes ${themes}`);
+      assert.deepStrictEqual(result.comments, [], `themes ${themes}`);
+    }
   });
 });
 
