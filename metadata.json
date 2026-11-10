@@ -1,0 +1,48 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "01M72MG8PDTEF6YZJH5Z2FT867",
+  "strategy": "manual-commit",
+  "branch": "r2-108-history",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "apps/web/src/answer/kept-answers.test.ts",
+    "apps/web/src/answer/kept-answers.ts",
+    "apps/web/src/answer/main.ts",
+    "apps/web/src/app/App.scene.test.ts",
+    "apps/web/src/app/history.ts",
+    "apps/web/src/app/keptAnswers.test.ts",
+    "apps/web/src/app/keptAnswers.ts",
+    "packages/domain/src/rounds/MemberHistory.test.ts",
+    "packages/domain/src/rounds/MemberHistory.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 6,
+    "cache_creation_tokens": 4921,
+    "cache_read_tokens": 650287,
+    "output_tokens": 1512,
+    "api_call_count": 3
+  },
+  "redaction": {
+    "replacements": 11,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 2,
+      "credentialed_uri": 0,
+      "entropy": 7,
+      "key_context": 2,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
