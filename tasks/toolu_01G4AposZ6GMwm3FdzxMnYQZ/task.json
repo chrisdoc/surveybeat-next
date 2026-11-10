@@ -1,0 +1,19 @@
+{
+  "tool_use_id": "toolu_01G4AposZ6GMwm3FdzxMnYQZ",
+  "agent_id": "adafad58514d350a9",
+  "subagent_type": "reviewer",
+  "task_description": "Review #124 redaction diff",
+  "files": [
+    "packages/domain/src/privacy/Redaction.privacy.test.ts",
+    "packages/domain/src/privacy/Redaction.ts"
+  ],
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 21522,
+    "cache_read_tokens": 64893,
+    "output_tokens": 4800,
+    "api_call_count": 5
+  },
+  "started_at": "2026-11-10T12:37:03.177820517Z",
+  "completed_at": "2026-11-10T12:37:03.178073679Z"
+}

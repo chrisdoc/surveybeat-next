@@ -1,0 +1,7 @@
+<task-notification>
+<task-id>b8j19pi2c</task-id>
+<tool-use-id>toolu_01NqLXbtEHMiNWYQc6PEhrNw</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-af9bbce1-ef573c28d1fff8d4/3c26513e-d54f-4e0c-894f-a7f0bb58f935/tasks/b8j19pi2c.output</output-file>
+<status>completed</status>
+<summary>Background command "Watch PR 126 checks" completed (exit code 0)</summary>
+</task-notification>
