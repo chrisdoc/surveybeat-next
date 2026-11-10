@@ -131,7 +131,17 @@ const ActionSummaryRow = Schema.Struct({
 const rows = <S extends Schema.Top & { readonly DecodingServices: never }>(schema: S) =>
   Schema.decodeUnknownEffect(Schema.Array(schema));
 
-export const makeSqlRounds = (sql: SqliteClient.SqliteClient) => {
+/** Fills `size` bytes. Production passes {@link secureRandomBytes}; the privacy suite passes a seeded source. */
+export type RandomBytes = (size: number) => Uint8Array;
+
+/** Web Crypto, the only source the Organization object may use for keys (ADR 0005). */
+export const secureRandomBytes: RandomBytes = (size) => crypto.getRandomValues(new Uint8Array(size));
+
+/**
+ * `randomBytes` has no default on purpose: Submission ids must be unpredictable in production, and the
+ * A4 harness (`@surveybeat/testing` Unlinkability) must be able to seed them so its runs are repeatable.
+ */
+export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: RandomBytes) => {
   const toRoundRecord = (row: typeof RoundRow.Type): RoundRecord => ({
     id: row.id,
     pulseId: row.pulse_id,
@@ -577,9 +587,7 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient) => {
         ON CONFLICT (round_id, person_id) DO NOTHING`.pipe(Effect.asVoid, Effect.orDie);
 
   const random128BitKey = (): string =>
-    Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) => byte.toString(16).padStart(2, "0")).join(
-      "",
-    );
+    Array.from(randomBytes(16), (byte) => byte.toString(16).padStart(2, "0")).join("");
 
   const getSubmissionByEditKeyHash = (
     editKeyHash: string,
