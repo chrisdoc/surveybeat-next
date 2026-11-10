@@ -114,6 +114,10 @@ export interface InvitationRecord {
   readonly updatedAt: number;
 }
 
+const OrganizationAiRow = Schema.Struct({
+  ai_processing: Schema.Int,
+});
+
 const PreviousRoundRow = Schema.Struct({
   opened_at: Schema.NullOr(Schema.Int),
   planned_open_at: Schema.Int,
@@ -780,6 +784,12 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
         ORDER BY planned_open_at DESC
         LIMIT 1`.pipe(Effect.flatMap(rows(PreviousRoundRow)), Effect.orDie);
 
+      const organizationRows = yield* sql`SELECT ai_processing FROM organization LIMIT 1`.pipe(
+        Effect.flatMap(rows(OrganizationAiRow)),
+        Effect.orDie,
+      );
+      const aiProcessing = organizationRows[0]?.ai_processing === 1;
+
       const previousRound = prevRows[0]
         ? { openedAt: prevRows[0].opened_at, plannedOpenAt: prevRows[0].planned_open_at }
         : null;
@@ -811,6 +821,7 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
         closeTime: round.plannedCloseAt,
         state: round.status,
         hasAnswered: answered,
+        aiProcessing,
       };
     }).pipe(Effect.orDie);
 

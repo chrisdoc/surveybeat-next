@@ -468,6 +468,7 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
               baseUrl: appOrigin,
               ratingQuestion,
               actions: emailActions,
+              aiProcessing: dirState.aiProcessing,
             };
 
             if (m.sendAt <= now) {
@@ -651,6 +652,7 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
             baseUrl: appOrigin,
             ratingQuestion,
             actions: eligibleActions.slice(0, 3).map((a) => a.title),
+            aiProcessing: dirState.aiProcessing,
           };
           const invitationEmail: StoredEmail =
             payload.token === undefined
@@ -742,6 +744,7 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
             baseUrl: appOrigin,
             ratingQuestion,
             actions: eligibleActions.slice(0, 3).map((a) => a.title),
+            aiProcessing: dirState.aiProcessing,
           };
           const reminderEmail: StoredEmail =
             payload.token === undefined
@@ -1275,6 +1278,7 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
                       baseUrl: appOrigin,
                       ratingQuestion,
                       actions: eligibleActions.slice(0, 3).map((a) => a.title),
+                      aiProcessing: dirState.aiProcessing,
                     };
 
                     yield* sends.create(newSendId, person.email, invitationEmail);

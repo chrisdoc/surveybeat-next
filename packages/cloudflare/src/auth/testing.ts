@@ -364,7 +364,14 @@ export class MemoryOrganizations {
     if (found !== undefined) return found;
     // The real object answers an empty directory for an id nothing created.
     return {
-      state: { organizationName: "", minimumGroupSize: 4, people: [], teams: [], memberships: [] },
+      state: {
+        organizationName: "",
+        minimumGroupSize: 4,
+        aiProcessing: false,
+        people: [],
+        teams: [],
+        memberships: [],
+      },
       pulses: EMPTY_PULSE_STATE,
       actions: new Map(),
       sends: new Map(),
@@ -379,6 +386,7 @@ export class MemoryOrganizations {
           state: {
             organizationName: organization.name,
             minimumGroupSize: DEFAULT_MINIMUM_GROUP_SIZE,
+            aiProcessing: false,
             people: [
               {
                 id: admin.personId,
@@ -675,7 +683,14 @@ export class SignInWorld {
     this.workos.organizations.set(id, { id: workos, name });
     this.index.organizations.set(id, { name, workos });
     this.durable.organizations.set(id, {
-      state: { organizationName: name, minimumGroupSize: 4, people: [], teams: [], memberships: [] },
+      state: {
+        organizationName: name,
+        minimumGroupSize: 4,
+        aiProcessing: false,
+        people: [],
+        teams: [],
+        memberships: [],
+      },
       pulses: EMPTY_PULSE_STATE,
       actions: new Map(),
       sends: new Map(),

@@ -145,6 +145,43 @@ describe("ReminderEmail", () => {
   });
 });
 
+const aiNotice =
+  "Comments are summarised by an AI service in the EU after names, emails, phone numbers, handles and links are removed. It keeps nothing.";
+
+describe("AI processing notice", () => {
+  it.each([
+    ["InvitationEmail", examples.InvitationEmail],
+    ["ReminderEmail", examples.ReminderEmail],
+  ] as const)("%s states the notice in both parts when AI processing is on", async (_name, example) => {
+    const { html, text } = await renderEmail({ ...example, aiProcessing: true });
+    expect(html).toContain(aiNotice);
+    expect(text).toContain(aiNotice);
+  });
+
+  it.each([
+    ["off", { aiProcessing: false }],
+    ["absent", {}],
+  ] as const)("%s leaves the notice out of both parts of an InvitationEmail", async (_label, flag) => {
+    const { html, text } = await renderEmail({ ...examples.InvitationEmail, ...flag });
+    expect(html).not.toContain("Comments are summarised");
+    expect(text).not.toContain("Comments are summarised");
+  });
+
+  it.each([
+    ["off", { aiProcessing: false }],
+    ["absent", {}],
+  ] as const)("%s leaves the notice out of both parts of a ReminderEmail", async (_label, flag) => {
+    const { html, text } = await renderEmail({ ...examples.ReminderEmail, ...flag });
+    expect(html).not.toContain("Comments are summarised");
+    expect(text).not.toContain("Comments are summarised");
+  });
+
+  it("puts the notice in the privacy panel, under the anonymity statement", async () => {
+    const { html } = await renderEmail({ ...examples.InvitationEmail, aiProcessing: true });
+    expect(html.indexOf("at least 4 people")).toBeLessThan(html.indexOf("Comments are summarised"));
+  });
+});
+
 describe("theme", () => {
   it("keeps the light palette in step with the app theme", () => {
     expect(colors).toEqual({

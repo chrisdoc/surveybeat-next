@@ -170,7 +170,10 @@ export class DirectoryApiGroup extends HttpApiGroup.make("directory")
       error: directoryErrors,
     }),
     HttpApiEndpoint.patch("updateSettings", "/organization", {
-      payload: Schema.Struct({ minimumGroupSize: MinimumGroupSize }),
+      payload: Schema.Struct({
+        minimumGroupSize: Schema.optionalKey(MinimumGroupSize),
+        aiProcessing: Schema.optionalKey(Schema.Boolean),
+      }),
       error: directoryErrors,
     }),
     HttpApiEndpoint.put("grantAdmin", "/organization/admins/:personId", {

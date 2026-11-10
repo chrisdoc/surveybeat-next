@@ -46,6 +46,7 @@ jobs:
         run: pnpm exec alchemy deploy infra/alchemy.run.ts --stage "$STAGE" --yes --no-input
         env:
           WORKOS_API_KEY: ${{ secrets.WORKOS_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           WORKOS_CLIENT_ID: ${{ secrets.WORKOS_CLIENT_ID }}
       # Also checks that WORKOS_API_KEY belongs to the Staging environment that holds the redirect URIs.
       - name: Smoke test

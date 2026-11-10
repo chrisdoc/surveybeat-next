@@ -109,6 +109,8 @@ export const Model = Schema.Struct({
   sizeSaved: Schema.Boolean,
   sizeBusy: Schema.Boolean,
   sizeFailure: Schema.Option(Failure),
+  aiBusy: Schema.Boolean,
+  aiFailure: Schema.Option(Failure),
   peopleBusy: Schema.Boolean,
   peopleFailure: Schema.Option(Failure),
   // Pulses list screen
@@ -248,6 +250,8 @@ export const Message = defineMessageUnion({
   SizeChanged: { size: Schema.String },
   SubmitSize: {},
   UpdatedSettings: { outcome: OutcomeVoid },
+  AiProcessingToggled: { isOn: Schema.Boolean },
+  UpdatedAiProcessing: { outcome: OutcomeVoid },
   GrantAdminClicked: { personId: PersonId },
   GrantedAdmin: { outcome: OutcomeVoid },
   RevokeAdminClicked: { personId: PersonId },
@@ -446,6 +450,17 @@ export const UpdateSettings = Command.define("UpdateSettings", {
       (api) => api.directory.updateSettings({ payload: { minimumGroupSize } }),
       () => Message.UpdatedSettings({ outcome: { _tag: "Success" } }),
       (failure) => Message.UpdatedSettings({ outcome: { _tag: "Failure", failure } }),
+    ),
+});
+
+export const UpdateAiProcessing = Command.define("UpdateAiProcessing", {
+  args: { aiProcessing: Schema.Boolean },
+  messages: [Message.UpdatedAiProcessing],
+  execute: ({ aiProcessing }) =>
+    runApi(
+      (api) => api.directory.updateSettings({ payload: { aiProcessing } }),
+      () => Message.UpdatedAiProcessing({ outcome: { _tag: "Success" } }),
+      (failure) => Message.UpdatedAiProcessing({ outcome: { _tag: "Failure", failure } }),
     ),
 });
 
@@ -796,6 +811,8 @@ export const initialModel = (url: Url): Model => {
     sizeSaved: false,
     sizeBusy: false,
     sizeFailure: Option.none(),
+    aiBusy: false,
+    aiFailure: Option.none(),
     peopleBusy: false,
     peopleFailure: Option.none(),
     pulses: { _tag: "Loading" },
@@ -1391,6 +1408,29 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
           sizeBusy: false,
           sizeFailure: Option.some(message.outcome.failure),
         },
+      };
+    }
+
+    case "AiProcessingToggled":
+      // A click on the checkbox can arrive twice (label and input); ignore toggles while saving.
+      if (model.aiBusy) return { model };
+      return {
+        model: { ...model, aiBusy: true, aiFailure: Option.none() },
+        commands: [UpdateAiProcessing({ aiProcessing: message.isOn })],
+      };
+
+    case "UpdatedAiProcessing": {
+      if (message.outcome._tag === "Success") {
+        return {
+          model: { ...model, aiBusy: false },
+          commands: [GetSettings()],
+        };
+      }
+      if (message.outcome.failure === "Unauthenticated") {
+        return { model, commands: [LoadSession()] };
+      }
+      return {
+        model: { ...model, aiBusy: false, aiFailure: Option.some(message.outcome.failure) },
       };
     }
 
@@ -2274,12 +2314,15 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
             sizeSaved: model.sizeSaved,
             sizeBusy: model.sizeBusy,
             sizeFailure: Option.getOrUndefined(model.sizeFailure),
+            aiBusy: model.aiBusy,
+            aiFailure: Option.getOrUndefined(model.aiFailure),
             peopleBusy: model.peopleBusy,
             peopleFailure: Option.getOrUndefined(model.peopleFailure),
           },
           {
             onSizeChange: (size) => Message.SizeChanged({ size }),
             onSubmitSize: Message.SubmitSize(),
+            onAiProcessingToggle: (isOn) => Message.AiProcessingToggled({ isOn }),
             onGrantAdmin: (personId) => Message.GrantAdminClicked({ personId }),
             onRevokeAdmin: (personId) => Message.RevokeAdminClicked({ personId }),
             onRemovePerson: (personId) => Message.RemovePersonClicked({ personId }),

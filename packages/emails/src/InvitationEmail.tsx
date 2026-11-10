@@ -3,6 +3,10 @@ import { Layout, textLayout } from "./Layout.tsx";
 import { message } from "./messages/index.ts";
 import { ActionRow, ActionsCard, DisplayHeading, Notices, PrivacyPanel, RatingRow } from "./Parts.tsx";
 
+/** The AI notice, present only when the Organization processes comments with AI (ADR 0015). */
+const aiNotice = (email: InvitationEmailData): string | undefined =>
+  email.aiProcessing === true ? message("privacy.aiNotice") : undefined;
+
 /**
  * What the lead will and will not see (SPEC 5.2). Rows stored before N was carried hold the finished
  * statement instead; they render verbatim.
@@ -18,6 +22,7 @@ export const subject = (email: InvitationEmailData): string =>
 export function InvitationEmailComponent({ email }: { email: InvitationEmailData }) {
   const openUrl = `${email.baseUrl}/a#t=${email.token}`;
   const deliveryUrl = `${email.baseUrl}/delivery?token=${email.token}`;
+  const notice = aiNotice(email);
 
   return (
     <Layout
@@ -26,7 +31,15 @@ export function InvitationEmailComponent({ email }: { email: InvitationEmailData
       outside={
         <>
           <ActionsCard actions={email.actions} />
-          <PrivacyPanel>{anonymityStatement(email)}</PrivacyPanel>
+          <PrivacyPanel>
+            {anonymityStatement(email)}
+            {notice !== undefined && (
+              <>
+                <br />
+                {notice}
+              </>
+            )}
+          </PrivacyPanel>
           <Notices deliveryUrl={deliveryUrl} />
         </>
       }
@@ -43,6 +56,7 @@ export function InvitationEmailComponent({ email }: { email: InvitationEmailData
 export const text = (email: InvitationEmailData): string => {
   const openUrl = `${email.baseUrl}/a#t=${email.token}`;
   const deliveryUrl = `${email.baseUrl}/delivery?token=${email.token}`;
+  const notice = aiNotice(email);
 
   const ratingLines: Array<string> = [];
   if (email.ratingQuestion) {
@@ -73,6 +87,7 @@ export const text = (email: InvitationEmailData): string => {
       email.pulseName,
       "",
       anonymityStatement(email),
+      ...(notice === undefined ? [] : [notice]),
       "",
       ...ratingLines,
       `${message("invitation.openCheckIn")}: ${openUrl}`,

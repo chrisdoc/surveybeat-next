@@ -102,10 +102,11 @@ export const PersonSummary = Schema.Struct({
 });
 export type PersonSummary = typeof PersonSummary.Type;
 
-/** The Organization settings screen: N and the People with their admin flag. */
+/** The Organization settings screen: N, AI processing, and the People with their admin flag. */
 export const OrganizationSettings = Schema.Struct({
   name: Schema.String,
   minimumGroupSize: MinimumGroupSize,
+  aiProcessing: Schema.Boolean,
   people: Schema.Array(PersonSummary),
 });
 export type OrganizationSettings = typeof OrganizationSettings.Type;

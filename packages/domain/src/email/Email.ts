@@ -13,6 +13,12 @@ export type SendId = typeof SendId.Type;
 
 const HttpsUrl = Schema.String.pipe(Schema.check(Schema.isStartingWith("https://")));
 
+/**
+ * Whether the Organization processes redacted comments with AI (ADR 0015), so the email says so. Optional
+ * so that sends stored before the setting existed still decode; absent means off.
+ */
+const AiProcessing = Schema.optionalKey(Schema.Boolean);
+
 /** "You've been added to <Team> by <Lead>." Sent when a Lead adds a Person to a Team. */
 export const AddedToTeam = Schema.TaggedStruct("AddedToTeam", {
   teamName: Schema.NonEmptyString,
@@ -52,6 +58,7 @@ export const InvitationEmail = Schema.TaggedStruct("InvitationEmail", {
   baseUrl: HttpsUrl,
   ratingQuestion: Schema.NullOr(EmailRatingQuestion),
   actions: Schema.Array(Schema.String),
+  aiProcessing: AiProcessing,
 });
 export type InvitationEmail = typeof InvitationEmail.Type;
 
@@ -62,6 +69,7 @@ export const ReminderEmail = Schema.TaggedStruct("ReminderEmail", {
   baseUrl: HttpsUrl,
   ratingQuestion: Schema.NullOr(EmailRatingQuestion),
   actions: Schema.Array(Schema.String),
+  aiProcessing: AiProcessing,
 });
 export type ReminderEmail = typeof ReminderEmail.Type;
 
@@ -79,6 +87,7 @@ export const InvitationEmailWithToken = Schema.TaggedStruct("InvitationEmail", {
   baseUrl: HttpsUrl,
   ratingQuestion: Schema.NullOr(EmailRatingQuestion),
   actions: Schema.Array(Schema.String),
+  aiProcessing: AiProcessing,
 });
 export type InvitationEmailWithToken = typeof InvitationEmailWithToken.Type;
 
@@ -93,6 +102,7 @@ export const ReminderEmailWithToken = Schema.TaggedStruct("ReminderEmail", {
   ratingQuestion: Schema.NullOr(EmailRatingQuestion),
   actions: Schema.Array(Schema.String),
   unsubscribeUrl: Schema.optionalKey(HttpsUrl),
+  aiProcessing: AiProcessing,
 });
 export type ReminderEmailWithToken = typeof ReminderEmailWithToken.Type;
 

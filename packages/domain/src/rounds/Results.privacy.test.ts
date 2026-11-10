@@ -259,6 +259,7 @@ describe("Results Privacy & Minimum Group Size Invariants (ADR 0004, Issue #3)",
     const directory: DirectoryState = {
       organizationName: "Acme",
       minimumGroupSize: 4,
+      aiProcessing: false,
       people: [
         person("lead"),
         person("member"),

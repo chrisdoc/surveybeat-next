@@ -23,6 +23,8 @@ export const catalog = {
   "invitation.changeWhen": "Change when I get this",
   "invitation.personalNotice": "This link is personal. Don't forward it.",
   "invitation.reason": "You received this email because you are a member of the team.",
+  "privacy.aiNotice":
+    "Comments are summarised by an AI service in the EU after names, emails, phone numbers, handles and links are removed. It keeps nothing.",
   "invitation.actionsHeading": "Team actions in progress",
 
   "reminder.subject": "Reminder: {pulse}",

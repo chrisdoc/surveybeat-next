@@ -139,7 +139,11 @@ export const directoryHandlers = <R>(
       .handle("updateSettings", ({ payload }) =>
         provide(
           change(() =>
-            Effect.succeed({ _tag: "UpdateSettings", minimumGroupSize: payload.minimumGroupSize }),
+            Effect.succeed({
+              _tag: "UpdateSettings",
+              minimumGroupSize: payload.minimumGroupSize,
+              aiProcessing: payload.aiProcessing,
+            }),
           ),
         ),
       )

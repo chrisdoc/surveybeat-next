@@ -22,11 +22,13 @@ import { SurveyBeatApi } from "@surveybeat/api";
 import { EmailTemplatesLive } from "@surveybeat/emails";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import { Stack } from "alchemy/Stack";
+import * as Config from "effect/Config";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Path from "effect/Path";
+import * as Redacted from "effect/Redacted";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 import { HttpServerRequest } from "effect/http/HttpServerRequest";
@@ -124,6 +126,7 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
       // The Organization Durable Object builds email links from this. Stages on workers.dev have none.
       env: {
         ...(yield* authBindings),
+        OPENROUTER_API_KEY: Config.Redacted("OPENROUTER_API_KEY").pipe(Config.withDefault(Redacted.make(""))),
         ...(hostname === undefined ? {} : { APP_ORIGIN: `https://${hostname}` }),
       },
       ...(hostname === undefined ? {} : { domain: hostname }),

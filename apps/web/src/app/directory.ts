@@ -25,6 +25,7 @@ import {
   pageTitle,
   problemView,
   signOutView,
+  checkboxField,
   subSectionTitle,
   textField,
 } from "./components.ts";
@@ -415,12 +416,15 @@ export const settingsScreenView = <Message>(
     readonly sizeSaved: boolean;
     readonly sizeBusy: boolean;
     readonly sizeFailure?: Failure | undefined;
+    readonly aiBusy: boolean;
+    readonly aiFailure?: Failure | undefined;
     readonly peopleBusy: boolean;
     readonly peopleFailure?: Failure | undefined;
   },
   actions: {
     readonly onSizeChange: (size: string) => Message;
     readonly onSubmitSize: Message;
+    readonly onAiProcessingToggle: (isOn: boolean) => Message;
     readonly onGrantAdmin: (personId: PersonId) => Message;
     readonly onRevokeAdmin: (personId: PersonId) => Message;
     readonly onRemovePerson: (personId: PersonId) => Message;
@@ -469,6 +473,28 @@ export const settingsScreenView = <Message>(
           },
           h,
         ),
+      ].filter(Predicate.isNotNull),
+    ),
+  );
+
+  // AiProcessing
+  children.push(
+    h.div(
+      [h.Class(formPanelClass)],
+      [
+        subSectionTitle(message("settings.aiProcessing.title"), h, 2),
+        checkboxField(
+          {
+            id: "ai-processing",
+            label: message("settings.aiProcessing.label"),
+            isChecked: settings.aiProcessing,
+            isDisabled: state.aiBusy,
+            onToggle: actions.onAiProcessingToggle,
+          },
+          h,
+        ),
+        h.p([h.Class("text-sm text-muted")], [message("settings.aiProcessing.help")]),
+        problemView(state.aiFailure, h),
       ].filter(Predicate.isNotNull),
     ),
   );

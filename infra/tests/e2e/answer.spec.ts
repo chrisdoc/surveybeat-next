@@ -5,6 +5,7 @@ const mockExchangeContext = {
   roundId: "round-test-123",
   pulseName: "Weekly Pulse",
   minimumGroupSize: 4,
+  aiProcessing: false,
   questions: [
     {
       id: "q-rating-1",
