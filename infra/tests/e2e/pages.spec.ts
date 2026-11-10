@@ -7,8 +7,10 @@ test("the app loads", async ({ page, pageErrors }) => {
 });
 
 test("the answer page loads", async ({ page, pageErrors }) => {
+  // Opened without an Invitation token, the page loads and shows only its error (#143, B10).
   await open(page, "/answer");
-  await expect(page.locator("#screen-1")).toBeVisible();
+  await expect(page.locator("#err")).toBeVisible();
+  await expect(page.locator("#screen-1")).toBeHidden();
   await expect(page).toHaveTitle("Your answer");
   expect(pageErrors).toEqual([]);
 });
