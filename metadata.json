@@ -1,0 +1,63 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "01M72KW1JQ2Y7VFKWFJM4P5X5W",
+  "strategy": "manual-commit",
+  "branch": "r2-108-history",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "apps/web/src/app/App.scene.test.ts",
+    "apps/web/src/app/history.ts",
+    "apps/web/src/app/keptAnswers.test.ts",
+    "apps/web/src/app/keptAnswers.ts",
+    "apps/web/src/messages/answer.ts",
+    "packages/api/src/PrivacyRegistry.ts",
+    "packages/api/src/index.ts",
+    "packages/api/src/registry.privacy.test.ts",
+    "packages/cloudflare/src/Organization.ts",
+    "packages/cloudflare/src/RoundHandlers.ts",
+    "packages/cloudflare/src/SqlRounds.ts",
+    "packages/cloudflare/src/auth/DurableObjectPeople.ts",
+    "packages/cloudflare/src/auth/testing.ts",
+    "packages/domain/src/rounds/MemberHistory.test.ts",
+    "packages/domain/src/rounds/MemberHistory.ts",
+    "packages/domain/src/rounds/RoundFlow.ts",
+    "packages/domain/src/rounds/index.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 52,
+    "cache_creation_tokens": 43778,
+    "cache_read_tokens": 4331755,
+    "output_tokens": 15306,
+    "api_call_count": 24,
+    "subagent_tokens": {
+      "input_tokens": 80,
+      "cache_creation_tokens": 178850,
+      "cache_read_tokens": 3121701,
+      "output_tokens": 49193,
+      "api_call_count": 39
+    }
+  },
+  "redaction": {
+    "replacements": 11,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 2,
+      "credentialed_uri": 0,
+      "entropy": 7,
+      "key_context": 2,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}

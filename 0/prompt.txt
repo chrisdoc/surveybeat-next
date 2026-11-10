@@ -1,0 +1,144 @@
+<task-notification>
+<task-id>a79505ed96e6a9761</task-id>
+<tool-use-id>toolu_01QX2DxFTCQTfAanRw6BgMDe</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-340cd7f1-8cfb40b367d1df77/a17d6eaf-e8ab-41a2-bd05-2fe91b6d8f54/tasks/a79505ed96e6a9761.output</output-file>
+<status>completed</status>
+<summary>Agent "Slice B: history endpoint server" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>## Changes
+
+Slice B is done: `GET /api/me/history` is implemented end to end, with no packages changed outside the brief. I started from the clean tree on the rebased branch, and #113's changes merged without conflicts. I did not commit.
+
+- **New** `packages/domain/src/rounds/MemberHistory.ts`: `HistoryQuestion`, `HistoryTeamResult`, `HistoryRound`, `MemberHistory`, `MemberHistoryRoundInput`, and `buildMemberHistory`. Scores come from `enforceEffectiveNOnResult`, and the Round's own `status` decides whether it is shared.
+- `packages/domain/src/rounds/index.ts`: exports the new module.
+- `packages/domain/src/rounds/RoundFlow.ts`: `history` added to `OrganizationRoundsShape`, plus `viewMemberHistory`.
+- `packages/api/src/index.ts`: `getMyHistory` on `RoundsApiGroup` (GET `/me/history`, no params, query, payload, or headers). The group doc comment now says which endpoints return Result data.
+- `packages/api/src/PrivacyRegistry.ts`: `"rounds.getMyHistory": ResultData`.
+- `packages/api/src/registry.privacy.test.ts`: `historyViolations` responder, plus a `member history endpoint (ADR 0017)` block. It checks the reflected endpoint (GET, no `:` in the path, no params, query, headers, or payload) and that no output key matches the forbidden pattern.
+- `packages/cloudflare/src/SqlRounds.ts`: `getParticipatedRounds(personId)`. It reads only participation, round, team, and round_result, and decodes with the existing payload decoder.
+- `packages/cloudflare/src/Organization.ts`: `viewMemberHistory(actorId)` on the DO.
+- `packages/cloudflare/src/auth/DurableObjectPeople.ts` and `auth/testing.ts`: `history` wired in (the stand-in returns `{ rounds: [] }`).
+- `packages/cloudflare/src/RoundHandlers.ts`: `getMyHistory` handler.
+- **New** `packages/domain/src/rounds/MemberHistory.test.ts` (11 tests).
+- **New** `packages/cloudflare/src/MemberHistoryApi.test.ts` (1 test).
+- **New** `packages/cloudflare/src/MemberHistory.privacy.test.ts` (1 test).
+
+## Validation
+
+- `pnpm typecheck`: exit 0, no errors.
+- `pnpm typecheck:effect`: exit 0. Only suggestions remain, all in existing code.
+- `pnpm lint`: exit 0.
+- `pnpm exec oxfmt --check` on my 14 files: clean.
+- `pnpm test packages/domain/src/rounds/MemberHistory.test.ts`: 11 passed.
+- `pnpm test packages/cloudflare/src/MemberHistoryApi.test.ts`: 1 passed.
+- `pnpm test:privacy packages/api packages/cloudflare/src/MemberHistory.privacy.test.ts`: 10 passed. The registry suite has 9 tests, including the 500-run property check for `rounds.getMyHistory`.
+- `pnpm test` (full unit project): 49 files, 705 tests passed.
+
+## Notes
+
+- **Decisions:**
+  - `getParticipatedRounds` returns camelCase records (`roundId`, `teamId`, `teamName`, `pulseName`, `plannedOpenDate`, `status`, `result`) rather than raw rows. The DO method adds `questions` and `canViewResults` before calling the domain builder.
+  - `canViewResults` is `authorizeRoundAction(..., "team.viewResults", teamId)` not rejected.
+  - The brief's `r.pulse_name` and `planned_open_date` columns are correct, so I used them as written.
+- **Test gap:** the DO method `viewMemberHistory` is not exercised with a non-empty history. The API test only covers the empty case, and the privacy test runs the same SQL and builder steps directly rather than through the DO class. An end-to-end check on a deployed stage would cover the real wiring.
+- **Other implementer's work:** `apps/web/src/messages/answer.ts` shows as modified in the tree. I did not touch it, and nothing under `apps/` was changed by me.
+- **Existing suggestions:** the `decodeUnknownSync` suggestion at `registry.privacy.test.ts` line 74 is in existing responder code, not my addition.</result>
+<usage><subagent_tokens>125715</subagent_tokens><tool_uses>36</tool_uses><duration_ms>531510</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>a6254c4d39074d490</task-id>
+<tool-use-id>toolu_01EfSvm5brQkKGiXypS3xarU</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-340cd7f1-8cfb40b367d1df77/a17d6eaf-e8ab-41a2-bd05-2fe91b6d8f54/tasks/a6254c4d39074d490.output</output-file>
+<status>completed</status>
+<summary>Agent "Slice C: My history page" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>## Changes
+
+The history screen is implemented as specified: the kept-answers reader, the route and nav link, the App.ts wiring, the history view, the copy, and the scene tests. I did not commit anything.
+
+- **`apps/web/src/app/keptAnswers.ts`** (new): `KeptAnswer`, `KeptAnswers` schemas and types. `readKeptAnswers` collects `sb_answers_` keys, decodes each entry with `Schema.fromJsonString`, removes expired or malformed entries, and returns the rest keyed by roundId. `clearKeptAnswers` removes only `sb_answers_` keys. Both swallow storage errors.
+- **`apps/web/src/app/keptAnswers.test.ts`** (new): 8 tests with a Map-backed fake storage, covering the cases you listed.
+- **`apps/web/src/app/history.ts`** (new): `LoadedHistory` union and `historyView`. The table is local rather than `dataTable`, because the rating comment needs its own element and `dataTable` only takes text cells.
+- **`apps/web/src/app/routes.ts`**: `History` route, `historyRouter` (before `teamsRouter`), `historyHref`.
+- **`apps/web/src/app/directory.ts`**: "My history" nav link after Teams.
+- **`apps/web/src/app/App.ts`**: `history` model field (reset on UrlChanged), `GotMyHistory` / `ClearKeptAnswersClicked` / `ClearedKeptAnswers` messages, `GetMyHistoryCmd` and `ClearKeptAnswersCmd`, the `History` load case, update handlers, and the view branch. Diff is additions only.
+- **`apps/web/src/app/App.scene.test.ts`**: a "History screen" describe with 7 tests (load on UrlChanged, stale response ignored, own answers beside team score, no-answers notice, team-result lines, clear flow, nav link).
+- **`apps/web/src/messages/catalog.ts`** and **`de.ts`**: `nav.history` and the `history.*` keys, with the copy from the brief.
+
+## Validation
+
+- `pnpm typecheck`: passes.
+- `pnpm typecheck:effect`: exit 0. Output is only suggestions in packages outside apps/web (`packages/api`, `packages/cloudflare`, `packages/emails`), none in my files.
+- `pnpm lint`: passes after I removed one unused test import.
+- `pnpm exec oxfmt` on my files, then `oxfmt --check apps/web/src/app apps/web/src/messages`: passes.
+- `pnpm test apps/web`: 11 files, 135 tests passed. Includes the 7 History scene tests and 8 keptAnswers tests.
+- `pnpm --filter @surveybeat/web build`: passes.
+- `pnpm test apps/web/src/answer/budget.test.ts`: 1 passed.
+
+## Notes
+
+- **Team score copy for non-Rating Questions.** Per the brief, a shown Round with a SingleChoice or LongText Question displays "Hidden: too few answers". Those Questions never have a score, so the message is misleading. The brief's rule produces it literally. Changing it to `results.dash` for non-Rating types is a one-line change, but it is a copy decision, so I left it as specified.
+- **Storage access in the command.** `window.localStorage` is read inside the `runApi` success callback, not in a separate `Effect.sync`. Accessing it can throw in sandboxed contexts, which would become a defect. Low risk, but it is not wrapped.
+- **Out-of-range values.** A kept Rating value that is not an integer from 1 to 5 shows as "Not answered" rather than a label. The reader accepts any finite number, as the brief specified.
+- **Loading copy.** I reused the existing `app.loading` key instead of adding a `history.loading` key, so the catalog stays within the brief's key list.
+- **Stale-response guard.** `GotMyHistory` is dropped when the route is no longer History, matching the team overview pattern. An Unauthenticated failure triggers `LoadSession`, as in the other screens.
+- **Pre-existing modification.** `apps/web/src/messages/answer.ts` was already modified before this session and I did not touch it.</result>
+<usage><subagent_tokens>159785</subagent_tokens><tool_uses>41</tool_uses><duration_ms>578225</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>a0ffa581417352d76</task-id>
+<tool-use-id>toolu_01ESdEJTiRcuGqihQumkNGzr</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-340cd7f1-8cfb40b367d1df77/a17d6eaf-e8ab-41a2-bd05-2fe91b6d8f54/tasks/a0ffa581417352d76.output</output-file>
+<status>completed</status>
+<summary>Agent "Review #108 full diff" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>Findings, most severe first:
+
+**1. MAJOR — The branch is based on `5ee8c98f`, but `origin/main` is two commits ahead, so the diff against `origin/main` shows a regression.**
+- `origin/main` now has R2 02 (#115, themes and discussion guide) and R2 10 (#117, bilingual Template).
+- A two-dot diff against `origin/main` therefore shows deletions of the themes work in `Organization.ts`, `SqlRounds.ts`, `Redaction.ts`, `Themes*.ts`, `Template.ts`, `Editor.ts`, `0013_round_themes.sql` and others (44 files, 920 added and 2709 removed). Against the merge base the change is 23 files, +778 and -55. Merging naively would drop those features.
+- The registry change in `packages/api/src/PrivacyRegistry.ts` is the main conflict. `origin/main` has a `leadOnly: ReadonlyArray&lt;LeadOnlyField&gt;` field and `viewer` and `themes` in `RoundResultScenario`. This branch has the older shape.
+- Rebase onto `origin/main` and re-apply. The new entry becomes `"rounds.getMyHistory": { _tag: "ResultData", inputs: roundResultScenarios, leadOnly: [] }`.
+- Re-check `registry.privacy.test.ts` after the rebase. Its 268-line diff looks like it was written against the older registry. On the current registry the history response must also be shown never to carry themes or comments.
+- `viewMemberHistory` reads `getRoundQuestionsDetailed` and the stored payload directly. After the rebase, confirm it goes through the same result view that applies the themes and N rules, or that history exposes only `teamScore`.
+
+**2. MAJOR — `apps/web/src/answer/main.ts:262` and `:551` can break the answer flow when browser storage is blocked.**
+- The calls are `keepAnswer(window.localStorage, ...)`.
+- `keepAnswer`'s try/catch only starts inside the function. Evaluating the `window.localStorage` getter throws a `SecurityError` when storage is blocked (sandboxed frame, cookies disabled) before the function is entered.
+- That throw happens after the server has already saved. At the first-save site it comes before `firstSaved = true` and before the `sb_token` removal. The member then sees an error for an answer that was saved, and a retry may produce a duplicate or conflicting save.
+- The web app side already guards this with `browserStorage()`.
+- Fix: resolve storage in a try/catch (a `safeStorage()` helper in `kept-answers.ts`), or pass a thunk, and skip the call when it is null. Add a test for it.
+
+**3. MINOR — `apps/web/src/answer/budget.test.ts` import-following looks sound, with two small gaps.**
+- The regex handles minified `import"./x.js"`, `import{a}from"./x.js"` and `export*from"./x.js"`. It skips `import("./x.js")` because `(` is excluded from the optional clause, and it de-duplicates by file name. That is correct.
+- It only matches `./` specifiers, so a `../` or absolute `/assets/` import would be silently missed. Rollup normally emits `./`.
+- If an import is ever mis-parsed, the test passes with an under-count and nothing warns. `expect(counted.size).toBeGreaterThan(0)` is a weak guard. Consider asserting `counted.size &gt;= scriptSrcMatches.length`, and asserting that the old `messages-*` chunk is not statically reachable.
+- The test needs a built `dist`. I did not run it.
+
+**4. MINOR — `packages/domain/src/rounds/MemberHistory.ts:83` labels a shared Round as `notShared` when the member can no longer view the Team's Results (for example after leaving the Team).**
+- The UI note then reads "not shared", which is misleading.
+- This is harmless and non-leaking. Optionally add a separate `teamResult` value, or reword the copy.
+
+**Checked, no problem:**
+- N-gating: the Round's live `status` decides, not the stored payload. `enforceEffectiveNOnResult` uses the stricter of stored and current N. Scores are set only for Rating Questions with `meetsMinimumGroupSize`. Open and closed Rounds yield no scores.
+- No Submission or Answer data is read on the server. The history request has no input.
+- The localStorage merge, prune and clear logic is correct. Clear removes only `sb_answers_*`, using keys collected first. Read never throws.
+- The UI strings go through the catalog.
+
+I did not run the test suites.
+
+Relevant files:
+- `/home/ubuntu/.t3/worktrees/surveybeat-next/t3-340cd7f1-8cfb40b367d1df77/apps/web/src/answer/main.ts`
+- `/home/ubuntu/.t3/worktrees/surveybeat-next/t3-340cd7f1-8cfb40b367d1df77/apps/web/src/answer/kept-answers.ts`
+- `/home/ubuntu/.t3/worktrees/surveybeat-next/t3-340cd7f1-8cfb40b367d1df77/apps/web/src/answer/budget.test.ts`
+- `/home/ubuntu/.t3/worktrees/surveybeat-next/t3-340cd7f1-8cfb40b367d1df77/packages/api/src/PrivacyRegistry.ts`
+- `/home/ubuntu/.t3/worktrees/surveybeat-next/t3-340cd7f1-8cfb40b367d1df77/packages/api/src/registry.privacy.test.ts`
+- `/home/ubuntu/.t3/worktrees/surveybeat-next/t3-340cd7f1-8cfb40b367d1df77/packages/domain/src/rounds/MemberHistory.ts`</result>
+<usage><subagent_tokens>46283</subagent_tokens><tool_uses>4</tool_uses><duration_ms>33422</duration_ms></usage>
+</task-notification>
