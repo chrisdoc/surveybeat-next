@@ -100,6 +100,50 @@ const germanSignificantDigits = (match: string): number => {
   return international ? digits : digits - 1;
 };
 
+const PHONE_SPLIT_CHARACTER = /[ /-]/;
+
+// Separators, then the start of another German number (+49, 0049 or a national 0)
+const GERMAN_NUMBER_START = /^(?: [-/] |[ /-])\(?(?:(?:\+|00)49|0)/;
+
+/**
+ * German phone numbers with 7-12 significant national digits are redacted. A longer match is two or
+ * more numbers written next to each other: it is cut before a separator once the prefix has 7-12
+ * digits, preferring a cut where another German number starts, and the rest is scanned again.
+ * Without such a cut (an unseparated run), the whole match is redacted: privacy beats false positives.
+ */
+const redactGermanPhones = (text: string): string => {
+  const pattern = new RegExp(GERMAN_PHONE_PATTERN.source, "g");
+  let result = "";
+  let kept = 0;
+  for (let match = pattern.exec(text); match !== null; match = pattern.exec(text)) {
+    const start = match.index;
+    const digits = germanSignificantDigits(match[0]);
+    if (digits < 7) continue;
+    let end = start + match[0].length;
+    if (digits > 12) {
+      let cut: number | undefined;
+      for (let i = 1; i < match[0].length; i++) {
+        if (!PHONE_SPLIT_CHARACTER.test(match[0].charAt(i))) continue;
+        const prefixDigits = germanSignificantDigits(match[0].slice(0, i));
+        if (prefixDigits > 12) break;
+        if (prefixDigits < 7) continue;
+        cut ??= i;
+        if (GERMAN_NUMBER_START.test(match[0].slice(i))) {
+          cut = i;
+          break;
+        }
+      }
+      if (cut !== undefined) {
+        end = start + cut;
+        pattern.lastIndex = end;
+      }
+    }
+    result += text.slice(kept, start) + "[phone]";
+    kept = end;
+  }
+  return result + text.slice(kept);
+};
+
 const stripDiacritics = (text: string): string =>
   text
     .normalize("NFKD")
@@ -276,11 +320,9 @@ export const redact = (text: string, roster: Roster): string => {
   // 3. Redact @handles
   result = result.replace(HANDLE_PATTERN, "[handle]");
 
-  // 4. Redact German phone numbers (7-12 significant national digits, unseparated numbers included)
-  result = result.replace(GERMAN_PHONE_PATTERN, (match: string) => {
-    const digits = germanSignificantDigits(match);
-    return digits >= 7 && digits <= 12 ? "[phone]" : match;
-  });
+  // 4. Redact German phone numbers (7-12 significant national digits, unseparated numbers included;
+  // numbers written next to each other are split, see redactGermanPhones)
+  result = redactGermanPhones(result);
 
   // 5. Redact Phone numbers (7+ digits with separators, keeping plain numbers and dates)
   result = redactGenericPhones(result);
