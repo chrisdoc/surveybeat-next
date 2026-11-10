@@ -1,0 +1,333 @@
+Act as the implementation sub-agent for this task.
+
+You orchestrate Release 2 slice #105 ("R2 04: Lead's Note on a Round") in chrisdoc/surveybeat-next. You are the Opus orchestrator; THIS TASK EXPLICITLY ASKS YOU TO USE SUBAGENTS: `scoper` (model "haiku"), `implementer` (model "haiku") writes all code, `reviewer` (model "sonnet") reviews each implementer diff. Follow ~/.claude/CLAUDE.md: scope → you write the plan and small, exact, file-owned briefs → implementer → reviewer → you check the diff yourself and run the full suite.
+
+Read first: `gh issue view 105`, map #85, GLOSSARY.md (Note), ADR 0003 (admins see no Results), ADR 0019 (the Lead writes a Note after the conversation), AGENTS.md. B2 design components in apps/web/src/app/components.ts.
+
+Decisions (don't relitigate): one Note per Round, free text up to 2,000 characters, written and edited only by the Team's Lead; stored in the Organization Durable Object (new migration, next free number in packages/cloudflare/migrations); shown to members (anyone who can view the Team's Results) on the Results page with the date it was last changed; Organization admins outside the Team cannot read or write it; endpoints classified in packages/api/src/PrivacyRegistry.ts (+ registry.privacy.test.ts); all copy in apps/web/src/messages/catalog.ts AND its German counterpart if `de.ts` exists on main by then (PR #113 adds German catalogs; if it has merged, add German strings with informal "du"). The Note is not run through Redaction (the Lead writes it under their own name) — say so in a code comment.
+
+Workflow: branch `r2-105-note` from origin/main. Validation: pnpm typecheck, pnpm typecheck:effect, pnpm lint, pnpm format:check, pnpm test, pnpm test:privacy, pnpm --filter @surveybeat/web build. Commit (subject "R2 04: Lead's Note on a Round", end with "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"), push (retry once if rejected without reason), PR against main with "Closes #105. Part of #101.", summary, verification, body ending with "🤖 Generated with [Claude Code](https://claude.com/claude-code)" (if you use the shipper and it drops attribution lines, restore them). Wait for checks (`gh pr checks <n> --watch`), fix failures, then squash-merge your own PR (user-authorized): `gh pr merge <n> --squash --delete-branch`. Others work in parallel on #103 (themes in Organization.ts and the Result), #108 (history page), and #109 (German, PR #113); on conflicts rebase on origin/main keeping both sides, re-run tests, force-push only your branch.
+
+Final report (≤ 10 lines): what was built, deviations, reviewer findings and handling, test counts, PR URL, merge SHA.
+
+---
+
+<task-notification>
+<task-id>a1081191720eb646f</task-id>
+<tool-use-id>toolu_01Jg26SmUBJvCJzhnqiV7Kaq</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-d85c77f0-380412e71ae611a7/4e948dd8-9337-496a-bcc0-317206630e8f/tasks/a1081191720eb646f.output</output-file>
+<status>completed</status>
+<summary>Agent "Scope R2 04 Lead's Note" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>## Goal
+
+Add one Lead-written Note per Round (free text, at most 2,000 characters). The Lead of the Team creates and edits it. Anyone who can view that Team's Results can read it, with a last-changed date. Organization admins outside the Team get no access (ADR 0003). Storage is in the Organization Durable Object via migration `0012`.
+
+**Complexity flags (parent should check closely):**
+- Touches more than one subsystem: domain, api, cloudflare, and apps/web.
+- Adds a new endpoint and a new permission row, so `PrivacyRegistry` classification is needed.
+- Adds a new SQL migration.
+- Not checked: whether the Note goes in `RoundResult` or on a separate endpoint. That is a design choice for you (see Risks).
+
+## Acceptance criteria
+
+Taken from the issue as described in the brief. I did not fetch issue #105 with `gh`, so confirm the exact wording there.
+- One Note per Round, at most 2,000 characters.
+- Only the Team's Lead can write or edit it.
+- Anyone who can view the Team's Results can read it, with a last-changed date.
+- Admins outside the Team are rejected.
+
+## Relevant code
+
+**1. Closest analog: Actions (migration 0010 and the Action feature)**
+- Migration: `packages/cloudflare/migrations/0010_actions.sql`. It is a single `CREATE TABLE action ... WITHOUT ROWID`, with `team_id` and `round_id` as foreign keys.
+- Domain schemas: `packages/domain/src/actions/Action.ts`. Key symbols: `ActionRecord`, `ActionItem`, `CreateAction`, `UpdateAction`, `ActionNotFound`, `OwnerNotInTeam`.
+- Domain flow: `packages/domain/src/actions/ActionFlow.ts`. It defines `OrganizationActions` (a `Context.Service`, lines ~30–53). Its functions are `listActions`, `createAction` and `updateAction`, and they unwrap an `ActionViewed` union into domain errors.
+- Barrel: `packages/domain/src/actions/index.ts`.
+- API: `packages/api/src/index.ts` lines ~345–389. `ActionsApiGroup` uses `HttpApiGroup.make("actions")` with `.prefix("/api")`. `actionErrors` is a shared error list. `SurveyBeatApi` (line ~384) adds the groups.
+- Privacy registry: `packages/api/src/PrivacyRegistry.ts` lines ~213–223. Entries are `"actions.listActions"` as NoResultData, and `"rounds.getResults"` (line ~208) and `"rounds.getTeamOverview"` (line ~212) as ResultData with `roundResultScenarios`.
+- Worker handler: `packages/cloudflare/src/ActionHandlers.ts`. It is a whole-file analog: `actionHandlers(services)` builds an `HttpApiBuilder.group(SurveyBeatApi, "actions", ...)`. It calls `requireSameOrigin` on writes, then `currentMember`, then the domain function.
+- DO bridge: `packages/cloudflare/src/auth/DurableObjectPeople.ts` lines ~80–88. `durableObjectActions` maps each call to `organizations.getByName(orgId).listActions(...)`.
+- Wiring: `packages/cloudflare/src/MainWorker.ts` lines ~200 (`durableObjectActions(organizations)`) and ~233 (`Context.add(OrganizationActions, actions)`).
+- DO methods: `packages/cloudflare/src/Organization.ts`. `viewResults` is at ~1384, `viewTeamOverview`-style at ~1499, `listActions` at ~1529, `createAction` at ~1562, `updateAction` at ~1620–1700. Each method calls `directory.load`, then `authorizeRoundAction(dirState, actorId, "&lt;action&gt;", teamId)`, then a `sql.withTransaction` for writes.
+- SQL adapter: `packages/cloudflare/src/SqlActions.ts`. It uses `makeSqlActions(sql)` at line ~56, with Schema-decoded rows. Writes use `Effect.orDie`.
+- Lead check: there is no `isLead` helper. The Lead check is the permission table (see point 2).
+- Web client: `apps/web/src/app/api.ts`. `clientEffect` (line ~86) is built from `SurveyBeatApi`. `failureOf` (line ~55) maps tagged errors to `Failure`.
+- Web state and wiring: `apps/web/src/app/App.ts`.
+  - Model fields: lines ~157–165 (`actions`, `actionTitle`, `actionBusy`, `actionFailure`).
+  - Messages: lines ~310–318 (`GotActions`, `ActionTitleChanged`, `SubmitAction`, `CreatedAction`, `UpdateActionStatus`, `UpdatedAction`).
+  - Commands: `ListActionsCmd` at ~734, `CreateActionCmd` after it. Results load uses `GetResultsCmd` at ~722.
+  - Update cases: `GotActions` ~2086, `SubmitAction` ~2116, `CreatedAction` ~2138, `UpdateActionStatus` ~2180.
+  - Results view props: ~2495–2512.
+- Results view: `apps/web/src/app/results.ts`. Imports at lines 1–60. `LoadedActions` (~55). `resultsScreenView` (~347) takes a props object with the action callbacks. The action section and form are at ~409–602, and `actionsNode` is at ~596.
+- Tests:
+  - `packages/cloudflare/src/ActionsApi.test.ts` (183 lines). Uses `SignInWorld` and `Browser` from `packages/cloudflare/src/auth/testing.ts`. It covers create, list, update, the 403 cases for admin and non-members (ADR 0003), and the 400 for an owner who is not in the Team.
+  - `packages/domain/src/actions/Action.test.ts`.
+  - `apps/web/src/app/App.scene.test.ts` and `apps/web/src/app/App.story.test.ts`.
+  - `packages/api/src/registry.privacy.test.ts` and `packages/api/src/index.test.ts`.
+
+**2. Results authorization**
+- Permission table: `packages/domain/src/people/Permissions.ts`, `PERMISSIONS` (near the bottom of the file). Relevant rows:
+  - `"team.viewResults": ["lead", "member", "viewer"]`
+  - `"team.viewActions": ["lead", "member", "viewer"]`
+  - `"team.createAction": ["lead"]`
+  - `"team.updateAction": ["lead"]`
+  - Admins are not in any Results row. The comment explicitly says admins never see Results (ADR 0003).
+- `can(actor, action, resource)` is at the bottom of the same file.
+- The DO-side check is `authorizeRoundAction` in `packages/domain/src/rounds/Lifecycle.ts` line ~451. It returns `Forbidden` if `can` is false, then `TeamNotFound`.
+- Results endpoint: `Organization.ts` `viewResults` (~1384) and `viewTeamOverview` (~1499) both check `"team.viewResults"`. The HTTP route is `GET /teams/:teamId/rounds/:roundId/results` (`packages/api/src/index.ts` line ~332), and the handler lives in `RoundHandlers.ts`.
+
+**3. Migration registration**
+- No index file. `packages/cloudflare/src/Organization.ts` line 83 sets `migrationsDirectory = "packages/cloudflare/migrations"`, and line 117 calls `Cloudflare.SqlMigrations(migrationsDirectory)`. The new `0012_*.sql` file is picked up automatically.
+- Tests read the directory with `readdirSync`. Examples are `ResultsStorage.test.ts` line ~22, `Submissions.privacy.test.ts` line ~16 and `PastRounds.test.ts` line ~67.
+- The D1 migrations (`d1-migrations/`) are not relevant to this change.
+
+**4. Date formatting**
+- `apps/web/src/messages/index.ts` lines 51–56: `formatDate(date, options = { dateStyle: "medium" })`.
+- Used as `formatDate(new Date(ms))` in `rounds.ts:49`, `overview.ts:39` and `directory.ts:321`.
+- For a last-changed date, the Note's `updatedAt` (epoch ms) goes through `formatDate(new Date(ms))`. The message key has the form `message("...", { date })`.
+
+**5. B2 components** (`apps/web/src/app/components.ts`)
+- `textareaField` at line 326: `{ id, label, value, onInput, rows?, isDisabled? }`. It wraps `Textarea.view`, with rows defaulting to 4.
+- `appButton` at line 231: `{ text, onClick?, isDisabled?, type?, className? }`. The default is `buttonClass` (line 10). The mint style is `mintButtonClass` (line 14).
+- `panel` at line 121: `(children, h, className?)`.
+- `alertView` (142), `problemView` (226) and `badge` (169) are also available.
+- `sectionTitle` (109) and `subSectionTitle` (112) are headings.
+- The results view already uses `textField`, `selectField` and `problemView` in its action form, so the Note form can follow the same pattern.
+
+**6. Validation** (commands from `AGENTS.md`)
+- `pnpm typecheck:effect`, `pnpm typecheck`, `pnpm lint`, `pnpm format:check`.
+- `pnpm test &lt;path&gt;` for focused files, for example `pnpm test packages/cloudflare/src/ActionsApi.test.ts`.
+- `pnpm test` for the unit project. `pnpm test:privacy` for the privacy project, which is not part of `pnpm test`.
+- `pnpm --filter @surveybeat/web build`.
+- A new endpoint needs its entry in `PrivacyRegistry.ts`, and `packages/api/src/registry.privacy.test.ts` must pass.
+- Slow files: I did not verify which tests use `@alchemy.run/test` `Test.make`. Run `rg -n "Test.make" packages/cloudflare/src` to find them. Expect `SubmissionWorker*.test.ts` to be among them, since it uses real D1 migrations. Assumption, not checked.
+- End-to-end check: only on a deployed stage, `E2E_BASE_URL=https://pr-&lt;n&gt;.app.surveybeat.app pnpm test:e2e`. Sign-in and the Results flow require a deployed stage. The dev server alone does not reach the API.
+
+## Scope
+
+**Should change:**
+- New migration `packages/cloudflare/migrations/0012_*.sql`, with a `team_round_note` or similar table keyed by round, holding text and `updated_at`. Column design is yours to decide. Note the 2,000-character limit is best enforced at the schema or the domain level.
+- Domain: a new `packages/domain/src/notes/` (or inside `rounds/`) with the schema, the flow, and an `OrganizationNotes`-style service, following the `actions/` layout.
+- `PERMISSIONS` in `Permissions.ts`: new `TeamAction` entries, for example a read entry (lead, member, viewer) and a write entry (lead only).
+- `packages/api/src/index.ts`: new group or endpoints. `PrivacyRegistry.ts` classification.
+- `Organization.ts`: new DO methods, plus `DurableObjectPeople.ts` bridge and `MainWorker.ts` `Context.add`.
+- `apps/web`: `App.ts` model and messages, `results.ts` view, `catalog.ts` keys, and scene tests.
+
+**Should stay untouched:** Results computation, the anonymity and minimum group size logic, the email templates, and the Actions feature itself.
+
+## Risks and unknowns
+
+- **Placement of the Note.** Options: (a) add it to `RoundResult` in `packages/domain/src/rounds/Results.ts` (around lines 132–160), which makes `getResults` return it and makes the privacy registry entry ResultData; or (b) a separate `GET/PUT /teams/:teamId/rounds/:roundId/note` endpoint, classified NoResultData, with the Note visible to Results viewers through the same permission. The parent should decide. Option (a) is simpler on the web side. Option (b) keeps the Note out of the Results privacy path.
+- **Permission names.** Reusing `team.viewResults` for reads and adding `team.updateNote` for writes is one option. Adding `team.viewNote` and `team.updateNote` is another. Both need a `PERMISSIONS` row.
+- **Admin rejection.** Admins are rejected by the same `can` logic, so no special case is needed. Confirm the issue's expected status code, which Actions uses as 403.
+- **Round states.** Actions do not check round status. Whether a Note can be written on an open Round, or only after close, is not specified in the brief. Check the issue.
+- **Last-changed field.** Store `updated_at` as epoch ms, which matches the other tables.
+- **Issue wording.** I did not run `gh issue view 105`. The acceptance criteria above come from the brief, not from the issue.
+
+## Possible split
+
+Facts only:
+- **Backend slice** (`packages/cloudflare/migrations`, `packages/domain/src/notes` or `rounds`, `packages/domain/src/people/Permissions.ts`, `packages/api`, `packages/cloudflare/src`). Dependencies inside the slice: migration and SQL adapter, then domain schema and flow, then `Permissions.ts`, then the API declaration and `PrivacyRegistry.ts`, then the DO methods and handler, then `MainWorker.ts` wiring. The backend's API declaration is the contract the frontend depends on.
+- **Frontend slice** (`apps/web/src/app/App.ts`, `results.ts`, `api.ts` via the client, `messages/catalog.ts`, scene tests). It depends on the backend API shape, so it starts after the API declaration is fixed. It can start on the view and catalog keys in parallel, since they do not need the server.
+- Shared dependency: `Permissions.ts` gates both slices, so it belongs to the backend slice and goes first.</result>
+<usage><subagent_tokens>65051</subagent_tokens><tool_uses>0</tool_uses><duration_ms>28172</duration_ms></usage>
+</task-notification>
+
+---
+
+Continue where you left off.
+
+---
+
+<task-notification>
+<task-id>aeee6bef2c4aef300</task-id>
+<tool-use-id>toolu_01DCKmhWgfBFRqrDremDefTf</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-d85c77f0-380412e71ae611a7/4e948dd8-9337-496a-bcc0-317206630e8f/tasks/aeee6bef2c4aef300.output</output-file>
+<status>completed</status>
+<summary>Agent "Backend: Round Note endpoints" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>The Lead's Note backend slice is implemented and every validation command in the brief passes. One deviation from the brief: the test runs against the in-memory fake, which means the real SQL and Durable Object code are not exercised by it.
+
+## Changes
+
+**New files**
+- `/home/ubuntu/.t3/worktrees/surveybeat-next/t3-d85c77f0-380412e71ae611a7/packages/cloudflare/migrations/0014_round_notes.sql`: the `round_note` table as specified.
+- `/home/ubuntu/.t3/worktrees/surveybeat-next/t3-d85c77f0-380412e71ae611a7/packages/domain/src/notes/Note.ts`: `NoteText` (max 2,000, not trimmed), `RoundNote`, `RoundNoteView`, `SaveNote`, and the pure `noteChange(text)` (trim; blank means Delete).
+- `.../packages/domain/src/notes/NoteFlow.ts`: `NoteRejection`, `NoteViewed`, the `OrganizationNotes` service, and `getRoundNote` / `saveRoundNote`. The Redaction comment is on `saveRoundNote`.
+- `.../packages/domain/src/notes/index.ts` and `.../packages/domain/src/notes/Note.test.ts`: the unit tests for `noteChange` and the `SaveNote` 2,000/2,001 boundary.
+- `.../packages/cloudflare/src/SqlNotes.ts`: `makeSqlNotes` with get, upsert (`ON CONFLICT`), and delete.
+- `.../packages/cloudflare/src/NoteHandlers.ts`: the two endpoint handlers, modelled on `ActionHandlers.ts`.
+- `.../packages/cloudflare/src/NotesApi.test.ts`: six tests covering the cases in the brief.
+
+**Modified files**
+- `.../packages/domain/src/people/Permissions.ts`: `team.viewNote` (lead, member, viewer) and `team.writeNote` (lead only). `Permissions.test.ts` has matching rows.
+- `.../packages/domain/src/index.ts`: re-exports the notes module.
+- `.../packages/api/src/index.ts`: `NotesApiGroup` with `getRoundNote` and `saveRoundNote`, added to `SurveyBeatApi`.
+- `.../packages/api/src/PrivacyRegistry.ts`: two `NoResultData` entries.
+- `.../packages/api/src/index.test.ts`: the group list now includes `notes`.
+- `.../packages/cloudflare/src/Organization.ts`: `makeSqlNotes`, plus `viewRoundNote` and `saveRoundNote` after `updateAction`. Save runs in `withTransaction`.
+- `.../packages/cloudflare/src/auth/DurableObjectPeople.ts`: `durableObjectNotes`.
+- `.../packages/cloudflare/src/MainWorker.ts`: `Context.add(OrganizationNotes, ...)` and `noteHandlers(services)`.
+- `.../packages/cloudflare/src/auth/testing.ts`: see below.
+
+## Why `auth/testing.ts` changed
+
+`SignInWorld`, which the brief asked me to follow, is an in-memory fake of the Organization Durable Object. It has no Round table and `rounds.round` always returns RoundNotFound. The brief's test needs a real Round, so I could not use the Pulse route: the fake's Pulse creation never schedules a Round. Without a change here, the test could not express "Lead GET returns 200" or "unknown Round returns 404".
+
+The change is additive:
+- `MemoryOrganization` gets `rounds` (Round to Team) and `notes` (Round to Note) maps, initialized at the three construction sites.
+- `SignInWorld.addRound(organizationId, teamId)` seeds a Round. Tests call it because the fake keeps no Pulse-to-Round path.
+- The fake implements `OrganizationNotes` with the same auth checks and `noteChange` as the real object. It is added to the services context, and `noteHandlers` is added to the test layer. The typecheck requires that layer, because the group is part of `SurveyBeatApi`.
+
+The fake now duplicates logic from `Organization.ts`, as the Actions fake already does. The fake does not check that the migration applies, and it does not run `SqlNotes.ts` or the Durable Object wiring.
+
+## Validation
+
+- `pnpm typecheck:effect`: passed, with only pre-existing suggestion diagnostics and no errors.
+- `pnpm typecheck` (`tsc -b`): passed.
+- `pnpm lint`: no findings.
+- `pnpm format` then `pnpm format:check`: clean. The format run changed nothing outside the files listed above.
+- `pnpm test packages/domain/src/notes packages/domain/src/people/Permissions.test.ts`: 2 files, 178 tests passed.
+- `pnpm test packages/cloudflare/src/NotesApi.test.ts`: 6 of 6 passed.
+- `pnpm test packages/api packages/cloudflare/src/ActionsApi.test.ts`: 2 files, 6 tests passed.
+- `pnpm test packages/cloudflare/src/PulsesApi.test.ts packages/cloudflare/src/TeamOverviewApi.test.ts packages/cloudflare/src/DirectoryApi.test.ts packages/cloudflare/src/auth`: 5 files, 92 tests passed. These are the other tests that use the modified harness.
+- `pnpm test:privacy packages/api`: 1 file, 6 tests passed.
+- Extra SQL check, outside the repo: I applied `0014_round_notes.sql` to an in-memory `node:sqlite` database, using the same upsert, delete, and cascade statements as `SqlNotes.ts`. The upsert replaces the text, blank and over-length text are rejected by the CHECK, and deleting the Round cascades. The script is at `/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-d85c77f0-380412e71ae611a7/4e948dd8-9337-496a-bcc0-317206630e8f/scratchpad/check-note-sql.mjs`.
+
+## Notes
+
+- **Not run:** the real Durable Object path. Nothing in the suite executes `SqlNotes.ts`, the new `Organization.ts` methods, or the migration inside workerd. A real-DO test like `Organization.test.ts` (with `Test.make({ dev: true })`) would cover that. I did not write one, because the brief asked for the `SignInWorld` pattern.
+- **Not run:** `pnpm test` as a full suite, the web build, and the e2e suite. I did not touch `apps/web`.
+- **Migration number:** `0014` is as the brief specified, with 0012 and 0013 absent.
+- **Trimming:** `saveRoundNote` in the domain passes the raw text through. The trim and the Delete-or-Upsert decision happen in the Durable Object, via `noteChange`. The brief did not say where to put it, so I chose the Durable Object.
+- **Nothing committed.** Git was not touched beyond read-only status and diff.</result>
+<usage><subagent_tokens>124700</subagent_tokens><tool_uses>9</tool_uses><duration_ms>116595</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>aeee6bef2c4aef300</task-id>
+<tool-use-id>toolu_01U7h2PeZyGn41pzojPWvHgL</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-d85c77f0-380412e71ae611a7/4e948dd8-9337-496a-bcc0-317206630e8f/tasks/aeee6bef2c4aef300.output</output-file>
+<status>completed</status>
+<summary>Agent "Backend: Round Note endpoints" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>Both test-only changes are in, and the requested checks pass.
+
+## Changes
+
+- **`packages/cloudflare/src/NotesApi.test.ts`**: added the cross-Team case. `setup()` now also returns `world` and the Organization id. The new test seeds a Round in the Design team with `world.addRound`. The Platform Lead gets 404 on GET and PUT for that Round. The Design Lead (linus) then GETs their own Round and gets 200 with `note: null`.
+- **`packages/cloudflare/src/SqlNotes.test.ts`** (new): follows the `PastRounds.test.ts` setup. It applies every migration in sorted order with `foreign_keys = ON`, then seeds one team, one pulse, and one round. Five tests cover:
+  - `getNote` returns null with no row.
+  - Upsert, then get.
+  - A second upsert replaces the text and `updatedAt` and keeps one row.
+  - `deleteNote`, then get returns null.
+  - Deleting the Round cascades its note away.
+
+## Validation
+
+- `pnpm test packages/cloudflare/src/NotesApi.test.ts packages/cloudflare/src/SqlNotes.test.ts`: 2 files, 12 tests passed (6 in NotesApi, 5 in SqlNotes, plus the new cross-Team case).
+- `pnpm lint`: exit 0, no findings.
+- `pnpm typecheck`: exit 0. I ran it because the new test files are type-checked by the project build.
+- `pnpm format`: **not run as requested.** It formats the whole repo, including `apps/web`, which the other implementer is editing. I ran `oxfmt` on the two test files only, and `oxfmt --check` on them reports them clean. Nothing in `apps/web` was touched.
+
+## Notes
+
+- The cross-Team test uses the in-memory fake (`SignInWorld`), as the rest of `NotesApi.test.ts` does. The real SQL is covered by `SqlNotes.test.ts`, not by the API test.
+- `git status` shows no changes from me under `apps/web`.
+- Nothing was committed.</result>
+<usage><subagent_tokens>133696</subagent_tokens><tool_uses>5</tool_uses><duration_ms>65823</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>a4f4fb3082bb8e6e7</task-id>
+<tool-use-id>toolu_019mHduj2ApjAuQiLuwQeA4q</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-d85c77f0-380412e71ae611a7/4e948dd8-9337-496a-bcc0-317206630e8f/tasks/a4f4fb3082bb8e6e7.output</output-file>
+<status>completed</status>
+<summary>Agent "Frontend: Note on Results page" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>The Note on a Round frontend for #105 is in place: model, messages, commands, view, catalog keys, and four scene tests. All validation commands pass. Nothing was committed or staged.
+
+## Changes
+
+- `apps/web/src/app/results.ts`
+  - New `LoadedNote` union (Loading / Loaded{note} / Failed{failure}), next to `LoadedActions`.
+  - New `noteSection` builder, placed after the summary and delayed notice and before Actions:
+    - Loading renders nothing. Failed renders `alertView`.
+    - Note present: text with `whitespace-pre-line`, "Last changed {date}", and an "Edit note" button for the Lead.
+    - No Note: hidden for members. The Lead sees the empty-state line and a "Write note" button.
+    - Editing (Lead only): `textareaField` (rows 6, label "Note"), counter, too-long message, `problemView`, Cancel, and Save. Save is disabled when busy or over 2,000 characters.
+  - `resultsScreenView` takes the new state fields and four callbacks.
+- `apps/web/src/app/App.ts`
+  - Model fields `roundNote`, `noteDraft`, `noteEditing`, `noteBusy`, `noteFailure`. They are reset in `initialModel` and in `UrlChanged`.
+  - Messages `GotRoundNote`, `NoteEditClicked`, `NoteDraftChanged`, `NoteCancelClicked`, `SubmitNote`, `SavedNote`, plus `OutcomeRoundNote`.
+  - Commands `GetRoundNoteCmd` and `SaveRoundNoteCmd` using `api.notes.getRoundNote` and `api.notes.saveRoundNote`.
+  - `GetRoundNoteCmd` is added to the RoundResults route load.
+  - Update cases follow the spec. `SubmitNote` is a no-op when busy, over the limit, or off the Results route.
+- `apps/web/src/messages/catalog.ts`: `note.*` keys (title, emptyLead, write, edit, save, cancel, label, lastChanged, count.one/.other, tooLong).
+- `apps/web/src/app/App.scene.test.ts`: new `describe("Note from your Lead")` with four tests, covering (a) Lead writes and saves, with the exact `SaveRoundNoteCmd` args asserted, (b) member sees text and date with no edit or write buttons, (c) member with no Note sees no section, and (d) 2,001 characters shows the too-long message and disables Save. Added the `SaveRoundNoteCmd` import.
+
+`App.story.test.ts` uses `initialModel`, so it needed no changes.
+
+## Validation
+
+- `pnpm typecheck:effect`: exit 0. Output contains only pre-existing suggestions in backend files.
+- `pnpm typecheck`: exit 0.
+- `pnpm lint`: exit 0.
+- `pnpm format`: exit 0. It was a no-op because `format:check` already passed repo-wide.
+- `pnpm format:check`: exit 0.
+- `pnpm test apps/web`: first run had one failure, `answer/budget.test.ts` "satisfies HTML, CSS, and JS critical path budgets", which hit the 5 s timeout at 6.4 s under load. It passes alone and on a rerun, and the full web suite passed on rerun (85/85, 9 files).
+- `pnpm --filter @surveybeat/web build`: exit 0.
+- New scene tests: 4 of 4 pass, and the Note file runs 34 of 34.
+
+## Notes
+
+- **Placement on open and sub-N Rounds.** The Note section is pushed before the open-round and sub-N early returns, so it also appears on open Rounds, where the Lead has no Results yet. The spec asked for this placement, but a Lead may want it hidden until the Round closes. That is a product call, so I left it as specified.
+- **Counter pluralization.** `note.count.one` and `note.count.other` have the same text, "{count} of 2,000 characters", so the existing `pluralMessage` convention is followed and the number is formatted as "2,001".
+- **Failed load for members.** A failed Note load shows the alert to members too, as the spec describes. Members see an error where they would otherwise see nothing.
+- **Stale responses.** `GotRoundNote` and `SavedNote` do not carry a `roundId`, matching the `GotResults` pattern. A late response from a previous Round could overwrite the current one on fast navigation.
+- **Blank save.** The Save button stays enabled for blank text, so Save deletes the Note as the backend specifies, with no confirmation.
+- **Length counting.** The length check uses JS `.length`, matching the domain's `isMaxLength`.
+- **Not verified in a browser.** Coverage is scene tests and the build only. No deployed-stage check was run.
+- **Stray temp file.** I wrote `/tmp/y` during validation and removed it.</result>
+<usage><subagent_tokens>97755</subagent_tokens><tool_uses>44</tool_uses><duration_ms>343781</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>a4f4fb3082bb8e6e7</task-id>
+<tool-use-id>toolu_015D1gqCzCyvgdyNSSMBuMGE</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-d85c77f0-380412e71ae611a7/4e948dd8-9337-496a-bcc0-317206630e8f/tasks/a4f4fb3082bb8e6e7.output</output-file>
+<status>completed</status>
+<summary>Agent "Frontend: Note on Results page" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>The three follow-ups are done, and all four requested checks pass. The coordinator's open-Round guard in `results.ts` (line 559) is kept as is.
+
+## Changes
+
+- `apps/web/src/app/App.ts`
+  - Added a small helper `isCurrentRoundNote(model, roundId)`. It returns true only when the route is `RoundResults` and the route's `roundId` matches.
+  - `GotRoundNote` and `SavedNote` now return `{ model }` on success when the response is for a different Round. Failures are not gated, because a failure carries no `roundId`.
+- `apps/web/src/app/App.scene.test.ts`
+  - New test: an open Round with a loaded Note shows no Note section for the Lead, and no "Edit note" button.
+  - New test: a failed save (`SavedNote` with `Forbidden`) keeps the editor open with the draft intact, shows "You can't do that here.", and leaves Save and Cancel enabled.
+  - While adding these, I fixed a brace-nesting mistake in my earlier insertion, so the tests now sit inside the "Note from your Lead" describe block.
+
+## Validation
+
+- `pnpm typecheck`: exit 0.
+- `pnpm lint`: exit 0.
+- `pnpm format`: exit 0, and `pnpm format:check` exit 0.
+- `pnpm test apps/web/src/app/App.scene.test.ts`: 36 of 36 passed. That includes the 4 original Note tests and the 2 new ones.
+
+## Notes
+
+- The route guard has no dedicated test. It is covered only indirectly, because the existing save and Note scene tests still pass with the route matching.
+- The `pnpm format` run was repo-wide, but it was a no-op, since `format:check` passed before it.</result>
+<usage><subagent_tokens>116256</subagent_tokens><tool_uses>13</tool_uses><duration_ms>109292</duration_ms></usage>
+</task-notification>
