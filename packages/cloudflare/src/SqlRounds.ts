@@ -964,7 +964,7 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
             WHERE r.pulse_id = ${pulseId}
               AND r.planned_open_date < ${beforePlannedOpenDate}
               AND r.status IN ('closed', 'ready', 'shared')
-            ORDER BY r.planned_open_at ASC
+            ORDER BY r.planned_open_at DESC
             LIMIT ${limit}`
           : yield* sql<{ payload: string }>`
             SELECT rr.payload
@@ -972,11 +972,12 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
             JOIN round r ON r.id = rr.round_id
             WHERE r.pulse_id = ${pulseId}
               AND r.status IN ('closed', 'ready', 'shared')
-            ORDER BY r.planned_open_at ASC
+            ORDER BY r.planned_open_at DESC
             LIMIT ${limit}`;
 
+      // The query takes the latest `limit` Rounds (newest first); history is oldest first.
       const history: Array<HistoricalRoundData> = [];
-      for (const row of rows) {
+      for (const row of [...rows].reverse()) {
         const item = decodeHistoricalPayload(row.payload);
         if (item !== null) {
           history.push(item);
