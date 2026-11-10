@@ -119,6 +119,15 @@ export const makeSqlActions = (sql: SqliteClient.SqliteClient) => {
       Effect.orDie,
     );
 
+  /** Titles only of the Team's Actions still open (proposed or committed), for the themes call (ADR 0019). */
+  const getOpenActionTitlesForTeam = (teamId: TeamId): Effect.Effect<ReadonlyArray<string>> =>
+    sql<{ title: string }>`SELECT title FROM action
+            WHERE team_id = ${teamId} AND status IN ('proposed', 'committed')
+            ORDER BY created_at ASC`.pipe(
+      Effect.map((found) => found.map((row) => row.title)),
+      Effect.orDie,
+    );
+
   const insertAction = (record: ActionRecord): Effect.Effect<void> =>
     sql`INSERT INTO action (id, team_id, round_id, title, owner_id, due_date, dimension, status, created_at, updated_at, done_at)
         VALUES (${record.id}, ${record.teamId}, ${record.roundId}, ${record.title}, ${record.ownerId},
@@ -187,6 +196,7 @@ export const makeSqlActions = (sql: SqliteClient.SqliteClient) => {
     getAction,
     getActionItem,
     getActionsForTeam,
+    getOpenActionTitlesForTeam,
     insertAction,
     updateAction,
     getEligibleActionsForRound,

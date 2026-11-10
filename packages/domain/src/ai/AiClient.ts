@@ -32,6 +32,14 @@ export const AiInput = Schema.Struct({
       text: RedactedText,
     }),
   ),
+  dimensions: Schema.Array(
+    Schema.Struct({
+      dimension: Dimension,
+      score: Schema.NullOr(Schema.Finite),
+      change: Schema.NullOr(Schema.Finite),
+      largerThanUsual: Schema.Boolean,
+    }),
+  ),
   actions: Schema.Array(
     Schema.Struct({
       title: RedactedText,

@@ -56,6 +56,10 @@ const ScenarioHistoryRound = Schema.Struct({
  * its Result was computed (`storedN`), the Organization's minimum group size now (`organizationN`,
  * which may have been raised since), its Team size, Questions, Submissions, and earlier Rounds. The
  * effective N is `max(storedN, organizationN)` (ADR 0004, Rule R9).
+ *
+ * `viewer` is who asks for the Result: a Lead sees the Lead-only fields, a member does not. `themes`
+ * is the state of the Round's themes call: none (never requested), pending, ready, or failed
+ * (ADR 0016, 0019).
  */
 export const RoundResultScenario = Schema.Struct({
   status: Schema.Literals(["open", "closed", "shared"]),
@@ -67,6 +71,8 @@ export const RoundResultScenario = Schema.Struct({
   ),
   submissions: Schema.Array(slots(ScenarioAnswer)).pipe(Schema.check(Schema.isMaxLength(14))),
   history: Schema.Array(ScenarioHistoryRound).pipe(Schema.check(Schema.isMaxLength(12))),
+  viewer: Schema.Literals(["lead", "member"]),
+  themes: Schema.Literals(["none", "pending", "ready", "failed"]),
 });
 export type RoundResultScenario = typeof RoundResultScenario.Type;
 
@@ -74,14 +80,24 @@ export type RoundResultScenario = typeof RoundResultScenario.Type;
 export const roundResultScenarios: Arbitrary.Arbitrary<RoundResultScenario> =
   Arbitrary.schema(RoundResultScenario);
 
+/** Result fields only a Team's Lead may receive (ADR 0004, ADR 0016, ADR 0019). */
+export const LeadOnlyField = Schema.Literals(["comments", "themes.supportingComments", "discussionGuide"]);
+export type LeadOnlyField = typeof LeadOnlyField.Type;
+
 /**
  * Whether an endpoint's response can contain Result data (scores, distributions, comments, trends:
  * anything derived from Submissions). Those endpoints get an input generator that produces Rounds,
- * and a property test checks the minimum group size rules R1–R11 (ADR 0004) for each of them.
+ * and a property test checks the minimum group size rules R1–R11 (ADR 0004) for each of them. The
+ * same test checks that a member's response carries none of the `leadOnly` fields, and that no
+ * Comment theme or discussion guide appears below N.
  */
 export type EndpointPrivacy =
   | { readonly _tag: "NoResultData"; readonly why: string }
-  | { readonly _tag: "ResultData"; readonly inputs: Arbitrary.Arbitrary<unknown> };
+  | {
+      readonly _tag: "ResultData";
+      readonly inputs: Arbitrary.Arbitrary<unknown>;
+      readonly leadOnly: ReadonlyArray<LeadOnlyField>;
+    };
 
 /**
  * Every endpoint of `SurveyBeatApi`, classified. A new endpoint does not typecheck until it is
@@ -215,8 +231,9 @@ export const privacyRegistry: { readonly [K in EndpointKey<typeof SurveyBeatApi>
   "rounds.getResults": {
     _tag: "ResultData",
     inputs: roundResultScenarios,
+    leadOnly: ["comments", "themes.supportingComments", "discussionGuide"],
   },
-  "rounds.getTeamOverview": { _tag: "ResultData", inputs: roundResultScenarios },
+  "rounds.getTeamOverview": { _tag: "ResultData", inputs: roundResultScenarios, leadOnly: [] },
   "actions.listActions": {
     _tag: "NoResultData",
     why: "Actions have no minimum group size",

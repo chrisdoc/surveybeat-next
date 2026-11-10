@@ -16,6 +16,7 @@ describe("AiInput privacy", () => {
         // @ts-expect-error a Person id must not fit the input type
         { questionPosition: 1, text, personId: "person-1" },
       ],
+      dimensions: [],
       actions: [],
     };
     expect(input.comments).toHaveLength(1);
@@ -39,6 +40,7 @@ describe("AiInput privacy", () => {
       questions: [],
       // @ts-expect-error only RedactedText may reach the model
       comments: [{ questionPosition: 1, text: plain }],
+      dimensions: [],
       actions: [],
     };
     expect(input.comments).toHaveLength(1);
@@ -50,6 +52,7 @@ describe("AiInput privacy", () => {
       roundId: "round-1",
       questions: [],
       comments: [],
+      dimensions: [],
       actions: [],
     };
     expect(input.questions).toHaveLength(0);
@@ -68,6 +71,7 @@ describe("AiInput privacy", () => {
         },
       ],
       comments: [{ questionPosition: 1, text }],
+      dimensions: [{ dimension: "clarity", score: 4, change: null, largerThanUsual: false }],
       actions: [{ title: text }],
     });
     expect(decoded.questions[0]?.dimension).toBe("clarity");
@@ -77,7 +81,7 @@ describe("AiInput privacy", () => {
 describe("fakeAiClient", () => {
   const request: AiRequest = {
     instructions: "i",
-    input: { questions: [], comments: [], actions: [] },
+    input: { questions: [], comments: [], dimensions: [], actions: [] },
     schemaName: "s",
     schema: { type: "object" },
     maxTokens: 10,

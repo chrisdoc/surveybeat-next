@@ -3,7 +3,6 @@ import {
   buildTeamOverview,
   calculateRoundResult,
   type Dimension,
-  enforceEffectiveNOnResult,
   type HistoricalRoundData,
   PulseId,
   type QuestionInput,
@@ -11,15 +10,18 @@ import {
   RoundId,
   type RoundResult,
   roundDecimals,
+  type RoundThemesRecord,
+  type StoredThemes,
   type SubmissionAnswer,
   TeamId,
+  viewRoundResult,
 } from "@surveybeat/domain";
 import * as Arbitrary from "effect/Arbitrary";
 import * as Effect from "effect/Effect";
 import { HttpApi } from "effect/http-api";
 import * as Schema from "effect/Schema";
 import { SurveyBeatApi } from "./index.ts";
-import { privacyRegistry, RoundResultScenario } from "./PrivacyRegistry.ts";
+import { type LeadOnlyField, privacyRegistry, RoundResultScenario } from "./PrivacyRegistry.ts";
 
 /** Every endpoint of the runtime declaration, as `group.endpoint`. */
 const declaredEndpoints = (): ReadonlyArray<string> => {
@@ -60,8 +62,9 @@ describe("privacy registry", () => {
     if (entry._tag !== "ResultData") continue;
     const respond = resultResponders[key];
 
-    // Property test over the registry's own generator: whatever Round the generator produces, the
-    // endpoint's Result shows no aggregate computed from fewer than the effective N contributors.
+    // Property test over the registry's own generator: whatever Round and viewer the generator produces,
+    // the endpoint's Result shows no aggregate computed from fewer than the effective N contributors,
+    // no Comment theme or discussion guide below N, and no Lead-only field to a member.
     it.effect(`${key}: no aggregate below the effective N for any generated Round (ADR 0004)`, () =>
       Effect.gen(function* () {
         assert.isDefined(respond, `no Result check registered for ${key}`);
@@ -70,7 +73,7 @@ describe("privacy registry", () => {
           (input) =>
             Effect.suspend(() => {
               const scenario = Schema.decodeUnknownSync(RoundResultScenario)(input);
-              const failures = respond(scenario);
+              const failures = respond(scenario, entry.leadOnly);
               return failures.length > 0 ? Effect.fail(failures.join("; ")) : Effect.succeed(true);
             }),
           { runs: 500, seed: 20261109 },
@@ -80,6 +83,45 @@ describe("privacy registry", () => {
       }),
     );
   }
+
+  it("a Lead receives the Lead-only fields of a ready Round that meets N", () => {
+    const lead: RoundResultScenario = {
+      status: "closed",
+      storedN: 2,
+      organizationN: 2,
+      eligibleMembers: 5,
+      questions: [
+        { kind: "text", dimension: null },
+        { kind: "rating", dimension: "workload" },
+      ],
+      submissions: [0, 1, 2, 3].map((s) => [
+        { answered: true, value: 0, comment: s % 2 === 0 ? "too much work" : "fine" },
+        { answered: true, value: 2, comment: null },
+        { answered: false, value: 0, comment: null },
+        { answered: false, value: 0, comment: null },
+        { answered: false, value: 0, comment: null },
+      ]),
+      history: [],
+      viewer: "lead",
+      themes: "ready",
+    };
+    const asLead = buildResult(lead).result;
+    assert.isNotEmpty(asLead.comments);
+    assert.isNotEmpty(asLead.themes ?? []);
+    assert.isTrue((asLead.themes ?? []).every((theme) => theme.supportingComments !== undefined));
+    assert.isNotNull(asLead.discussionGuide);
+
+    const asMember = buildResult({ ...lead, viewer: "member" }).result;
+    assert.deepStrictEqual(asMember.comments, []);
+    assert.deepStrictEqual(
+      (asMember.themes ?? []).map((theme) => Object.keys(theme).sort()),
+      [
+        ["label", "sentence"],
+        ["label", "sentence"],
+      ],
+    );
+    assert.isFalse(Object.hasOwn(asMember, "discussionGuide"));
+  });
 });
 
 // --- The Result-shaped response of each Result-bearing endpoint, built the way the handler builds it ---
@@ -103,6 +145,34 @@ const ROUND = RoundId.make("round-now");
 const PULSE = PulseId.make("pulse-1");
 const TEAM = TeamId.make("team-1");
 const OPTIONS = ["Red", "Green", "Blue"];
+
+/** The stored themes and discussion guide of a `ready` Round, fixed: their wording is not under test. */
+const READY_THEMES: StoredThemes = {
+  themes: [
+    { label: "Workload", sentence: "Busy weeks leave little room for planned work.", supportingComments: 2 },
+    { label: "Priorities", sentence: "Several people would like clearer priorities.", supportingComments: 3 },
+  ],
+  guide: {
+    whatStoodOut: ["Workload moved more than usual."],
+    whatPeopleRaised: ["Priorities came up in several comments."],
+    actionsToCheckOn: ["Review the planning rhythm."],
+    questions: ["What would make busy weeks easier?"],
+  },
+};
+
+/** The themes record the Organization holds for a Round in the scenario's themes state (ADR 0016). */
+const themesRecordOf = (themes: RoundResultScenario["themes"]): RoundThemesRecord | null => {
+  switch (themes) {
+    case "none":
+      return null;
+    case "pending":
+      return { status: "pending", requestedAt: 0, attempts: 0 };
+    case "failed":
+      return { status: "failed" };
+    case "ready":
+      return { status: "ready", themes: READY_THEMES };
+  }
+};
 
 const buildResult = (scenario: RoundResultScenario): Built => {
   const effectiveN = Math.max(scenario.storedN, scenario.organizationN);
@@ -191,15 +261,25 @@ const buildResult = (scenario: RoundResultScenario): Built => {
     questions,
     submissions,
     stored,
-    // What `Organization.viewResults` returns: the Result stored under the Round's own N, then the
-    // current Organization N applied on read (Rule R9).
-    result: enforceEffectiveNOnResult(stored, scenario.organizationN),
+    // What `Organization.viewResults` returns, through `viewRoundResult`, the single source of truth
+    // shared with the Organization object: the Result stored under the Round's own N, then the current
+    // Organization N applied on read (Rule R9), then the viewer's theme and guide fields (ADR 0016, 0019).
+    result: viewRoundResult({
+      stored,
+      organizationN: scenario.organizationN,
+      isLead: scenario.viewer === "lead",
+      // Any record, even for an open Round: the view itself must hide themes until the Round closes.
+      themes: themesRecordOf(scenario.themes),
+    }),
     direct: compute(effectiveN),
   };
 };
 
-const resultResponders: Record<string, (scenario: RoundResultScenario) => ReadonlyArray<string>> = {
-  "rounds.getResults": (scenario) => violations(scenario, buildResult(scenario)),
+const resultResponders: Record<
+  string,
+  (scenario: RoundResultScenario, leadOnly: ReadonlyArray<LeadOnlyField>) => ReadonlyArray<string>
+> = {
+  "rounds.getResults": (scenario, leadOnly) => violations(scenario, buildResult(scenario), leadOnly),
   "rounds.getTeamOverview": (scenario) => overviewViolations(scenario),
 };
 
@@ -280,8 +360,23 @@ const overviewViolations = (scenario: RoundResultScenario): ReadonlyArray<string
   return found;
 };
 
-/** Every way the Result shows an aggregate that fewer than the effective N contributors stand behind. */
-const violations = (scenario: RoundResultScenario, built: Built): ReadonlyArray<string> => {
+/** Whether each Lead-only field of a Result is present, for a member's view (ADR 0004, 0016, 0019). */
+const leadOnlyLeaks: { readonly [F in LeadOnlyField]: (result: RoundResult) => boolean } = {
+  comments: (result) => result.comments.length > 0,
+  "themes.supportingComments": (result) =>
+    (result.themes ?? []).some((theme) => Object.hasOwn(theme, "supportingComments")),
+  discussionGuide: (result) => Object.hasOwn(result, "discussionGuide"),
+};
+
+/**
+ * Every way the Result shows an aggregate that fewer than the effective N contributors stand behind,
+ * and every Lead-only field a member's view carries (`leadOnly` is the endpoint's registry entry).
+ */
+const violations = (
+  scenario: RoundResultScenario,
+  built: Built,
+  leadOnly: ReadonlyArray<LeadOnlyField>,
+): ReadonlyArray<string> => {
   const { result, direct, effectiveN: n } = built;
   const found: Array<string> = [];
   const open = scenario.status === "open";
@@ -294,6 +389,22 @@ const violations = (scenario: RoundResultScenario, built: Built): ReadonlyArray<
       .flatMap((submission) => submission.answers)
       .filter((a) => a.comment?.trim());
     if (result.comments.length > raw.length) found.push("more comments than the Submissions carry");
+  }
+
+  // ADR 0016: Comment themes are shown only to a Round that meets N, and only with two supporters.
+  if (!roundMeetsN && (result.themes ?? []).length > 0) found.push("Comment themes shown below N");
+  if (!roundMeetsN && result.discussionGuide != null) found.push("discussion guide shown below N");
+  if (
+    (result.themes ?? []).some(
+      (theme) => theme.supportingComments !== undefined && theme.supportingComments < 2,
+    )
+  ) {
+    found.push("theme with fewer than 2 supporting comments");
+  }
+  if (scenario.viewer === "member") {
+    for (const field of leadOnly) {
+      if (leadOnlyLeaks[field](result)) found.push(`${field} shown to a member`);
+    }
   }
 
   const visibleScore = new Map<string, number>();
