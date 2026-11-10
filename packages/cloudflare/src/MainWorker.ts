@@ -14,6 +14,7 @@ import {
   OrganizationPulses,
   OrganizationRounds,
   OrganizationActions,
+  OrganizationNotes,
   PulseId,
   QuestionId,
   TeamId,
@@ -44,6 +45,7 @@ import { d1PeopleIndex } from "./auth/D1PeopleIndex.ts";
 import {
   durableObjectActions,
   durableObjectDirectory,
+  durableObjectNotes,
   durableObjectPeople,
   durableObjectPulses,
   durableObjectRounds,
@@ -70,6 +72,7 @@ import {
 } from "./EmailDelivery.ts";
 import { emailTestRoutes, isTestStage, TEST_ROUTES } from "./EmailTestRoutes.ts";
 import { hostnameFor } from "./Hostnames.ts";
+import { noteHandlers } from "./NoteHandlers.ts";
 import { pulseHandlers } from "./PulseHandlers.ts";
 import { roundHandlers } from "./RoundHandlers.ts";
 import { PULSES_TEST_ROUTE, pulseTestRoutes } from "./PulseTestRoutes.ts";
@@ -199,6 +202,7 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
     const pulses = durableObjectPulses(organizations);
     const rounds = durableObjectRounds(organizations);
     const actions = durableObjectActions(organizations);
+    const notes = durableObjectNotes(organizations);
     const emailWrites = yield* Cloudflare.Queues.WriteQueue(emailQueue);
 
     // Daily Cron repairs missing alarms across all Organizations (ADR 0006)
@@ -232,6 +236,7 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
         Context.add(OrganizationPulses, pulses),
         Context.add(OrganizationRounds, rounds),
         Context.add(OrganizationActions, actions),
+        Context.add(OrganizationNotes, notes),
         Context.add(EmailOutbox, outbox),
         Context.add(
           NewIds,
@@ -256,6 +261,7 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
           pulseHandlers(services),
           roundHandlers(services),
           actionHandlers(services),
+          noteHandlers(services),
         ]),
         Layer.provide([Etag.layer, HttpPlatformStub, Path.layer]),
       ),

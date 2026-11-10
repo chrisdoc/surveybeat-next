@@ -246,4 +246,12 @@ export const privacyRegistry: { readonly [K in EndpointKey<typeof SurveyBeatApi>
     _tag: "NoResultData",
     why: "updates an Action; no Result data",
   },
+  "notes.getRoundNote": {
+    _tag: "NoResultData",
+    why: "the Lead's Note is free text the Lead writes under their own name; no Result data",
+  },
+  "notes.saveRoundNote": {
+    _tag: "NoResultData",
+    why: "writes the Lead's Note; no Result data",
+  },
 };

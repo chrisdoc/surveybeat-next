@@ -2,6 +2,7 @@ import {
   normaliseEmail,
   OrganizationActions,
   OrganizationDirectory,
+  OrganizationNotes,
   OrganizationPeople,
   OrganizationPulses,
   OrganizationRounds,
@@ -89,4 +90,13 @@ export const durableObjectActions = (organizations: Organizations) =>
       organizations.getByName(organizationId).createAction(actorId, teamId, payload, now),
     update: (organizationId, actorId, teamId, actionId, payload, now) =>
       organizations.getByName(organizationId).updateAction(actorId, teamId, actionId, payload, now),
+  });
+
+/** `OrganizationNotes` on the same objects: the Lead's Note on each Round. */
+export const durableObjectNotes = (organizations: Organizations) =>
+  OrganizationNotes.of({
+    get: (organizationId, actorId, teamId, roundId) =>
+      organizations.getByName(organizationId).viewRoundNote(actorId, teamId, roundId),
+    save: (organizationId, actorId, teamId, roundId, text, now) =>
+      organizations.getByName(organizationId).saveRoundNote(actorId, teamId, roundId, text, now),
   });

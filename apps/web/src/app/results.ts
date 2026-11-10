@@ -8,9 +8,11 @@ import {
   type DimensionTrendPoint,
   type DistributionOption,
   type Highlight,
+  NOTE_MAX_LENGTH,
   PersonId,
   type QuestionChange,
   type QuestionResult,
+  RoundNote,
   RoundResult,
   type TrendPoint,
   type TypicalChange,
@@ -18,7 +20,7 @@ import {
 import { Option, Predicate, Schema } from "effect";
 import type { Html, HtmlBuilder } from "foldkit/html";
 import { defineTaggedUnion } from "foldkit/schema";
-import { message, pluralMessage } from "../messages/locale.ts";
+import { formatDate, message, pluralMessage } from "../messages/locale.ts";
 import { Failure, failureMessage } from "./api.ts";
 import { lineChart } from "./charts.ts";
 import { resultsSummary } from "./resultsSummary.ts";
@@ -35,10 +37,12 @@ import {
   pageTitle,
   panel,
   problemView,
+  secondaryButtonClass,
   sectionTitle,
   selectField,
   statList,
   subSectionTitle,
+  textareaField,
   textField,
 } from "./components.ts";
 import type { LoadedTeam } from "./directory.ts";
@@ -58,6 +62,13 @@ export const LoadedActions = defineTaggedUnion({
   Failed: { failure: Failure },
 });
 export type LoadedActions = typeof LoadedActions.Type;
+
+export const LoadedNote = defineTaggedUnion({
+  Loading: {},
+  Loaded: { note: Schema.NullOr(RoundNote) },
+  Failed: { failure: Failure },
+});
+export type LoadedNote = typeof LoadedNote.Type;
 
 const smallHeading = "text-[13px] font-semibold text-muted";
 
@@ -344,10 +355,130 @@ export const toggleButton = <Message>(isTable: boolean, onClick: Message, h: Htm
     h,
   );
 
+const noteSection = <Message>(
+  state: {
+    readonly roundNote: LoadedNote;
+    readonly noteDraft: string;
+    readonly noteEditing: boolean;
+    readonly noteBusy: boolean;
+    readonly noteFailure: Option.Option<Failure>;
+  },
+  callbacks: {
+    readonly onNoteEdit: Message;
+    readonly onNoteDraftChange: (text: string) => Message;
+    readonly onNoteCancel: Message;
+    readonly onSubmitNote: Message;
+  },
+  isLead: boolean,
+  h: HtmlBuilder<Message>,
+): Html => {
+  // Nothing until the Note has loaded, so the page does not flash.
+  if (state.roundNote._tag === "Loading") return null;
+
+  if (state.roundNote._tag === "Failed") {
+    return h.section([h.Class("mt-8")], [alertView(failureMessage(state.roundNote.failure), h)]);
+  }
+
+  const note = state.roundNote.note;
+  // Members see the Note only when the Lead has written one.
+  if (note === null && !isLead) return null;
+
+  const body: Array<Html> = [sectionTitle(message("note.title"), h)];
+
+  if (isLead && state.noteEditing) {
+    const length = state.noteDraft.length;
+    const isTooLong = length > NOTE_MAX_LENGTH;
+    body.push(
+      textareaField(
+        {
+          id: "round-note",
+          label: message("note.label"),
+          value: state.noteDraft,
+          onInput: callbacks.onNoteDraftChange,
+          rows: 6,
+          isDisabled: state.noteBusy,
+        },
+        h,
+      ),
+      h.p(
+        [h.Class(`text-sm ${isTooLong ? "text-danger" : "text-muted"}`)],
+        [pluralMessage("note.count", length)],
+      ),
+      isTooLong ? alertView(message("note.tooLong"), h) : null,
+      problemView(Option.getOrUndefined(state.noteFailure), h),
+      h.div(
+        [h.Class("flex flex-wrap justify-end gap-2")],
+        [
+          appButton(
+            {
+              text: message("note.cancel"),
+              onClick: callbacks.onNoteCancel,
+              isDisabled: state.noteBusy,
+              className: secondaryButtonClass,
+            },
+            h,
+          ),
+          appButton(
+            {
+              text: message("note.save"),
+              type: "button",
+              onClick: callbacks.onSubmitNote,
+              isDisabled: state.noteBusy || isTooLong,
+              className: mintButtonClass,
+            },
+            h,
+          ),
+        ],
+      ),
+    );
+  } else if (note !== null) {
+    body.push(
+      h.p([h.Class("whitespace-pre-line text-[17px] leading-relaxed text-ink")], [note.text]),
+      h.p(
+        [h.Class("text-sm text-muted")],
+        [message("note.lastChanged", { date: formatDate(new Date(note.updatedAt)) })],
+      ),
+    );
+    if (isLead) {
+      body.push(
+        h.div(
+          [h.Class("flex justify-end")],
+          [
+            appButton(
+              { text: message("note.edit"), onClick: callbacks.onNoteEdit, className: secondaryButtonClass },
+              h,
+            ),
+          ],
+        ),
+      );
+    }
+  } else {
+    body.push(
+      h.p([h.Class("text-muted")], [message("note.emptyLead")]),
+      h.div(
+        [h.Class("flex justify-end")],
+        [
+          appButton(
+            { text: message("note.write"), onClick: callbacks.onNoteEdit, className: mintButtonClass },
+            h,
+          ),
+        ],
+      ),
+    );
+  }
+
+  return h.section([h.Class("mt-8")], [panel(body, h, "flex flex-col gap-4")]);
+};
+
 export const resultsScreenView = <Message>(
   state: {
     readonly results: LoadedResults;
     readonly actions: LoadedActions;
+    readonly roundNote: LoadedNote;
+    readonly noteDraft: string;
+    readonly noteEditing: boolean;
+    readonly noteBusy: boolean;
+    readonly noteFailure: Option.Option<Failure>;
     readonly teamDetail: LoadedTeam;
     readonly showTable: Record<string, boolean>;
     readonly actionTitle: string;
@@ -365,6 +496,10 @@ export const resultsScreenView = <Message>(
     readonly onActionDimensionChange: (dim: string) => Message;
     readonly onSubmitAction: Message;
     readonly onUpdateActionStatus: (actionId: ActionId, status: ActionStatus) => Message;
+    readonly onNoteEdit: Message;
+    readonly onNoteDraftChange: (text: string) => Message;
+    readonly onNoteCancel: Message;
+    readonly onSubmitNote: Message;
   },
   h: HtmlBuilder<Message>,
 ): Html => {
@@ -406,10 +541,26 @@ export const resultsScreenView = <Message>(
     );
   }
 
-  // Actions section: shown for all closed rounds (ADR 0004: Actions list has no minimum group size)
   const isLead = state.teamDetail._tag === "Loaded" && state.teamDetail.detail.team.yourRole === "lead";
   const roster = state.teamDetail._tag === "Loaded" ? state.teamDetail.detail.roster : [];
 
+  const noteNode = noteSection(
+    state,
+    {
+      onNoteEdit: callbacks.onNoteEdit,
+      onNoteDraftChange: callbacks.onNoteDraftChange,
+      onNoteCancel: callbacks.onNoteCancel,
+      onSubmitNote: callbacks.onSubmitNote,
+    },
+    isLead,
+    h,
+  );
+  // Like Actions, the Note belongs to a closed Round: the Lead writes it after the team conversation.
+  if (noteNode !== null && result.status !== "open") {
+    children.push(noteNode);
+  }
+
+  // Actions section: shown for all closed rounds (ADR 0004: Actions list has no minimum group size)
   const actionsItems: Array<Html> = [];
 
   if (state.actions._tag === "Loading") {

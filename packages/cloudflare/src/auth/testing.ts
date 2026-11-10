@@ -56,6 +56,12 @@ import {
   authorizeRoundAction,
   type RoundViewed,
   type TeamOverview,
+  type NoteViewed,
+  type RoundNote,
+  type RoundNoteView,
+  OrganizationNotes,
+  noteChange,
+  RoundId,
 } from "@surveybeat/domain";
 import { expect } from "@effect/vitest";
 import * as Context from "effect/Context";
@@ -68,6 +74,7 @@ import * as HttpServer from "effect/http/HttpServer";
 import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
 import { actionHandlers } from "../ActionHandlers.ts";
 import { directoryHandlers } from "../DirectoryHandlers.ts";
+import { noteHandlers } from "../NoteHandlers.ts";
 import { pulseHandlers } from "../PulseHandlers.ts";
 import { roundHandlers } from "../RoundHandlers.ts";
 import { authHandlers } from "./AuthHandlers.ts";
@@ -351,6 +358,10 @@ interface MemoryOrganization {
   state: DirectoryState;
   pulses: PulseState;
   actions: Map<ActionId, ActionRecord>;
+  /** Rounds seeded by tests (`SignInWorld.addRound`), each with the Team it belongs to. */
+  rounds: Map<RoundId, TeamId>;
+  /** The Lead's Note per Round. */
+  notes: Map<RoundId, RoundNote>;
   readonly sends: Map<SendId, { readonly recipient: EmailAddress; readonly email: TransactionalEmail }>;
 }
 
@@ -377,6 +388,8 @@ export class MemoryOrganizations {
       },
       pulses: EMPTY_PULSE_STATE,
       actions: new Map(),
+      rounds: new Map(),
+      notes: new Map(),
       sends: new Map(),
     };
   }
@@ -407,6 +420,8 @@ export class MemoryOrganizations {
           },
           pulses: EMPTY_PULSE_STATE,
           actions: new Map(),
+          rounds: new Map(),
+          notes: new Map(),
           sends: new Map(),
         });
       }),
@@ -504,6 +519,45 @@ export class MemoryOrganizations {
         const auth = authorizeRoundAction(organization.state, actorId, "team.viewResults", teamId);
         if (auth._tag === "Rejected") return auth;
         return { _tag: "Viewed", value: { teamId, rounds: [], dimensions: [], markers: [] } };
+      }),
+  });
+
+  readonly notes = OrganizationNotes.of({
+    get: (organizationId, actorId, teamId, roundId) =>
+      Effect.sync((): NoteViewed<RoundNoteView> => {
+        const organization = this.organization(organizationId);
+        const auth = authorizeRoundAction(organization.state, actorId, "team.viewNote", teamId);
+        if (auth._tag === "Rejected") {
+          return {
+            _tag: "Rejected",
+            rejection: { _tag: auth.rejection._tag === "TeamNotFound" ? "TeamNotFound" : "Forbidden" },
+          };
+        }
+        if (organization.rounds.get(roundId) !== teamId) {
+          return { _tag: "Rejected", rejection: { _tag: "RoundNotFound" } };
+        }
+        return { _tag: "Viewed", value: { roundId, note: organization.notes.get(roundId) ?? null } };
+      }),
+    save: (organizationId, actorId, teamId, roundId, text, now) =>
+      Effect.sync((): NoteViewed<RoundNoteView> => {
+        const organization = this.organization(organizationId);
+        const auth = authorizeRoundAction(organization.state, actorId, "team.writeNote", teamId);
+        if (auth._tag === "Rejected") {
+          return {
+            _tag: "Rejected",
+            rejection: { _tag: auth.rejection._tag === "TeamNotFound" ? "TeamNotFound" : "Forbidden" },
+          };
+        }
+        if (organization.rounds.get(roundId) !== teamId) {
+          return { _tag: "Rejected", rejection: { _tag: "RoundNotFound" } };
+        }
+        const change = noteChange(text);
+        if (change._tag === "Delete") {
+          organization.notes.delete(roundId);
+        } else {
+          organization.notes.set(roundId, { roundId, text: change.text, updatedAt: now });
+        }
+        return { _tag: "Viewed", value: { roundId, note: organization.notes.get(roundId) ?? null } };
       }),
   });
 
@@ -711,9 +765,20 @@ export class SignInWorld {
       },
       pulses: EMPTY_PULSE_STATE,
       actions: new Map(),
+      rounds: new Map(),
+      notes: new Map(),
       sends: new Map(),
     });
     return { id, name, workos };
+  }
+
+  /** A Round of a Team, as the Round lifecycle schedules it. The fake keeps no Pulses for Rounds, so tests seed them. */
+  addRound(organizationId: OrganizationId, teamId: TeamId): RoundId {
+    const roundId = RoundId.make(`round-${++this.ids}`);
+    const organization = this.durable.organizations.get(organizationId);
+    if (organization === undefined) throw new Error(`no Organization ${organizationId}`);
+    organization.rounds.set(roundId, teamId);
+    return roundId;
   }
 
   /** A Person a Lead added by email, not signed in yet. */
@@ -754,6 +819,7 @@ export class SignInWorld {
       Context.add(OrganizationPulses, this.durable.pulses),
       Context.add(OrganizationRounds, this.durable.rounds),
       Context.add(OrganizationActions, this.durable.actions),
+      Context.add(OrganizationNotes, this.durable.notes),
       Context.add(EmailOutbox, this.outbox.service),
       Context.add(
         NewIds,
@@ -779,6 +845,7 @@ export class SignInWorld {
           pulseHandlers(Effect.succeed(services)),
           roundHandlers(Effect.succeed(services)),
           actionHandlers(Effect.succeed(services)),
+          noteHandlers(Effect.succeed(services)),
         ]),
         Layer.provide(HttpServer.layerServices),
       ),
