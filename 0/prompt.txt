@@ -1,0 +1,160 @@
+Act as the implementation sub-agent for this task.
+
+You orchestrate Release 2 slice #110 ("R2 09: German answer page and server-rendered pages") in chrisdoc/surveybeat-next. You are the Opus orchestrator; THIS TASK EXPLICITLY ASKS YOU TO USE SUBAGENTS: `scoper` (model "haiku"), `implementer` (model "haiku") writes all code, `reviewer` (model "sonnet") reviews each implementer diff. Follow ~/.claude/CLAUDE.md: scope → you write the plan and small, exact, file-owned briefs → implementer → reviewer → you check the diff and run the full suite. Keep subagent use lean (one implementer at a time; you may do git/GitHub steps yourself) — the account recently hit API rate limits.
+
+Read first: `gh issue view 110`, docs/adr/0018-german-localization.md, docs/adr/0008-workspace-layout-and-toolchain.md (answer page budget, Lighthouse gate), docs/research/german-localization.md, AGENTS.md. State on main: German catalogs and `messagesFor(locale)` landed in PR #113; PR #121 moved the answer page's strings into `apps/web/src/messages/answer.ts` and made the budget test count every chunk the answer page imports (critical JS now ~5.45 KB gzip); the answer page and the Invitation/Reminder links are built in apps/web/vite.config.ts (prerenderAnswer), apps/web/src/answer/**, packages/emails (links `${baseUrl}/a#t=…`); emails already store the recipient's locale with the send. MainWorker.ts renders delivery-time and unsubscribe pages with hard-coded English and `lang="en"`.
+
+Decisions (don't relitigate): one prerendered answer page per locale (`/a` English, `/de/a` German), each loading only its own answer catalog (`answer.ts` + a German counterpart typed for parity); the budget test runs per page; Invitation and Reminder links pick the page from the recipient's stored locale; the Main Worker serves `/de/a` (check `runWorkerFirst`/assets routing so both pages are served and the fragment token flow is unchanged); the delivery-time and unsubscribe pages move to the catalog in both languages with the right `lang`; the language is never stored with a Submission (existing privacy test A10 must still pass); Lighthouse gate passes for both pages (`pnpm test:lighthouse`, run both pages; note the FCP gate has been flaky at ~835 ms vs 800 ms on CI once — don't loosen it). German wording informal "du"; the product owner reviews it.
+
+Workflow: branch `r2-110-answer-de` from origin/main. Validation: pnpm typecheck, pnpm typecheck:effect, pnpm lint, pnpm format:check, pnpm test, pnpm test:privacy, web build + budget test (report sizes per page), Lighthouse locally if Chromium works (~/.cache/ms-playwright/chromium_headless_shell-1248). Commit (subject "R2 09: German answer page and server-rendered pages", end with "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"), push (retry once if rejected without reason), PR with "Closes #110. Part of #101.", summary, verification, body ending "🤖 Generated with [Claude Code](https://claude.com/claude-code)". Wait for checks (`gh pr checks <n> --watch`), fix failures, squash-merge your own PR (user-authorized): `gh pr merge <n> --squash --delete-branch`. Before pushing, rebase on the latest origin/main and make sure your diff does not revert anyone else's merged work (#119 Notes, #121 history, #104, #106 may land meanwhile). Others in parallel: #104, #106, #118.
+
+Final report (≤ 10 lines): what was built, budget per page, Lighthouse numbers, deviations, reviewer findings and handling, test counts, PR URL, merge SHA.
+
+---
+
+<task-notification>
+<task-id>af8f418bf2bd54115</task-id>
+<tool-use-id>toolu_01KgjF1GY44utXwr9FpwH4Kb</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-3b6d35c6-4b5fb001ed92f87c/af630073-27b6-4291-bfb1-e4fa07f51c57/tasks/af8f418bf2bd54115.output</output-file>
+<status>completed</status>
+<summary>Agent "Scope issue 110 German answer page" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>Scoping report for issue #110. The coordinator asked me to stop exploring, so items I did not reach are marked "not checked".
+
+**Complexity flags (read before planning):** this touches several subsystems (apps/web, packages/cloudflare, packages/emails, infra). It changes a published URL surface (`/de/a`, new links in emails) and a user-facing HTML response. Locale for the unsubscribe/delivery pages has no obvious source (see item 5). The issue's acceptance criteria are not verified against the code. I did not find a clean place to store locale on the token path.
+
+## 1. Answer catalog and typing
+
+- `apps/web/src/messages/answer.ts:5` `export const answerCatalog = {...} as const`, about 33 keys (`answer.*`), English only.
+- `answer.ts:40-63` local placeholder types (`Placeholders`, `KeysWithoutParams`, `KeysWithParams`) and `message()` overloads bound to `answerCatalog` only. `fill()` at `answer.ts:~36`.
+- Importers: `apps/web/src/answer/main.ts:1`, `apps/web/src/answer/round-context.ts:1`, `apps/web/src/answer/round-context.test.ts:2`, and `apps/web/src/messages/catalog.ts:8` plus `catalog.ts:293` (`...answerCatalog`).
+- App catalog pattern: `apps/web/src/messages/de.ts:1` imports only `type { Mismatched, Translation } from "./index.ts"`. `index.ts:7-8` defines `Translation = { readonly [K in MessageKey]: string }`. `index.ts:17-19` defines `Mismatched&lt;T&gt;` (placeholder parity). `locale.ts:16` `tables = { en: catalog, de } satisfies Record&lt;Locale, Translation&gt;`.
+- Caveat: `de.ts` does not import `answer.ts`. My search found no `answer.` key in `de.ts`, so how German answer strings would satisfy `Translation` is unverified. Parity is enforced only by the full-catalog types.
+- Pattern to copy: `de.ts:45`-style `as const satisfies` plus a `Translation`-style type bound to `answerCatalog`'s keys. This needs a new answer-only `Translation` type (the existing one is keyed to the full catalog).
+- `locale.ts:33-82` `messagesFor(locale)` and `setLocale` are the app's locale machinery. `locale.ts:1-5` imports `catalog.ts` and `de.ts`, so importing `locale.ts` from the answer entry would pull the full catalogs into the answer bundle. The answer entry must keep a separate answer-only table.
+
+## 2. Budget test
+
+- `apps/web/src/answer/budget.test.ts:7` `distDir = ../../dist`. Lines 11-17: reads `dist/answer.html`, and runs `pnpm --filter @surveybeat/web build` if it is missing.
+- Limits: HTML ≤ 8 KB raw and gzip (lines 21-30). Inline `&lt;style&gt;` gzip ≤ 2 KB (lines 33-40). Critical-path JS gzip ≤ 10 KB (lines 42-75).
+- Method: reads `&lt;script src&gt;` tags from the HTML (line 43), then walks static `import`/`export ... from "./x.js"` edges via regex (lines 62-66). It counts each reached chunk.
+- Asserts no `messages-*` chunk on the critical path (line 70).
+- Hard-wired to `answer.html`. A per-page budget needs a loop over both entry HTML files.
+
+## 3. answer.html and the prerender plugin
+
+- `apps/web/answer.html:2` `&lt;html lang="en"&gt;` (static). Line 6 `&lt;title&gt;&lt;/title&gt;` (filled at build). Lines 7-8 placeholders `&lt;!--PRERENDER_STYLE--&gt;`, `&lt;!--HEAD_BOOTSTRAP--&gt;`. Line 11 `&lt;!--PRERENDER_BODY--&gt;`. Line 12 `&lt;script type="module" src="/src/answer/main.ts"&gt;`.
+- `apps/web/vite.config.ts:6` imports `message` from `./src/messages/index.ts`, which is the English app catalog. It does not use `answer.ts` or a locale.
+- `vite.config.ts:8-126` `prerenderAnswer` plugin. `transformIndexHtml` (line 15) fires for `answer.html`. It inlines CSS from `src/answer/style.css` (lines 19-23). It inlines the bootstrap script (lines 25-70) that reads `#t` and `v` from the hash, stores `sb_token`, and calls `/exchange` on the submit origin.
+- Body is built with `message()` (lines 83-108). Title is `message("answer.title")` (line 111). `lang` is not touched; it stays `en` from the HTML.
+- `closeBundle` (lines 116-124) copies `dist/answer.html` to `dist/a/index.html` and `dist/a.html`. Errors are swallowed by an empty `catch {}` (line 123).
+- Implication: `/de/a` needs its own shell (`lang="de"`, German title and body) and a copy to `dist/de/a/index.html`. The current plugin hard-codes English.
+
+## 4. Main Worker asset serving
+
+- `packages/cloudflare/src/MainWorker.ts:85` `assetsDirectory` = `apps/web/dist`.
+- `MainWorker.ts:117-129` `assets: { directory, runWorkerFirst: ["/auth/*", "/api/*", "/delivery", "/delivery/*", ...test routes on test stages] }`. No `not_found_handling` or `html_handling` is set here. The Alchemy defaults were not checked.
+- `/a` and `/de/a` are not routed in `MainWorker.ts`. They are served as static assets (`dist/a/index.html` and, if added, `dist/de/a/index.html`). Nothing else in `MainWorker.ts` handles `/a`.
+- `infra/alchemy.run.ts` (55 lines) has no assets config. It only uses `MainWorker` (`alchemy.run.ts:3,44`). Do not look there for it.
+- Local fallback for e2e: `infra/tests/e2e/playwright.config.ts:34-39` maps any `/a*` or `/answer*` path to `answer.html` when no file exists. A `/de/a` route needs an equivalent mapping.
+
+## 5. Delivery and unsubscribe pages (MainWorker.ts)
+
+- `renderDeliveryPage` lines 270-328. `lang="en"` (271). Hard-coded strings: title "Change delivery time · SurveyBeat" (275), h1 "Change delivery time" (290), body "We'll deliver your check-ins and reminders at your local time." (291), label "Time zone" (294), button "Save preference" (305).
+- `renderDeliverySuccessPage` lines 330-349. `lang="en"` (331). Title "Delivery preference updated · SurveyBeat" (335), h1 "Preferences updated" (345), body "Your delivery time zone has been set to &lt;strong&gt;…&lt;/strong&gt;." (346).
+- `renderUnsubscribePage` lines 351-376. `lang="en"` (352). Title "Turn off reminders · SurveyBeat" (356), h1 "Turn off reminders" (368), body "You will no longer receive reminders for this Pulse check-in." (369), button "Turn off reminders" (372).
+- Plain-text responses, also user-visible: "Missing token or timeZone" (425), "Invitation link not found or expired" (436, 479), "Missing token" (468), "Unsubscribed from reminders." (485).
+- Routing: `/delivery` at 411-449. `/api/reminders/unsubscribe` at 451-488.
+- Locale source: GET `/delivery?token=` (415-418) and GET `/api/reminders/unsubscribe?t=` (455-458) read only the query string. They do not touch D1 or the Organization Durable Object (DO). POST handlers look up `invitation_index` (428-434, 471-477) for `organization_id`, `person_id`, `pulse_id`. The Person's locale would then come from the DO (`organizations.getByName(...)`), which I did not check for a read method.
+- `invitation_index` schema: `packages/cloudflare/d1-migrations/0005_invitations.sql` (columns beyond the five used in MainWorker were not checked; no locale column is confirmed).
+- Options for the parent to decide (not recommendations):
+  - (a) Put the locale in the link. Emails know `email.locale` at render time (see item 6), and `ReminderEmail.tsx:18,26` and `InvitationEmail.tsx:25` build these links.
+  - (b) Add an `invitation_index` locale column and a D1 migration, then read it on GET.
+  - (c) Read the DO's Person locale on GET (needs a new DO read path, not checked).
+  - (d) Use the request `Accept-Language` header (weak; not a stored locale).
+- Existing tests for these two pages: not checked. I did not search for `MainWorker` tests.
+
+## 6. Email links and locale
+
+- Link builders: `packages/emails/src/InvitationEmail.tsx:24` `openUrl = ${baseUrl}/a#t=${token}`; `:25` delivery link `${baseUrl}/delivery?token=`; `:60-61` plain-text variant; `:74` plain-text rating line `${baseUrl}/a#t=${token}&amp;v=${val}`.
+- `packages/emails/src/ReminderEmail.tsx:18` `unsubscribeUrl` = `${baseUrl}/api/reminders/unsubscribe?t=${token}` (legacy `unsubscribeUrl` field overrides). `:25` openUrl. `:26` delivery. `:81` plain-text rating line.
+- `packages/emails/src/Parts.tsx:107` `RatingRow` href `${baseUrl}/a#t=${token}&amp;v=${val}`. Called at `InvitationEmail.tsx:51` and `ReminderEmail.tsx:59`.
+- Locale reaches the template as `email.locale` (schema in `packages/domain/src/email/Email.ts:27` `EmailLocale = Locale.pipe(withDecodingDefaultKey(DEFAULT_LOCALE))`, used at lines 31, 63, 76, 93, 110, 123). Old rows default to `en`.
+- Locale is set at send creation: `packages/cloudflare/src/Organization.ts:503` (invitation), `:690` (reminder common), `:784`, `:1440`. Each calls `emailLocaleOf(dirState, person.id)`. `packages/domain/src/people/Directory.ts:260-268` resolves person locale, then detected locale, then the organization default. The result is stored in the email send.
+- `baseUrl` is `appOrigin` (`Organization.ts:152` from `APP_ORIGIN`; `MainWorker.ts:134` sets `APP_ORIGIN` from the stage hostname).
+- Templates already use `messagesFor(email.locale)` (`InvitationEmail.tsx:23`, `ReminderEmail.tsx:24`). `Layout.tsx:41,51` sets `lang={messages.locale}`.
+- Email catalog: `packages/emails/src/messages/catalog.ts` (45 lines, English source, `as const`). `de.ts` (49 lines, `as const satisfies Translation` at line 45). `index.ts:5-27` defines `Translation`, `Mismatched`, and `tables = { en: catalog, de } satisfies Record&lt;Locale, Translation&gt;`. Both exist and are type-checked.
+- Tests that assert the link: `packages/emails/src/render.test.ts:136` (`/a#t=test-token-123&amp;amp;v=${v}`), `:139`, `:148` (plain text). Fixtures at `render.test.ts:22,35` use `baseUrl: "https://app.surveybeat.app"`. Snapshot at `packages/emails/src/__snapshots__/render.test.ts.snap`. Catalog tests at `packages/emails/src/messages/messages.test.ts:1-60`.
+- Not checked: whether any fixture sets `locale: "de"` (affects which link the German test expects).
+
+## 7. Lighthouse
+
+- Root `package.json:14` `test:lighthouse` → `infra/package.json:7` `node scripts/lighthouse-gate.ts`. Script: `infra/scripts/lighthouse-gate.ts`. No separate config file was found in what I read.
+- Budgets: FCP ≤ 800, LCP ≤ 1300, TBT ≤ 50 ms (lines 18-20).
+- URL: `argv[2]` if given (no local server). Otherwise a local server on `127.0.0.1:4173` (lines 27-83). It serves `dist/answer.html` for any path that is not under `/assets/` (lines 62-77). It mocks `/exchange` with a fixed payload (lines 34-60). Target `http://127.0.0.1:4173/a#t=test-token-123&amp;v=4` (line 81).
+- Runs Lighthouse with `--only-categories=performance` (lines 112-118). Up to 3 runs, retrying on failure (lines 146-171). Uses a local bin or `pnpm dlx lighthouse@13.6.0` (line 125).
+- Second page: the local server returns the same HTML for every path, so `/de/a` would need a second built file and a path-to-file mapping in the server. Then loop over two targets. Not checked: CI wiring for this script.
+
+## 8. Privacy test A10
+
+- Not checked. I did not open the privacy suite or search for "A10".
+
+## 9. messages.test.ts shell assertions
+
+- `apps/web/src/messages/messages.test.ts:112-132`. `visibleText()` (lines 113-118) strips comments, `script`/`style`/`title` blocks, and tags. `it.each` (lines 120-125) asserts `visibleText(html) === ""` for `index.html` and `answer.html`. Lines 127-132 assert `&lt;title&gt;\s*&lt;/title&gt;` for both.
+- A German shell must be added to both `it.each` lists, or it is not covered. The budget test (item 2) reads only `answer.html`.
+
+## 10. E2E answer flow
+
+- `infra/tests/e2e/answer.spec.ts` (visits `/a#t=…` at lines 65, 119, 193, 221, 246, 260).
+- `infra/tests/e2e/playwright.config.ts` (static server fallback, lines 34-39).
+- Other e2e spec files: not checked.
+
+## Risks and unknowns
+
+- The German answer strings do not yet exist in any German file I read. `de.ts` does not import `answer.ts`, and the parity mechanism for answer keys is unverified.
+- `answer.ts` `message()` is English-only and not parameterized by locale. The German page needs a locale-bound lookup without importing `locale.ts` (which would pull full catalogs into the answer bundle).
+- Unsubscribe and delivery pages have no locale source on GET (item 5). This is the main design decision.
+- Alchemy assets defaults (`html_handling`, `not_found_handling`) were not checked. `/de/a` resolution depends on them.
+- The plugin's `closeBundle` swallows copy errors (`vite.config.ts:123`), so a missing German copy could fail silently.
+
+## Possible split (facts only)
+
+- Answer-page slice: `apps/web/src/messages/answer.ts`, new German answer table, `apps/web/answer.html` (and a German shell), `apps/web/vite.config.ts`, `apps/web/src/answer/*`, `apps/web/src/answer/budget.test.ts`, `apps/web/src/messages/messages.test.ts`, `infra/scripts/lighthouse-gate.ts`, `infra/tests/e2e/*`.
+- Email slice: `packages/emails/src/{InvitationEmail,ReminderEmail,Parts}.tsx`, `packages/emails/src/render.test.ts` and snapshot, `packages/emails/src/messages/*`.
+- Worker slice: `packages/cloudflare/src/MainWorker.ts` (pages at 270-376, routes at 411-488), possibly `packages/cloudflare/d1-migrations/` (only if option b is chosen), `packages/cloudflare/src/Organization.ts` (only if option c is chosen).
+- Dependencies: the email slice's `/de/a` link depends on the answer slice publishing `dist/de/a/index.html`. The Worker page localisation depends on the chosen locale source.</result>
+<usage><subagent_tokens>83580</subagent_tokens><tool_uses>0</tool_uses><duration_ms>51083</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>a28f4209a0a28e289</task-id>
+<tool-use-id>toolu_015YLoQm3JwzPjNXpmJ5NqjD</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-3b6d35c6-4b5fb001ed92f87c/af630073-27b6-4291-bfb1-e4fa07f51c57/tasks/a28f4209a0a28e289.output</output-file>
+<status>completed</status>
+<summary>Agent "Review #110 diff" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>Nothing blocking and nothing major. I found one minor issue and two small hardening notes. I read the diff and ran `pnpm test` on the ServerPages, emails and messages tests, and all 78 tests pass. I did not run `pnpm lint` to completion, so I can't say whether it is clean.
+
+**Your specific questions**
+- **Unsubscribe POST body (`MainWorker.ts` ~L366):** it is safe for an empty or odd body.
+  - `parseRequestBody` returns `{}` for an empty body. It also returns `{}` for malformed JSON, which it catches. A one-click body such as `List-Unsubscribe=One-Click` parses as a harmless key.
+  - A `__proto__` key is inert.
+  - The only new failure mode is `req.text` dying on a broken stream, which would now return 500 where the old code never read the body when `t` was in the query. This is realistic for almost nobody and I don't think it needs a change.
+- **Status codes and JSON branch:** unchanged. The 400, 404 and 405 statuses and the `application/json` branch for `/delivery` all behave as before. Only the text of the error bodies changed, to catalog strings.
+- **`start(message)` refactor:** the runtime behaviour is unchanged. The only top-level statement in `main.ts` was `void run()`, so ordering against the head bootstrap and `window.__exchangePromise` is the same as before. The `.ts` import extensions are correct and the new code uses no `as`.
+- **Escaping:** correct. Every interpolated value goes through `escapeHtml`, including the hidden `token` field. The success page splits the sentence on the `{timeZone}` placeholder, escapes each part, and puts the escaped zone inside `&lt;strong&gt;`, so a `{timeZone}` string in the input can't break it. `locale` is a typed union, so it is safe in attributes. The time zone `&lt;option&gt;` values are constants. The error replies are `text/plain`.
+- **Budget test:** it does prove catalog separation per page. It walks the critical-path chunks and requires each page to contain its own `answer.save` string and not the other locale's. It also asserts no `messages-*` chunk, the `&lt;html lang&gt;` and prerendered title per page, and that the `/a` and `/de/a` shell copies exist.
+- **German wording:** informal du throughout. Runde, Teamleitung, Organisation and Pulse are used correctly. "Einsendung" doesn't appear in the changed strings.
+- **English links:** `langQuery("en")` returns an empty string, so English links are unchanged.
+- **Lighthouse gate:** it audits both pages with the same FCP/LCP/TBT budgets, and the local test server serves the German shell for `/de/`.
+- **`vite.config.ts` copy step:** the old empty `catch {}` is gone, so a failed copy now fails the build. That is better than before.
+
+**Findings**
+1. MINOR, `packages/emails/src/ReminderEmail.tsx:18-20`: `unsubscribeUrl` appends `&amp;lang=de` to a legacy `email.unsubscribeUrl` without checking it has a query string. The old URLs were built with `?t=`, so this is probably fine. The same function feeds the `List-Unsubscribe` header, though, so a malformed URL there would matter. Safer: build the suffix with `new URL(...).searchParams.set("lang", "de")`, or use `?` or `&amp;` depending on whether the URL already contains `?`.
+2. MINOR, `apps/web/src/messages/answer.de.ts` (`answer.comment.disclosure`): "mindestens 4 Personen" is a hard-coded number. This mirrors the English string, so it is consistent. It would still drift if the minimum group size ever changes (ADR 0004), so a `{n}` placeholder would be sturdier. It is out of scope for this issue.
+3. MINOR, `apps/web/src/answer/budget.test.ts`: `beforeAll` only rebuilds when a shell is missing, so a stale `dist` can mask regressions locally. That was already the case before this change, and CI builds fresh.</result>
+<usage><subagent_tokens>43621</subagent_tokens><tool_uses>5</tool_uses><duration_ms>97081</duration_ms></usage>
+</task-notification>

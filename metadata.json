@@ -1,0 +1,75 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "01M72PJH8G9ZFPPC36FQZ66X8F",
+  "strategy": "manual-commit",
+  "branch": "r2-110-answer-de",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "apps/web/answer.html",
+    "apps/web/de/answer.html",
+    "apps/web/src/answer/answer-messages.ts",
+    "apps/web/src/answer/budget.test.ts",
+    "apps/web/src/answer/de.ts",
+    "apps/web/src/answer/en.ts",
+    "apps/web/src/answer/main.ts",
+    "apps/web/src/answer/round-context.test.ts",
+    "apps/web/src/answer/round-context.ts",
+    "apps/web/src/messages/answer.de.ts",
+    "apps/web/src/messages/answer.ts",
+    "apps/web/src/messages/de.ts",
+    "apps/web/src/messages/messages.test.ts",
+    "apps/web/vite.config.ts",
+    "infra/scripts/lighthouse-gate.ts",
+    "infra/tests/e2e/answer.spec.ts",
+    "infra/tests/e2e/playwright.config.ts",
+    "packages/cloudflare/src/MainWorker.ts",
+    "packages/cloudflare/src/ServerPages.test.ts",
+    "packages/cloudflare/src/ServerPages.ts",
+    "packages/emails/src/InvitationEmail.tsx",
+    "packages/emails/src/Parts.tsx",
+    "packages/emails/src/ReminderEmail.tsx",
+    "packages/emails/src/__snapshots__/render.test.ts.snap",
+    "packages/emails/src/index.ts",
+    "packages/emails/src/links.ts",
+    "packages/emails/src/messages/catalog.ts",
+    "packages/emails/src/messages/de.ts",
+    "packages/emails/src/render.test.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 81,
+    "cache_creation_tokens": 115913,
+    "cache_read_tokens": 4437267,
+    "output_tokens": 26371,
+    "api_call_count": 41,
+    "subagent_tokens": {
+      "input_tokens": 135,
+      "cache_creation_tokens": 296712,
+      "cache_read_tokens": 5568737,
+      "output_tokens": 96886,
+      "api_call_count": 67
+    }
+  },
+  "redaction": {
+    "replacements": 7,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 2,
+      "credentialed_uri": 0,
+      "entropy": 4,
+      "key_context": 1,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}

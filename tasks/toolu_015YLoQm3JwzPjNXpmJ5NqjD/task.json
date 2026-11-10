@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_015YLoQm3JwzPjNXpmJ5NqjD",
+  "agent_id": "a28f4209a0a28e289",
+  "subagent_type": "reviewer",
+  "task_description": "Review #110 diff",
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 41922,
+    "cache_read_tokens": 153706,
+    "output_tokens": 3880,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-10T12:06:50.60106838Z",
+  "completed_at": "2026-11-10T12:08:25.985389973Z"
+}
