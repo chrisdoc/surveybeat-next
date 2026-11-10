@@ -13,6 +13,8 @@ import { submissionRoutes } from "./SubmissionRoutes.ts";
 const d1MigrationsDir = new URL("../d1-migrations/", import.meta.url);
 
 const EDIT_KEY = "CANARY-EDIT-KEY-raw-value";
+const TOKEN = "CANARY-INVITATION-TOKEN-raw-value";
+const FRESH_EDIT_KEY = "fresh-edit-key-for-first-answer";
 const CANARY_ANSWER = "CANARY-ANSWER";
 
 const setupD1 = (): { readonly d1: DatabaseSync; readonly queryDb: Cloudflare.D1.QueryDatabaseClient } => {
@@ -116,6 +118,33 @@ const bodyText = (response: HttpServerResponse.HttpServerResponse): string => {
   }
 };
 
+type Hashes = { readonly editKeyHash: string; readonly freshHash: string };
+
+/**
+ * Seeds D1 with a Submission for EDIT_KEY and an Invitation for TOKEN, runs the request built from
+ * the seeded hashes through the routes, and returns what came back.
+ */
+const runWith = (build: (hashes: Hashes) => HttpServerRequest) =>
+  Effect.gen(function* () {
+    const { d1, queryDb } = setupD1();
+    const editKeyHash = yield* Effect.promise(() => hashToken(EDIT_KEY));
+    const freshHash = yield* Effect.promise(() => hashToken(FRESH_EDIT_KEY));
+    const tokenHash = yield* Effect.promise(() => hashToken(TOKEN));
+    d1.prepare(
+      "INSERT INTO submission_index (edit_key_hash, organization_id, round_id) VALUES (?, ?, ?)",
+    ).run(editKeyHash, "org-1", "round-1");
+    d1.prepare(
+      "INSERT INTO invitation_index (token_hash, organization_id, round_id, person_id, pulse_id) VALUES (?, ?, ?, ?, ?)",
+    ).run(tokenHash, "org-1", "round-1", "person-1", "pulse-1");
+    const { organizations, calls } = recordingOrganizations();
+    const response = yield* submissionRoutes(organizations, queryDb).pipe(
+      Effect.provideService(HttpServerRequest, build({ editKeyHash, freshHash })),
+      // The Organization methods read the alchemy runtime; the fake needs only an empty one.
+      Effect.provideService(RuntimeContext, {} as RuntimeContext["Service"]),
+    );
+    return { response, text: bodyText(response), calls, d1, freshHash };
+  });
+
 const cases: ReadonlyArray<{
   readonly name: string;
   readonly build: (path: string, editKeyHash: string) => HttpServerRequest;
@@ -151,27 +180,18 @@ const cases: ReadonlyArray<{
 ];
 
 const runRoute = (path: string, testCase: (typeof cases)[number]) =>
-  Effect.gen(function* () {
-    const { d1, queryDb } = setupD1();
-    const editKeyHash = yield* Effect.promise(() => hashToken(EDIT_KEY));
-    d1.prepare(
-      "INSERT INTO submission_index (edit_key_hash, organization_id, round_id) VALUES (?, ?, ?)",
-    ).run(editKeyHash, "org-1", "round-1");
-    const { organizations, calls } = recordingOrganizations();
-    const response = yield* submissionRoutes(organizations, queryDb).pipe(
-      Effect.provideService(HttpServerRequest, testCase.build(path, editKeyHash)),
-      // The Organization methods read the alchemy runtime; the fake needs only an empty one.
-      Effect.provideService(RuntimeContext, {} as RuntimeContext["Service"]),
-    );
-    return { response, text: bodyText(response), calls };
-  });
+  runWith((hashes) => testCase.build(path, hashes.editKeyHash));
 
 describe("Submission Worker never returns answers for an Edit key (ADR 0005, issue #122)", () => {
   for (const testCase of cases) {
-    it.effect(`POST /my-answers with ${testCase.name} is not found and reaches no Organization`, () =>
+    it.effect(`POST /my-answers with ${testCase.name} is rejected and reaches no Organization`, () =>
       Effect.gen(function* () {
         const { response, text, calls } = yield* runRoute("/my-answers", testCase);
-        assert.strictEqual(response.status, 404);
+        // Query and header credentials are refused with 400 before routing; body credentials find no route (404).
+        assert.isTrue(
+          response.status >= 400 && response.status < 500,
+          `expected a 4xx, got ${response.status}`,
+        );
         assert.notInclude(text, CANARY_ANSWER);
         assert.deepStrictEqual(calls, [], "no Organization method may be called");
       }),
@@ -190,4 +210,172 @@ describe("Submission Worker never returns answers for an Edit key (ADR 0005, iss
       );
     }
   }
+});
+
+const validBody = (path: string, hashes: Hashes): Record<string, unknown> => {
+  switch (path) {
+    case "/exchange":
+      return { token: TOKEN };
+    case "/first-answer":
+      return { token: TOKEN, editKeyHash: hashes.freshHash, questionVersionId: "qv-1", value: 4 };
+    case "/answer":
+      return { editKey: EDIT_KEY, questionVersionId: "qv-1", value: 4 };
+    default:
+      throw new Error(`no valid body for ${path}`);
+  }
+};
+
+const credentialRoutes = ["/exchange", "/first-answer", "/answer"] as const;
+
+const queryRefusals: ReadonlyArray<{ readonly name: string; readonly query: (hashes: Hashes) => string }> = [
+  { name: "query token", query: () => `token=${TOKEN}` },
+  { name: "query t", query: () => `t=${TOKEN}` },
+  { name: "query editKey", query: () => `editKey=${EDIT_KEY}` },
+  { name: "query edit_key", query: () => `edit_key=${EDIT_KEY}` },
+  { name: "query editKeyHash", query: (hashes) => `editKeyHash=${hashes.editKeyHash}` },
+  { name: "query edit_key_hash", query: (hashes) => `edit_key_hash=${hashes.editKeyHash}` },
+];
+
+const headerRefusals: ReadonlyArray<{ readonly name: string; readonly headers: Record<string, string> }> = [
+  { name: "header x-invitation-token", headers: { "x-invitation-token": TOKEN } },
+  { name: "header x-edit-key", headers: { "x-edit-key": EDIT_KEY } },
+];
+
+const bodyRefusals: ReadonlyArray<{
+  readonly path: (typeof credentialRoutes)[number];
+  readonly name: string;
+  readonly body: (hashes: Hashes) => Record<string, unknown>;
+}> = [
+  {
+    path: "/answer",
+    name: "body editKeyHash of the Edit key alongside a valid editKey",
+    body: (hashes) => ({
+      editKey: EDIT_KEY,
+      editKeyHash: hashes.editKeyHash,
+      questionVersionId: "qv-1",
+      value: 4,
+    }),
+  },
+  {
+    path: "/answer",
+    name: "body edit_key_hash",
+    body: (hashes) => ({ edit_key_hash: hashes.editKeyHash, questionVersionId: "qv-1", value: 4 }),
+  },
+  {
+    path: "/exchange",
+    name: "body token with editKeyHash",
+    body: (hashes) => ({ token: TOKEN, editKeyHash: hashes.freshHash }),
+  },
+  {
+    path: "/first-answer",
+    name: "body token with edit_key_hash (no editKeyHash)",
+    body: (hashes) => ({
+      token: TOKEN,
+      edit_key_hash: hashes.freshHash,
+      questionVersionId: "qv-1",
+      value: 4,
+    }),
+  },
+  {
+    path: "/first-answer",
+    name: "body token with a malformed editKeyHash",
+    body: () => ({ token: TOKEN, editKeyHash: "not-a-hash", questionVersionId: "qv-1", value: 4 }),
+  },
+  {
+    path: "/first-answer",
+    name: "body token with an uppercase-hex editKeyHash",
+    body: () => ({ token: TOKEN, editKeyHash: "A".repeat(64), questionVersionId: "qv-1", value: 4 }),
+  },
+  ...(["/exchange", "/first-answer", "/answer"] as const).map((path) => ({
+    path,
+    name: "body token and editKey together (A5)",
+    body: (hashes: Hashes) => ({
+      token: TOKEN,
+      editKey: EDIT_KEY,
+      editKeyHash: hashes.freshHash,
+      questionVersionId: "qv-1",
+      value: 4,
+    }),
+  })),
+  {
+    path: "/answer",
+    name: "body token",
+    body: () => ({ token: TOKEN, questionVersionId: "qv-1", value: 4 }),
+  },
+];
+
+describe("Submission Worker takes credentials only from the POST body (ADR 0005, issue #130)", () => {
+  for (const path of credentialRoutes) {
+    for (const refusal of queryRefusals) {
+      it.effect(`POST ${path} with ${refusal.name} and a valid body is refused before any Organization`, () =>
+        Effect.gen(function* () {
+          const { response, calls } = yield* runWith((hashes) =>
+            makeRequest("POST", `${path}?${refusal.query(hashes)}`, validBody(path, hashes)),
+          );
+          assert.strictEqual(response.status, 400);
+          assert.deepStrictEqual(calls, [], "no Organization method may be called");
+        }),
+      );
+    }
+
+    for (const refusal of headerRefusals) {
+      it.effect(`POST ${path} with ${refusal.name} and a valid body is refused before any Organization`, () =>
+        Effect.gen(function* () {
+          const { response, calls } = yield* runWith((hashes) =>
+            makeRequest("POST", path, validBody(path, hashes), refusal.headers),
+          );
+          assert.strictEqual(response.status, 400);
+          assert.deepStrictEqual(calls, [], "no Organization method may be called");
+        }),
+      );
+    }
+  }
+
+  for (const refusal of bodyRefusals) {
+    it.effect(`POST ${refusal.path} with ${refusal.name} is refused before any Organization`, () =>
+      Effect.gen(function* () {
+        const { response, calls } = yield* runWith((hashes) =>
+          makeRequest("POST", refusal.path, refusal.body(hashes)),
+        );
+        assert.strictEqual(response.status, 400);
+        assert.deepStrictEqual(calls, [], "no Organization method may be called");
+      }),
+    );
+  }
+
+  it.effect("POST /exchange with a valid token body resolves the round context", () =>
+    Effect.gen(function* () {
+      const { response, calls } = yield* runWith((hashes) =>
+        makeRequest("POST", "/exchange", validBody("/exchange", hashes)),
+      );
+      assert.strictEqual(response.status, 200);
+      assert.include(calls, "getSubmissionRoundContext");
+    }),
+  );
+
+  it.effect(
+    "POST /first-answer with a valid token and editKeyHash records the first Answer and the hash",
+    () =>
+      Effect.gen(function* () {
+        const { response, calls, d1, freshHash } = yield* runWith((hashes) =>
+          makeRequest("POST", "/first-answer", validBody("/first-answer", hashes)),
+        );
+        assert.strictEqual(response.status, 200);
+        assert.include(calls, "recordFirstAnswer");
+        const rows = d1
+          .prepare("SELECT edit_key_hash FROM submission_index WHERE edit_key_hash = ?")
+          .all(freshHash);
+        assert.strictEqual(rows.length, 1);
+      }),
+  );
+
+  it.effect("POST /answer with a valid editKey body saves the Answer", () =>
+    Effect.gen(function* () {
+      const { response, calls } = yield* runWith((hashes) =>
+        makeRequest("POST", "/answer", validBody("/answer", hashes)),
+      );
+      assert.strictEqual(response.status, 200);
+      assert.include(calls, "saveAnswer");
+    }),
+  );
 });
