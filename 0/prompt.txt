@@ -1,0 +1,66 @@
+Act as the implementation sub-agent for this task.
+
+You orchestrate Release 2 slice #104 ("R2 03: Themes and discussion guide on the Results page") in chrisdoc/surveybeat-next. You are the Opus orchestrator; THIS TASK EXPLICITLY ASKS YOU TO USE SUBAGENTS: `scoper` (model "haiku"), `implementer` (model "haiku") writes all code, `reviewer` (model "sonnet") reviews each implementer diff. Follow ~/.claude/CLAUDE.md: scope → you write the plan and small, exact, file-owned briefs → implementer → reviewer → you check the diff and run the full suite. Keep subagent use lean (one implementer at a time) — the account recently hit API rate limits.
+
+Read first: `gh issue view 104`, ADRs 0016 and 0019, PR #115's description (`gh pr view 115`) — it added `themesStatus`, theme fields on RoundResult (optional), a single view function deciding what members vs the Lead receive, and Lead-only support counts and guide; GLOSSARY.md; AGENTS.md. B2 design components in apps/web/src/app/components.ts; Results page in apps/web/src/app/results.ts; German catalogs exist (`apps/web/src/messages/de.ts`, informal "du") — every new key needs English and German.
+
+Decisions (don't relitigate): members see a "What people raised" section with each theme's label and sentence, no counts, no raw comments; the Lead sees the same plus support counts, the existing redacted raw comments, and a Lead-only "Discussion guide" panel (what stood out, what people raised, Actions to check on, up to 3 questions) with a "Copy as text" button (clipboard; show a short confirmation); "Themes are being prepared" while pending; nothing once it gave up (Lead sees a short neutral line that themes aren't available for this Round); `notRequested` with the minimum group size met → the Lead sees that an Organization admin can turn on AI processing in Settings; members never see that line; below N nothing at all. All copy in both catalogs. API privacy test: a member's Results response never contains counts or the guide (extend the existing registry/property tests if PR #115 didn't already cover the member view end to end).
+
+Workflow: branch `r2-104-themes-ui` from origin/main. Validation: pnpm typecheck, pnpm typecheck:effect, pnpm lint, pnpm format:check, pnpm test, pnpm test:privacy, pnpm --filter @surveybeat/web build. Commit (subject "R2 03: Themes and discussion guide on the Results page", end with "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"), push (retry once if rejected without reason), PR with "Closes #104. Part of #101.", summary, verification, body ending "🤖 Generated with [Claude Code](https://claude.com/claude-code)" (restore attribution if the shipper drops it). Wait for checks (`gh pr checks <n> --watch`), fix failures, squash-merge your own PR (user-authorized): `gh pr merge <n> --squash --delete-branch`. Others work in parallel on #105 (Note on the Results page — expect results.ts/catalog conflicts; keep both sides), #108, #111; rebase on conflicts, force-push only your branch.
+
+Final report (≤ 10 lines): what was built, deviations, reviewer findings and handling, test counts, PR URL, merge SHA.
+
+---
+
+<task-notification>
+<task-id>aafd849b59cc481f8</task-id>
+<tool-use-id>toolu_01FSBKWyfLNdcmDgvPMZuh9H</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-a2b9a249-4ece56d9e61fb109/bea01c94-28a1-4f8b-bcd7-006a274fc966/tasks/aafd849b59cc481f8.output</output-file>
+<status>completed</status>
+<summary>Agent "Scope themes UI on Results" stopped at its 12-turn limit (partial result; SendMessage to task-id to continue)</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>NOTE: this agent stopped at its 12-turn limit before finishing. It was still calling tools and had produced no report. Send the agent a message (SendMessage) to let it continue from where it stopped.
+</result>
+<usage><subagent_tokens>59676</subagent_tokens><tool_uses>20</tool_uses><duration_ms>50043</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>a03b46e716868d044</task-id>
+<tool-use-id>toolu_01HrN2eeYcemD4eE7NRQJZQe</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-a2b9a249-4ece56d9e61fb109/bea01c94-28a1-4f8b-bcd7-006a274fc966/tasks/a03b46e716868d044.output</output-file>
+<status>completed</status>
+<summary>Agent "Review themes UI diff" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>Review of the #104 diff. I read the diff and the surrounding code, and did not run any tests.
+
+**No BLOCKER or MAJOR findings.**
+
+The gating and state handling check out against the acceptance criteria:
+- **Counts:** `themeCard` shows counts only when `theme.supportingComments !== undefined` (`results.ts`). That depends on the data, not on `isLead`, as it should.
+- **Guide:** it appears only when `isLead &amp;&amp; result.discussionGuide`. The domain layer already omits the guide for members.
+- **Status lines:** `preparing` shows for everyone. `unavailable`, `notRequested`, and `ready` with no themes show only to the Lead.
+- **Below N:** the early return at `results.ts:778` keeps the themes section and the guide from rendering.
+- **Copy state:** `guideCopy` resets in `GotResults` (both branches), on `CopyGuide`, and in the reset at `App.ts` ~1031.
+- **Clipboard command:** `navigator.clipboard.writeText` sits inside `Effect.tryPromise`, so a synchronous throw (for example, no clipboard in an insecure context) becomes `CopiedGuide{ok:false}`. There are no type assertions.
+- **Catalogs:** `catalog.ts` and `de.ts` have the same keys in the same order. German uses informal du, and "Maßnahmen" matches the existing `actions.title`.
+
+**MINOR**
+
+1. `packages/api/src/registry.privacy.test.ts:126-155`: the new member-encoding test is partly vacuous and mostly duplicates the test just above it (lines ~100-122).
+   - **Weak check:** it does not assert that `themes: "ready"` actually yields themes in the member's result, so the `supportingComments` check could pass with an empty list.
+   - **Rarely applicable:** `comments` is `[]` for a member by construction.
+   - **Fix:** add `assert.isNotEmpty(result.themes ?? [])` when `themes === "ready"`. Also assert that the encoded wire contains a theme label, so the test shows the response is non-trivial.
+
+2. `apps/web/src/app/results.ts` (`guideSections` and `themesSection`): the "What people raised" heading appears twice for a Lead. Once is the member-facing themes `h2`, and the other is the guide sub-heading `results.guide.whatPeopleRaised`. The issue's wording requires both, so this is acceptable. Screen-reader and `Scene.role("heading", { name })` lookups become ambiguous, though. The Lead scene avoids this only because its guide has an empty `whatPeopleRaised`. Consider a scene test with a non-empty `whatPeopleRaised` to confirm nothing breaks.
+
+3. `apps/web/src/app/results.ts` (`themesSection`): `status ?? "notRequested"` means a Lead sees the "turn on AI" line whenever the field is absent. Today that happens only when the API omits `themesStatus`, but it could mislead if the API ever sends no status for a Round that did request themes. Low risk.
+
+4. `apps/web/src/app/App.scene.test.ts`: no scene covers the reset of `guideCopy` when a different Round's results load. The reset is in `GotResults`. A short test (copy, then `GotResults`, then "Copied." absent) would pin it down.
+
+5. `apps/web/src/app/results.test.ts`: `discussionGuideText` is well covered (full, sparse, and question numbering). The tests assert English strings from the catalog, so they would need updating if the copy changes. That is the intended trade-off.
+
+Overall this is mergeable. Item 1 is the one I'd tighten before merging.</result>
+<usage><subagent_tokens>30121</subagent_tokens><tool_uses>3</tool_uses><duration_ms>23298</duration_ms></usage>
+</task-notification>

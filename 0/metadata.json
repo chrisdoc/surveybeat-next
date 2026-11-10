@@ -1,0 +1,50 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "01M72KX3ACW371GXJH0JNS7SE6",
+  "session_id": "bea01c94-28a1-4f8b-bcd7-006a274fc966",
+  "strategy": "manual-commit",
+  "created_at": "2026-11-10T11:36:17.336224289Z",
+  "branch": "r2-104-themes-ui",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "apps/web/src/app/App.scene.test.ts",
+    "apps/web/src/app/App.ts",
+    "apps/web/src/app/results.test.ts",
+    "apps/web/src/app/results.ts",
+    "apps/web/src/messages/catalog.ts",
+    "apps/web/src/messages/de.ts",
+    "packages/api/src/registry.privacy.test.ts"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-5-5",
+  "turn_id": "a2d01efd52ca",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 57,
+    "cache_creation_tokens": 82680,
+    "cache_read_tokens": 2280037,
+    "output_tokens": 12646,
+    "api_call_count": 28,
+    "subagent_tokens": {
+      "input_tokens": 124,
+      "cache_creation_tokens": 197981,
+      "cache_read_tokens": 4081964,
+      "output_tokens": 59773,
+      "api_call_count": 62
+    }
+  },
+  "redaction": {
+    "replacements": 5,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 4,
+      "key_context": 1,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
