@@ -1,9 +1,11 @@
 import { assert, describe, it } from "@effect/vitest";
 import {
+  buildMemberHistory,
   buildTeamOverview,
   calculateRoundResult,
   type Dimension,
   type HistoricalRoundData,
+  MemberHistory,
   PulseId,
   type QuestionInput,
   QuestionVersionId,
@@ -18,7 +20,7 @@ import {
 } from "@surveybeat/domain";
 import * as Arbitrary from "effect/Arbitrary";
 import * as Effect from "effect/Effect";
-import { HttpApi } from "effect/http-api";
+import { HttpApi, type HttpApiEndpoint } from "effect/http-api";
 import * as Schema from "effect/Schema";
 import { SurveyBeatApi } from "./index.ts";
 import { type LeadOnlyField, privacyRegistry, RoundResultScenario } from "./PrivacyRegistry.ts";
@@ -281,6 +283,7 @@ const resultResponders: Record<
 > = {
   "rounds.getResults": (scenario, leadOnly) => violations(scenario, buildResult(scenario), leadOnly),
   "rounds.getTeamOverview": (scenario) => overviewViolations(scenario),
+  "rounds.getMyHistory": (scenario) => historyViolations(scenario),
 };
 
 /** Contributors to a Question counted from the raw Submissions, never from the Result under test. */
@@ -510,4 +513,134 @@ const violations = (
     }
   });
   return found;
+};
+
+/**
+ * The member's history of one Round: a Team score shows only when the Round is shown and the Question
+ * has at least N contributors, and it equals a fresh computation at the effective N (ADR 0004, ADR 0017).
+ */
+const historyViolations = (scenario: RoundResultScenario): ReadonlyArray<string> => {
+  const built = buildResult({ ...scenario, status: "shared" });
+  const history = buildMemberHistory({
+    rounds: [
+      {
+        roundId: ROUND,
+        teamId: TEAM,
+        teamName: "T",
+        pulseName: "P",
+        plannedOpenDate: built.stored.plannedOpenDate,
+        status: "shared",
+        questions: built.questions,
+        result: built.stored,
+        canViewResults: true,
+      },
+    ],
+    minimumGroupSize: scenario.organizationN,
+  });
+  const n = built.effectiveN;
+  const found: Array<string> = [];
+  for (const round of history.rounds) {
+    if (round.teamResult === "shown" && built.result.submissionsCount < n) {
+      found.push(`history shows the Round with ${built.result.submissionsCount} Submissions (N=${n})`);
+    }
+    for (const question of round.questions) {
+      if (question.teamScore === null) continue;
+      const index = built.questions.findIndex((each) => each.id === question.questionVersionId);
+      if (
+        round.teamResult !== "shown" ||
+        built.result.submissionsCount < n ||
+        contributorsOf(built, index) < n
+      ) {
+        found.push(`history shows a score for question ${index} from fewer than N=${n} contributors`);
+      }
+      if (question.teamScore !== built.direct.questions[index]?.score) {
+        found.push(`history score for question ${index} differs from the Result computed at N=${n}`);
+      }
+    }
+  }
+  return found;
+};
+
+describe("member history endpoint (ADR 0017)", () => {
+  it("takes no input: a GET with no path parameter, payload, params, query, or headers", () => {
+    const endpoints: Array<HttpApiEndpoint.Top> = [];
+    HttpApi.reflect(SurveyBeatApi, {
+      onGroup: () => {},
+      onEndpoint: ({ group, endpoint }) => {
+        if (group.identifier === "rounds" && endpoint.identifier === "getMyHistory") endpoints.push(endpoint);
+      },
+    });
+    assert.strictEqual(endpoints.length, 1);
+    const [endpoint] = endpoints;
+    assert.strictEqual(endpoint?.method, "GET");
+    assert.strictEqual(endpoint?.path, "/api/me/history");
+    assert.notInclude(endpoint?.path ?? "", ":");
+    assert.strictEqual(endpoint?.params, undefined);
+    assert.strictEqual(endpoint?.query, undefined);
+    assert.strictEqual(endpoint?.headers, undefined);
+    assert.strictEqual(endpoint?.payload.size, 0);
+  });
+
+  it("returns no Submission, answer, comment, contributor, distribution, or Person field", () => {
+    const skipped = { answered: false, value: 0, comment: null } as const;
+    const answered = (value: number, comment: "Ask Anna" | null) =>
+      ({ answered: true, value, comment }) as const;
+    const row = (
+      first: typeof skipped | ReturnType<typeof answered>,
+      second: typeof skipped | ReturnType<typeof answered>,
+    ) => [first, second, skipped, skipped, skipped] as const;
+    const scenario: RoundResultScenario = {
+      status: "shared",
+      storedN: 2,
+      organizationN: 2,
+      eligibleMembers: 10,
+      questions: [
+        { kind: "rating", dimension: "workload" },
+        { kind: "text", dimension: null },
+      ],
+      submissions: [
+        row(answered(3, null), answered(0, "Ask Anna")),
+        row(answered(4, null), answered(0, "Ask Anna")),
+        row(answered(2, null), skipped),
+        row(answered(3, null), skipped),
+      ],
+      history: [],
+      viewer: "member",
+      themes: "ready",
+    };
+    const built = buildResult(scenario);
+    const history = buildMemberHistory({
+      rounds: [
+        {
+          roundId: ROUND,
+          teamId: TEAM,
+          teamName: "T",
+          pulseName: "P",
+          plannedOpenDate: built.stored.plannedOpenDate,
+          status: "shared",
+          questions: built.questions,
+          result: built.stored,
+          canViewResults: true,
+        },
+      ],
+      minimumGroupSize: scenario.organizationN,
+    });
+    const json: unknown = Schema.encodeSync(MemberHistory)(history);
+    const keys = keysOf(json);
+    const forbidden = keys.filter((key) =>
+      /submission|editkey|person|contributor|distribution|comments|answers|value|theme|guide/i.test(key),
+    );
+    assert.deepStrictEqual(forbidden, []);
+    assert.include(keys, "teamScore");
+    assert.isTrue(history.rounds[0]?.teamResult === "shown", "the shared Round with N answers is shown");
+  });
+});
+
+/** Every object key in a JSON value, at any depth. */
+const keysOf = (value: unknown): ReadonlyArray<string> => {
+  if (Array.isArray(value)) return value.flatMap((item: unknown) => keysOf(item));
+  if (typeof value === "object" && value !== null) {
+    return Object.entries(value).flatMap(([key, child]: [string, unknown]) => [key, ...keysOf(child)]);
+  }
+  return [];
 };

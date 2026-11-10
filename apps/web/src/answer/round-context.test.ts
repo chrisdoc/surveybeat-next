@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { message } from "../messages/index.ts";
+import { message } from "../messages/answer.ts";
 import { anonymityStatement, parseRoundContext } from "./round-context.ts";
 
 const roundContext = (overrides: Record<string, unknown> = {}) => ({

@@ -1,5 +1,5 @@
 import { execSync } from "node:child_process";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { gzipSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
@@ -45,28 +45,33 @@ describe("answer page performance budget", () => {
     );
     expect(scriptSrcMatches.length).toBeGreaterThan(0);
 
+    // Count each entry script and every chunk it imports statically; dynamic import() is off the critical path.
     const assetsDir = resolve(distDir, "assets");
+    const counted = new Set<string>();
+    const pending = scriptSrcMatches.map((src) => src.split("/").pop() ?? "");
     let criticalPathJsGz = 0;
-
-    const allAssetFiles = readdirSync(assetsDir);
-    for (const src of scriptSrcMatches) {
-      const fileName = src.split("/").pop();
-      if (fileName && fileName.endsWith(".js") && existsSync(resolve(assetsDir, fileName))) {
-        const fileContent = readFileSync(resolve(assetsDir, fileName));
-        criticalPathJsGz += gzipSync(fileContent, { level: 9 }).length;
+    while (pending.length > 0) {
+      const fileName = pending.pop() ?? "";
+      if (!fileName.endsWith(".js") || counted.has(fileName) || !existsSync(resolve(assetsDir, fileName))) {
+        continue;
+      }
+      counted.add(fileName);
+      const fileContent = readFileSync(resolve(assetsDir, fileName));
+      criticalPathJsGz += gzipSync(fileContent, { level: 9 }).length;
+      const source = fileContent.toString("utf8");
+      for (const m of source.matchAll(
+        /(?:^|[;\s}])(?:import|export)\s*(?:[^"'()]*?\bfrom\s*)?["']\.\/([^"']+\.js)["']/g,
+      )) {
+        pending.push(m[1] ?? "");
       }
     }
-
-    for (const f of allAssetFiles) {
-      if (f.startsWith("messages-") && f.endsWith(".js")) {
-        const fileContent = readFileSync(resolve(assetsDir, f));
-        criticalPathJsGz += gzipSync(fileContent, { level: 9 }).length;
-      }
-    }
+    expect(counted.size).toBeGreaterThanOrEqual(scriptSrcMatches.length);
+    // The app's full catalog must stay off the answer page's critical path.
+    expect([...counted].some((name) => name.startsWith("messages-"))).toBe(false);
 
     expect(
       criticalPathJsGz,
-      `Critical path JS (${(criticalPathJsGz / 1024).toFixed(2)} KB gzip) should be ≤ 10 KB gzip`,
+      `Critical path JS (${(criticalPathJsGz / 1024).toFixed(2)} KB gzip in ${[...counted].join(", ")}) should be ≤ 10 KB gzip`,
     ).toBeLessThanOrEqual(10 * 1024);
   });
 });

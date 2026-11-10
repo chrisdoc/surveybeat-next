@@ -7,6 +7,7 @@ import {
   Dimension,
   EmailAddress,
   Locale,
+  MemberHistory,
   MinimumGroupSize,
   NewPulseQuestion,
   NOTE_MAX_LENGTH,
@@ -56,6 +57,8 @@ import {
   teamScreenView,
   teamsScreenView,
 } from "./directory.ts";
+import { historyView, LoadedHistory } from "./history.ts";
+import { browserStorage, clearKeptAnswers, KeptAnswers, readKeptAnswers } from "./keptAnswers.ts";
 import { LoadedOverview, teamOverviewView } from "./overview.ts";
 import {
   decodeContent,
@@ -165,6 +168,8 @@ export const Model = Schema.Struct({
   // Results screen
   results: LoadedResults,
   showTable: Schema.Record(Schema.String, Schema.Boolean),
+  // History screen
+  history: LoadedHistory,
   // Actions
   actions: LoadedActions,
   actionTitle: Schema.String,
@@ -220,6 +225,10 @@ export const OutcomeTeamDetail = Schema.Union([
 ]);
 export const OutcomeTeamOverview = Schema.Union([
   Schema.TaggedStruct("Success", { overview: TeamOverview }),
+  Schema.TaggedStruct("Failure", { failure: Failure }),
+]);
+export const OutcomeMyHistory = Schema.Union([
+  Schema.TaggedStruct("Success", { history: MemberHistory, kept: KeptAnswers }),
   Schema.TaggedStruct("Failure", { failure: Failure }),
 ]);
 export const OutcomeSettings = Schema.Union([
@@ -331,6 +340,10 @@ export const Message = defineMessageUnion({
   RoundConfirmed: {},
   ResendInvitationClicked: { roundId: RoundId, personId: PersonId },
   RoundCommandDone: { outcome: OutcomeVoid },
+  // History screen
+  GotMyHistory: { outcome: OutcomeMyHistory },
+  ClearKeptAnswersClicked: {},
+  ClearedKeptAnswers: {},
   // Results screen
   GotResults: { outcome: OutcomeResults },
   ToggleResultsTable: { key: Schema.String },
@@ -789,6 +802,31 @@ export const GetResultsCmd = Command.define("GetResultsCmd", {
     ),
 });
 
+export const GetMyHistoryCmd = Command.define("GetMyHistoryCmd", {
+  messages: [Message.GotMyHistory],
+  execute: Effect.suspend(() =>
+    // The request carries nothing from this device: the kept answers are read only once the history has loaded.
+    runApi(
+      (api) => api.rounds.getMyHistory({}),
+      (history) => {
+        const storage = browserStorage();
+        const kept = storage === null ? {} : readKeptAnswers(storage, Date.now());
+        return Message.GotMyHistory({ outcome: { _tag: "Success", history, kept } });
+      },
+      (failure) => Message.GotMyHistory({ outcome: { _tag: "Failure", failure } }),
+    ),
+  ),
+});
+
+export const ClearKeptAnswersCmd = Command.define("ClearKeptAnswersCmd", {
+  messages: [Message.ClearedKeptAnswers],
+  execute: Effect.sync(() => {
+    const storage = browserStorage();
+    if (storage !== null) clearKeptAnswers(storage);
+    return Message.ClearedKeptAnswers();
+  }),
+});
+
 export const ListActionsCmd = Command.define("ListActionsCmd", {
   args: { teamId: TeamId },
   messages: [Message.GotActions],
@@ -960,6 +998,7 @@ export const initialModel = (url: Url): Model => {
     roundsFailure: Option.none(),
     results: { _tag: "Loading" },
     showTable: {},
+    history: { _tag: "Loading" },
     actions: { _tag: "Loading" },
     actionTitle: "",
     actionOwnerId: Option.none(),
@@ -981,6 +1020,8 @@ export const loadActiveRouteCommand = (route: AppRoute) => {
       return [ListTeams()];
     case "Team":
       return [GetTeam({ teamId: route.teamId }), GetTeamOverviewCmd({ teamId: route.teamId })];
+    case "History":
+      return [GetMyHistoryCmd()];
     case "Settings":
       return [GetSettings()];
     case "Pulses":
@@ -1058,6 +1099,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         route,
         teamDetail: { _tag: "Loading" },
         teamOverview: { _tag: "Loading" },
+        history: { _tag: "Loading" },
         pulses: { _tag: "Loading" },
         pulseDetail: { _tag: "Loading" },
         settings: { _tag: "Loading" },
@@ -2233,6 +2275,39 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     }
 
     // ----------------------------------------
+    // History screen
+    // ----------------------------------------
+    case "GotMyHistory": {
+      const { outcome } = message;
+      if (outcome._tag === "Success") {
+        // A response that arrives after the user has left the History screen is stale: drop it.
+        if (model.route._tag !== "History") return { model };
+        return {
+          model: {
+            ...model,
+            history: { _tag: "Loaded", history: outcome.history, kept: outcome.kept, cleared: false },
+          },
+        };
+      }
+      if (outcome.failure === "Unauthenticated") {
+        return { model, commands: [LoadSession()] };
+      }
+      return {
+        model: { ...model, history: { _tag: "Failed", failure: outcome.failure } },
+      };
+    }
+
+    case "ClearKeptAnswersClicked":
+      if (model.history._tag !== "Loaded") return { model };
+      return { model, commands: [ClearKeptAnswersCmd()] };
+
+    case "ClearedKeptAnswers":
+      if (model.history._tag !== "Loaded") return { model };
+      return {
+        model: { ...model, history: { ...model.history, kept: {}, cleared: true } },
+      };
+
+    // ----------------------------------------
     // Results screen
     // ----------------------------------------
     case "GotResults": {
@@ -2613,6 +2688,10 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
         ),
         h,
       );
+      break;
+
+    case "History":
+      screenContent = historyView(model.history, { onClear: Message.ClearKeptAnswersClicked() }, h);
       break;
 
     case "Settings":

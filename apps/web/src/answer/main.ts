@@ -1,4 +1,5 @@
-import { message } from "../messages/index.ts";
+import { message } from "../messages/answer.ts";
+import { keepAnswer } from "./kept-answers.ts";
 import { anonymityStatement, type QuestionData, parseRoundContext } from "./round-context.ts";
 
 declare global {
@@ -258,6 +259,9 @@ async function run(): Promise<void> {
         value: ratingVal,
       });
 
+      if (q1) {
+        keepAnswer(() => window.localStorage, context.roundId, q1.id, { value: ratingVal }, Date.now());
+      }
       firstSaved = true;
       // Invariant: after the first save, no request carries the token (ADR 0005)
       window.sessionStorage.removeItem("sb_token");
@@ -544,6 +548,7 @@ async function run(): Promise<void> {
       questionVersionId,
       ...body,
     });
+    keepAnswer(() => window.localStorage, context.roundId, questionVersionId, body, Date.now());
     mark("answer-save-end");
     return result;
   };

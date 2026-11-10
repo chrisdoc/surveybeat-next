@@ -62,7 +62,9 @@ import {
   type CreateAction,
   type UpdateAction,
   type ActionViewed,
+  buildMemberHistory,
   buildTeamOverview,
+  type MemberHistory,
   type TeamOverview,
   AiClient,
   buildThemesInput,
@@ -1685,6 +1687,21 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
               }),
             };
             return viewed;
+          }).pipe(Effect.orDie),
+
+        viewMemberHistory: (actorId: PersonId): Effect.Effect<MemberHistory, never, never> =>
+          Effect.gen(function* () {
+            const dirState = yield* directory.load;
+            const participated = yield* rounds.getParticipatedRounds(actorId);
+            const inputs = yield* Effect.forEach(participated, (row) =>
+              Effect.map(rounds.getRoundQuestionsDetailed(row.roundId), (questions) => ({
+                ...row,
+                questions,
+                canViewResults:
+                  authorizeRoundAction(dirState, actorId, "team.viewResults", row.teamId)._tag !== "Rejected",
+              })),
+            );
+            return buildMemberHistory({ rounds: inputs, minimumGroupSize: dirState.minimumGroupSize });
           }).pipe(Effect.orDie),
 
         listActions: (

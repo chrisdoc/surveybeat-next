@@ -130,6 +130,17 @@ const OrganizationAiRow = Schema.Struct({
   ai_processing: Schema.Int,
 });
 
+/** A Round the Person took part in, with its stored Result payload if one exists (ADR 0017). */
+const ParticipatedRoundRow = Schema.Struct({
+  id: RoundId,
+  team_id: TeamId,
+  team_name: Schema.String,
+  pulse_name: Schema.String,
+  planned_open_date: Schema.String,
+  status: RoundStatus,
+  payload: Schema.NullOr(Schema.String),
+});
+
 const PreviousRoundRow = Schema.Struct({
   opened_at: Schema.NullOr(Schema.Int),
   planned_open_at: Schema.Int,
@@ -874,6 +885,33 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
       Effect.orDie,
     );
 
+  /**
+   * The Rounds a Person took part in, newest first, from Participation records only. Never reads a
+   * Submission or an Answer: the Person's own answers never leave their browser (ADR 0017).
+   */
+  const getParticipatedRounds = (personId: PersonId) =>
+    sql`SELECT r.id, r.team_id, t.name AS team_name, r.pulse_name, r.planned_open_date, r.status, rr.payload
+        FROM participation p
+        JOIN round r ON r.id = p.round_id
+        JOIN team t ON t.id = r.team_id
+        LEFT JOIN round_result rr ON rr.round_id = r.id
+        WHERE p.person_id = ${personId}
+        ORDER BY r.planned_open_date DESC, r.id DESC`.pipe(
+      Effect.flatMap(rows(ParticipatedRoundRow)),
+      Effect.map((list) =>
+        list.map((row) => ({
+          roundId: row.id,
+          teamId: row.team_id,
+          teamName: row.team_name,
+          pulseName: row.pulse_name,
+          plannedOpenDate: row.planned_open_date,
+          status: row.status,
+          result: row.payload === null ? null : decodeRoundResultPayload(row.payload),
+        })),
+      ),
+      Effect.orDie,
+    );
+
   const getRoundMembersCount = (roundId: RoundId): Effect.Effect<number> =>
     sql<{ count: number }>`SELECT count(*) as count FROM round_member WHERE round_id = ${roundId}`.pipe(
       Effect.map((rows) => rows[0]?.count ?? 0),
@@ -1064,6 +1102,7 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
 
   return {
     getRound,
+    getParticipatedRounds,
     getRoundsForPulse,
     getRoundQuestions,
     findScheduledRound,

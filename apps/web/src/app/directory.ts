@@ -31,7 +31,7 @@ import {
   subSectionTitle,
   textField,
 } from "./components.ts";
-import { privacyHref, pulsesHref, settingsHref, teamHref, teamsHref } from "./routes.ts";
+import { historyHref, privacyHref, pulsesHref, settingsHref, teamHref, teamsHref } from "./routes.ts";
 
 export const LoadedTeams = defineTaggedUnion({
   Loading: {},
@@ -87,6 +87,7 @@ export const shellView = <Message>(
       wide,
       nav: [
         navLink(teamsHref(), message("nav.teams"), h),
+        navLink(historyHref(), message("nav.history"), h),
         organizationAdmin ? navLink(settingsHref(), message("nav.settings"), h) : null,
         navLink(privacyHref(), message("nav.privacy"), h),
       ].filter(Predicate.isNotNull),

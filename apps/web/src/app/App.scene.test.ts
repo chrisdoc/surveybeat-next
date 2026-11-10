@@ -2,6 +2,7 @@ import {
   ActionId,
   type ActionItem,
   EmailAddress,
+  type HistoryRound,
   type Locale,
   MinimumGroupSize,
   OrganizationId,
@@ -33,6 +34,7 @@ import {
   CreateOrganization,
   CreatePulse,
   CancelRoundCmd,
+  ClearKeptAnswersCmd,
   CloseRoundEarlyCmd,
   CreateTeam,
   GetRoundDetailCmd,
@@ -63,7 +65,8 @@ import {
   UpdateTeam,
   view,
 } from "./App.ts";
-import { formatDate, setLocale } from "../messages/locale.ts";
+import { formatDate, message, setLocale } from "../messages/locale.ts";
+import type { KeptAnswers } from "./keptAnswers.ts";
 import type { SessionModel } from "./session.ts";
 
 setup();
@@ -504,6 +507,183 @@ describe("App Scenes", () => {
         expect(result.model.teamOverview).toEqual({ _tag: "Loading" });
         expect(result.commands?.map((command) => command.name)).toEqual(["GetTeam", "GetTeamOverviewCmd"]);
       });
+    });
+  });
+
+  describe("History screen", () => {
+    const historyUrl = makeUrl("https://app.surveybeat.com/history");
+    const teamId = decodeTeamId("team-1");
+    const roundA = Schema.decodeSync(RoundId)("round-a");
+    const roundB = Schema.decodeSync(RoundId)("round-b");
+    const roundC = Schema.decodeSync(RoundId)("round-c");
+    const ratingVersion = decodeVersionId("qv-rating");
+    const choiceVersion = decodeVersionId("qv-choice");
+    const longVersion = decodeVersionId("qv-long");
+
+    const shownRound: HistoryRound = {
+      roundId: roundA,
+      teamId,
+      teamName: "Platform",
+      pulseName: "Weekly check-in",
+      plannedOpenDate: "2026-11-02",
+      teamResult: "shown",
+      questions: [
+        {
+          questionVersionId: ratingVersion,
+          position: 1,
+          text: "How clear are the priorities?",
+          type: { _tag: "Rating", lowLabel: "Unclear", highLabel: "Clear", comment: true },
+          teamScore: 3.8,
+        },
+        {
+          questionVersionId: choiceVersion,
+          position: 2,
+          text: "Which tool do you use most?",
+          type: { _tag: "SingleChoice", options: ["Email", "Chat"] },
+          teamScore: null,
+        },
+        {
+          questionVersionId: longVersion,
+          position: 3,
+          text: "Anything else?",
+          type: { _tag: "LongText" },
+          teamScore: null,
+        },
+      ],
+    };
+
+    const soloRound = (
+      roundId: RoundId,
+      pulseName: string,
+      teamResult: HistoryRound["teamResult"],
+    ): HistoryRound => ({
+      roundId,
+      teamId,
+      teamName: "Platform",
+      pulseName,
+      plannedOpenDate: "2026-10-26",
+      teamResult,
+      questions: [
+        {
+          questionVersionId: ratingVersion,
+          position: 1,
+          text: "How clear are the priorities?",
+          type: { _tag: "Rating", lowLabel: "Unclear", highLabel: "Clear", comment: false },
+          teamScore: null,
+        },
+      ],
+    });
+
+    // The kept answers this device holds for shownRound: a Rating with a comment, a choice, and a long text.
+    const kept = {
+      "round-a": {
+        "qv-rating": { value: 4, comment: "Priorities keep changing" },
+        "qv-choice": { value: 1 },
+        "qv-long": { comment: "Nothing more" },
+      },
+    };
+
+    const loaded = (rounds: ReadonlyArray<HistoryRound>, keptAnswers: KeptAnswers, cleared = false) => ({
+      ...initialModel(historyUrl),
+      session: signedInAdmin,
+      history: {
+        _tag: "Loaded" as const,
+        history: { rounds },
+        kept: keptAnswers,
+        cleared,
+      },
+    });
+
+    it("loads the history when the screen opens", () => {
+      const result = update(
+        { ...initialModel(makeUrl("https://app.surveybeat.com/teams")), session: signedInAdmin },
+        Message.UrlChanged({ url: historyUrl }),
+      );
+      expect(result.model.history).toEqual({ _tag: "Loading" });
+      expect(result.commands?.map((command) => command.name)).toEqual(["GetMyHistoryCmd"]);
+    });
+
+    it("ignores a history response after the user has left the screen", () => {
+      const model = { ...initialModel(makeUrl("https://app.surveybeat.com/teams")), session: signedInAdmin };
+      const stale = update(
+        model,
+        Message.GotMyHistory({ outcome: { _tag: "Success", history: { rounds: [shownRound] }, kept } }),
+      );
+      expect(stale.model.history).toEqual({ _tag: "Loading" });
+    });
+
+    it("shows the member's own answers beside the Team's score", () => {
+      const meta = message("history.round.meta", {
+        team: "Platform",
+        date: formatDate(new Date("2026-11-02T12:00:00Z")),
+      });
+      Scene.scene(
+        { update, view },
+        Scene.given(loaded([shownRound], kept)),
+        Scene.expect(Scene.role("heading", { name: "Weekly check-in" })).toExist(),
+        Scene.expect(Scene.text(meta)).toExist(),
+        Scene.expect(Scene.text("4 · Good")).toExist(),
+        Scene.expect(Scene.text("3.8 of 5")).toExist(),
+        Scene.expect(Scene.text("Your comment: Priorities keep changing")).toExist(),
+        Scene.expect(Scene.text("Chat")).toExist(),
+        Scene.expect(Scene.text("Nothing more")).toExist(),
+        Scene.expect(Scene.text(message("history.noAnswersHere"))).toBeAbsent(),
+        Scene.expect(Scene.role("button", { name: "Clear my answers on this device" })).toExist(),
+      );
+    });
+
+    it("says so when no Round's answers are on this device", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given(loaded([soloRound(roundB, "Monthly pulse", "shown")], {})),
+        Scene.expect(Scene.text(message("history.noAnswersHere"))).toExist(),
+        Scene.expect(Scene.text("Not on this device")).toExist(),
+        Scene.expect(Scene.role("button", { name: "Clear my answers on this device" })).toBeAbsent(),
+      );
+    });
+
+    it("shows the team result line and no score when the Team's scores are not shared or too few", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given(
+          loaded(
+            [
+              soloRound(roundB, "Monthly pulse", "notShared"),
+              soloRound(roundC, "Quarterly pulse", "belowMinimumGroupSize"),
+            ],
+            {},
+          ),
+        ),
+        Scene.expect(Scene.text(message("history.team.notShared"))).toExist(),
+        Scene.expect(Scene.text(message("history.team.belowMinimum"))).toExist(),
+        Scene.expect(Scene.text(message("history.team.hidden"))).toBeAbsent(),
+      );
+    });
+
+    it("clears the kept answers when asked and says so", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given(loaded([shownRound], kept)),
+        Scene.click(Scene.role("button", { name: "Clear my answers on this device" })),
+        Scene.Command.expectHas(ClearKeptAnswersCmd),
+        Scene.Command.resolve(ClearKeptAnswersCmd, Message.ClearedKeptAnswers()),
+        Scene.expect(Scene.text(message("history.cleared"))).toExist(),
+        Scene.expect(Scene.text("Chat")).toBeAbsent(),
+        Scene.expect(Scene.text("Priorities keep changing")).toBeAbsent(),
+        Scene.expect(Scene.role("button", { name: "Clear my answers on this device" })).toBeAbsent(),
+      );
+    });
+
+    it("links to My history from the navigation", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(makeUrl("https://app.surveybeat.com/teams")),
+          session: signedInAdmin,
+          teams: { _tag: "Loaded", teams: [] },
+        }),
+        Scene.expect(Scene.role("link", { name: "My history" })).toExist(),
+      );
     });
   });
 
