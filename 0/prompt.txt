@@ -1,0 +1,35 @@
+Act as the implementation sub-agent for this task.
+
+You orchestrate issue #147 ("Show email send outcomes: test-send status and a failed-emails view") in chrisdoc/surveybeat-next. URGENT: the product owner's first real test email never arrived on production and we need the reason. THIS TASK EXPLICITLY ASKS YOU TO USE SUBAGENTS: `implementer` (model "haiku") writes code, `reviewer` (model "sonnet") reviews each diff; you investigate, write briefs, check diffs, run suites (follow ~/.claude/CLAUDE.md). One implementer at a time; do git/GitHub steps yourself.
+
+Read `gh issue view 147` (facts and acceptance criteria), ADR 0021 (test invitations), docs/infra.md "Send states" (pending → sending → sent | failed(reason), lease, queue retries, DLQ → abandoned), packages/cloudflare/src/EmailDelivery.ts, CloudflareEmailSender.ts, Email.ts, the Organization DO send store (email_send table), and how "Send me a test" enqueues (Organization.ts sendTestInvitation, PR #144).
+
+Step 1 — investigate the root cause yourself while reading: is the test send actually enqueued on the Email queue in production (producer path), does the consumer reach the send store, and what could fail silently (binding, payload decode, queue message schema mismatch between producer and consumer, a missing provide)? Write down the most likely cause with code references. If you find a definite bug, fix it in this PR too (with a test that fails before the fix).
+
+Step 2 — build the visibility from #147: test-send live state in the Pulse editor (poll a small Lead/admin-only endpoint for that test send until it settles), and an Organization-admin "Failed emails" list (last 50 failed sends: kind, recipient, reason code, time; no body, no token). Show "still queued after N minutes" when a send never leaves pending. English and German copy. Endpoints classified in packages/api/src/PrivacyRegistry.ts. Tests for each state.
+
+Workflow: branch `polish-147-email-outcomes` from origin/main. Validation: pnpm typecheck, pnpm typecheck:effect, pnpm lint, pnpm format:check, pnpm test, pnpm test:privacy, web build + answer budget test, and Email.test.ts / Organization.test.ts workerd files singly. Commit subject "Show email send outcomes (test status, failed emails)", message ending "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"; PR "Closes #147. Part of #137.", body ending "🤖 Generated with [Claude Code](https://claude.com/claude-code)", and state the root-cause findings in the PR body. Push (retry once if rejected without reason). If you can wait on checks, squash-merge when green (user-authorized); otherwise report pending. Never revert others' merged work.
+
+Final report (≤ 10 lines): root-cause findings (likely cause + evidence), any bug fixed, what was built, reviewer findings, tests, PR URL, merge SHA or pending.
+
+---
+
+New evidence for step 1: a direct `cf email-sending send` from team@notify.surveybeat.app to the product owner's Gmail was accepted AND delivered to the inbox (2026-11-10 ~20:06 CET). So the Cloudflare account, sending subdomain, DNS/auth and Gmail are all fine; the failure is inside the app's delivery path (enqueue, Email queue consumer, send store, or the send_email binding call from the Worker). Prioritize finding and fixing that root cause; the visibility work comes second.
+
+---
+
+Continue where you left off.
+
+---
+
+<task-notification>
+<task-id>a5f94bd838b4b064f</task-id>
+<tool-use-id>toolu_01NDDPMvmm556vUgkJ3YaPwd</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-f9f3651c-64cfa65433ce752f/778d175a-c84d-4db0-9cc0-9b29e3c23b51/tasks/a5f94bd838b4b064f.output</output-file>
+<status>completed</status>
+<summary>Agent "Scope #147 visibility UI/API" stopped at its 12-turn limit (partial result; SendMessage to task-id to continue)</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>NOTE: this agent stopped at its 12-turn limit before finishing. It was still calling tools and had produced no report. Send the agent a message (SendMessage) to let it continue from where it stopped.
+</result>
+<usage><subagent_tokens>55887</subagent_tokens><tool_uses>15</tool_uses><duration_ms>34251</duration_ms></usage>
+</task-notification>
