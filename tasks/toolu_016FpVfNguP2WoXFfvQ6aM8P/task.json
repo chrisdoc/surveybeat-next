@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_016FpVfNguP2WoXFfvQ6aM8P",
+  "agent_id": "a43094502d7982cd5",
+  "subagent_type": "scoper",
+  "task_description": "Scope issue 108 history page",
+  "files": [
+    "apps/web/src/messages/answer.ts"
+  ],
+  "token_usage": {
+    "input_tokens": 30,
+    "cache_creation_tokens": 112568,
+    "cache_read_tokens": 825822,
+    "output_tokens": 14657,
+    "api_call_count": 14
+  },
+  "started_at": "2026-11-10T09:17:35.883190484Z",
+  "completed_at": "2026-11-10T09:19:23.198916266Z"
+}

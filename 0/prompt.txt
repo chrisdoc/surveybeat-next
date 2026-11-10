@@ -1,0 +1,123 @@
+Act as the implementation sub-agent for this task.
+
+You orchestrate Release 2 slice #108 ("R2 07: Member's private history page") in chrisdoc/surveybeat-next. You are the Opus orchestrator; THIS TASK EXPLICITLY ASKS YOU TO USE SUBAGENTS: `scoper` (model "haiku"), `implementer` (model "haiku") writes all code, `reviewer` (model "sonnet") reviews each implementer diff. Follow ~/.claude/CLAUDE.md: scope → you write the plan and small, exact, file-owned briefs → implementer → reviewer → you check the diff yourself and run the full suite. This slice is privacy-sensitive: design the storage and endpoint yourself; the implementer executes.
+
+Read first: `gh issue view 108`, map #85 (decision on #90), docs/adr/0017-member-history-from-the-browser.md, docs/adr/0005-anonymous-submission-storage.md (invariants A1–A10), ADR 0004, ADR 0008 (answer page budget: critical JS ≤ 10 KB gzip; currently ~9.45 KB — every byte counts; measure with `pnpm --filter @surveybeat/web build && pnpm test apps/web/src/answer/budget.test.ts`), AGENTS.md. The answer page is served from the app origin (`{app}/a#t=…`), so its localStorage is readable by the app.
+
+Decisions (don't relitigate): when the answer page saves a Submission it also keeps the member's answers in localStorage next to the Edit key, keyed by Round, for one year (store an expiry; prune expired entries on read); a "My history" page in the app lists the Rounds the member took part in from their Participation records (new authenticated endpoint returning Round id, Team, Pulse name, date, and the Team's shared scores only when the Result is Shared and the aggregate meets N — classify it in packages/api/src/PrivacyRegistry.ts and cover it in registry.privacy.test.ts); for each Round it shows the member's stored answer beside the Team's score; a "Clear my answers on this device" button; a new device shows Rounds without answers and says why; the server never receives which Submission is the member's (no Submission id, Edit key, or answer ever goes to the history endpoint — add a privacy test). Comments stay in the browser as typed. If the answer-page budget can't absorb the storage code, put the minimal write in the answer page and keep reading/pruning in the app. Copy in the catalog (and German `de.ts` if it exists on main by then, informal "du").
+
+Workflow: branch `r2-108-history` from origin/main. Validation: pnpm typecheck, pnpm typecheck:effect, pnpm lint, pnpm format:check, pnpm test, pnpm test:privacy, web build + budget test (report sizes). Commit (subject "R2 07: Member's private history page", end with "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"), push (retry once if rejected without reason), PR against main with "Closes #108. Part of #101.", summary, verification, body ending with "🤖 Generated with [Claude Code](https://claude.com/claude-code)" (restore attribution if the shipper drops it). Wait for checks (`gh pr checks <n> --watch`), fix failures, then squash-merge your own PR (user-authorized): `gh pr merge <n> --squash --delete-branch`. Others work in parallel on #103, #105, #109 (PR #113); on conflicts rebase on origin/main keeping both sides, re-run tests, force-push only your branch.
+
+Final report (≤ 10 lines): what was built, budget numbers, deviations, reviewer findings and handling, test counts, PR URL, merge SHA.
+
+---
+
+<task-notification>
+<task-id>a43094502d7982cd5</task-id>
+<tool-use-id>toolu_016FpVfNguP2WoXFfvQ6aM8P</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-340cd7f1-8cfb40b367d1df77/a17d6eaf-e8ab-41a2-bd05-2fe91b6d8f54/tasks/a43094502d7982cd5.output</output-file>
+<status>completed</status>
+<summary>Agent "Scope issue 108 history page" stopped at its 12-turn limit (partial result; SendMessage to task-id to continue)</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>NOTE: this agent stopped at its 12-turn limit before finishing. The text below is PARTIAL output; treat it as incomplete. Send the agent a message (SendMessage) to let it continue from where it stopped.
+
+Now the Organization DO view methods and the SQL repository functions.</result>
+<usage><subagent_tokens>108600</subagent_tokens><tool_uses>23</tool_uses><duration_ms>53668</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>a43094502d7982cd5</task-id>
+<tool-use-id>toolu_01C9JTx2azjtZRnjdeHJrtV1</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-340cd7f1-8cfb40b367d1df77/a17d6eaf-e8ab-41a2-bd05-2fe91b6d8f54/tasks/a43094502d7982cd5.output</output-file>
+<status>completed</status>
+<summary>Agent "Scope issue 108 history page" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>## Scoping report for issue #108 (items 2–7)
+
+**This task is complex.** It touches more than one subsystem (answer page, Organization DO, API, privacy registry, web app). It adds a new authenticated endpoint that returns Result-derived data, so it is a published API change. Its privacy tests and minimum-group-size rules are release blockers. The parent should check the brief closely, and should read `Organization.ts` around `viewResults` and `SqlRounds.ts` `recordFirstAnswer` directly.
+
+### 2. Participation records (Organization DO)
+
+- Table `participation (round_id, person_id)`, WITHOUT ROWID, PK (round_id, person_id). Created in `packages/cloudflare/migrations/0007_invitations.sql` (last block). The `submission` table has no person column (`0008_submissions.sql`).
+- Written in `recordFirstAnswer`, inside the transaction, at `packages/cloudflare/src/SqlRounds.ts:637`. Insert happens after the `hasAnswered` check at `:631`.
+- `recordParticipation` is defined at `SqlRounds.ts:589` (ON CONFLICT DO NOTHING). I did not confirm whether anything calls it.
+- Existing readers: `hasAnswered` (`SqlRounds.ts:569-574`, per Round and Person); `deleteParticipationForPerson` (`:586`). `round_member` (`0006_rounds.sql`, index `round_member_by_person`) holds eligibility, not participation.
+- **No query lists Rounds for a Person.** A new query would join `participation` to `round` (columns: `pulse_name`, `planned_open_date`, `status`, `team_id`, `pulse_id`). It would go in `SqlRounds.ts`, be exposed via `Organization.ts` (the DO method block near `:1834-1880`), and be called from a handler.
+- `packages/cloudflare/src/SubmissionWorker.privacy.test.ts:64` and `Submissions.privacy.test.ts:208` already assert the participation rows; reuse those patterns.
+
+### 3. Results sharing and N-gated aggregates
+
+- A Round is Shared when `round.status = 'shared'`. Set by `markRoundReadyAndShared` (`SqlRounds.ts:336-340`), called from the compute path in `Organization.ts:810-857`. The Result is stored in `round_result` (`0009_results.sql`), read by `getRoundResult` (`SqlRounds.ts:842`).
+- Per-Round team scores come from `calculateRoundResult` (`packages/domain/src/rounds/Results.ts:345`). It returns `RoundResult` (`Results.ts:126-147`), which has `questions: QuestionResult[]` (`:80-94`, with `score`, `distribution`, `contributors`, `meetsMinimumGroupSize`) and `dimensions: DimensionResult[]` (`:97-113`, `score`, `contributors`, `meetsMinimumGroupSize`).
+- The N gate is `enforceEffectiveNOnResult(result, currentOrgN)` (`Results.ts:956`). The effective N is `max(storedN, orgN)`. `Organization.ts:~1476` applies it on read and strips comments for non-Leads (`:1480-1486`).
+- Read path: `viewResults` in `Organization.ts` (about `:1395-1490`). It authorizes with `authorizeRoundAction`, then returns the stored or computed Result.
+- Team-wide shared Results: `getSharedRoundResultsForTeam` (`SqlRounds.ts:852-858`, `status = 'shared'`, ordered by `planned_open_at`). Team health: `buildTeamOverview` (`packages/domain/src/rounds/TeamOverview.ts:62-111`). Its per-Dimension gated point is `pointScore` (`TeamOverview.ts:50-55`).
+- The "PastRounds" logic is `getPastRoundsResultsForPulse` (`SqlRounds.ts:952-980`, last 12 Rounds).
+
+### 4. API and privacy registry
+
+- No `/me` endpoint. The Person id comes from `auth.session` (`packages/api/src/index.ts`, AuthApiGroup at `:66-92`; `PrivacyRegistry.ts:94-96`).
+- Closest shape for "list my Rounds": `rounds.listRounds` (`index.ts:285`, `/teams/:teamId/pulses/:pulseId/rounds`, `RoundList`, `roundErrors` at `:265`). A caller-scoped no-param shape is `directory.listTeams` (`index.ts:132`). Groups use `HttpApiGroup.make(...).add(...).prefix("/api")`.
+- Registry: `packages/api/src/PrivacyRegistry.ts`. Each key is `group.endpoint` with `{ _tag: "NoResultData", why }` or `{ _tag: "ResultData", inputs }`. Result-bearing endpoints need an `inputs` generator (`roundResultScenarios`, `:74`).
+- `packages/api/src/registry.privacy.test.ts`: `resultResponders` (`:201-204`) must have one entry per `ResultData` key (check at `:50-57`). A history endpoint that returns Team scores must be `ResultData`, with a responder that checks no score below N (use `violations`/`overviewViolations`, `:255`, `:284`).
+- Handlers: `packages/cloudflare/src/RoundHandlers.ts` (`HttpApiBuilder.group(SurveyBeatApi, "rounds", ...)`, pattern at `:30-37`, `:126-132`). Wired in `MainWorker.ts:250-258`.
+
+### 5. Web app
+
+- Routes: `apps/web/src/app/routes.ts`. `AppRoute` union at `:15-25`. Each route has a router (`:28-63`), an `appRouter` `oneOf` list (`:65-74`), and an href helper (`:77-85`). A new `History: {}` route needs an entry in all three.
+- App shell: `apps/web/src/app/App.ts`. Messages and Commands: `GetTeamOverviewCmd` (`:387-394`). Route-driven init: `:887`. `GotTeamOverview` case: `:2028`. View: `teamOverviewView` at `:2326`. Model fields such as `teamOverview: { _tag: "Loading" }` (`:814`, `:953`).
+- Page pattern to copy: `apps/web/src/app/overview.ts`. It uses `defineTaggedUnion` (`LoadedOverview`, `:10-14`), `Failure` from `api.ts`, and `message()`. `api.ts` builds an `HttpApiClient` (`:1-5`).
+- Scene tests: `apps/web/src/app/App.scene.test.ts` (1326 lines), using `foldkit/scene` and `foldkit/test/vitest`. `App.story.test.ts` exists too.
+- Messages: `apps/web/src/messages/` contains `catalog.ts`, `index.ts`, `messages.test.ts`. **There is no `de.ts`.** New copy goes into `catalog.ts`. Plurals use `.one`/`.other`.
+- Nav: I did not confirm where the nav links are rendered. Assumption: they are in `App.ts`'s view, near `:2326`.
+
+### 6. Answer-page tests and budget
+
+- `apps/web/src/answer/budget.test.ts` (checks `apps/web/dist/answer.html`, builds if missing):
+  - HTML ≤ 8 KB raw and gzip (`:23-30`)
+  - inline `&lt;style&gt;` ≤ 2 KB gzip (`:32-40`)
+  - critical-path JS ≤ 10 KB gzip, including `messages-*.js` (`:42-70`)
+- `apps/web/src/answer/round-context.test.ts`: `parseRoundContext` and `anonymityStatement` tests, with a `roundContext()` fixture (`:5-15`).
+- Storage and expiry logic for the answer page has no test yet. A pure helper module under `apps/web/src/answer/` would fit the existing unit-test style.
+- Current sizes are not measured. `apps/web/dist/answer.html` did not exist when I checked.
+
+### 7. Handler wiring and test files to copy
+
+- `packages/cloudflare/src/TeamOverviewApi.test.ts`: `SignInWorld` and `Browser` from `auth/testing.ts`. Sets up an Organization, a Team, a Lead, and members. Tests status codes per role (`:1-45`). Copy this for the history endpoint's authorization tests.
+- Other handler tests: `PulsesApi.test.ts`, `ActionsApi.test.ts`, `DirectoryApi.test.ts`.
+- Result-level tests: `ResultsStorage.test.ts`, `PastRounds.test.ts`, `SubmissionRoundContext.test.ts`.
+
+### Things the parent should decide or check
+
+1. **An existing server path already returns a member's answers from an edit key.** `POST /my-answers` (`packages/cloudflare/src/SubmissionWorker.ts:247-280`, `Organization.ts:1878`, `SqlRounds.ts:703`) returns the answers for an edit key. I found no caller in `apps/` or `packages/`. ADR 0017 says the server should not hold the member's answers in a way it can link. Decide whether this endpoint is reused, removed, or left alone.
+2. The new endpoint must not return the Submission id or any answer. It should only return Round metadata plus Team Results gated by N. Decide whether Team scores come from `viewResults` (per Round) or from `getSharedRoundResultsForTeam`.
+3. Authorization after leaving a Team: a Person's old `participation` row survives Membership end. Decide whether history shows Rounds from ended Memberships.
+4. The `/auth/session` response is the only source of the caller's Person id. The new endpoint should use `currentMember` like the other handlers.
+
+### Possible split (facts only)
+
+- **Slice A, answer page (no server dependency):** `apps/web/src/answer/main.ts` (`doFirstSave` `:243-279`, `saveAnswer` `:536-549`), plus a new helper module and unit test. Also the budget check in `budget.test.ts`.
+- **Slice B, server (depends on nothing):** `packages/api/src/index.ts`, `PrivacyRegistry.ts`, `registry.privacy.test.ts`, `RoundHandlers.ts`, `SqlRounds.ts`, `Organization.ts`, a new `*Api.test.ts`, and the privacy test.
+- **Slice C, web page (depends on B's endpoint schema, and on A for the stored-answers helper):** `routes.ts`, `App.ts`, a new page module, `messages/catalog.ts`, scene tests.
+
+Slices B and C share the endpoint schema in `packages/api`. The domain query and response shape must land before C.</result>
+<usage><subagent_tokens>121310</subagent_tokens><tool_uses>24</tool_uses><duration_ms>107707</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>a79505ed96e6a9761</task-id>
+<tool-use-id>toolu_01EQ25inz42W1c7BTKeajdYz</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-340cd7f1-8cfb40b367d1df77/a17d6eaf-e8ab-41a2-bd05-2fe91b6d8f54/tasks/a79505ed96e6a9761.output</output-file>
+<status>failed</status>
+<summary>Agent "Slice B: history endpoint server" failed: Agent terminated early due to an API error: You've hit your 5-hour limit · resets 11:10am (UTC) (error type rate_limit, HTTP 429, request id req_011Cgu1VsYPXLsFVXunbzXxQ, model sent to the API: claude-haiku-5-5)</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once. This agent's work so far is saved. The limit resets at 11:10am (UTC). Once its requests are accepted again, send the agent a message (SendMessage) to let it continue from where it stopped instead of starting a new agent.</note>
+<result>Now the API layer: the RoundsApiGroup, the privacy registry, and its test.</result>
+</task-notification>
+
+---
+
+You stopped on an API rate limit. Continue where you left off on #108. Note: main has moved — #113 (German: `de.ts` catalogs, `messagesFor(locale)`, migration 0012) and #114 (Team overview) merged; rebase on origin/main before finishing and add German strings for your new catalog keys (informal "du"). Keep subagent use lean (one implementer piece at a time) to stay under the rate limit.
