@@ -1,0 +1,182 @@
+Act as the implementation sub-agent for this task.
+
+You orchestrate Release 2 slice #106 ("R2 05: Review window (delayed sharing)") in chrisdoc/surveybeat-next. You are the Opus orchestrator; THIS TASK EXPLICITLY ASKS YOU TO USE SUBAGENTS: `scoper` (model "haiku"), `implementer` (model "haiku") writes all code, `reviewer` (model "sonnet") reviews each implementer diff. Follow ~/.claude/CLAUDE.md: scope → you write the plan and small, exact, file-owned briefs → implementer → reviewer → you check the diff and run the full suite. This is a state-machine change in the Round lifecycle: design the transitions and alarm handling yourself; the implementer executes. Keep subagent use lean (one implementer at a time) — the account recently hit API rate limits.
+
+Read first: `gh issue view 106`, map #85 (decision on #89), GLOSSARY.md "Review window", ADR 0006 (Organization DO owns the Round lifecycle, one alarm, schedule table; alarms can run twice), ADR 0004, ADR 0016 (themes never block sharing), AGENTS.md. Round states already include Ready and Shared (R1 moves Ready straight to Shared). Themes computation from #103/PR #115 is scheduled after close — don't make sharing wait for it.
+
+Decisions (don't relitigate): Pulse setting "Review window" 0–7 days, default 3, in the Pulse editor (0 keeps R1 behaviour: share at once). After close: Ready during the window; Shared after. The Lead's "Share with the team" (Results page, Lead only) moves it at once; the alarm shares it when the window ends; the Lead can't extend or withhold. Members during the window see "Your Lead is reviewing these Results. They'll be shared by {date}." and no scores, themes, or Note. Results-ready email: to the Lead at close, to members at share. The window length is copied to the Round at close (changing the Pulse later doesn't move an existing Round's deadline). Copy in English and German (`de.ts`, informal "du"). Idempotent under a doubled alarm and a doubled click. Privacy test: no Result data reaches a member before Shared (extend the registry/property tests). New migration takes the next free number (0013 is taken by themes; check main).
+
+Workflow: branch `r2-106-review-window` from origin/main. Validation: pnpm typecheck, pnpm typecheck:effect, pnpm lint, pnpm format:check, pnpm test, pnpm test:privacy, pnpm --filter @surveybeat/web build; run the relevant workerd adapter test files singly if you touch the DO. Commit (subject "R2 05: Review window (delayed sharing)", end with "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"), push (retry once if rejected without reason), PR with "Closes #106. Part of #101.", summary, verification, body ending "🤖 Generated with [Claude Code](https://claude.com/claude-code)" (restore attribution if the shipper drops it). Wait for checks (`gh pr checks <n> --watch`), fix failures, squash-merge your own PR (user-authorized): `gh pr merge <n> --squash --delete-branch`. Others in parallel: #104 (themes UI on results.ts), #105 (Note), #108 (history page) — expect conflicts in results.ts, catalogs, Organization.ts; rebase keeping both sides; force-push only your branch.
+
+Final report (≤ 10 lines): states/transitions as built, deviations, reviewer findings and handling, test counts, PR URL, merge SHA.
+
+---
+
+<task-notification>
+<task-id>a04f5f895762e6d86</task-id>
+<tool-use-id>toolu_01NKqTN5UCQrJMpc4h6Aqp7x</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-48bd5b76-065b7694103e9b2b/21c34a61-1e08-4c0f-8e7f-052751c1230d/tasks/a04f5f895762e6d86.output</output-file>
+<status>completed</status>
+<summary>Agent "Review backend review-window diff" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>**Verdict: no BLOCKER and no MAJOR defects in the implementation. There are two test-coverage gaps (MAJOR/MINOR) and a few minor notes.**
+
+I read the full diff against the brief and ran these:
+- `pnpm test:privacy`: 97 tests pass.
+- `pnpm test packages/domain` plus `RoundThemesStorage.test.ts`: 421 tests pass.
+- `pnpm lint` and `pnpm format:check`: clean.
+
+I did not run the workerd file `Organization.test.ts`, which is slow. Its review-window test is only read, not executed.
+
+**Your focus areas**
+
+1. **State machine.** Every transition is guarded.
+   - `markRoundReady` (`SqlRounds.ts:356`) only updates `status='closed'`.
+   - `shareRound` (`SqlRounds.ts:361`) only updates `status='ready'` and returns `RETURNING`.
+   - A doubled alarm is safe: `executeShareJob` returns unless the job is pending, and `shareResults` is a no-op unless the Round is ready.
+   - A doubled click is safe: the second `ShareResults` hits the `shared` branch in `Organization.ts` (~1440) and returns Accepted.
+   - A compute retry is safe: `markRoundReady` is a no-op, send and share jobs use `ON CONFLICT DO NOTHING`, and `shareResults` is a no-op when the Round is already shared.
+   - `CloseRoundEarly` computes `reviewEndsAt` the same way as the close job.
+
+2. **Member access before Shared.** I found no leak.
+   - `viewRoundResult` is the single gate, and `viewResults` passes the current Round row. That includes the in-place compute path.
+   - `getSharedRoundResultsForTeam` (the team overview) filters on `r.status='shared'`.
+   - `RoundDetail` carries no Result data.
+   - Emails go to leads only until the Round is shared. The member emails are scheduled inside `shareResults`, after `shareRound` succeeds, so the `executeSendJob` ready|shared guard passes.
+   - The trend history query includes `ready` Rounds, but the cascade in `shareResults` shares earlier Ready Rounds together with a later one. That covers the leak the brief anticipated.
+
+3. **Migration 0014.** It is correct. The `schedule_job` rebuild mirrors 0013, and `ADD COLUMN ... NOT NULL DEFAULT 3 CHECK` is legal in SQLite. The node:sqlite test proves row preservation, the `share` type, both indexes, the default of 3, the CHECK on 8, and a null `review_ends_at`.
+
+4. **Test coverage.** Window 0, manual share, automatic share, alarm twice (`runScheduleJob` twice plus `runDueJobs`), and member Forbidden and admin Forbidden are all asserted. The member-before-Shared invariant is enforced in the property-based `violations` check and in an explicit ready-Round test. I don't see any weakened expectations. Existing lifecycle tests were set to window 0 rather than changed.
+
+5. **AGENTS.md.** No `as` casts outside tests, Effect 4 import style is kept, and glossary terms are used.
+
+**Findings**
+
+1. MAJOR (test gap): the cascade is untested. `Organization.ts:~905-915`, the `[...earlier, roundId]` loop in `shareResults`, is the mechanism that stops a later Round's trend from exposing an earlier Ready Round's scores.
+   - Neither `ReviewWindowTestRoutes.ts` nor any unit test builds two Ready Rounds of one Pulse.
+   - A regression there, for example changing `&lt;` to `&lt;=`, dropping the loop, or shortening the share job's cancellation, would pass every current test.
+   - Fix: add a scenario with Round A ready and Round B ready, then share B. Assert that A becomes `shared`, A's share job is cancelled, and A has exactly one results-ready job per member.
+
+2. MINOR (test gap): there is no `CloseRoundEarly` case with window &gt; 0. Early close has its own `closeRound` call (`Organization.ts:~1401`). A wrong `reviewEndsAt` there, for example if `reviewEndsAtOf` were dropped, would go unnoticed. Add a short assertion in the review scenario that closes early and checks the Round is ready with a share job at close time plus the window.
+
+3. MINOR (edge case): `shareResults` schedules member emails to Persons who hold the `member` role at share time. A Person who was a member at close and promoted to lead before share never gets a results-ready email. They didn't get the lead email at close, and `activePersonsWithRole("member")` at share skips them. The fix is optional: send members' emails to active members and leads who have no results-ready job yet. This is a low-probability product edge.
+
+4. MINOR (pre-existing): the `viewResults` in-place compute path (`Organization.ts:~1713`) saves a `round_result` for a `closed` Round that has no stored result. That row enters later Rounds' history while the Round is neither `ready` nor covered by the cascade. This only happens after the compute job has failed three times, which is rare. It is not caused by this diff, but you could limit the cascade or history query to `ready|shared`. Note that in this path the Round stays `closed` indefinitely, so the Review window never starts.</result>
+<usage><subagent_tokens>71645</subagent_tokens><tool_uses>12</tool_uses><duration_ms>207103</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>a64cf1eaacc663c1b</task-id>
+<tool-use-id>toolu_01U4vmLcpunFnGUS1P9ZrB39</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-48bd5b76-065b7694103e9b2b/21c34a61-1e08-4c0f-8e7f-052751c1230d/tasks/a64cf1eaacc663c1b.output</output-file>
+<status>completed</status>
+<summary>Agent "Implement review window web UI" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>The web UI for the review window is implemented under `apps/web/` and every validation command in the brief passes. I did not commit or run any git write commands.
+
+## Changes
+
+- `apps/web/src/messages/catalog.ts` and `apps/web/src/messages/de.ts`: added the 10 keys from the brief (`pulse.settings.reviewWindow*`, `results.review.*`) in the same order in both files.
+- `apps/web/src/app/pulses.ts`: added `REVIEW_WINDOWS` (0 uses `reviewWindow.none`, 1–7 use `pulse.settings.days`). Added the `pulse-setting-review-window` select after the reminders select, plus its help line. Added `settingsReviewWindow` and `onSettingsReviewWindowChange` to the view's state and actions.
+- `apps/web/src/app/results.ts`:
+  - `resultsScreenView` takes `shareBusy`, `shareFailure` and `onShareResults`.
+  - `isLead` and `roster` moved above the summary so the new checks can use them.
+  - Lead on a "ready" Result gets a panel with the title, the date body (skipped without `reviewEndsAt`), a share button that shows "Sharing…" and is disabled while busy, and the failure alert.
+  - Member on a "closed" or "ready" Result, not delayed: the summary is skipped, and the view returns a single notice panel plus the Actions section.
+- `apps/web/src/app/App.ts`:
+  - Model fields `shareBusy` and `shareFailure`, both initialised and reset on route change.
+  - Messages `ShareResultsClicked` and `ResultsShareDone`.
+  - `ShareResultsCmd`, mirroring `CloseRoundEarlyCmd`.
+  - Success re-runs `GetResultsCmd` for the current route; failure stores the failure.
+  - `SettingsReviewWindowChanged` sets `settingsReviewWindow` and clears `settingsSaved`.
+  - The view wires the new state and callbacks.
+- `apps/web/src/app/App.scene.test.ts`:
+  - New `Review window` describe with three tests: the Lead shares a ready Result and the results reload; a failed share shows the alert; a Member sees the notice and no summary or share button.
+  - The Pulse editor test now checks the select, changes it to 0, and asserts the `UpdatePulseSettingsCmd` arguments, including `reviewWindowDays: 0`.
+  - Three existing Results tests that expect Lead content now set a Lead `teamDetail` fixture.
+
+## Validation
+
+- `pnpm typecheck`: exit 0.
+- `pnpm typecheck:effect`: exit 0. It printed only suggestions in backend packages (`packages/api`, `packages/cloudflare`, `packages/emails`), none in `apps/web`.
+- `pnpm lint`: exit 0.
+- `pnpm format`: exit 0, no changes. The formatter touched no files outside `apps/web/`.
+- `pnpm format:check`: exit 0.
+- `pnpm test` (full unit project): 49 files, 754 tests, all passed. `App.scene.test.ts` alone: 39 passed, including the 3 new tests.
+- `pnpm --filter @surveybeat/web build`: exit 0.
+
+## Notes
+
+- **Actions in the member view:** the brief said to return after the Actions section is built, so I included `actionsNode` in the member view. Members still see Actions per ADR 0004.
+- **Test fixtures changed:** `teamDetail` defaults to Loading, so `isLead` is false and those three existing tests would have fallen into the member view. I set a Lead `teamDetail` on them. This is the one change to existing tests.
+- **Flash for Leads (decision needed):** the brief's `!isLead` check treats a Lead as a Member while `teamDetail` is still Loading. A Lead can briefly see the member notice on page load. Gating the member view on `teamDetail` being Loaded and not Lead would avoid this, but I followed the brief literally.
+- **Response-rate stats still shown to Members (decision needed):** `resultsLayout` still shows the response-rate and "N of M" stats panel to Members during review. I hid the summary sentence as asked, but the stats panel shows the same counts. The brief doesn't cover this, so I left it alone.
+- **"Note" interpreted:** I read "Note" as the response-rate line. It is not rendered in the member view.
+- **Failure handling:** the share failure branch stores the failure without special-casing `Unauthenticated`, which is literal to the brief. `RoundCommandDone` does redirect to sign-in on that failure.
+- **Not exercised in a browser:** the review-window flow was only checked through scene tests, not on a deployed stage.</result>
+<usage><subagent_tokens>122101</subagent_tokens><tool_uses>42</tool_uses><duration_ms>627475</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>a4cabe7de86fd309e</task-id>
+<tool-use-id>toolu_01LdAy4SdrpcTeQu9PpvRxoZ</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-48bd5b76-065b7694103e9b2b/21c34a61-1e08-4c0f-8e7f-052751c1230d/tasks/a4cabe7de86fd309e.output</output-file>
+<status>completed</status>
+<summary>Agent "Review web review-window diff" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>No blocking or major issues found in `apps/web`. The 107 web unit tests pass and `pnpm lint` is clean. I did not run `typecheck`, `typecheck:effect`, `format:check` or the web build.
+
+What I checked:
+- **Lead share flow:** the flow is correct. `ShareResultsClicked` sets busy, clears the old failure, and ignores clicks while busy or off a RoundResults route (`App.ts:2242`). On failure it clears busy and stores the failure. On success it re-fetches with `GetResultsCmd`, the same command the route uses. `UrlChanged` resets `shareBusy` and `shareFailure` (`App.ts:1035`).
+- **Member notice:** `isMemberReview` skips `resultsSummary`. It returns right after the notice and the Actions section, before the sub-N, response-rate, dimension, theme and comment sections. Nothing from the Result leaks except the date.
+- **Pulse editor select:** it offers 0–7, with 0 labelled "None: share at once" and 1–7 using the days plural. It sits after the reminders select, followed by the help text. The load and save wiring for `reviewWindowDays` is correct (`App.ts:1755`, `App.ts:2015`).
+- **Copy and rules:** the English and German copy matches the brief, in informal du with "Teamleitung" and "Runde". Both catalogs have all 9 keys, and `messages.test` passes. There is no literal UI text and no `as` outside tests.
+
+Minor findings:
+1. **`apps/web/src/app/App.ts:2252` — busy clears before the re-fetch finishes.** On success, `shareBusy` goes false while `GetResultsCmd` is still running. The "Share with the team" button is briefly enabled again on a still-"ready" Result. A second click is harmless because sharing is idempotent, but the button flickers. Optionally keep busy until `GotResults`, or leave it, since the effect is cosmetic.
+2. **`apps/web/src/app/App.scene.test.ts` — the model reset on route change is untested.** The `UrlChanged` reset of `shareBusy` and `shareFailure` at `App.ts:1035` has no test, though you listed it as a point to check. Add a short scene that fails a share, then sends `UrlChanged`, and asserts the alert is gone and the button is enabled.
+3. **`apps/web/src/app/App.scene.test.ts` (member scene) — the "no dimension or score" check is weak.** The fixture already has `questions: []` and `dimensions: []`, so there is nothing to leak. The only meaningful absence check is the summary text "6 of 8 people checked in." To prove the gate, add a variant whose Result still carries a dimension, and assert its heading and score are absent. Also add a member scene for the no-date notice (`results.review.memberNoticeNoDate`), which has no coverage.
+4. **`apps/web/src/app/results.ts:384` — the member view is inferred from an empty `questions` list.** This is the decision you already made, and it is fine for a normal Pulse. A Lead viewing a "closed" Round with zero Questions would see the member notice. That is unrealistic, because a Pulse needs Questions. A one-line comment on that assumption would help.
+5. **`apps/web/src/app/results.ts` — the review date uses the viewer's time zone.** `formatDate(new Date(reviewEndsAt))` formats in the viewer's browser time zone, not the Team's. Near midnight, the displayed day could differ from the server's. This is probably acceptable.</result>
+<usage><subagent_tokens>36776</subagent_tokens><tool_uses>4</tool_uses><duration_ms>68269</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>a984976c815902ec8</task-id>
+<tool-use-id>toolu_01Nb1a8gz6GdcjFi6Eu43id5</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-48bd5b76-065b7694103e9b2b/21c34a61-1e08-4c0f-8e7f-052751c1230d/tasks/a984976c815902ec8.output</output-file>
+<status>completed</status>
+<summary>Agent "Implement review window backend" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>Both scenarios are added and the review-window workerd test passes, with lint and format clean. I edited only `ReviewWindowTestRoutes.ts` and `Organization.test.ts` this round, and did not touch git.
+
+## Changes
+
+- **`packages/cloudflare/src/ReviewWindowTestRoutes.ts`**
+  - Round setup is split into reusable helpers: `setUpPulse`, `roundOf`, `openAndAnswer`, `openedRound`, and `closedRound`. The existing zero, manual, and auto scenarios use them with unchanged behaviour.
+  - **cascade** (window 7): Round A closes and is Ready. Round B, the next scheduled Round, is then opened, answered, and closed through its own jobs. The Lead runs `ShareResults` on B. The route then reads the status, share job, and results-ready roles of both A and B.
+  - **closeEarly** (window 2): the Lead runs `CloseRoundEarly` on an open Round at its opened time plus one day. The route reads the command outcome, status, share job, and the share job's due time measured from the Round's `closedAt`.
+- **`packages/cloudflare/src/Organization.test.ts`**: the expected JSON gains `cascade` and `closeEarly` blocks, asserted with `deepStrictEqual` alongside the existing scenarios.
+
+## Validation
+
+| Command | Result |
+|---|---|
+| `pnpm test packages/cloudflare/src/Organization.test.ts -t "Review window"` | exit 0, 1 passed, 6 skipped |
+| `pnpm lint` | exit 0 |
+| `pnpm format:check` | exit 0 |
+
+The workerd run used the `Organization.ts` on disk at the time, which includes your change to `shareResults`. The new expectations passed on the first run.
+
+## Notes
+
+- `git status` also lists modified `apps/web/src/app/pulses.ts`, `apps/web/src/app/results.ts`, `apps/web/src/messages/catalog.ts`, and `apps/web/src/messages/de.ts`. I did not touch those this round. They are presumably the other slice's UI work in the same worktree, so they will need to be separated before any commit.</result>
+<usage><subagent_tokens>303343</subagent_tokens><tool_uses>6</tool_uses><duration_ms>155597</duration_ms></usage>
+</task-notification>

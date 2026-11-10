@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01NKqTN5UCQrJMpc4h6Aqp7x",
+  "agent_id": "a04f5f895762e6d86",
+  "subagent_type": "reviewer",
+  "task_description": "Review backend review-window diff",
+  "token_usage": {
+    "input_tokens": 24,
+    "cache_creation_tokens": 68014,
+    "cache_read_tokens": 454438,
+    "output_tokens": 12422,
+    "api_call_count": 12
+  },
+  "started_at": "2026-11-10T11:56:43.357332304Z",
+  "completed_at": "2026-11-10T12:00:09.703787095Z"
+}

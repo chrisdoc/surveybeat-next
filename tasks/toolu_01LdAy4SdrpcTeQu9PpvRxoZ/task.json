@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01LdAy4SdrpcTeQu9PpvRxoZ",
+  "agent_id": "a4cabe7de86fd309e",
+  "subagent_type": "reviewer",
+  "task_description": "Review web review-window diff",
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 32035,
+    "cache_read_tokens": 95627,
+    "output_tokens": 3553,
+    "api_call_count": 5
+  },
+  "started_at": "2026-11-10T12:09:43.175351632Z",
+  "completed_at": "2026-11-10T12:10:51.062905385Z"
+}
