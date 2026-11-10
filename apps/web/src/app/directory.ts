@@ -1,5 +1,6 @@
 import {
   EmailAddress,
+  Locale,
   MinimumGroupSize,
   OrganizationSettings,
   PersonId,
@@ -11,7 +12,7 @@ import {
 import { Option, Predicate, Schema } from "effect";
 import type { Html, HtmlBuilder } from "foldkit/html";
 import { defineTaggedUnion } from "foldkit/schema";
-import { formatDate, message } from "../messages/index.ts";
+import { formatDate, message } from "../messages/locale.ts";
 import { Failure } from "./api.ts";
 import {
   type Child,
@@ -24,6 +25,7 @@ import {
   pageShell,
   pageTitle,
   problemView,
+  selectField,
   signOutView,
   checkboxField,
   subSectionTitle,
@@ -63,10 +65,19 @@ export const decodeEmail = Schema.decodeUnknownOption(EmailAddress);
 export const decodeSize = Schema.decodeUnknownOption(MinimumGroupSize);
 export const decodePerson = Schema.decodeUnknownOption(PersonId);
 
+/** The Person's language choice: `value` is `null` to follow the browser (ADR 0018). */
+export interface LanguageChoice<Message> {
+  readonly value: Locale | null;
+  readonly busy: boolean;
+  readonly failure?: Failure | undefined;
+  readonly onChange: (value: string) => Message;
+}
+
 export const shellView = <Message>(
   title: string,
   organizationAdmin: boolean,
   children: ReadonlyArray<Child>,
+  language: LanguageChoice<Message>,
   h: HtmlBuilder<Message>,
   wide = false,
 ): Html =>
@@ -80,7 +91,31 @@ export const shellView = <Message>(
         navLink(privacyHref(), message("nav.privacy"), h),
       ].filter(Predicate.isNotNull),
     },
-    [...children, signOutView(h)],
+    [
+      ...children,
+      h.div(
+        [h.Class("mt-10 flex max-w-xs flex-col gap-3")],
+        [
+          selectField(
+            {
+              id: "language",
+              label: message("language.label"),
+              value: language.value ?? "",
+              options: [
+                ["", message("language.followBrowser")],
+                ["en", message("language.en")],
+                ["de", message("language.de")],
+              ],
+              isDisabled: language.busy,
+              onChange: language.onChange,
+            },
+            h,
+          ),
+          problemView(language.failure, h),
+        ].filter(Predicate.isNotNull),
+      ),
+      signOutView(h),
+    ],
     h,
   );
 
@@ -424,6 +459,8 @@ export const settingsScreenView = <Message>(
     readonly sizeFailure?: Failure | undefined;
     readonly aiBusy: boolean;
     readonly aiFailure?: Failure | undefined;
+    readonly defaultLanguageBusy: boolean;
+    readonly defaultLanguageFailure?: Failure | undefined;
     readonly peopleBusy: boolean;
     readonly peopleFailure?: Failure | undefined;
   },
@@ -431,6 +468,7 @@ export const settingsScreenView = <Message>(
     readonly onSizeChange: (size: string) => Message;
     readonly onSubmitSize: Message;
     readonly onAiProcessingToggle: (isOn: boolean) => Message;
+    readonly onDefaultLanguageChange: (value: string) => Message;
     readonly onGrantAdmin: (personId: PersonId) => Message;
     readonly onRevokeAdmin: (personId: PersonId) => Message;
     readonly onRemovePerson: (personId: PersonId) => Message;
@@ -501,6 +539,32 @@ export const settingsScreenView = <Message>(
         ),
         h.p([h.Class("text-sm text-muted")], [message("settings.aiProcessing.help")]),
         problemView(state.aiFailure, h),
+      ].filter(Predicate.isNotNull),
+    ),
+  );
+
+  // DefaultLanguage
+  children.push(
+    h.div(
+      [h.Class(formPanelClass)],
+      [
+        subSectionTitle(message("settings.defaultLanguage"), h, 2),
+        selectField(
+          {
+            id: "default-language",
+            label: message("settings.defaultLanguage"),
+            value: settings.defaultLocale,
+            options: [
+              ["en", message("language.en")],
+              ["de", message("language.de")],
+            ],
+            isDisabled: state.defaultLanguageBusy,
+            onChange: actions.onDefaultLanguageChange,
+          },
+          h,
+        ),
+        h.p([h.Class("text-sm text-muted")], [message("settings.defaultLanguage.help")]),
+        problemView(state.defaultLanguageFailure, h),
       ].filter(Predicate.isNotNull),
     ),
   );

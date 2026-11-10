@@ -34,6 +34,8 @@ const person = (id: PersonId, organizationAdmin = false) => ({
   workosUserId: null,
   organizationAdmin,
   removedAt: null,
+  locale: null,
+  detectedLocale: null,
 });
 
 const membership = (personId: PersonId, role: "lead" | "member", teamId = team) => ({
@@ -49,6 +51,7 @@ const directory: DirectoryState = {
   organizationName: "Acme",
   minimumGroupSize: 4,
   aiProcessing: false,
+  defaultLocale: "en",
   people: [person(admin, true), person(lead), person(member)],
   teams: [
     { id: team, name: "Platform", timeZone: TimeZone.make("Europe/Berlin") },

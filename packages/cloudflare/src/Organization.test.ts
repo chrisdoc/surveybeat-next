@@ -37,17 +37,45 @@ test(
     const ada = `added-2-${run}`;
     const acme = { id: `people-${run}`, name: "Acme" };
     assert.deepStrictEqual(body, {
-      adminActive: some({ personId: `admin-${run}`, organizationAdmin: true }),
+      adminActive: some({
+        personId: `admin-${run}`,
+        organizationAdmin: true,
+        locale: null,
+        detectedLocale: null,
+        organizationLocale: "en",
+      }),
       eveActiveBeforeAdded: none,
       relinkSameUser: true,
       takeOverByOtherUser: false,
       linkMissingPerson: false,
       // Added by email: the D1 index offers the Person to that email until it is linked.
       unlinked: [{ organization: acme, personId: eve, linked: false }],
-      eveSignIn: { _tag: "SignedIn", organization: acme, personId: eve, organizationAdmin: false },
-      adaSignIn: { _tag: "SignedIn", organization: acme, personId: ada, organizationAdmin: false },
+      eveSignIn: {
+        _tag: "SignedIn",
+        organization: acme,
+        personId: eve,
+        organizationAdmin: false,
+        locale: null,
+        detectedLocale: null,
+        organizationLocale: "en",
+      },
+      adaSignIn: {
+        _tag: "SignedIn",
+        organization: acme,
+        personId: ada,
+        organizationAdmin: false,
+        locale: null,
+        detectedLocale: null,
+        organizationLocale: "en",
+      },
       linked: {
-        eveActive: some({ personId: eve, organizationAdmin: false }),
+        eveActive: some({
+          personId: eve,
+          organizationAdmin: false,
+          locale: null,
+          detectedLocale: null,
+          organizationLocale: "en",
+        }),
         eveIndexed: [{ organization: acme, personId: eve, linked: true }],
         eveUnlinkedAfter: [],
       },

@@ -1,4 +1,5 @@
 import {
+  Locale,
   type OrganizationId,
   OrganizationSummary,
   SessionState as DomainSessionState,
@@ -7,7 +8,7 @@ import { Effect, Predicate, Schema } from "effect";
 import { FetchHttpClient } from "effect/http";
 import type { Html, HtmlBuilder } from "foldkit/html";
 import { defineTaggedUnion } from "foldkit/schema";
-import { message } from "../messages/index.ts";
+import { message } from "../messages/locale.ts";
 import { type ApiClient, clientEffect } from "./api.ts";
 import {
   alertView,
@@ -28,12 +29,24 @@ export const SessionModel = defineTaggedUnion({
   CreateOrganization: { name: Schema.String, busy: Schema.Boolean },
   NotInOrganization: {},
   ChooseOrganization: { organizations: Schema.Array(OrganizationSummary), busy: Schema.Boolean },
-  SignedIn: { organization: OrganizationSummary, organizationAdmin: Schema.Boolean },
+  SignedIn: {
+    organization: OrganizationSummary,
+    organizationAdmin: Schema.Boolean,
+    locale: Schema.NullOr(Locale),
+    detectedLocale: Schema.NullOr(Locale),
+    organizationLocale: Locale,
+  },
 });
 export type SessionModel = typeof SessionModel.Type;
 
 export const SessionResult = defineTaggedUnion({
-  SignedIn: { organization: OrganizationSummary, organizationAdmin: Schema.Boolean },
+  SignedIn: {
+    organization: OrganizationSummary,
+    organizationAdmin: Schema.Boolean,
+    locale: Schema.NullOr(Locale),
+    detectedLocale: Schema.NullOr(Locale),
+    organizationLocale: Locale,
+  },
   CreateOrganization: {},
   NotInOrganization: {},
   ChooseOrganization: { organizations: Schema.Array(OrganizationSummary) },
@@ -54,6 +67,9 @@ export const runSessionCall = <E>(
             _tag: "SignedIn",
             organization: state.organization,
             organizationAdmin: state.organizationAdmin,
+            locale: state.locale,
+            detectedLocale: state.detectedLocale,
+            organizationLocale: state.organizationLocale,
           };
         case "CreateOrganization":
           return { _tag: "CreateOrganization" };

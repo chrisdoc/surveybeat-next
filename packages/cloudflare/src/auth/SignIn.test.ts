@@ -223,6 +223,28 @@ describe("a creator removed from their Organization", () => {
   });
 });
 
+describe("languages in the session (ADR 0018)", () => {
+  it("carries the Person's language, the browser language, and the Organization's default", async () => {
+    const { world, browser } = setup();
+    const acme = world.addOrganization("Acme");
+    const personId = world.addPerson(acme.id, "ada@example.com");
+    const organization = world.durable.organizations.get(acme.id);
+    if (organization === undefined) throw new Error("no Organization");
+    organization.state = { ...organization.state, defaultLocale: "de" };
+    world.durable.update(acme.id, personId, { locale: "en", detectedLocale: "de" });
+
+    await browser.signIn(world.workos.addUser("ada@example.com"));
+
+    expect((await browser.session()).body).toMatchObject({
+      _tag: "SignedIn",
+      personId,
+      locale: "en",
+      detectedLocale: "de",
+      organizationLocale: "de",
+    });
+  });
+});
+
 describe("linking a WorkOS user to a Person", () => {
   it("links by an exact match on a verified email, whatever its case", async () => {
     const { world, browser } = setup();
@@ -235,6 +257,9 @@ describe("linking a WorkOS user to a Person", () => {
       organization: { id: acme.id, name: "Acme" },
       personId,
       organizationAdmin: false,
+      locale: null,
+      detectedLocale: null,
+      organizationLocale: "en",
     });
     expect(world.durable.person(acme.id, personId)?.workosUserId).toBe("user_1");
     expect(world.index.persons.get(`${acme.id}/${personId}`)?.userId).toBe("user_1");
@@ -295,6 +320,9 @@ describe("linking a WorkOS user to a Person", () => {
       organization: { id: acme.id, name: "Acme" },
       personId: acmePerson,
       organizationAdmin: false,
+      locale: null,
+      detectedLocale: null,
+      organizationLocale: "en",
     });
     expect((await browser.session()).body).toMatchObject({ _tag: "SignedIn", organization: { id: acme.id } });
   });

@@ -2,20 +2,31 @@ import { catalog } from "./catalog.ts";
 
 type Catalog = typeof catalog;
 export type MessageKey = keyof Catalog;
-type Value = string | number;
+export type Value = string | number;
+
+/** Every key of the catalog mapped to a translated string; `de.ts` must satisfy it. */
+export type Translation = { readonly [K in MessageKey]: string };
+
+type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
 
 type Placeholders<T extends string> = T extends `${string}{${infer Name}}${infer Rest}`
   ? Name | Placeholders<Rest>
   : never;
-type Params<K extends MessageKey> = Readonly<Record<Placeholders<Catalog[K]>, Value>>;
-type KeysWithoutParams = {
+
+/** Keys whose `{placeholders}` differ from English; `never` when the translation is consistent. */
+export type Mismatched<T extends Translation> = {
+  [K in MessageKey]: Same<Placeholders<Catalog[K]>, Placeholders<T[K]>> extends true ? never : K;
+}[MessageKey];
+
+export type Params<K extends MessageKey> = Readonly<Record<Placeholders<Catalog[K]>, Value>>;
+export type KeysWithoutParams = {
   [K in MessageKey]: [Placeholders<Catalog[K]>] extends [never] ? K : never;
 }[MessageKey];
-type KeysWithParams = Exclude<MessageKey, KeysWithoutParams>;
+export type KeysWithParams = Exclude<MessageKey, KeysWithoutParams>;
 
 type PluralBase<K extends string> = K extends `${infer Base}.other` ? Base : never;
 export type PluralKey = PluralBase<MessageKey>;
-type PluralParams<B extends PluralKey> = Readonly<
+export type PluralParams<B extends PluralKey> = Readonly<
   Record<Exclude<Placeholders<Catalog[`${B}.other`]>, "count">, Value>
 >;
 
@@ -30,7 +41,7 @@ function getPluralRules(): Intl.PluralRules {
 
 const isMessageKey = (key: string): key is MessageKey => Object.hasOwn(catalog, key);
 
-function fill(template: string, params: Readonly<Record<string, Value>>): string {
+export function fill(template: string, params: Readonly<Record<string, Value>>): string {
   return template.replace(/\{(\w+)\}/g, (_, name: string) => String(params[name] ?? ""));
 }
 

@@ -2,6 +2,7 @@ import {
   ActionId,
   type ActionItem,
   EmailAddress,
+  type Locale,
   MinimumGroupSize,
   OrganizationId,
   PersonId,
@@ -22,7 +23,7 @@ import { Option, Schema } from "effect";
 import * as Scene from "foldkit/scene";
 import { setup } from "foldkit/test/vitest";
 import { fromString } from "foldkit/url";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   AddMember,
   AddQuestionCmd,
@@ -41,6 +42,8 @@ import {
   initialModel,
   ListRoundsCmd,
   ListTeams,
+  LoadSession,
+  localeOf,
   Message,
   Navigate,
   PausePulseCmd,
@@ -53,11 +56,13 @@ import {
   UpdateActionCmd,
   UpdatePulseSettingsCmd,
   UpdateAiProcessing,
+  UpdateDefaultLanguage,
+  UpdateOwnLanguage,
   UpdateSettings,
   UpdateTeam,
   view,
 } from "./App.ts";
-import { formatDate } from "../messages/index.ts";
+import { formatDate, setLocale } from "../messages/locale.ts";
 import type { SessionModel } from "./session.ts";
 
 setup();
@@ -76,10 +81,23 @@ const decodeSendTime = Schema.decodeSync(SendTime);
 
 const makeUrl = (str: string) => Option.getOrThrow(fromString(str));
 
+beforeEach(() => {
+  // No browser language unless a test sets one, so the default flows issue no language commands.
+  vi.stubGlobal("navigator", { languages: [] });
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  setLocale("en");
+});
+
 const signedInAdmin: SessionModel = {
   _tag: "SignedIn",
   organization: { id: decodeOrgId("org-1"), name: "Acme" },
   organizationAdmin: true,
+  locale: null,
+  detectedLocale: null,
+  organizationLocale: "en",
 };
 
 describe("App Scenes", () => {
@@ -125,6 +143,9 @@ describe("App Scenes", () => {
               _tag: "SignedIn",
               organization: { id: decodeOrgId("org-1"), name: "Acme Corp" },
               organizationAdmin: true,
+              locale: null,
+              detectedLocale: null,
+              organizationLocale: "en",
             },
           }),
         ),
@@ -176,6 +197,9 @@ describe("App Scenes", () => {
               _tag: "SignedIn",
               organization: orgB,
               organizationAdmin: false,
+              locale: null,
+              detectedLocale: null,
+              organizationLocale: "en",
             },
           }),
         ),
@@ -489,6 +513,7 @@ describe("App Scenes", () => {
         name: "Acme",
         minimumGroupSize: decodeSize(4),
         aiProcessing: false,
+        defaultLocale: "en" as const,
         people: [
           {
             personId,
@@ -535,6 +560,7 @@ describe("App Scenes", () => {
         name: "Acme",
         minimumGroupSize: decodeSize(4),
         aiProcessing: false,
+        defaultLocale: "en" as const,
         people: [
           {
             personId,
@@ -1321,6 +1347,130 @@ describe("App Scenes", () => {
         }),
         Scene.expect(Scene.role("link", { name: "Privacy" })).toExist(),
       );
+    });
+  });
+
+  describe("Language", () => {
+    const teamsUrl = makeUrl("https://app.surveybeat.com/");
+    const signedIn = (locale: Locale | null, organizationLocale: Locale): SessionModel => ({
+      _tag: "SignedIn",
+      organization: { id: decodeOrgId("org-1"), name: "Acme" },
+      organizationAdmin: true,
+      locale,
+      detectedLocale: null,
+      organizationLocale,
+    });
+
+    it("shows the screens in the Person's language", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(teamsUrl),
+          session: { ...signedInAdmin, locale: "de" as const },
+          teams: { _tag: "Loaded", teams: [] },
+        }),
+        Scene.expect(Scene.role("link", { name: "Organisationseinstellungen" })).toExist(),
+        Scene.expect(Scene.role("button", { name: "Abmelden" })).toExist(),
+        Scene.expect(Scene.text("Du bist noch in keinem Team.")).toExist(),
+        Scene.expect(Scene.label("Sprache")).toExist(),
+      );
+    });
+
+    it("falls back to the Organization's default language when the Person has no choice", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(teamsUrl),
+          browserLocale: null,
+          session: { ...signedInAdmin, organizationLocale: "de" as const },
+          teams: { _tag: "Loaded", teams: [] },
+        }),
+        Scene.expect(Scene.text("Du bist noch in keinem Team.")).toExist(),
+        Scene.expect(Scene.label("Sprache")).toExist(),
+      );
+    });
+
+    it("switches the screens when the Person picks a language", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(teamsUrl),
+          session: signedInAdmin,
+          teams: { _tag: "Loaded", teams: [] },
+        }),
+        Scene.change(Scene.label("Language"), "de"),
+        Scene.Command.expectHas(UpdateOwnLanguage),
+        Scene.expect(Scene.label("Sprache")).toExist(),
+        Scene.Command.resolve(
+          UpdateOwnLanguage,
+          Message.UpdatedOwnLanguage({ chosen: true, outcome: { _tag: "Success" } }),
+        ),
+        Scene.Command.expectHas(LoadSession),
+        Scene.Command.resolve(
+          LoadSession,
+          Message.GotSession({
+            result: {
+              _tag: "SignedIn",
+              organization: { id: decodeOrgId("org-1"), name: "Acme" },
+              organizationAdmin: true,
+              locale: "de",
+              detectedLocale: null,
+              organizationLocale: "en",
+            },
+          }),
+        ),
+        Scene.Command.expectHas(ListTeams),
+        Scene.Command.resolve(ListTeams, Message.GotTeams({ outcome: { _tag: "Success", teams: [] } })),
+        Scene.expect(Scene.label("Sprache")).toExist(),
+      );
+    });
+
+    it("offers the Organization's default language on the settings screen", () => {
+      const settings = {
+        name: "Acme",
+        minimumGroupSize: decodeSize(4),
+        aiProcessing: false,
+        defaultLocale: "en" as const,
+        people: [],
+      };
+
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(makeUrl("https://app.surveybeat.com/settings")),
+          session: signedInAdmin,
+          settings: { _tag: "Loaded", settings },
+          size: "4",
+        }),
+        Scene.expect(Scene.label("Default language")).toExist(),
+        Scene.change(Scene.label("Default language"), "de"),
+        Scene.Command.expectHas(UpdateDefaultLanguage),
+        Scene.Command.resolve(
+          UpdateDefaultLanguage,
+          Message.UpdatedDefaultLanguage({ outcome: { _tag: "Failure", failure: "Forbidden" } }),
+        ),
+        Scene.expect(Scene.role("alert")).toExist(),
+      );
+    });
+
+    describe("localeOf", () => {
+      const modelWith = (browser: Locale | null, session: SessionModel) => ({
+        ...initialModel(teamsUrl),
+        browserLocale: browser,
+        session,
+      });
+
+      it("prefers the Person's choice, then the browser's language, then the Organization's default", () => {
+        expect(localeOf(modelWith("en", signedIn("de", "en")))).toBe("de");
+        expect(localeOf(modelWith("de", signedIn(null, "en")))).toBe("de");
+        expect(localeOf(modelWith("en", signedIn(null, "de")))).toBe("en");
+        expect(localeOf(modelWith(null, signedIn(null, "de")))).toBe("de");
+      });
+
+      it("uses the browser's language, then English, when signed out", () => {
+        expect(localeOf(modelWith("de", { _tag: "SignedOut", failed: false }))).toBe("de");
+        expect(localeOf(modelWith(null, { _tag: "SignedOut", failed: false }))).toBe("en");
+      });
     });
   });
 });

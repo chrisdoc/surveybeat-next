@@ -2,6 +2,7 @@ import { Option } from "effect";
 import { EmailAddress, SendId, type TransactionalEmail } from "../email/Email.ts";
 import { normaliseEmail, type PersonId, type WorkosUserId } from "./Identity.ts";
 import { type Actor, can } from "./Permissions.ts";
+import { type Locale, resolveLocale } from "./Locale.ts";
 import type { OrganizationRole } from "./SignInPorts.ts";
 import type {
   AssignableRole,
@@ -28,6 +29,10 @@ export interface PersonRecord {
   readonly organizationAdmin: boolean;
   /** When the Person was removed from the Organization (epoch ms). Their history stays. */
   readonly removedAt: number | null;
+  /** The language the Person chose, or `null` to follow the browser (ADR 0018). */
+  readonly locale: Locale | null;
+  /** The browser's language last seen at sign-in: what emails, which have no browser, follow. */
+  readonly detectedLocale: Locale | null;
 }
 
 export interface TeamRecord {
@@ -51,6 +56,8 @@ export interface DirectoryState {
   readonly minimumGroupSize: number;
   /** Whether comments may be sent to the AI service (ADR 0015). Off by default. */
   readonly aiProcessing: boolean;
+  /** The language for People who chose none and whose browser language is unknown (ADR 0018). */
+  readonly defaultLocale: Locale;
   readonly people: ReadonlyArray<PersonRecord>;
   readonly teams: ReadonlyArray<TeamRecord>;
   readonly memberships: ReadonlyArray<MembershipRecord>;
@@ -105,6 +112,16 @@ export type DirectoryCommand =
       readonly _tag: "UpdateSettings";
       readonly minimumGroupSize?: number | undefined;
       readonly aiProcessing?: boolean | undefined;
+      readonly defaultLocale?: Locale | undefined;
+    }
+  /**
+   * The actor's own language, for no one else (any active Person may). Absent fields keep their
+   * current value; `locale: null` clears the choice so the browser's language is followed again.
+   */
+  | {
+      readonly _tag: "UpdateOwnLanguage";
+      readonly locale?: Locale | null | undefined;
+      readonly detectedLocale?: Locale | undefined;
     };
 
 /** A change to the Organization's own data, applied atomically with the others of a decision. */
@@ -117,7 +134,18 @@ export type DirectoryChange =
   | { readonly _tag: "TeamUpdated"; readonly team: TeamRecord }
   | { readonly _tag: "MembershipStarted"; readonly membership: MembershipRecord }
   | { readonly _tag: "MembershipEnded"; readonly membershipId: MembershipId; readonly at: number }
-  | { readonly _tag: "SettingsUpdated"; readonly minimumGroupSize: number; readonly aiProcessing: boolean }
+  | {
+      readonly _tag: "SettingsUpdated";
+      readonly minimumGroupSize: number;
+      readonly aiProcessing: boolean;
+      readonly defaultLocale: Locale;
+    }
+  | {
+      readonly _tag: "PersonLanguageSet";
+      readonly personId: PersonId;
+      readonly locale: Locale | null;
+      readonly detectedLocale: Locale | null;
+    }
   /** Creates the send (idempotent per id) in the same transaction, through the send states. */
   | {
       readonly _tag: "EmailRequested";
@@ -224,6 +252,21 @@ export const actorOf = (state: DirectoryState, personId: PersonId): Option.Optio
   return Option.some({ personId, organizationAdmin: person.organizationAdmin, roles });
 };
 
+/**
+ * The language an email to this Person is written in (ADR 0018): their own choice, then the
+ * browser language last seen at sign-in, then the Organization's default. A Person not (yet) in
+ * the state, such as one being added, has neither, so the default.
+ */
+export const emailLocaleOf = (state: DirectoryState, personId: PersonId): Locale => {
+  const person = state.people.find((each) => each.id === personId);
+  if (person === undefined) return state.defaultLocale;
+  return resolveLocale({
+    person: person.locale,
+    browser: person.detectedLocale,
+    organization: state.defaultLocale,
+  });
+};
+
 const nameTaken = (state: DirectoryState, name: string, except?: TeamId) =>
   state.teams.some(
     (team) => team.id !== except && team.name.toLocaleLowerCase("en") === name.toLocaleLowerCase("en"),
@@ -254,6 +297,8 @@ const putInTeam = (
     workosUserId: null,
     organizationAdmin: false,
     removedAt: null,
+    locale: null,
+    detectedLocale: null,
   };
   const changes: Array<DirectoryChange> = [];
   if (existing === undefined) changes.push({ _tag: "PersonAdded", person });
@@ -286,7 +331,13 @@ const putInTeam = (
       _tag: "EmailRequested",
       sendId,
       recipient: person.email,
-      email: { _tag: "AddedToTeam", teamName: team.name, leadName: adder.email, signInUrl: member.signInUrl },
+      email: {
+        _tag: "AddedToTeam",
+        locale: emailLocaleOf(state, person.id),
+        teamName: team.name,
+        leadName: adder.email,
+        signInUrl: member.signInUrl,
+      },
     },
   );
   return accept(changes, [index, { _tag: "QueueEmail", sendId }]);
@@ -450,6 +501,19 @@ export const decide = (
           _tag: "SettingsUpdated",
           minimumGroupSize: command.minimumGroupSize ?? state.minimumGroupSize,
           aiProcessing: command.aiProcessing ?? state.aiProcessing,
+          defaultLocale: command.defaultLocale ?? state.defaultLocale,
+        },
+      ]);
+    }
+
+    case "UpdateOwnLanguage": {
+      // Any active Person may set their own language, and only their own: the actor is the target.
+      return accept([
+        {
+          _tag: "PersonLanguageSet",
+          personId: actorId,
+          locale: command.locale === undefined ? adder.locale : command.locale,
+          detectedLocale: command.detectedLocale ?? adder.detectedLocale,
         },
       ]);
     }
@@ -499,7 +563,14 @@ export const applyChanges = (
           ...current,
           minimumGroupSize: change.minimumGroupSize,
           aiProcessing: change.aiProcessing,
+          defaultLocale: change.defaultLocale,
         };
+      case "PersonLanguageSet":
+        return updatePerson(change.personId, (person) => ({
+          ...person,
+          locale: change.locale,
+          detectedLocale: change.detectedLocale,
+        }));
       case "EmailRequested":
         return current;
     }
@@ -573,6 +644,7 @@ export const settingsView = (state: DirectoryState, actorId: PersonId): Viewed<O
       name: state.organizationName,
       minimumGroupSize: state.minimumGroupSize,
       aiProcessing: state.aiProcessing,
+      defaultLocale: state.defaultLocale,
       people: activePeople(state)
         .map((person) => ({
           personId: person.id,

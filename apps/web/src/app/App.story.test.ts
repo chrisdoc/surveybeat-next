@@ -15,7 +15,7 @@ import {
 import { Option, Schema } from "effect";
 import * as Story from "foldkit/story";
 import { fromString } from "foldkit/url";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   AddMember,
   AddQuestionCmd,
@@ -45,10 +45,13 @@ import {
   ReorderQuestionsCmd,
   RevokeAdmin,
   update,
+  UpdateDefaultLanguage,
+  UpdateOwnLanguage,
   UpdatePulseSettingsCmd,
   UpdateSettings,
   UpdateTeam,
 } from "./App.ts";
+import { setLocale } from "../messages/locale.ts";
 
 const decodeOrgId = Schema.decodeSync(OrganizationId);
 const decodeTeamId = Schema.decodeSync(TeamId);
@@ -63,6 +66,16 @@ const decodeSize = Schema.decodeSync(MinimumGroupSize);
 const decodeSendTime = Schema.decodeSync(SendTime);
 
 const makeUrl = (str: string) => Option.getOrThrow(fromString(str));
+
+beforeEach(() => {
+  // No browser language unless a test sets one, so the default flows issue no language commands.
+  vi.stubGlobal("navigator", { languages: [] });
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  setLocale("en");
+});
 
 describe("App Stories", () => {
   describe("Sign-in states", () => {
@@ -161,6 +174,9 @@ describe("App Stories", () => {
               _tag: "SignedIn",
               organization: { id: decodeOrgId("org-1"), name: "Acme Corp" },
               organizationAdmin: true,
+              locale: null,
+              detectedLocale: null,
+              organizationLocale: "en",
             },
           }),
         ),
@@ -204,6 +220,9 @@ describe("App Stories", () => {
               _tag: "SignedIn",
               organization: orgB,
               organizationAdmin: false,
+              locale: null,
+              detectedLocale: null,
+              organizationLocale: "en",
             },
           }),
         ),
@@ -240,6 +259,9 @@ describe("App Stories", () => {
               _tag: "SignedIn",
               organization: { id: decodeOrgId("org-1"), name: "Acme" },
               organizationAdmin: true,
+              locale: null,
+              detectedLocale: null,
+              organizationLocale: "en",
             },
           }),
         ),
@@ -332,6 +354,9 @@ describe("App Stories", () => {
               _tag: "SignedIn",
               organization: { id: decodeOrgId("org-1"), name: "Acme" },
               organizationAdmin: true,
+              locale: null,
+              detectedLocale: null,
+              organizationLocale: "en",
             },
           }),
         ),
@@ -421,6 +446,7 @@ describe("App Stories", () => {
         name: "Acme",
         minimumGroupSize: decodeSize(4),
         aiProcessing: false,
+        defaultLocale: "en" as const,
         people: [
           {
             personId,
@@ -440,6 +466,9 @@ describe("App Stories", () => {
               _tag: "SignedIn",
               organization: { id: decodeOrgId("org-1"), name: "Acme" },
               organizationAdmin: true,
+              locale: null,
+              detectedLocale: null,
+              organizationLocale: "en",
             },
           }),
         ),
@@ -528,6 +557,9 @@ describe("App Stories", () => {
               _tag: "SignedIn",
               organization: { id: decodeOrgId("org-1"), name: "Acme" },
               organizationAdmin: true,
+              locale: null,
+              detectedLocale: null,
+              organizationLocale: "en",
             },
           }),
         ),
@@ -662,6 +694,9 @@ describe("App Stories", () => {
               _tag: "SignedIn",
               organization: { id: decodeOrgId("org-1"), name: "Acme" },
               organizationAdmin: true,
+              locale: null,
+              detectedLocale: null,
+              organizationLocale: "en",
             },
           }),
         ),
@@ -780,6 +815,9 @@ describe("App Stories", () => {
         _tag: "SignedIn" as const,
         organization: { id: decodeOrgId("org-1"), name: "Acme" },
         organizationAdmin: false,
+        locale: null,
+        detectedLocale: null,
+        organizationLocale: "en",
       },
     };
 
@@ -819,6 +857,293 @@ describe("App Stories", () => {
           Message.GotTeam({ outcome: { _tag: "Success", detail: teamAs(null) } }),
         ),
         Story.Command.resolve(ListRoundsCmd, Message.GotRounds({ outcome: { _tag: "Success", list } })),
+        Story.Command.expectNone(),
+      );
+    });
+  });
+
+  describe("Language", () => {
+    const teamsUrl = makeUrl("https://app.surveybeat.com/");
+    const organization = { id: decodeOrgId("org-1"), name: "Acme" };
+    const signedInSession = {
+      _tag: "SignedIn" as const,
+      organization,
+      organizationAdmin: true,
+      locale: null,
+      detectedLocale: null,
+      organizationLocale: "en" as const,
+    };
+
+    it("saves the Person's language choice, then reloads the session", () => {
+      Story.story(
+        update,
+        Story.given({ ...initialModel(teamsUrl), session: signedInSession }),
+        Story.message(Message.LanguageChanged({ value: "de" })),
+        Story.model((m) => {
+          expect(m.languageBusy).toBe(true);
+          expect(m.session).toMatchObject({ _tag: "SignedIn", locale: "de" });
+        }),
+        Story.Command.expectExact(UpdateOwnLanguage({ locale: "de" })),
+        Story.Command.resolve(
+          UpdateOwnLanguage({ locale: "de" }),
+          Message.UpdatedOwnLanguage({ chosen: true, outcome: { _tag: "Success" } }),
+        ),
+        Story.model((m) => {
+          expect(m.languageBusy).toBe(false);
+        }),
+        Story.Command.expectExact(LoadSession),
+        Story.Command.resolve(
+          LoadSession,
+          Message.GotSession({
+            result: {
+              _tag: "SignedIn",
+              organization,
+              organizationAdmin: true,
+              locale: "de",
+              detectedLocale: null,
+              organizationLocale: "en",
+            },
+          }),
+        ),
+        Story.Command.resolve(ListTeams, Message.GotTeams({ outcome: { _tag: "Success", teams: [] } })),
+        Story.Command.expectNone(),
+      );
+    });
+
+    it("saves following the browser as a null choice", () => {
+      Story.story(
+        update,
+        Story.given({ ...initialModel(teamsUrl), session: { ...signedInSession, locale: "de" as const } }),
+        Story.message(Message.LanguageChanged({ value: "" })),
+        Story.Command.expectExact(UpdateOwnLanguage({ locale: null })),
+        Story.Command.resolve(
+          UpdateOwnLanguage({ locale: null }),
+          Message.UpdatedOwnLanguage({ chosen: true, outcome: { _tag: "Success" } }),
+        ),
+        Story.Command.expectExact(LoadSession),
+        Story.Command.resolve(
+          LoadSession,
+          Message.GotSession({
+            result: {
+              _tag: "SignedIn",
+              organization,
+              organizationAdmin: true,
+              locale: null,
+              detectedLocale: null,
+              organizationLocale: "en",
+            },
+          }),
+        ),
+        Story.Command.resolve(ListTeams, Message.GotTeams({ outcome: { _tag: "Success", teams: [] } })),
+        Story.model((m) => {
+          expect(m.session).toMatchObject({ _tag: "SignedIn", locale: null });
+        }),
+        Story.Command.expectNone(),
+      );
+    });
+
+    it("ignores an unknown language and a change while one is saving", () => {
+      Story.story(
+        update,
+        Story.given({ ...initialModel(teamsUrl), session: signedInSession }),
+        Story.message(Message.LanguageChanged({ value: "fr" })),
+        Story.Command.expectNone(),
+        Story.model((m) => {
+          expect(m.languageBusy).toBe(false);
+          expect(m.session).toMatchObject({ locale: null });
+        }),
+      );
+      Story.story(
+        update,
+        Story.given({ ...initialModel(teamsUrl), session: signedInSession, languageBusy: true }),
+        Story.message(Message.LanguageChanged({ value: "de" })),
+        Story.Command.expectNone(),
+        Story.model((m) => {
+          expect(m.session).toMatchObject({ locale: null });
+        }),
+      );
+    });
+
+    it("keeps a failed language save visible and reloads the stored language", () => {
+      Story.story(
+        update,
+        Story.given({ ...initialModel(teamsUrl), session: signedInSession }),
+        Story.message(Message.LanguageChanged({ value: "de" })),
+        Story.Command.resolve(
+          UpdateOwnLanguage({ locale: "de" }),
+          Message.UpdatedOwnLanguage({ chosen: true, outcome: { _tag: "Failure", failure: "Unavailable" } }),
+        ),
+        Story.model((m) => {
+          expect(m.languageBusy).toBe(false);
+          expect(Option.getOrUndefined(m.languageFailure)).toBe("Unavailable");
+        }),
+        Story.Command.expectExact(LoadSession),
+        Story.Command.resolve(
+          LoadSession,
+          Message.GotSession({
+            result: {
+              _tag: "SignedIn",
+              organization,
+              organizationAdmin: true,
+              locale: null,
+              detectedLocale: null,
+              organizationLocale: "en",
+            },
+          }),
+        ),
+        Story.Command.resolve(ListTeams, Message.GotTeams({ outcome: { _tag: "Success", teams: [] } })),
+        Story.Command.expectNone(),
+      );
+    });
+
+    it("records the browser's language for a Person without a choice", () => {
+      Story.story(
+        update,
+        Story.given({ ...initialModel(teamsUrl), browserLocale: "de" as const }),
+        Story.message(
+          Message.GotSession({
+            result: {
+              _tag: "SignedIn",
+              organization,
+              organizationAdmin: false,
+              locale: null,
+              detectedLocale: null,
+              organizationLocale: "en",
+            },
+          }),
+        ),
+        Story.Command.expectExact(ListTeams, UpdateOwnLanguage({ detectedLocale: "de" })),
+        Story.Command.resolve(
+          UpdateOwnLanguage({ detectedLocale: "de" }),
+          Message.UpdatedOwnLanguage({ chosen: false, outcome: { _tag: "Success" } }),
+        ),
+        Story.Command.resolve(ListTeams, Message.GotTeams({ outcome: { _tag: "Success", teams: [] } })),
+        Story.Command.expectNone(),
+        Story.model((m) => {
+          expect(m.languageBusy).toBe(false);
+          expect(Option.isNone(m.languageFailure)).toBe(true);
+        }),
+      );
+    });
+
+    it("does not record the browser's language when it is recorded already or a choice exists", () => {
+      const session = (locale: "en" | "de" | null, detectedLocale: "en" | "de" | null) => ({
+        _tag: "SignedIn" as const,
+        organization,
+        organizationAdmin: false,
+        locale,
+        detectedLocale,
+        organizationLocale: "en" as const,
+      });
+
+      Story.story(
+        update,
+        Story.given({ ...initialModel(teamsUrl), browserLocale: "de" as const }),
+        Story.message(Message.GotSession({ result: session(null, "de") })),
+        Story.Command.expectExact(ListTeams),
+        Story.Command.resolve(ListTeams, Message.GotTeams({ outcome: { _tag: "Success", teams: [] } })),
+        Story.Command.expectNone(),
+      );
+      Story.story(
+        update,
+        Story.given({ ...initialModel(teamsUrl), browserLocale: "de" as const }),
+        Story.message(Message.GotSession({ result: session("en", null) })),
+        Story.Command.expectExact(ListTeams),
+        Story.Command.resolve(ListTeams, Message.GotTeams({ outcome: { _tag: "Success", teams: [] } })),
+        Story.Command.expectNone(),
+      );
+      Story.story(
+        update,
+        Story.given(initialModel(teamsUrl)),
+        Story.message(Message.GotSession({ result: session(null, null) })),
+        Story.Command.expectExact(ListTeams),
+        Story.Command.resolve(ListTeams, Message.GotTeams({ outcome: { _tag: "Success", teams: [] } })),
+        Story.Command.expectNone(),
+      );
+    });
+
+    it("saves the Organization's default language and reloads the session, which reloads the settings", () => {
+      const settings = {
+        name: "Acme",
+        minimumGroupSize: decodeSize(4),
+        aiProcessing: false,
+        defaultLocale: "en" as const,
+        people: [],
+      };
+
+      Story.story(
+        update,
+        Story.given({
+          ...initialModel(makeUrl("https://app.surveybeat.com/settings")),
+          session: signedInSession,
+          settings: { _tag: "Loaded", settings },
+        }),
+        Story.message(Message.DefaultLanguageChanged({ value: "de" })),
+        Story.model((m) => {
+          expect(m.defaultLanguageBusy).toBe(true);
+        }),
+        Story.Command.expectExact(UpdateDefaultLanguage({ defaultLocale: "de" })),
+        Story.Command.resolve(
+          UpdateDefaultLanguage({ defaultLocale: "de" }),
+          Message.UpdatedDefaultLanguage({ outcome: { _tag: "Success" } }),
+        ),
+        Story.model((m) => {
+          expect(m.defaultLanguageBusy).toBe(false);
+        }),
+        Story.Command.expectExact(LoadSession),
+        Story.Command.resolve(
+          LoadSession,
+          Message.GotSession({
+            result: {
+              _tag: "SignedIn",
+              organization,
+              organizationAdmin: true,
+              locale: null,
+              detectedLocale: null,
+              organizationLocale: "de",
+            },
+          }),
+        ),
+        Story.Command.expectExact(GetSettings),
+        Story.Command.resolve(
+          GetSettings,
+          Message.GotSettings({
+            outcome: { _tag: "Success", settings: { ...settings, defaultLocale: "de" } },
+          }),
+        ),
+        Story.model((m) => {
+          expect(m.session).toMatchObject({ organizationLocale: "de" });
+        }),
+      );
+    });
+
+    it("shows a failed default language save and ignores an unknown value", () => {
+      const settings = {
+        name: "Acme",
+        minimumGroupSize: decodeSize(4),
+        aiProcessing: false,
+        defaultLocale: "en" as const,
+        people: [],
+      };
+
+      Story.story(
+        update,
+        Story.given({
+          ...initialModel(makeUrl("https://app.surveybeat.com/settings")),
+          session: signedInSession,
+          settings: { _tag: "Loaded", settings },
+        }),
+        Story.message(Message.DefaultLanguageChanged({ value: "fr" })),
+        Story.Command.expectNone(),
+        Story.message(Message.DefaultLanguageChanged({ value: "de" })),
+        Story.Command.resolve(
+          UpdateDefaultLanguage({ defaultLocale: "de" }),
+          Message.UpdatedDefaultLanguage({ outcome: { _tag: "Failure", failure: "Forbidden" } }),
+        ),
+        Story.model((m) => {
+          expect(m.defaultLanguageBusy).toBe(false);
+          expect(Option.getOrUndefined(m.defaultLanguageFailure)).toBe("Forbidden");
+        }),
         Story.Command.expectNone(),
       );
     });

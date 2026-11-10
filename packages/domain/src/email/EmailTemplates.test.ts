@@ -26,11 +26,12 @@ const resolve = (email: StoredEmail) =>
 
 const invitationEmail: InvitationEmail = {
   _tag: "InvitationEmail",
+  locale: "en",
   ...base,
   minimumGroupSize: 4,
   invitation,
 };
-const reminderEmail: ReminderEmail = { _tag: "ReminderEmail", ...base, invitation };
+const reminderEmail: ReminderEmail = { _tag: "ReminderEmail", locale: "en", ...base, invitation };
 
 describe("withToken", () => {
   it.effect("derives the token an Invitation or reminder refers to", () =>
@@ -56,6 +57,7 @@ describe("withToken", () => {
     Effect.gen(function* () {
       const legacy: InvitationEmailWithToken = {
         _tag: "InvitationEmail",
+        locale: "en",
         ...base,
         anonymityStatement: "Your name is never stored with your answers.",
         token: "stored-token",
@@ -63,6 +65,7 @@ describe("withToken", () => {
       expect(yield* resolve(legacy)).toEqual(legacy);
       const legacyReminder: ReminderEmailWithToken = {
         _tag: "ReminderEmail",
+        locale: "en",
         ...base,
         token: "stored-token",
         unsubscribeUrl: "https://app.surveybeat.app/api/reminders/unsubscribe?t=stored-token",
@@ -83,15 +86,28 @@ describe("stored email schemas", () => {
       anonymityStatement: "Your name is never stored with your answers.",
       token: "stored-token",
     };
-    expect(decodeStored(row)).toEqual(row);
+    expect(decodeStored(row)).toEqual({ ...row, locale: "en" });
     expect(() => decodeWritable(row)).toThrow();
   });
 
   it("decode rows stored before the AI processing flag existed, with no flag", () => {
     const row = { _tag: "ReminderEmail", ...base, invitation };
-    expect(decodeStored(row)).toEqual(row);
-    expect(decodeWritable(row)).toEqual(row);
+    expect(decodeStored(row)).toEqual({ ...row, locale: "en" });
+    expect(decodeWritable(row)).toEqual({ ...row, locale: "en" });
     expect(decodeStored(row)).not.toHaveProperty("aiProcessing");
+  });
+
+  it("decode a stored email written before languages existed as English", () => {
+    const stored = JSON.parse(JSON.stringify(invitationEmail)) as Record<string, unknown>;
+    delete stored.locale;
+    expect(decodeStored(stored)).toMatchObject({ _tag: "InvitationEmail", locale: "en" });
+    const added = { _tag: "AddedToTeam", teamName: "Platform", leadName: "Grace", signInUrl: base.baseUrl };
+    expect(decodeWritable(added)).toMatchObject({ _tag: "AddedToTeam", locale: "en" });
+  });
+
+  it("round-trip a stored email with its language", () => {
+    const german = { ...reminderEmail, locale: "de" as const };
+    expect(decodeStored(german)).toEqual(german);
   });
 
   it("round-trip a row with the AI processing flag", () => {

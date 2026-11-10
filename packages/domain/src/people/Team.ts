@@ -1,6 +1,7 @@
 import { Schema } from "effect";
 import { EmailAddress } from "../email/Email.ts";
 import { PersonId } from "./Identity.ts";
+import { Locale } from "./Locale.ts";
 
 /** A Team within one Organization. Teams do not nest in Release 1: a Team has no parent. */
 export const TeamId = Schema.String.pipe(Schema.brand("TeamId"));
@@ -107,6 +108,7 @@ export const OrganizationSettings = Schema.Struct({
   name: Schema.String,
   minimumGroupSize: MinimumGroupSize,
   aiProcessing: Schema.Boolean,
+  defaultLocale: Locale,
   people: Schema.Array(PersonSummary),
 });
 export type OrganizationSettings = typeof OrganizationSettings.Type;

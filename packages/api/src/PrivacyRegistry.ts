@@ -127,7 +127,14 @@ export const privacyRegistry: { readonly [K in EndpointKey<typeof SurveyBeatApi>
     _tag: "NoResultData",
     why: "returns the Organization's name, minimum group size, and People with their admin flag",
   },
-  "directory.updateSettings": { _tag: "NoResultData", why: "sets the minimum group size; no content" },
+  "directory.updateSettings": {
+    _tag: "NoResultData",
+    why: "sets the minimum group size, AI processing, and the default language; no content",
+  },
+  "directory.updateOwnLanguage": {
+    _tag: "NoResultData",
+    why: "sets the caller's own language and the browser language; no content",
+  },
   "directory.grantAdmin": { _tag: "NoResultData", why: "makes a Person an Organization admin; no content" },
   "directory.revokeAdmin": {
     _tag: "NoResultData",

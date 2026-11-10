@@ -1,5 +1,6 @@
 /**
- * Every user-facing string of both web entries. English only.
+ * Every user-facing string of both web entries, in English: the source of the keys.
+ * `de.ts` holds the same keys in German and is checked against this file by its types.
  *
  * Keys are flat. Templates use `{placeholder}`. Plural forms are separate keys
  * named `<base>.<Intl.PluralRules category>`; `.other` is required.
@@ -325,4 +326,11 @@ export const catalog = {
   "privacy.restoreTrigger.body":
     "Only authorized infrastructure operators with verified credentials can initiate a disaster recovery restore. Organization admins and team leads cannot inspect raw backups or trigger restores.",
   "nav.privacy": "Privacy",
+  "language.label": "Language",
+  "language.followBrowser": "Same as my browser",
+  "language.en": "English",
+  "language.de": "Deutsch",
+  "settings.defaultLanguage": "Default language",
+  "settings.defaultLanguage.help":
+    "Used for People who have not chosen a language and whose browser language SurveyBeat does not offer, and for their emails.",
 } as const;

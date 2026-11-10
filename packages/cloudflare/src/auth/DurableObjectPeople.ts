@@ -32,9 +32,12 @@ export const durableObjectPeople = (organizations: Organizations) =>
         .activePerson(userId)
         .pipe(
           Effect.map((row) =>
-            Option.map(Option.fromNullishOr(row), ({ id, organizationAdmin }) => ({
-              personId: PersonId.make(id),
-              organizationAdmin,
+            Option.map(Option.fromNullishOr(row), (person) => ({
+              personId: PersonId.make(person.id),
+              organizationAdmin: person.organizationAdmin,
+              locale: person.locale,
+              detectedLocale: person.detectedLocale,
+              organizationLocale: person.organizationLocale,
             })),
           ),
         ),

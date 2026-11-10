@@ -12,6 +12,7 @@ const id = SendId.make("send-1");
 const recipient = EmailAddress.make("ada@example.com");
 const email: AddedToTeam = {
   _tag: "AddedToTeam",
+  locale: "en",
   teamName: "Platform",
   leadName: "Grace",
   signInUrl: "https://app.surveybeat.app/",

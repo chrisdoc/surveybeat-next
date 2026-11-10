@@ -20,6 +20,7 @@ import {
   TimeZone,
   WorkosOrganizationId,
   WorkosUserId,
+  type Member,
 } from "@surveybeat/domain";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -103,7 +104,14 @@ export const peopleTestRoutes = (organizations: Organizations, database: Cloudfl
         EmailOutbox.of({ queue: (_id, sendId) => Effect.sync(() => void queued.push(sendId)) }),
       ),
     );
-    const member = { organization, personId: admin, organizationAdmin: true };
+    const member: Member = {
+      organization,
+      personId: admin,
+      organizationAdmin: true,
+      locale: null,
+      detectedLocale: null,
+      organizationLocale: "en",
+    };
     const newMember = (address: string, n: number) => ({
       email: EmailAddress.make(address),
       personId: PersonId.make(`added-${n}-${run}`),

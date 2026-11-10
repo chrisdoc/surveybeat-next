@@ -1,5 +1,6 @@
 import { Clock, Effect, Option, Redacted } from "effect";
 import type { OrganizationCreationAllowlist, PersonId, WorkosOrganizationId } from "./Identity.ts";
+import type { Locale } from "./Locale.ts";
 import type { OrganizationId } from "./Organization.ts";
 import {
   candidatesFor,
@@ -26,6 +27,9 @@ export interface Member {
   readonly personId: PersonId;
   /** From the Organization's Durable Object, not the token's role claim, which can be minutes old. */
   readonly organizationAdmin: boolean;
+  readonly locale: Locale | null;
+  readonly detectedLocale: Locale | null;
+  readonly organizationLocale: Locale;
 }
 
 /** A session that passed the per-request check, possibly refreshed on the way. */
@@ -95,6 +99,9 @@ const signedIn = (session: ProviderSession, member: Member): SessionOutcome => (
     organization: member.organization,
     personId: member.personId,
     organizationAdmin: member.organizationAdmin,
+    locale: member.locale,
+    detectedLocale: member.detectedLocale,
+    organizationLocale: member.organizationLocale,
   },
 });
 

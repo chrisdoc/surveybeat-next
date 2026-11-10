@@ -1,4 +1,5 @@
-import { Schema } from "effect";
+import { Effect, Schema } from "effect";
+import { DEFAULT_LOCALE, Locale } from "../people/Locale.ts";
 
 /** A recipient or sender address. Only its shape is checked; the provider is the judge of deliverability. */
 export const EmailAddress = Schema.String.pipe(
@@ -19,8 +20,15 @@ const HttpsUrl = Schema.String.pipe(Schema.check(Schema.isStartingWith("https://
  */
 const AiProcessing = Schema.optionalKey(Schema.Boolean);
 
+/**
+ * The recipient's language, resolved when the send is created (ADR 0018) so a retry renders the same
+ * language. Required when creating a send; a send stored before R2 has none and decodes as English.
+ */
+const EmailLocale = Locale.pipe(Schema.withDecodingDefaultKey(Effect.succeed(DEFAULT_LOCALE)));
+
 /** "You've been added to <Team> by <Lead>." Sent when a Lead adds a Person to a Team. */
 export const AddedToTeam = Schema.TaggedStruct("AddedToTeam", {
+  locale: EmailLocale,
   teamName: Schema.NonEmptyString,
   leadName: Schema.NonEmptyString,
   signInUrl: HttpsUrl,
@@ -52,6 +60,7 @@ export type InvitationRef = typeof InvitationRef.Type;
 
 /** One Invitation email with one-tap rating links (ADR 0005, 0007). As stored: no token. */
 export const InvitationEmail = Schema.TaggedStruct("InvitationEmail", {
+  locale: EmailLocale,
   pulseName: Schema.NonEmptyString,
   minimumGroupSize: MinimumGroupSize,
   invitation: InvitationRef,
@@ -64,6 +73,7 @@ export type InvitationEmail = typeof InvitationEmail.Type;
 
 /** A reminder email for an open round with one-click unsubscribe headers (RFC 8058). As stored: no token. */
 export const ReminderEmail = Schema.TaggedStruct("ReminderEmail", {
+  locale: EmailLocale,
   pulseName: Schema.NonEmptyString,
   invitation: InvitationRef,
   baseUrl: HttpsUrl,
@@ -80,6 +90,7 @@ export type ReminderEmail = typeof ReminderEmail.Type;
  * (rendered verbatim when `minimumGroupSize` is absent). Drop the legacy fields once those rows are gone.
  */
 export const InvitationEmailWithToken = Schema.TaggedStruct("InvitationEmail", {
+  locale: EmailLocale,
   pulseName: Schema.NonEmptyString,
   minimumGroupSize: Schema.optionalKey(MinimumGroupSize),
   anonymityStatement: Schema.optionalKey(Schema.NonEmptyString),
@@ -96,6 +107,7 @@ export type InvitationEmailWithToken = typeof InvitationEmailWithToken.Type;
  * rows carry `unsubscribeUrl` (built from the old random token); otherwise the template builds it.
  */
 export const ReminderEmailWithToken = Schema.TaggedStruct("ReminderEmail", {
+  locale: EmailLocale,
   pulseName: Schema.NonEmptyString,
   token: Schema.NonEmptyString,
   baseUrl: HttpsUrl,
@@ -108,6 +120,7 @@ export type ReminderEmailWithToken = typeof ReminderEmailWithToken.Type;
 
 /** A results-ready notice email sent when a Round closes and results are shared. */
 export const ResultsReadyEmail = Schema.TaggedStruct("ResultsReadyEmail", {
+  locale: EmailLocale,
   pulseName: Schema.NonEmptyString,
   teamName: Schema.NonEmptyString,
   resultsUrl: HttpsUrl,
