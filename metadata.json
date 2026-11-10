@@ -5,38 +5,7 @@
   "branch": "r2-106-review-window",
   "checkpoints_count": 4,
   "files_touched": [
-    "apps/web/src/app/App.scene.test.ts",
-    "apps/web/src/app/App.story.test.ts",
-    "apps/web/src/app/App.ts",
-    "apps/web/src/app/pulses.ts",
-    "apps/web/src/app/results.ts",
-    "apps/web/src/messages/catalog.ts",
-    "apps/web/src/messages/de.ts",
-    "packages/api/src/PrivacyRegistry.ts",
-    "packages/api/src/index.ts",
-    "packages/api/src/registry.privacy.test.ts",
-    "packages/cloudflare/src/MainWorker.ts",
-    "packages/cloudflare/src/Organization.test.ts",
-    "packages/cloudflare/src/Organization.ts",
-    "packages/cloudflare/src/PulseTestRoutes.ts",
-    "packages/cloudflare/src/PulsesApi.test.ts",
-    "packages/cloudflare/src/ReviewWindowTestRoutes.ts",
-    "packages/cloudflare/src/RoundHandlers.ts",
-    "packages/cloudflare/src/RoundTestRoutes.ts",
-    "packages/cloudflare/src/RoundThemesStorage.test.ts",
-    "packages/cloudflare/src/SqlPulses.ts",
-    "packages/cloudflare/src/SqlRounds.ts",
-    "packages/cloudflare/src/ThemesTestRoutes.ts",
-    "packages/domain/src/pulses/Editor.test.ts",
-    "packages/domain/src/pulses/Editor.ts",
-    "packages/domain/src/pulses/Pulse.ts",
-    "packages/domain/src/rounds/Lifecycle.test.ts",
-    "packages/domain/src/rounds/Lifecycle.ts",
-    "packages/domain/src/rounds/Results.ts",
-    "packages/domain/src/rounds/Round.ts",
-    "packages/domain/src/rounds/Themes.privacy.test.ts",
-    "packages/domain/src/rounds/Themes.test.ts",
-    "packages/domain/src/rounds/Themes.ts"
+    "packages/cloudflare/src/ReviewWindowTestRoutes.ts"
   ],
   "sessions": [
     {
@@ -44,21 +13,21 @@
       "transcript": "/0/full.jsonl",
       "compact_transcript": "/0/transcript.jsonl",
       "content_hash": "/0/content_hash.txt",
-      "prompt": "/0/prompt.txt"
+      "prompt": ""
     }
   ],
   "token_usage": {
-    "input_tokens": 126,
-    "cache_creation_tokens": 166090,
-    "cache_read_tokens": 7630704,
-    "output_tokens": 37849,
-    "api_call_count": 57,
+    "input_tokens": 52,
+    "cache_creation_tokens": 25621,
+    "cache_read_tokens": 5394035,
+    "output_tokens": 12550,
+    "api_call_count": 26,
     "subagent_tokens": {
-      "input_tokens": 356,
-      "cache_creation_tokens": 834992,
-      "cache_read_tokens": 21448604,
-      "output_tokens": 194426,
-      "api_call_count": 177
+      "input_tokens": 4,
+      "cache_creation_tokens": 2446,
+      "cache_read_tokens": 601093,
+      "output_tokens": 1400,
+      "api_call_count": 2
     }
   },
   "redaction": {
