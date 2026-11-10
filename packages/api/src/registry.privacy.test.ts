@@ -1,6 +1,8 @@
 import { assert, describe, it } from "@effect/vitest";
 import {
+  buildTeamOverview,
   calculateRoundResult,
+  type Dimension,
   enforceEffectiveNOnResult,
   type HistoricalRoundData,
   PulseId,
@@ -68,7 +70,7 @@ describe("privacy registry", () => {
           (input) =>
             Effect.suspend(() => {
               const scenario = Schema.decodeUnknownSync(RoundResultScenario)(input);
-              const failures = violations(scenario, respond(scenario));
+              const failures = respond(scenario);
               return failures.length > 0 ? Effect.fail(failures.join("; ")) : Effect.succeed(true);
             }),
           { runs: 500, seed: 20261109 },
@@ -90,6 +92,8 @@ interface Built {
     readonly answers: ReadonlyArray<SubmissionAnswer>;
   }>;
   readonly result: RoundResult;
+  /** The Result as stored under the Round's own N, before the current Organization N is applied. */
+  readonly stored: RoundResult;
   /** The same Round computed from scratch at the effective N: the most that may ever be shown. */
   readonly direct: RoundResult;
 }
@@ -181,19 +185,22 @@ const buildResult = (scenario: RoundResultScenario): Built => {
       submissions,
       pastRoundsHistory: history,
     });
+  const stored = compute(scenario.storedN);
   return {
     effectiveN,
     questions,
     submissions,
+    stored,
     // What `Organization.viewResults` returns: the Result stored under the Round's own N, then the
     // current Organization N applied on read (Rule R9).
-    result: enforceEffectiveNOnResult(compute(scenario.storedN), scenario.organizationN),
+    result: enforceEffectiveNOnResult(stored, scenario.organizationN),
     direct: compute(effectiveN),
   };
 };
 
-const resultResponders: Record<string, (scenario: RoundResultScenario) => Built> = {
-  "rounds.getResults": buildResult,
+const resultResponders: Record<string, (scenario: RoundResultScenario) => ReadonlyArray<string>> = {
+  "rounds.getResults": (scenario) => violations(scenario, buildResult(scenario)),
+  "rounds.getTeamOverview": (scenario) => overviewViolations(scenario),
 };
 
 /** Contributors to a Question counted from the raw Submissions, never from the Result under test. */
@@ -209,6 +216,68 @@ const contributorsOf = (built: Built, index: number): number => {
           : answer.value !== null),
     ),
   ).length;
+};
+
+/**
+ * The usable Rating Questions of one Dimension in a Round, and the Submissions that gave a value to
+ * one of them: contributors counted from the raw Submissions. Usable only when the Round is shown
+ * (not open, and at least N Submissions) and the Question has at least N contributors.
+ */
+const dimensionContributors = (
+  built: Built,
+  dimension: Dimension,
+  n: number,
+): {
+  readonly usable: ReadonlyArray<{ readonly question: QuestionInput; readonly index: number }>;
+  readonly contributors: number;
+} => {
+  const roundMeetsN = built.result.status !== "open" && built.result.submissionsCount >= n;
+  const usable = built.questions
+    .map((question, index) => ({ question, index }))
+    .filter(
+      ({ question, index }) =>
+        question.type._tag === "Rating" &&
+        question.dimension === dimension &&
+        roundMeetsN &&
+        contributorsOf(built, index) >= n,
+    );
+  const ids = new Set(usable.map(({ question }) => question.id));
+  const contributors = built.submissions.filter((submission) =>
+    submission.answers.some((answer) => answer.value !== null && ids.has(answer.questionVersionId)),
+  ).length;
+  return { usable, contributors };
+};
+
+/**
+ * Every point of the Team overview: a score must equal a fresh computation at the effective N and
+ * stand behind at least N contributors. The Result is built as stored, then enforced (ADR 0004).
+ */
+const overviewViolations = (scenario: RoundResultScenario): ReadonlyArray<string> => {
+  const built = buildResult({ ...scenario, status: "shared" });
+  const overview = buildTeamOverview({
+    teamId: TEAM,
+    results: [built.stored],
+    minimumGroupSize: scenario.organizationN,
+    actions: [],
+  });
+  const n = built.effectiveN;
+  const found: Array<string> = [];
+  if (overview.rounds.length !== 1) found.push(`overview has ${overview.rounds.length} rounds, expected 1`);
+  for (const line of overview.dimensions) {
+    const label = `overview ${line.dimension}`;
+    const fresh = built.direct.dimensions.find((each) => each.dimension === line.dimension);
+    const { usable, contributors } = dimensionContributors(built, line.dimension, n);
+    for (const point of line.points) {
+      if (point.score === null) continue;
+      if (fresh?.score !== point.score) {
+        found.push(`${label} differs from the Result computed at N=${n}`);
+      }
+      if (usable.length === 0 || contributors < n) {
+        found.push(`${label} shows a score from ${contributors} contributors (N=${n})`);
+      }
+    }
+  }
+  return found;
 };
 
 /** Every way the Result shows an aggregate that fewer than the effective N contributors stand behind. */
@@ -277,15 +346,7 @@ const violations = (scenario: RoundResultScenario, built: Built): ReadonlyArray<
 
   result.dimensions.forEach((dimension) => {
     const label = `dimension ${dimension.dimension}`;
-    const usable = built.questions
-      .map((question, index) => ({ question, index }))
-      .filter(
-        ({ question, index }) =>
-          question.type._tag === "Rating" &&
-          question.dimension === dimension.dimension &&
-          roundMeetsN &&
-          contributorsOf(built, index) >= n,
-      );
+    const { usable, contributors } = dimensionContributors(built, dimension.dimension, n);
     if (dimension.score === null) {
       if (dimension.contributors !== undefined && dimension.contributors !== null) {
         found.push(`${label} shows contributors without a score`);
@@ -294,10 +355,6 @@ const violations = (scenario: RoundResultScenario, built: Built): ReadonlyArray<
         found.push(`${label} shows a change or typical change without a score`);
       }
     } else {
-      const ids = new Set(usable.map(({ question }) => question.id));
-      const contributors = built.submissions.filter((submission) =>
-        submission.answers.some((answer) => answer.value !== null && ids.has(answer.questionVersionId)),
-      ).length;
       if (usable.length === 0 || contributors < n) {
         found.push(`${label} shows a score from ${contributors} contributors (N=${n})`);
       }

@@ -24,6 +24,7 @@ import {
   TeamDetail,
   TeamId,
   TeamName,
+  TeamOverview,
   TeamSummary,
   TemplateQuestionKey,
   TimeZone,
@@ -50,6 +51,7 @@ import {
   teamScreenView,
   teamsScreenView,
 } from "./directory.ts";
+import { LoadedOverview, teamOverviewView } from "./overview.ts";
 import {
   decodeContent,
   decodeSettings,
@@ -89,6 +91,7 @@ export const Model = Schema.Struct({
   createTeamFailure: Schema.Option(Failure),
   // Team detail screen
   teamDetail: LoadedTeam,
+  teamOverview: LoadedOverview,
   renameName: Schema.String,
   renameTimeZone: Schema.String,
   renameBusy: Schema.Boolean,
@@ -194,6 +197,10 @@ export const OutcomeTeamDetail = Schema.Union([
   Schema.TaggedStruct("Success", { detail: TeamDetail }),
   Schema.TaggedStruct("Failure", { failure: Failure }),
 ]);
+export const OutcomeTeamOverview = Schema.Union([
+  Schema.TaggedStruct("Success", { overview: TeamOverview }),
+  Schema.TaggedStruct("Failure", { failure: Failure }),
+]);
 export const OutcomeSettings = Schema.Union([
   Schema.TaggedStruct("Success", { settings: OrganizationSettings }),
   Schema.TaggedStruct("Failure", { failure: Failure }),
@@ -231,6 +238,7 @@ export const Message = defineMessageUnion({
   CreatedTeam: { outcome: OutcomeTeamDetail },
   // Team detail screen
   GotTeam: { outcome: OutcomeTeamDetail },
+  GotTeamOverview: { outcome: OutcomeTeamOverview },
   RenameNameChanged: { name: Schema.String },
   RenameTimeZoneChanged: { tz: Schema.String },
   SubmitRenameTeam: {},
@@ -373,6 +381,17 @@ export const GetTeam = Command.define("GetTeam", {
       (api) => api.directory.getTeam({ params: { teamId } }),
       (detail) => Message.GotTeam({ outcome: { _tag: "Success", detail } }),
       (failure) => Message.GotTeam({ outcome: { _tag: "Failure", failure } }),
+    ),
+});
+
+export const GetTeamOverviewCmd = Command.define("GetTeamOverviewCmd", {
+  args: { teamId: TeamId },
+  messages: [Message.GotTeamOverview],
+  execute: ({ teamId }) =>
+    runApi(
+      (api) => api.rounds.getTeamOverview({ params: { teamId } }),
+      (overview) => Message.GotTeamOverview({ outcome: { _tag: "Success", overview } }),
+      (failure) => Message.GotTeamOverview({ outcome: { _tag: "Failure", failure } }),
     ),
 });
 
@@ -792,6 +811,7 @@ export const initialModel = (url: Url): Model => {
     createTeamBusy: false,
     createTeamFailure: Option.none(),
     teamDetail: { _tag: "Loading" },
+    teamOverview: { _tag: "Loading" },
     renameName: "",
     renameTimeZone: timeZone,
     renameBusy: false,
@@ -864,7 +884,7 @@ export const loadActiveRouteCommand = (route: AppRoute) => {
     case "Teams":
       return [ListTeams()];
     case "Team":
-      return [GetTeam({ teamId: route.teamId })];
+      return [GetTeam({ teamId: route.teamId }), GetTeamOverviewCmd({ teamId: route.teamId })];
     case "Settings":
       return [GetSettings()];
     case "Pulses":
@@ -930,6 +950,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         url: message.url,
         route,
         teamDetail: { _tag: "Loading" },
+        teamOverview: { _tag: "Loading" },
         pulses: { _tag: "Loading" },
         pulseDetail: { _tag: "Loading" },
         settings: { _tag: "Loading" },
@@ -2004,6 +2025,27 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       };
     }
 
+    case "GotTeamOverview": {
+      const { outcome } = message;
+      if (outcome._tag === "Success") {
+        // A response for a Team the user has since navigated away from is stale: drop it.
+        const isCurrentTeam = model.route._tag === "Team" && model.route.teamId === outcome.overview.teamId;
+        if (!isCurrentTeam) return { model };
+        return {
+          model: {
+            ...model,
+            teamOverview: { _tag: "Loaded", overview: outcome.overview },
+          },
+        };
+      }
+      return {
+        model: {
+          ...model,
+          teamOverview: { _tag: "Failed", failure: outcome.failure },
+        },
+      };
+    }
+
     // ----------------------------------------
     // Results screen
     // ----------------------------------------
@@ -2281,6 +2323,12 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
           onRemoveMember: (personId) => Message.RemoveMemberClicked({ personId }),
           onRemoveLead: (personId) => Message.RemoveLeadClicked({ personId }),
         },
+        teamOverviewView(
+          model.teamOverview,
+          model.showTable["overview"] ?? false,
+          Message.ToggleResultsTable({ key: "overview" }),
+          h,
+        ),
         h,
       );
       break;

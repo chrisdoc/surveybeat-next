@@ -6,6 +6,7 @@ import {
   viewResults,
   viewRound,
   viewRounds,
+  viewTeamOverview,
 } from "@surveybeat/domain";
 import type * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -126,6 +127,9 @@ export const roundHandlers = <R>(services: Effect.Effect<Context.Context<RoundSe
         provide(
           Effect.flatMap(currentMember, (member) => viewResults(member, params.teamId, params.roundId)),
         ),
+      )
+      .handle("getTeamOverview", ({ params }) =>
+        provide(Effect.flatMap(currentMember, (member) => viewTeamOverview(member, params.teamId))),
       ),
   );
 };

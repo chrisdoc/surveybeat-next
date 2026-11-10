@@ -222,6 +222,7 @@ export const teamScreenView = <Message>(
     readonly onRemoveMember: (personId: PersonId) => Message;
     readonly onRemoveLead: (personId: PersonId) => Message;
   },
+  overview: Html,
   h: HtmlBuilder<Message>,
 ): Html => {
   const children: Array<Child> = [h.a([h.Href(teamsHref()), h.Class(linkClass)], [message("team.back")])];
@@ -252,6 +253,11 @@ export const teamScreenView = <Message>(
         [message("team.pulses")],
       ),
     );
+  }
+
+  // The Team health overview is Results, so it follows the same right as the Results screen.
+  if (detail.may.viewResults) {
+    children.push(h.div([h.Class("mt-8")], [overview]));
   }
 
   if (detail.may.update) {

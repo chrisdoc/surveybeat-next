@@ -1,5 +1,6 @@
 import { assert, describe, it } from "@effect/vitest";
 import {
+  buildTeamOverview,
   calculateRoundResult,
   enforceEffectiveNOnResult,
   PulseId,
@@ -25,6 +26,107 @@ const initDatabase = (): DatabaseSync => {
     db.exec(readFileSync(new URL(file, migrationsDir), "utf8"));
   }
   return db;
+};
+
+const perfBaseInstant = 1700000000000;
+const perfWeekMs = 7 * 24 * 3600_000;
+const perfQv1 = QuestionVersionId.make("qv-1.1");
+const perfQv2 = QuestionVersionId.make("qv-2.1");
+const perfQuestions: ReadonlyArray<QuestionInput> = [
+  {
+    id: perfQv1,
+    position: 0,
+    text: "How manageable is your workload?",
+    type: { _tag: "Rating", lowLabel: "Low", highLabel: "High", comment: true },
+    dimension: "workload",
+  },
+  {
+    id: perfQv2,
+    position: 1,
+    text: "How safe do you feel speaking up?",
+    type: { _tag: "Rating", lowLabel: "Low", highLabel: "High", comment: true },
+    dimension: "psychologicalSafety",
+  },
+];
+
+interface PerfRound {
+  readonly id: string;
+  readonly teamId: TeamId;
+  readonly pulseId: PulseId;
+  readonly status: "shared" | "closed";
+  readonly plannedOpenDate: string;
+  readonly openAt: number;
+  readonly closeAt: number;
+}
+
+/** Inserts one Round with its stored Result (4 submissions, effective N 4, 8 eligible Members). */
+const insertPerfRound = (db: DatabaseSync, round: PerfRound): void => {
+  db.prepare(
+    `INSERT INTO round (id, pulse_id, team_id, status, planned_open_date, planned_open_at, planned_close_at, effective_minimum_group_size, pulse_name, answer_window_days, reminders, anonymity_mode, distribution, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 4, 'Pulse Perf', 3, 1, 'anonymous', 'invitation', 1000, 1000)`,
+  ).run(
+    round.id,
+    round.pulseId,
+    round.teamId,
+    round.status,
+    round.plannedOpenDate,
+    round.openAt,
+    round.closeAt,
+  );
+
+  const submission = (suffix: number, v1: number, v2: number) => ({
+    id: `sub-${round.id}-${suffix}`,
+    answers: [
+      { questionVersionId: perfQv1, value: v1, comment: suffix % 2 === 0 ? "Good" : null },
+      { questionVersionId: perfQv2, value: v2, comment: null },
+    ],
+  });
+
+  const result = calculateRoundResult({
+    roundId: RoundId.make(round.id),
+    pulseId: round.pulseId,
+    teamId: round.teamId,
+    status: round.status,
+    plannedOpenDate: round.plannedOpenDate,
+    anonymityMode: "anonymous",
+    closedAt: round.closeAt,
+    effectiveMinimumGroupSize: 4,
+    eligibleMembersCount: 8,
+    questions: perfQuestions,
+    submissions: [submission(1, 4, 5), submission(2, 3, 4), submission(3, 4, 4), submission(4, 5, 5)],
+    pastRoundsHistory: [],
+  });
+
+  db.prepare("INSERT INTO round_result (round_id, computed_at, payload) VALUES (?, ?, ?)").run(
+    round.id,
+    round.closeAt,
+    JSON.stringify(result),
+  );
+};
+
+/** Seeds the perf organization, its Team and Pulse, and 104 weekly shared Rounds with stored Results. */
+const seedPerfTeam = (db: DatabaseSync): void => {
+  db.prepare("INSERT INTO organization (id, name) VALUES ('org-perf', 'Perf Org')").run();
+  db.prepare("INSERT INTO team (id, name, time_zone) VALUES ('team-perf', 'Team Perf', 'UTC')").run();
+  db.prepare(
+    `INSERT INTO pulse (id, team_id, name, cadence, weekday, send_time, answer_window_days, reminders, anonymity_mode, distribution, created_at)
+     VALUES ('pulse-perf', 'team-perf', 'Pulse Perf', 'weekly', 'monday', '09:00', 3, 1, 'anonymous', 'invitation', 1000)`,
+  ).run();
+
+  // Insert 104 rounds (2 years of weekly rounds)
+  for (let i = 0; i < 104; i++) {
+    const openAt = perfBaseInstant + i * perfWeekMs;
+    const dateStr = `2024-${String(Math.floor(i / 4) + 1).padStart(2, "0")}-${String((i % 4) * 7 + 1).padStart(2, "0")}`;
+    insertPerfRound(db, {
+      id: `round-${i}`,
+      teamId: TeamId.make("team-perf"),
+      pulseId: PulseId.make("pulse-perf"),
+      status: "shared",
+      plannedOpenDate: dateStr,
+      openAt,
+      closeAt: openAt + 3 * 24 * 3600_000,
+    });
+  }
 };
 
 describe("RoundResult storage and performance (Issue #45, ADR 0004)", () => {
@@ -126,103 +228,7 @@ describe("RoundResult storage and performance (Issue #45, ADR 0004)", () => {
 
   it("Performance: 104 weekly Rounds (2 years) query renders in under 1.5 seconds", () => {
     const db = initDatabase();
-
-    db.prepare("INSERT INTO organization (id, name) VALUES ('org-perf', 'Perf Org')").run();
-    db.prepare("INSERT INTO team (id, name, time_zone) VALUES ('team-perf', 'Team Perf', 'UTC')").run();
-    db.prepare(
-      `INSERT INTO pulse (id, team_id, name, cadence, weekday, send_time, answer_window_days, reminders, anonymity_mode, distribution, created_at)
-       VALUES ('pulse-perf', 'team-perf', 'Pulse Perf', 'weekly', 'monday', '09:00', 3, 1, 'anonymous', 'invitation', 1000)`,
-    ).run();
-
-    const insertRoundStmt = db.prepare(
-      `INSERT INTO round (id, pulse_id, team_id, status, planned_open_date, planned_open_at, planned_close_at, effective_minimum_group_size, pulse_name, answer_window_days, reminders, anonymity_mode, distribution, created_at, updated_at)
-       VALUES (?, 'pulse-perf', 'team-perf', 'shared', ?, ?, ?, 4, 'Pulse Perf', 3, 1, 'anonymous', 'invitation', 1000, 1000)`,
-    );
-
-    const insertResultStmt = db.prepare(
-      "INSERT INTO round_result (round_id, computed_at, payload) VALUES (?, ?, ?)",
-    );
-
-    const qv1 = QuestionVersionId.make("qv-1.1");
-    const qv2 = QuestionVersionId.make("qv-2.1");
-    const pulsePerfId = PulseId.make("pulse-perf");
-    const teamPerfId = TeamId.make("team-perf");
-
-    const questions: ReadonlyArray<QuestionInput> = [
-      {
-        id: qv1,
-        position: 0,
-        text: "How manageable is your workload?",
-        type: { _tag: "Rating", lowLabel: "Low", highLabel: "High", comment: true },
-        dimension: "workload",
-      },
-      {
-        id: qv2,
-        position: 1,
-        text: "How safe do you feel speaking up?",
-        type: { _tag: "Rating", lowLabel: "Low", highLabel: "High", comment: true },
-        dimension: "psychologicalSafety",
-      },
-    ];
-
-    // Insert 104 rounds (2 years of weekly rounds)
-    const baseInstant = 1700000000000;
-    const weekMs = 7 * 24 * 3600_000;
-
-    for (let i = 0; i < 104; i++) {
-      const roundIdStr = `round-${i}`;
-      const openAt = baseInstant + i * weekMs;
-      const closeAt = openAt + 3 * 24 * 3600_000;
-      const dateStr = `2024-${String(Math.floor(i / 4) + 1).padStart(2, "0")}-${String((i % 4) * 7 + 1).padStart(2, "0")}`;
-
-      insertRoundStmt.run(roundIdStr, dateStr, openAt, closeAt);
-
-      const fakeResult = calculateRoundResult({
-        roundId: RoundId.make(roundIdStr),
-        pulseId: pulsePerfId,
-        teamId: teamPerfId,
-        status: "shared",
-        plannedOpenDate: dateStr,
-        anonymityMode: "anonymous",
-        closedAt: closeAt,
-        effectiveMinimumGroupSize: 4,
-        eligibleMembersCount: 8,
-        questions,
-        submissions: [
-          {
-            id: `sub-${i}-1`,
-            answers: [
-              { questionVersionId: qv1, value: 4, comment: "Good" },
-              { questionVersionId: qv2, value: 5, comment: null },
-            ],
-          },
-          {
-            id: `sub-${i}-2`,
-            answers: [
-              { questionVersionId: qv1, value: 3, comment: null },
-              { questionVersionId: qv2, value: 4, comment: null },
-            ],
-          },
-          {
-            id: `sub-${i}-3`,
-            answers: [
-              { questionVersionId: qv1, value: 4, comment: null },
-              { questionVersionId: qv2, value: 4, comment: null },
-            ],
-          },
-          {
-            id: `sub-${i}-4`,
-            answers: [
-              { questionVersionId: qv1, value: 5, comment: "Awesome" },
-              { questionVersionId: qv2, value: 5, comment: null },
-            ],
-          },
-        ],
-        pastRoundsHistory: [],
-      });
-
-      insertResultStmt.run(roundIdStr, closeAt, JSON.stringify(fakeResult));
-    }
+    seedPerfTeam(db);
 
     // Benchmark reading and decoding a Result for round 103 (latest round with 104 rounds in DB)
     const startTime = performance.now();
@@ -245,5 +251,65 @@ describe("RoundResult storage and performance (Issue #45, ADR 0004)", () => {
     const elapsed = performance.now() - startTime;
     // 50 queries + decodes must execute in well under 1500 ms!
     assert.isBelow(elapsed, 1500, `Expected elapsed < 1500ms, got ${elapsed}ms`);
+  });
+
+  it("Performance: Team overview over 104 weekly shared Rounds builds in under 1.5 seconds", () => {
+    const db = initDatabase();
+    seedPerfTeam(db);
+
+    // Excluded by the query: same Team but not shared
+    insertPerfRound(db, {
+      id: "round-closed",
+      teamId: TeamId.make("team-perf"),
+      pulseId: PulseId.make("pulse-perf"),
+      status: "closed",
+      plannedOpenDate: "2025-06-02",
+      openAt: perfBaseInstant + 104 * perfWeekMs,
+      closeAt: perfBaseInstant + 104 * perfWeekMs + 3 * 24 * 3600_000,
+    });
+
+    // Excluded by the query: shared, but another Team's Round
+    db.prepare("INSERT INTO team (id, name, time_zone) VALUES ('team-other', 'Team Other', 'UTC')").run();
+    db.prepare(
+      `INSERT INTO pulse (id, team_id, name, cadence, weekday, send_time, answer_window_days, reminders, anonymity_mode, distribution, created_at)
+       VALUES ('pulse-other', 'team-other', 'Pulse Other', 'weekly', 'monday', '09:00', 3, 1, 'anonymous', 'invitation', 1000)`,
+    ).run();
+    insertPerfRound(db, {
+      id: "round-other-team",
+      teamId: TeamId.make("team-other"),
+      pulseId: PulseId.make("pulse-other"),
+      status: "shared",
+      plannedOpenDate: "2025-06-09",
+      openAt: perfBaseInstant + 105 * perfWeekMs,
+      closeAt: perfBaseInstant + 105 * perfWeekMs + 3 * 24 * 3600_000,
+    });
+
+    // A copy of `getSharedRoundResultsForTeam`'s SQL: this measures query, decode and build time.
+    const overviewSql = `SELECT rr.payload FROM round_result rr JOIN round r ON r.id = rr.round_id WHERE r.team_id = ? AND r.status = 'shared' ORDER BY r.planned_open_at ASC, r.id ASC`;
+    const teamId = TeamId.make("team-perf");
+
+    const startTime = performance.now();
+
+    const rows = db.prepare(overviewSql).all("team-perf") as Array<{ payload: string }>;
+    const results = rows.map((row) => {
+      const parsed: unknown = JSON.parse(row.payload);
+      return Schema.decodeUnknownSync(RoundResult)(parsed);
+    });
+    const overview = buildTeamOverview({ teamId, results, minimumGroupSize: 4, actions: [] });
+
+    const elapsed = performance.now() - startTime;
+
+    assert.isBelow(elapsed, 1500, `Expected elapsed < 1500ms, got ${elapsed}ms`);
+    assert.strictEqual(overview.rounds.length, 104);
+    assert.strictEqual(overview.dimensions.length, 2);
+    for (const dimension of overview.dimensions) {
+      assert.strictEqual(
+        dimension.points.length,
+        104,
+        `${dimension.dimension} must have one point per Round`,
+      );
+    }
+    const dates = overview.rounds.map((round) => round.plannedOpenDate);
+    assert.deepStrictEqual(dates, [...dates].sort(), "Rounds must be in ascending plannedOpenDate order");
   });
 });
