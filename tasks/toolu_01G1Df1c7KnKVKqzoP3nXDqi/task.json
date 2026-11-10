@@ -1,0 +1,29 @@
+{
+  "tool_use_id": "toolu_01G1Df1c7KnKVKqzoP3nXDqi",
+  "agent_id": "ac6331b3e7e0f4771",
+  "subagent_type": "implementer",
+  "task_description": "Implement issue 128 result recovery",
+  "files": [
+    "packages/api/src/PrivacyRegistry.ts",
+    "packages/api/src/index.ts",
+    "packages/cloudflare/src/Organization.ts",
+    "packages/cloudflare/src/RoundHandlers.ts",
+    "packages/cloudflare/src/SqlRounds.ts",
+    "packages/domain/src/rounds/Lifecycle.ts",
+    "packages/domain/src/rounds/Results.ts",
+    "packages/domain/src/rounds/Retry.test.ts",
+    "packages/domain/src/rounds/Retry.ts",
+    "packages/domain/src/rounds/Themes.test.ts",
+    "packages/domain/src/rounds/Themes.ts",
+    "packages/domain/src/rounds/index.ts"
+  ],
+  "token_usage": {
+    "input_tokens": 144,
+    "cache_creation_tokens": 299833,
+    "cache_read_tokens": 8635517,
+    "output_tokens": 83744,
+    "api_call_count": 72
+  },
+  "started_at": "2026-11-10T12:44:46.516894855Z",
+  "completed_at": "2026-11-10T12:44:46.517212737Z"
+}

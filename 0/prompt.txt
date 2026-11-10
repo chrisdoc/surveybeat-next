@@ -1,0 +1,85 @@
+Act as the implementation sub-agent for this task.
+
+You orchestrate issue #128 ("A Round whose Result fails to compute stays Closed and is never shared") in chrisdoc/surveybeat-next. THIS TASK EXPLICITLY ASKS YOU TO USE SUBAGENTS: `scoper` (model "haiku"), `implementer` (model "haiku") writes code, `reviewer` (model "sonnet") reviews each diff; you design the lifecycle change, write briefs, check diffs, and run suites (follow ~/.claude/CLAUDE.md). One implementer at a time; do git/GitHub steps yourself to save rate limit.
+
+Read: `gh issue view 128`, ADR 0006 (Organization DO owns the lifecycle; schedule table; alarms can run twice), the Review window from PR #127 (`gh pr view 127`: close → Ready → Shared, `share` job, window end fixed at close), the themes retry pattern from PR #115 (5 min doubling to 4 h, stop after 24 h), R1 slice 11's "Results delayed" state, AGENTS.md.
+
+Decided (don't relitigate): when computing a Round's Result fails, keep retrying automatically with backoff (same schedule as themes: 5 min doubling to 4 h) for up to 24 h; the Review window starts only once a Result exists (window end = Result computed + window days, so members never lose review time); after 24 h of failures the Round gets a visible state for the Lead: "These Results couldn't be computed." with a "Try again" button (Lead only; idempotent; re-queues the compute with a fresh 24 h budget); members keep seeing the existing "Results delayed" wording; the operator alert stays. Copy in English and German (`de.ts`, informal "du"). Tests: lifecycle tests for fail-then-succeed, 24 h give-up, Lead retry (doubled click), doubled alarm; privacy registry classification for any new endpoint. New migration only if needed (next free number after 0015).
+
+Workflow: branch `r2-128-result-recovery` from origin/main. Validation: pnpm typecheck, pnpm typecheck:effect, pnpm lint, pnpm format:check, pnpm test, pnpm test:privacy, web build, and the relevant workerd adapter test files singly. Commit subject "R2: Retry failed Result computation and let the Lead try again", message ending "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"; PR "Closes #128. Part of #101.", body ending "🤖 Generated with [Claude Code](https://claude.com/claude-code)". Push (retry once if rejected without reason); wait for checks with `gh pr checks <n> --watch` if your environment allows, otherwise report the PR as pending and stop; if checks finish green, squash-merge your own PR (user-authorized): `gh pr merge <n> --squash --delete-branch`. Rebase on origin/main before pushing and never revert others' merged work.
+
+Final report (≤ 10 lines): design as built, deviations, reviewer findings, tests, PR URL, merge SHA or pending state.
+
+---
+
+Continue where you left off.
+
+---
+
+<task-notification>
+<task-id>ac6331b3e7e0f4771</task-id>
+<tool-use-id>toolu_01RvyA7PRBnfiCpSHoeRA7ZT</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-e2892904-f366704fe57fef67/2594ab36-75fc-49e6-bdc7-cae957892008/tasks/ac6331b3e7e0f4771.output</output-file>
+<status>completed</status>
+<summary>Agent "Implement issue 128 result recovery" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>The Result recovery change is complete: the backoff, the retry and give-up path, the Lead retry command, the Lead-only failure panel, and the tests. Every validation command in the brief passes, including the workerd `Organization.test.ts`.
+
+## Changes
+
+**Domain (`packages/domain/src/rounds/`)**
+- `Retry.ts` (new): `RETRY_WINDOW_MS` and `nextRetryAt(startedAt, failedAttempts, now)`, moved from Themes.ts. `index.ts` exports it.
+- `Themes.ts`: `runThemesAttempt` uses `nextRetryAt`. `nextThemesAttemptAt` and `THEMES_RETRY_WINDOW_MS` are removed. `viewRoundResult` sets `couldNotCompute: true` only for a Lead, on a closed Round with a stored `delayed` Result, and not while a retry is pending.
+- `Results.ts`: `couldNotCompute` optional field on `RoundResult`, and the pure `delayedRoundResult(...)` placeholder.
+- `Lifecycle.ts`: `RetryResult` command.
+- Tests: `Retry.test.ts` (moved backoff tests), new `viewRoundResult` describe in `Themes.test.ts` (4 cases), new `delayedRoundResult` describe in `Results.test.ts` (3 cases).
+
+**API:** `packages/api/src/index.ts` adds `retryResult` at `POST /teams/:teamId/rounds/:roundId/retry-result`. `PrivacyRegistry.ts` classifies it as `NoResultData`.
+
+**Cloudflare**
+- `Organization.ts`:
+  - `executeComputeJob` returns early when `job.dueAt &gt; now`.
+  - A defect retries at `nextRetryAt(job.createdAt, attempts, now)` and gives up after 24 h. Give-up logs `[OPERATOR_ALERT]`, stores the delayed placeholder and completes the job.
+  - `viewResults` no longer computes or saves a Result. It shows the placeholder with `resultPending` when none is stored.
+  - `RetryResult` command: Lead only, no-op when Ready or Shared, `InvalidRoundState` for other non-closed statuses, no-op when a compute job is already pending. Otherwise it deletes the stored Result, inserts a fresh compute job and runs it at once.
+  - `injectComputeFailures(roundId, count)` test seam, which dies before any write.
+- `SqlRounds.ts`: `markRoundReady` shifts `review_ends_at` by `now - closed_at`. New `deleteRoundResult` and `hasPendingJob`.
+- `RoundHandlers.ts`: `retryResult` handler.
+- `ResultRecoveryTestRoutes.ts` (new), registered in `MainWorker.ts` at `/__test/result-recovery` inside the `isTestStage` block.
+- `ReviewWindowTestRoutes.ts`: helpers exported, not copied.
+- `Organization.test.ts`: new test "Result recovery: ..." with scenarios a to d.
+
+**Web**
+- `results.ts`: when `couldNotCompute` is true, the panel shows the failed title and a "Try again" button (busy text, `problemView`). Otherwise the existing delayed card.
+- `App.ts`: `retryBusy`/`retryFailure` model fields, `RetryResultClicked`, `RetryResultDone`, `RetryResultCmd`, reload on success.
+- `catalog.ts` and `de.ts`: `results.failed.title`, `results.failed.retry`, `results.failed.retrying`.
+- `App.scene.test.ts`: three scenes (Lead retry success and reload, Lead failed retry, member sees "Results delayed" with no retry).
+
+**Docs:** `GLOSSARY.md` Review window wording, as in the design.
+
+## Validation
+
+- `pnpm typecheck`: exit 0.
+- `pnpm typecheck:effect`: exit 0. Only pre-existing suggestions remain, none in new code.
+- `pnpm lint`: exit 0.
+- `pnpm format`, then `pnpm format:check`: "All matched files use the correct format."
+- `pnpm test` (unit): 59 files, 881 tests passed.
+- `pnpm test:privacy`: 9 files, 167 tests passed.
+- `pnpm --filter @surveybeat/web build`: exit 0.
+- `pnpm test packages/cloudflare/src/Organization.test.ts`: 8 passed, 18.76 s, exit 0. The new Result recovery test passes against the expected values in the brief, including the attempt schedule `[0, 5, 15, 35, 75, 155, 315, 555, 795, 1035, 1275]` minutes.
+- `pnpm test packages/cloudflare/src/RoundThemesStorage.test.ts`: 7 passed.
+- `pnpm test packages/cloudflare/src/ResultsStorage.test.ts`: 5 passed.
+- `pnpm test apps/web/src/app/App.scene.test.ts apps/web/src/messages`: 80 passed.
+
+## Notes
+
+- **Deviation: `resultPending` flag.** `viewRoundResult` takes an optional `resultPending`, and `viewResults` passes `storedResult === null`. Without it, the placeholder during retries would carry `delayed: true` and be read as given up. The brief did not specify how to tell the two apart.
+- **Deviation: exports, not copies.** The test route imports the setup helpers from `ReviewWindowTestRoutes.ts` rather than copying them.
+- **Deviation: JSON decoding.** The test route decodes `attempts` with `Schema.fromJsonString`, which the codebase already uses, rather than copying `parseAttempts`.
+- **Added helpers.** `deleteRoundResult` and `hasPendingJob` are new SQL helpers in `SqlRounds.ts`.
+- **Give-up does not bump `attempts`.** The payload keeps `attempts: 10` after the 11th attempt gives up. The test asserts the attempt times, not the payload.
+- **Partial-write risk remains.** `calculateRoundResult` and the injected failure both run before any write, so a defect there leaves nothing behind. A database error inside `saveRoundResult` or `markRoundReady` is still an `orDie` defect, and the catch would commit whatever was written before it. I did not add a guard, since that is outside the brief.
+- **Files changed on disk mid-task.** `GLOSSARY.md` and `ResultRecoveryTestRoutes.ts` changed on disk after my last read. I left both alone. The glossary wording matches the design. The workerd test passed against the route file as it currently stands.
+- **Logs in `/tmp`.** I wrote validation logs to `/tmp/claude-*.txt` rather than the scratchpad. They are outside the repo and can be deleted.</result>
+<usage><subagent_tokens>191557</subagent_tokens><tool_uses>39</tool_uses><duration_ms>376105</duration_ms></usage>
+</task-notification>
