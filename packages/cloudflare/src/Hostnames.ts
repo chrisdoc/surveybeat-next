@@ -23,7 +23,7 @@ export const hostnameFor = (stage: string, host: "app" | "submit"): string | und
  * to main, so claiming them now would collide with those records. Flip it only after the cutover in
  * docs/infra.md.
  */
-export const APEX_SERVED_BY_SITE = false;
+export const APEX_SERVED_BY_SITE = true;
 
 /**
  * The custom hostname the Site Worker (the landing page) is served on in a stage, or undefined for
