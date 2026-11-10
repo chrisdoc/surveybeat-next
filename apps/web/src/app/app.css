@@ -11,6 +11,7 @@
   --color-muted: #3d554f;
   --color-primary: #0b5d55;
   --color-primary-hover: #07433d;
+  --color-on-primary: #ffffff;
   --color-primary-soft: #d3e7e2;
   --color-evergreen: #0e2a24;
   --color-evergreen-raised: #15372f;
@@ -27,6 +28,34 @@
 
   --radius-panel: 20px;
   --radius-control: 12px;
+}
+
+:root {
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-stone: #0b1f1b;
+    --color-surface: #12302a;
+    --color-subtle: #163a33;
+    --color-line: #2a4f46;
+    --color-line-soft: #1e4038;
+    --color-ink: #e8f0ed;
+    --color-muted: #a9c2ba;
+    --color-primary: #7fcdbe;
+    --color-primary-hover: #9fd6cb;
+    --color-on-primary: #06221d;
+    --color-primary-soft: #1f4a42;
+    --color-evergreen: #081814;
+    --color-evergreen-raised: #102a24;
+    --color-mint: #9fd6cb;
+    --color-mint-text: #bfd3cc;
+    --color-brass-soft: #3a2f14;
+    --color-brass: #f0d79a;
+    --color-danger: #ff8a7a;
+    --color-danger-soft: #3a1a16;
+  }
 }
 
 @layer base {
