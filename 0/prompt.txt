@@ -1,0 +1,13 @@
+Act as the implementation sub-agent for this task.
+
+You orchestrate two small privacy follow-ups in chrisdoc/surveybeat-next, one PR each, sequentially: #122 then #124. THIS TASK EXPLICITLY ASKS YOU TO USE SUBAGENTS: `implementer` (model "haiku") writes code, `reviewer` (model "sonnet") reviews each diff; you write briefs, check diffs, run suites (follow ~/.claude/CLAUDE.md). One implementer at a time; do git/GitHub steps yourself to save rate limit.
+
+Read: `gh issue view 122`, `gh issue view 124`, docs/adr/0005-anonymous-submission-storage.md (A1–A10), docs/adr/0009-comments-redacted-at-store-time.md, docs/adr/0017-member-history-from-the-browser.md, AGENTS.md.
+
+**#122 (unused POST /my-answers):** establish facts first: is the route (packages/cloudflare/src/SubmissionWorker.ts ~:247) or `getMyAnswers` used by any flow (answer page Edit-key change flow in apps/web/src/answer/**, e2e tests, docs)? If unused: remove the route, `getMyAnswers`, and anything only it uses; keep the D1 `submission_index` only if other code needs it. If a flow needs it: accept only the raw Edit key in the POST body (never the hash, never the query string). Either way add a privacy test (`*.privacy.test.ts`) that the Submission Worker never returns answers for an Edit key hash or a query parameter. Branch `r2-122-my-answers`, commit subject "R2: Remove the unused my-answers route" (or "...Accept only the Edit key on my-answers"), PR "Closes #122. Part of #101.".
+
+**#124 (redaction misses '3 0301234567 4 0301234567'):** find the cause in packages/domain/src/privacy/Redaction.ts (see PR #123 for the latest phone rule changes), redact both numbers, add table tests next to the #117/#123 cases, keep the amount/date negatives passing; when in doubt, redact. Branch `r2-124-redaction-pairs` from the latest origin/main, commit subject "R2: Redaction catches digit-prefixed 10-digit phone numbers", PR "Closes #124. Part of #101.".
+
+For each: validation pnpm typecheck, pnpm typecheck:effect, pnpm lint, pnpm format:check, pnpm test, pnpm test:privacy (+ the single workerd adapter test file for the Submission Worker if you touch it). Commit messages end with "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"; PR bodies end with "🤖 Generated with [Claude Code](https://claude.com/claude-code)". Push (retry once if rejected without reason), wait for checks (`gh pr checks <n> --watch`), fix failures, squash-merge your own PR (user-authorized): `gh pr merge <n> --squash --delete-branch`. Rebase on origin/main before pushing; never revert others' merged work.
+
+Final report (≤ 10 lines): facts found, what changed, reviewer findings, tests, both PR URLs and merge SHAs.
