@@ -34,7 +34,8 @@ const s = http.createServer((req, res) => {
   let file = path.join(dist, url.pathname);
   if (fs.existsSync(file) && fs.statSync(file).isDirectory()) file = path.join(file, "index.html");
   if (!fs.existsSync(file)) {
-    if (url.pathname.startsWith("/a") || url.pathname.startsWith("/answer")) file = path.join(dist, "answer.html");
+    if (url.pathname.startsWith("/de/a")) file = path.join(dist, "de", "answer.html");
+    else if (url.pathname.startsWith("/a") || url.pathname.startsWith("/answer")) file = path.join(dist, "answer.html");
     else file = path.join(dist, "index.html");
   }
   const ext = path.extname(file);

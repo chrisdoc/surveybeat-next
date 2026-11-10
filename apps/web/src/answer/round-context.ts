@@ -1,4 +1,4 @@
-import { message } from "../messages/answer.ts";
+import type { AnswerMessage } from "./answer-messages.ts";
 
 export interface QuestionTypeRating {
   readonly _tag: "Rating";
@@ -46,7 +46,7 @@ export interface RoundContextData {
  * What the lead will and will not see (SPEC 5.2). When the Organization processes comments with AI, the
  * answer page says so right after it (ADR 0015).
  */
-export function anonymityStatement(context: RoundContextData): string {
+export function anonymityStatement(context: RoundContextData, message: AnswerMessage): string {
   const anonymity = message("answer.anonymity", { n: context.minimumGroupSize });
   return context.aiProcessing ? `${anonymity} ${message("answer.aiNotice")}` : anonymity;
 }

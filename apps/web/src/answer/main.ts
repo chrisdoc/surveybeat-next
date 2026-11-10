@@ -1,4 +1,4 @@
-import { message } from "../messages/answer.ts";
+import type { AnswerMessage } from "./answer-messages.ts";
 import { keepAnswer } from "./kept-answers.ts";
 import { anonymityStatement, type QuestionData, parseRoundContext } from "./round-context.ts";
 
@@ -128,7 +128,7 @@ const scaleKeys: ReadonlyArray<ScaleKey> = [
   "answer.scale.5",
 ];
 
-async function run(): Promise<void> {
+async function run(message: AnswerMessage): Promise<void> {
   document.title = message("answer.title");
 
   const saveBtn = document.getElementById("save");
@@ -191,7 +191,7 @@ async function run(): Promise<void> {
   // What the lead will and will not see needs the Team's N, so it waits for the context.
   const anonEl = document.getElementById("anon");
   if (anonEl instanceof HTMLElement) {
-    anonEl.textContent = anonymityStatement(context);
+    anonEl.textContent = anonymityStatement(context, message);
   }
 
   // Trigger dynamic schema validation after first paint (keeps Effect Schema off critical path)
@@ -554,4 +554,7 @@ async function run(): Promise<void> {
   };
 }
 
-void run();
+/** Runs the answer page with one locale's messages. Each entry module (en.ts, de.ts) calls this once. */
+export function start(message: AnswerMessage): void {
+  void run(message);
+}

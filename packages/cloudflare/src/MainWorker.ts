@@ -20,7 +20,7 @@ import {
   TeamId,
 } from "@surveybeat/domain";
 import { SurveyBeatApi } from "@surveybeat/api";
-import { EmailTemplatesLive } from "@surveybeat/emails";
+import { EmailTemplatesLive, messagesFor } from "@surveybeat/emails";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import { Stack } from "alchemy/Stack";
 import * as Config from "effect/Config";
@@ -80,6 +80,12 @@ import { ROUNDS_TEST_ROUTE, roundTestRoutes } from "./RoundTestRoutes.ts";
 import { THEMES_TEST_ROUTE, themesTestRoutes } from "./ThemesTestRoutes.ts";
 import Organization from "./Organization.ts";
 import { Jobs, JobsDlq, type JobMessage } from "./Queues.ts";
+import {
+  pageLocale,
+  renderDeliveryPage,
+  renderDeliverySuccessPage,
+  renderUnsubscribePage,
+} from "./ServerPages.ts";
 
 /** `apps/web`'s build output. Absolute, so it does not depend on where Alchemy is started. */
 const assetsDirectory = new URL("../../../apps/web/dist", import.meta.url).pathname;
@@ -102,6 +108,9 @@ const randomId = () =>
   );
 
 const newOrganizationId = () => OrganizationId.make(randomId());
+
+/** Plain-text replies from the delivery and unsubscribe routes can be German, so they name their charset. */
+const PLAIN_TEXT = "text/plain; charset=utf-8";
 
 /**
  * The Main Worker: the API (domain schemas, `@surveybeat/api` declaration, handlers backed by the
@@ -267,114 +276,6 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
       ),
     );
 
-    const renderDeliveryPage = (token: string): string => `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Change delivery time · SurveyBeat</title>
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #f8fafc; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 1rem; }
-    .card { background: #1e293b; padding: 2rem; border-radius: 0.75rem; max-width: 420px; width: 100%; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
-    h1 { font-size: 1.25rem; font-weight: 600; margin-top: 0; }
-    p { color: #94a3b8; font-size: 0.875rem; line-height: 1.5; }
-    label { display: block; font-size: 0.875rem; font-weight: 500; margin-bottom: 0.5rem; }
-    select, button { width: 100%; padding: 0.625rem; border-radius: 0.375rem; font-size: 0.875rem; box-sizing: border-box; }
-    select { background: #0f172a; border: 1px solid #334155; color: #f8fafc; margin-bottom: 1.25rem; }
-    button { background: #3b82f6; color: white; border: none; font-weight: 500; cursor: pointer; }
-    button:hover { background: #2563eb; }
-  </style>
-</head>
-<body>
-  <div class="card">
-    <h1>Change delivery time</h1>
-    <p>We'll deliver your check-ins and reminders at your local time.</p>
-    <form method="POST" action="/delivery">
-      <input type="hidden" name="token" value="${token}" />
-      <label for="timeZone">Time zone</label>
-      <select name="timeZone" id="timeZone" required>
-        <option value="Europe/Berlin">Europe/Berlin</option>
-        <option value="Europe/London">Europe/London</option>
-        <option value="America/New_York">America/New_York</option>
-        <option value="America/Chicago">America/Chicago</option>
-        <option value="America/Denver">America/Denver</option>
-        <option value="America/Los_Angeles">America/Los_Angeles</option>
-        <option value="Asia/Tokyo">Asia/Tokyo</option>
-        <option value="UTC">UTC</option>
-      </select>
-      <button type="submit">Save preference</button>
-    </form>
-    <script>
-      try {
-        const userTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-        if (userTz) {
-          const sel = document.getElementById("timeZone");
-          let found = false;
-          for (let i = 0; i < sel.options.length; i++) {
-            if (sel.options[i].value === userTz) { sel.selectedIndex = i; found = true; break; }
-          }
-          if (!found) {
-            const opt = document.createElement("option");
-            opt.value = userTz;
-            opt.text = userTz;
-            opt.selected = true;
-            sel.prepend(opt);
-          }
-        }
-      } catch (e) {}
-    </script>
-  </div>
-</body>
-</html>`;
-
-    const renderDeliverySuccessPage = (timeZone: string): string => `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Delivery preference updated · SurveyBeat</title>
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #f8fafc; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 1rem; }
-    .card { background: #1e293b; padding: 2rem; border-radius: 0.75rem; max-width: 420px; width: 100%; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
-    h1 { font-size: 1.25rem; font-weight: 600; margin-top: 0; color: #34d399; }
-    p { color: #94a3b8; font-size: 0.875rem; line-height: 1.5; }
-  </style>
-</head>
-<body>
-  <div class="card">
-    <h1>Preferences updated</h1>
-    <p>Your delivery time zone has been set to <strong>${timeZone}</strong>.</p>
-  </div>
-</body>
-</html>`;
-
-    const renderUnsubscribePage = (token: string): string => `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Turn off reminders · SurveyBeat</title>
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #f8fafc; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 1rem; }
-    .card { background: #1e293b; padding: 2rem; border-radius: 0.75rem; max-width: 420px; width: 100%; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
-    h1 { font-size: 1.25rem; font-weight: 600; margin-top: 0; }
-    p { color: #94a3b8; font-size: 0.875rem; line-height: 1.5; }
-    button { width: 100%; padding: 0.625rem; border-radius: 0.375rem; font-size: 0.875rem; box-sizing: border-box; background: #ef4444; color: white; border: none; font-weight: 500; cursor: pointer; }
-    button:hover { background: #dc2626; }
-  </style>
-</head>
-<body>
-  <div class="card">
-    <h1>Turn off reminders</h1>
-    <p>You will no longer receive reminders for this Pulse check-in.</p>
-    <form method="POST" action="/api/reminders/unsubscribe">
-      <input type="hidden" name="t" value="${token}" />
-      <button type="submit">Turn off reminders</button>
-    </form>
-  </div>
-</body>
-</html>`;
-
     const JsonRecord = Schema.Record(Schema.String, Schema.String);
     const decodeJsonRecord = Schema.decodeUnknownOption(JsonRecord);
 
@@ -415,14 +316,24 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
           if (request.method === "GET") {
             const url = new URL(request.url, "https://app.surveybeat.app");
             const token = url.searchParams.get("token") ?? "";
-            return HttpServerResponse.html(renderDeliveryPage(token));
+            const locale = pageLocale(url.searchParams.get("lang"), request.headers["accept-language"]);
+            return HttpServerResponse.html(renderDeliveryPage(token, locale));
           }
           if (request.method === "POST") {
             const body = yield* parseRequestBody(request);
+            const url = new URL(request.url, "https://app.surveybeat.app");
+            const locale = pageLocale(
+              url.searchParams.get("lang") ?? body["lang"],
+              request.headers["accept-language"],
+            );
+            const m = messagesFor(locale);
             const token = body["token"] ?? "";
             const timeZone = body["timeZone"] ?? "";
             if (!token || !timeZone) {
-              return HttpServerResponse.text("Missing token or timeZone", { status: 400 });
+              return HttpServerResponse.text(m.message("page.error.missingTokenOrTimeZone"), {
+                status: 400,
+                contentType: PLAIN_TEXT,
+              });
             }
             const tokenHash = yield* Effect.promise(() => hashToken(token));
             const row = yield* database
@@ -433,7 +344,10 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
               .first<{ organization_id: string; round_id: string; person_id: string; pulse_id: string }>()
               .pipe(Effect.orDie);
             if (row === null) {
-              return HttpServerResponse.text("Invitation link not found or expired", { status: 404 });
+              return HttpServerResponse.text(m.message("page.error.invalid"), {
+                status: 404,
+                contentType: PLAIN_TEXT,
+              });
             }
             yield* organizations
               .getByName(row.organization_id)
@@ -443,7 +357,7 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
             if (acceptHeader.includes("application/json")) {
               return yield* HttpServerResponse.json({ ok: true, timeZone }).pipe(Effect.orDie);
             }
-            return HttpServerResponse.html(renderDeliverySuccessPage(timeZone));
+            return HttpServerResponse.html(renderDeliverySuccessPage(timeZone, locale));
           }
           return HttpServerResponse.empty({ status: 405 });
         }
@@ -455,17 +369,26 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
           if (request.method === "GET") {
             const url = new URL(request.url, "https://app.surveybeat.app");
             const token = url.searchParams.get("t") ?? "";
-            return HttpServerResponse.html(renderUnsubscribePage(token));
+            const locale = pageLocale(url.searchParams.get("lang"), request.headers["accept-language"]);
+            return HttpServerResponse.html(renderUnsubscribePage(token, locale));
           }
           if (request.method === "POST") {
             const url = new URL(request.url, "https://app.surveybeat.app");
+            const body = yield* parseRequestBody(request);
+            const locale = pageLocale(
+              url.searchParams.get("lang") ?? body["lang"],
+              request.headers["accept-language"],
+            );
+            const m = messagesFor(locale);
             let token = url.searchParams.get("t");
             if (!token) {
-              const body = yield* parseRequestBody(request);
               token = body["t"] ?? body["token"] ?? null;
             }
             if (!token) {
-              return HttpServerResponse.text("Missing token", { status: 400 });
+              return HttpServerResponse.text(m.message("page.error.missingToken"), {
+                status: 400,
+                contentType: PLAIN_TEXT,
+              });
             }
             const tokenHash = yield* Effect.promise(() => hashToken(token));
             const row = yield* database
@@ -476,13 +399,16 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
               .first<{ organization_id: string; round_id: string; person_id: string; pulse_id: string }>()
               .pipe(Effect.orDie);
             if (row === null) {
-              return HttpServerResponse.text("Invitation link not found or expired", { status: 404 });
+              return HttpServerResponse.text(m.message("page.error.invalid"), {
+                status: 404,
+                contentType: PLAIN_TEXT,
+              });
             }
             yield* organizations
               .getByName(row.organization_id)
               .optOutReminders(row.pulse_id, row.person_id)
               .pipe(Effect.orDie);
-            return HttpServerResponse.text("Unsubscribed from reminders.");
+            return HttpServerResponse.text(m.message("page.unsubscribed"), { contentType: PLAIN_TEXT });
           }
           return HttpServerResponse.empty({ status: 405 });
         }

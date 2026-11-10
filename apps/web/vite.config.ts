@@ -3,7 +3,9 @@ import tailwindcss from "@tailwindcss/vite";
 import { copyFileSync, mkdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { defineConfig, type Plugin } from "vite";
-import { message } from "./src/messages/index.ts";
+import { answerCatalog, type AnswerTranslation } from "./src/messages/answer.ts";
+import { answerMessages } from "./src/answer/answer-messages.ts";
+import { answerDe } from "./src/messages/answer.de.ts";
 
 const prerenderAnswer = (): Plugin => {
   let outDir = "dist";
@@ -69,6 +71,10 @@ const prerenderAnswer = (): Plugin => {
 })();
 </script>`;
 
+      // The German shell is `de/answer.html`; every other answer shell is English.
+      const table: AnswerTranslation = ctx.path.endsWith("de/answer.html") ? answerDe : answerCatalog;
+      const message = answerMessages(table);
+
       const scaleKeys = [
         "answer.scale.1",
         "answer.scale.2",
@@ -114,26 +120,58 @@ const prerenderAnswer = (): Plugin => {
         .replace("<!--PRERENDER_BODY-->", body);
     },
     closeBundle() {
-      try {
-        const answerHtmlPath = resolve(outDir, "answer.html");
-        const aDir = resolve(outDir, "a");
+      // `/a` and `/de/a` are served from copies of the prerendered shells; a failed copy fails the build.
+      for (const [source, dir] of [
+        ["answer.html", ""],
+        ["de/answer.html", "de"],
+      ] as const) {
+        const answerHtmlPath = resolve(outDir, source);
+        const aDir = resolve(outDir, dir, "a");
         mkdirSync(aDir, { recursive: true });
         copyFileSync(answerHtmlPath, resolve(aDir, "index.html"));
-        copyFileSync(answerHtmlPath, resolve(outDir, "a.html"));
-      } catch {}
+        copyFileSync(answerHtmlPath, resolve(outDir, dir, "a.html"));
+      }
     },
   };
 };
 
+/**
+ * Lists every chunk an answer page imports statically as `<link rel="modulepreload">`, so the browser
+ * fetches them in parallel instead of discovering each level of the import graph one round trip later.
+ * The answer pages share their runtime chunk, which would otherwise add a level (ADR 0008, Lighthouse gate).
+ */
+const preloadAnswerChunks = (): Plugin => ({
+  name: "preload-answer-chunks",
+  transformIndexHtml: {
+    order: "post",
+    handler(html, ctx) {
+      const { bundle, chunk } = ctx;
+      if (!ctx.path.endsWith("answer.html") || bundle === undefined || chunk === undefined) return html;
+      const seen = new Set<string>();
+      const pending = [...chunk.imports];
+      while (pending.length > 0) {
+        const fileName = pending.pop() ?? "";
+        const imported = bundle[fileName];
+        if (seen.has(fileName) || imported === undefined || imported.type !== "chunk") continue;
+        seen.add(fileName);
+        pending.push(...imported.imports);
+      }
+      const links = [...seen].map((fileName) => `<link rel="modulepreload" crossorigin href="/${fileName}">`);
+      return html.replace("</head>", `${links.join("")}</head>`);
+    },
+  },
+});
+
 // Two entries in one project: the app (Foldkit) and the answer page (plain TypeScript, no framework).
 export default defineConfig({
-  plugins: [tailwindcss(), foldkit(), prerenderAnswer()],
+  plugins: [tailwindcss(), foldkit(), prerenderAnswer(), preloadAnswerChunks()],
   build: {
     modulePreload: false,
     rollupOptions: {
       input: {
         app: "index.html",
         answer: "answer.html",
+        "answer-de": "de/answer.html",
       },
     },
   },

@@ -19,15 +19,25 @@ const FCP_BUDGET = 800;
 const LCP_BUDGET = 1300;
 const TBT_BUDGET = 50;
 
+interface AuditResult {
+  url: string;
+  fcp: number;
+  lcp: number;
+  tbt: number;
+  failures: Array<string>;
+}
+
 async function main() {
-  const argUrl = process.argv[2];
-  let targetUrl = argUrl;
+  const argUrls = process.argv.slice(2);
+  let targetUrls: Array<string> = argUrls;
   let server: ReturnType<typeof createServer> | null = null;
 
-  if (!targetUrl) {
+  if (targetUrls.length === 0) {
     const port = 4173;
     const distPath = resolve(import.meta.dirname, "../../apps/web/dist");
-    const htmlContent = readFileSync(resolve(distPath, "answer.html"), "utf8");
+    // One prerendered shell per locale: `/de/...` gets the German page, everything else the English one.
+    const enHtml = readFileSync(resolve(distPath, "answer.html"), "utf8");
+    const deHtml = readFileSync(resolve(distPath, "de/answer.html"), "utf8");
 
     server = createServer((req, res) => {
       const url = new URL(req.url ?? "/", `http://${req.headers.host}`);
@@ -74,15 +84,16 @@ async function main() {
       }
 
       res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-      res.end(htmlContent);
+      res.end(url.pathname.startsWith("/de/") ? deHtml : enHtml);
     });
 
     await new Promise<void>((res) => server?.listen(port, res));
-    targetUrl = `http://127.0.0.1:${port}/a#t=test-token-123&v=4`;
+    targetUrls = [
+      `http://127.0.0.1:${port}/a#t=test-token-123&v=4`,
+      `http://127.0.0.1:${port}/de/a#t=test-token-123&v=4`,
+    ];
     console.log(`Local test server running at http://127.0.0.1:${port}`);
   }
-
-  console.log(`Running Lighthouse audit on ${targetUrl}...`);
 
   const lighthouseBin = resolve(import.meta.dirname, "../node_modules/.bin/lighthouse");
 
@@ -107,7 +118,7 @@ async function main() {
 
   const chromePath = findChrome();
 
-  const runLighthouse = (): Promise<LighthouseResult> =>
+  const runLighthouse = (targetUrl: string): Promise<LighthouseResult> =>
     new Promise((resolvePromise, reject) => {
       const args = [
         targetUrl,
@@ -142,15 +153,17 @@ async function main() {
       });
     });
 
-  try {
+  /** Audits one URL, retrying up to `maxRuns` times; returns the last run's numbers and any budget failures. */
+  const auditUrl = async (targetUrl: string): Promise<AuditResult> => {
     const maxRuns = 3;
     let fcp = 0;
     let lcp = 0;
     let tbt = 0;
     let failures: Array<string> = [];
 
+    console.log(`\nRunning Lighthouse audit on ${targetUrl}...`);
     for (let run = 1; run <= maxRuns; run++) {
-      const report = await runLighthouse();
+      const report = await runLighthouse(targetUrl);
       fcp = report.audits["first-contentful-paint"].numericValue;
       lcp = report.audits["largest-contentful-paint"].numericValue;
       tbt = report.audits["total-blocking-time"].numericValue;
@@ -169,15 +182,29 @@ async function main() {
         );
       }
     }
+    return { url: targetUrl, fcp, lcp, tbt, failures };
+  };
+
+  try {
+    const results: Array<AuditResult> = [];
+    for (const targetUrl of targetUrls) {
+      results.push(await auditUrl(targetUrl));
+    }
 
     console.log(`\nLighthouse Performance Results:`);
-    console.log(`• FCP: ${Math.round(fcp)} ms (Budget: ≤ ${FCP_BUDGET} ms)`);
-    console.log(`• LCP: ${Math.round(lcp)} ms (Budget: ≤ ${LCP_BUDGET} ms)`);
-    console.log(`• TBT: ${Math.round(tbt)} ms (Budget: ≤ ${TBT_BUDGET} ms)`);
+    for (const result of results) {
+      console.log(`\n${result.url}`);
+      console.log(`• FCP: ${Math.round(result.fcp)} ms (Budget: ≤ ${FCP_BUDGET} ms)`);
+      console.log(`• LCP: ${Math.round(result.lcp)} ms (Budget: ≤ ${LCP_BUDGET} ms)`);
+      console.log(`• TBT: ${Math.round(result.tbt)} ms (Budget: ≤ ${TBT_BUDGET} ms)`);
+    }
 
-    if (failures.length > 0) {
+    const failed = results.filter((result) => result.failures.length > 0);
+    if (failed.length > 0) {
       console.error(`\n❌ Lighthouse CI Gate Failed:`);
-      failures.forEach((f) => console.error(`  - ${f}`));
+      for (const result of failed) {
+        result.failures.forEach((f) => console.error(`  - ${result.url}: ${f}`));
+      }
       process.exit(1);
     }
 

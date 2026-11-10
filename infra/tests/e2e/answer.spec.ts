@@ -234,6 +234,23 @@ test.describe("answer page static entry (Issue #44, ADR 0005, ADR 0007, ADR 0008
     await expect(page.locator(".desktop-finish-btn")).toBeVisible();
   });
 
+  test("German answer page at /de/a renders in German and strips the token (ADR 0018)", async ({ page }) => {
+    await page.route("**/exchange", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(mockExchangeContext),
+      });
+    });
+
+    await page.goto("/de/a#t=token123&v=4");
+    await expect(page.locator("#save")).toBeEnabled();
+
+    await expect(page.locator("html")).toHaveAttribute("lang", "de");
+    await expect(page.locator("#save")).toHaveText("Speichern und weiter");
+    expect(page.url()).not.toContain("token123");
+  });
+
   test("displays closed state when round is closed", async ({ page }) => {
     await page.route("**/exchange", async (route) => {
       await route.fulfill({

@@ -1,6 +1,7 @@
 /**
- * The answer page's strings, kept apart from the app's catalog so the answer page
- * ships only these (ADR 0008 budget). `catalog.ts` spreads them in.
+ * The English answer-page strings, kept apart from the app's catalog so the answer page ships only these
+ * (ADR 0008 budget). `catalog.ts` spreads them in. The runtime `message` lives in `src/answer/answer-messages.ts`,
+ * which keeps this module out of the German page's bundle.
  */
 export const answerCatalog = {
   "answer.title": "Your answer",
@@ -38,27 +39,18 @@ export const answerCatalog = {
 } as const;
 
 type AnswerCatalog = typeof answerCatalog;
-type Key = keyof AnswerCatalog;
-type Value = string | number;
-type Placeholders<T extends string> = T extends `${string}{${infer Name}}${infer Rest}`
+export type AnswerKey = keyof AnswerCatalog;
+
+/** Every answer key mapped to a translated string; each answer table must satisfy it. */
+export type AnswerTranslation = { readonly [K in AnswerKey]: string };
+
+type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
+
+export type Placeholders<T extends string> = T extends `${string}{${infer Name}}${infer Rest}`
   ? Name | Placeholders<Rest>
   : never;
-type KeysWithoutParams = {
-  [K in Key]: [Placeholders<AnswerCatalog[K]>] extends [never] ? K : never;
-}[Key];
-type KeysWithParams = Exclude<Key, KeysWithoutParams>;
 
-/** Fills `{placeholder}` templates. */
-function fill(template: string, params: Readonly<Record<string, Value>>): string {
-  return template.replace(/\{(\w+)\}/g, (_, name: string) => String(params[name] ?? ""));
-}
-
-/** Looks up an answer-page message; placeholders are checked at compile time. */
-export function message<K extends KeysWithoutParams>(key: K): string;
-export function message<K extends KeysWithParams>(
-  key: K,
-  params: Readonly<Record<Placeholders<AnswerCatalog[K]>, Value>>,
-): string;
-export function message(key: Key, params: Readonly<Record<string, Value>> = {}): string {
-  return fill(answerCatalog[key], params);
-}
+/** Keys whose `{placeholders}` differ from English; `never` when the translation is consistent. */
+export type AnswerMismatched<T extends AnswerTranslation> = {
+  [K in AnswerKey]: Same<Placeholders<AnswerCatalog[K]>, Placeholders<T[K]>> extends true ? never : K;
+}[AnswerKey];
