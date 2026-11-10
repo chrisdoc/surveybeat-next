@@ -279,6 +279,9 @@ export const de = {
   "results.review.leadBody": "Sie werden am {date} automatisch mit dem Team geteilt.",
   "results.review.share": "Mit dem Team teilen",
   "results.review.sharing": "Wird geteilt…",
+  "results.failed.title": "Diese Ergebnisse konnten nicht berechnet werden.",
+  "results.failed.retry": "Nochmal versuchen",
+  "results.failed.retrying": "Wird erneut versucht…",
   "actions.title": "Maßnahmen",
   "actions.intro":
     "Maßnahmen, die auf Grundlage der Ergebnisse dieser Runde zugesagt wurden. Bis zu drei erscheinen im nächsten Check-in.",

@@ -5,6 +5,7 @@ import * as Schema from "effect/Schema";
 import { AiClient, type AiInput, type AiRequest, RedactedText } from "../ai/AiClient.ts";
 import { redact, type Roster } from "../privacy/Redaction.ts";
 import { DiscussionGuide, enforceEffectiveNOnResult, type RoundResult } from "./Results.ts";
+import { nextRetryAt } from "./Retry.ts";
 import type { RoundStatus } from "./Round.ts";
 
 /** What round_themes stores once (never recomputed). */
@@ -25,10 +26,6 @@ export type RoundThemesRecord =
 export const MAX_THEMES = 5;
 export const MIN_SUPPORTING_COMMENTS = 2;
 export const QUOTE_RUN_WORDS = 6;
-export const THEMES_RETRY_WINDOW_MS = 24 * 3600_000;
-
-const FIRST_RETRY_GAP_MS = 5 * 60_000;
-const MAX_RETRY_GAP_MS = 4 * 3600_000;
 
 /** ADR 0016/0019: only when AI processing is on and the Round meets N. */
 export const shouldRequestThemes = (result: RoundResult, aiProcessing: boolean): boolean =>
@@ -255,21 +252,6 @@ export const checkThemesReply = (
   return Effect.succeed({ themes, guide: guideRepeats ? null : guide });
 };
 
-/**
- * Backoff for the k-th failed attempt (k >= 1): min(5 min * 2^(k-1), 4 h). Returns the next due
- * time, or null when it would fall after requestedAt + 24 h (give up).
- */
-export const nextThemesAttemptAt = (
-  requestedAt: number,
-  failedAttempts: number,
-  now: number,
-): number | null => {
-  const k = Math.max(1, failedAttempts);
-  const gap = Math.min(FIRST_RETRY_GAP_MS * 2 ** (k - 1), MAX_RETRY_GAP_MS);
-  const dueAt = now + gap;
-  return dueAt > requestedAt + THEMES_RETRY_WINDOW_MS ? null : dueAt;
-};
-
 export type ThemesJobDecision =
   | { readonly _tag: "Store"; readonly themes: StoredThemes }
   | { readonly _tag: "RetryAt"; readonly dueAt: number; readonly attempts: number }
@@ -289,7 +271,7 @@ export const runThemesAttempt = (params: {
   const comments = params.input.comments.map((c) => c.text);
   const retry = (): ThemesJobDecision => {
     const failedAttempts = params.attempts + 1;
-    const dueAt = nextThemesAttemptAt(params.requestedAt, failedAttempts, params.now);
+    const dueAt = nextRetryAt(params.requestedAt, failedAttempts, params.now);
     return dueAt === null ? { _tag: "GiveUp" } : { _tag: "RetryAt", dueAt, attempts: failedAttempts };
   };
 
@@ -311,6 +293,10 @@ export const runThemesAttempt = (params: {
  *
  * The Round's current row decides the status and the Review window end, not the stored payload. Until
  * the Round is Shared, only the Lead sees its Result (the Review window, see Issue #106).
+ *
+ * A stored delayed Result is one whose computation gave up (Issue #128), so the Lead is told it could not be
+ * computed. While a compute retry is pending, nothing is stored and `resultPending` is true: that is delayed,
+ * not failed.
  */
 export const viewRoundResult = (params: {
   readonly stored: RoundResult;
@@ -318,6 +304,7 @@ export const viewRoundResult = (params: {
   readonly isLead: boolean;
   readonly themes: RoundThemesRecord | null;
   readonly round: { readonly status: RoundStatus; readonly reviewEndsAt: number | null };
+  readonly resultPending?: boolean;
 }): RoundResult => {
   // Theme fields come only from the themes record, never from whatever the stored Result carries.
   const {
@@ -346,7 +333,14 @@ export const viewRoundResult = (params: {
     };
   }
 
-  const shown: RoundResult = { ...r, ...reviewEnds, status, comments: params.isLead ? r.comments : [] };
+  const couldNotCompute = params.isLead && status === "closed" && r.delayed && params.resultPending !== true;
+  const shown: RoundResult = {
+    ...r,
+    ...reviewEnds,
+    status,
+    comments: params.isLead ? r.comments : [],
+    ...(couldNotCompute ? { couldNotCompute: true } : {}),
+  };
 
   const hidden = (themesStatus: "notRequested" | "preparing" | "unavailable"): RoundResult => ({
     ...shown,

@@ -108,6 +108,17 @@ export const roundHandlers = <R>(services: Effect.Effect<Context.Context<RoundSe
           ),
         ),
       )
+      .handle("retryResult", ({ params }) =>
+        provide(
+          change(
+            Effect.succeed({
+              _tag: "RetryResult",
+              teamId: params.teamId,
+              roundId: params.roundId,
+            }),
+          ),
+        ),
+      )
       .handle("cancelRound", ({ params }) =>
         provide(
           Effect.gen(function* () {

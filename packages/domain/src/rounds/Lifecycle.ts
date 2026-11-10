@@ -346,6 +346,11 @@ export type RoundCommand =
       readonly roundId: RoundId;
     }
   | {
+      readonly _tag: "RetryResult";
+      readonly teamId: TeamId;
+      readonly roundId: RoundId;
+    }
+  | {
       readonly _tag: "CancelRound";
       readonly teamId: TeamId;
       readonly roundId: RoundId;

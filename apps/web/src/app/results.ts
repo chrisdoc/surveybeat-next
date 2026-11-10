@@ -636,11 +636,14 @@ export const resultsScreenView = <Message>(
     readonly actionFailure: Option.Option<Failure>;
     readonly shareBusy: boolean;
     readonly shareFailure: Option.Option<Failure>;
+    readonly retryBusy: boolean;
+    readonly retryFailure: Option.Option<Failure>;
   },
   callbacks: {
     readonly onToggleTable: (key: string) => Message;
     readonly onCopyGuide: (text: string) => Message;
     readonly onShareResults: Message;
+    readonly onRetryResult: Message;
     readonly onActionTitleChange: (title: string) => Message;
     readonly onActionOwnerChange: (personId: string) => Message;
     readonly onActionDueDateChange: (date: string) => Message;
@@ -719,7 +722,32 @@ export const resultsScreenView = <Message>(
     );
   }
 
-  if (result.delayed) {
+  if (result.couldNotCompute === true) {
+    children.push(
+      panel(
+        [
+          h.h2([h.Class("text-base font-semibold")], [message("results.failed.title")]),
+          h.div(
+            [h.Class("mt-4 flex flex-wrap items-center gap-3")],
+            [
+              appButton(
+                {
+                  text: state.retryBusy
+                    ? message("results.failed.retrying")
+                    : message("results.failed.retry"),
+                  onClick: callbacks.onRetryResult,
+                  isDisabled: state.retryBusy,
+                },
+                h,
+              ),
+            ],
+          ),
+          problemView(Option.getOrUndefined(state.retryFailure), h),
+        ].filter(Predicate.isNotNull),
+        h,
+      ),
+    );
+  } else if (result.delayed) {
     children.push(
       h.div(
         [h.Role("alert"), h.Class("rounded-control border border-line bg-surface p-4")],

@@ -224,6 +224,10 @@ export const privacyRegistry: { readonly [K in EndpointKey<typeof SurveyBeatApi>
     _tag: "NoResultData",
     why: "the Lead shares a Ready Round's Result with the Team; returns nothing",
   },
+  "rounds.retryResult": {
+    _tag: "NoResultData",
+    why: "the Lead re-queues a Round's Result computation after it failed; returns nothing",
+  },
   "rounds.cancelRound": {
     _tag: "NoResultData",
     why: "cancels a round; returns round detail, no Results",

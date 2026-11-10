@@ -174,6 +174,8 @@ export const Model = Schema.Struct({
   guideCopy: GuideCopy,
   shareBusy: Schema.Boolean,
   shareFailure: Schema.Option(Failure),
+  retryBusy: Schema.Boolean,
+  retryFailure: Schema.Option(Failure),
   // Actions
   actions: LoadedActions,
   actionTitle: Schema.String,
@@ -356,6 +358,8 @@ export const Message = defineMessageUnion({
   CopiedGuide: { ok: Schema.Boolean },
   ShareResultsClicked: {},
   ResultsShareDone: { outcome: OutcomeVoid },
+  RetryResultClicked: {},
+  RetryResultDone: { outcome: OutcomeVoid },
   // Actions
   GotActions: { outcome: OutcomeActions },
   ActionTitleChanged: { title: Schema.String },
@@ -862,6 +866,17 @@ export const ShareResultsCmd = Command.define("ShareResultsCmd", {
     ),
 });
 
+export const RetryResultCmd = Command.define("RetryResultCmd", {
+  args: { teamId: TeamId, roundId: RoundId },
+  messages: [Message.RetryResultDone],
+  execute: ({ teamId, roundId }) =>
+    runApi(
+      (api) => api.rounds.retryResult({ params: { teamId, roundId } }),
+      () => Message.RetryResultDone({ outcome: { _tag: "Success" } }),
+      (failure) => Message.RetryResultDone({ outcome: { _tag: "Failure", failure } }),
+    ),
+});
+
 export const ListActionsCmd = Command.define("ListActionsCmd", {
   args: { teamId: TeamId },
   messages: [Message.GotActions],
@@ -1038,6 +1053,8 @@ export const initialModel = (url: Url): Model => {
     guideCopy: "idle",
     shareBusy: false,
     shareFailure: Option.none(),
+    retryBusy: false,
+    retryFailure: Option.none(),
     actions: { _tag: "Loading" },
     actionTitle: "",
     actionOwnerId: Option.none(),
@@ -1147,6 +1164,8 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         guideCopy: "idle",
         shareBusy: false,
         shareFailure: Option.none(),
+        retryBusy: false,
+        retryFailure: Option.none(),
         rounds: { _tag: "Loading" },
         roundDetails: {},
         roundRates: {},
@@ -2421,6 +2440,27 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       return { model: { ...model, shareBusy: false, shareFailure: Option.none() }, commands: reload };
     }
 
+    case "RetryResultClicked": {
+      if (model.route._tag !== "RoundResults" || model.retryBusy) return { model };
+      return {
+        model: { ...model, retryBusy: true, retryFailure: Option.none() },
+        commands: [RetryResultCmd({ teamId: model.route.teamId, roundId: model.route.roundId })],
+      };
+    }
+
+    case "RetryResultDone": {
+      const { outcome } = message;
+      if (outcome._tag === "Failure") {
+        return { model: { ...model, retryBusy: false, retryFailure: Option.some(outcome.failure) } };
+      }
+      // A retry that succeeds changes what the page shows, so reload the Results as the page loads them.
+      const reload =
+        model.route._tag === "RoundResults"
+          ? [GetResultsCmd({ teamId: model.route.teamId, roundId: model.route.roundId })]
+          : [];
+      return { model: { ...model, retryBusy: false, retryFailure: Option.none() }, commands: reload };
+    }
+
     // ----------------------------------------
     // Actions
     // ----------------------------------------
@@ -2941,6 +2981,8 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
           guideCopy: model.guideCopy,
           shareBusy: model.shareBusy,
           shareFailure: model.shareFailure,
+          retryBusy: model.retryBusy,
+          retryFailure: model.retryFailure,
           actionTitle: model.actionTitle,
           actionOwnerId: model.actionOwnerId,
           actionDueDate: model.actionDueDate,
@@ -2961,6 +3003,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
           onSubmitNote: Message.SubmitNote(),
           onCopyGuide: (text) => Message.CopyGuide({ text }),
           onShareResults: Message.ShareResultsClicked(),
+          onRetryResult: Message.RetryResultClicked(),
           onActionTitleChange: (title) => Message.ActionTitleChanged({ title }),
           onActionOwnerChange: (personId) =>
             Message.ActionOwnerChanged({ personId: PersonId.make(personId) }),
