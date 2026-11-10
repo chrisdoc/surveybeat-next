@@ -7,14 +7,31 @@ export const ZONE_ID = "228eec30edf283bf8eb7a628283720f1";
 /**
  * The custom hostname a Worker is served on in a stage, or undefined for workers.dev.
  *
- * `production` serves `<host>.surveybeat.app`, a PR stage `pr-<n>.<host>.surveybeat.app`.
+ * `production` serves `dashboard.surveybeat.app`, a PR stage `pr-<n>.dashboard.surveybeat.app`.
  * Every other stage (personal dev, tests) stays on workers.dev, so it adds no DNS record.
  */
 export const hostnameFor = (stage: string, host: "app" | "submit"): string | undefined => {
-  if (stage === "production") return `${host}.${ZONE}`;
-  if (stage === "staging") return `staging.${host}.${ZONE}`;
-  if (/^pr-\d+$/.test(stage)) return `${stage}.${host}.${ZONE}`;
+  const prefix = host === "app" ? "dashboard" : "submit";
+  if (stage === "production") return `${prefix}.${ZONE}`;
+  if (stage === "staging") return `staging.${prefix}.${ZONE}`;
+  if (/^pr-\d+$/.test(stage)) return `${stage}.${prefix}.${ZONE}`;
   return undefined;
+};
+
+/**
+ * Domain config for the Main Worker. In production, serves `dashboard.surveybeat.app`
+ * and redirects `app.surveybeat.app` to it.
+ */
+export const mainWorkerDomainFor = (stage: string): string | WorkerDomainConfig | undefined => {
+  const hostname = hostnameFor(stage, "app");
+  if (hostname === undefined) return undefined;
+  if (stage === "production") {
+    return {
+      name: hostname,
+      redirects: [`app.${ZONE}`],
+    };
+  }
+  return hostname;
 };
 
 /**

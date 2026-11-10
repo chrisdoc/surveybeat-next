@@ -1,6 +1,6 @@
 name: Preview
 
-# One stage per pull request: `pr-<number>`, on pr-<number>.app.surveybeat.app and
+# One stage per pull request: `pr-<number>`, on pr-<number>.dashboard.surveybeat.app and
 # pr-<number>.submit.surveybeat.app. Destroyed when the pull request closes.
 # Alchemy state lives in the Cloudflare state store (see docs/infra.md for the one-time bootstrap).
 
@@ -30,7 +30,7 @@ jobs:
     timeout-minutes: 20
     environment:
       name: pr-${{ github.event.pull_request.number }}
-      url: https://${{ env.STAGE }}.app.surveybeat.app
+      url: https://${{ env.STAGE }}.dashboard.surveybeat.app
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
@@ -50,7 +50,7 @@ jobs:
           WORKOS_CLIENT_ID: ${{ secrets.WORKOS_CLIENT_ID }}
       # Also checks that WORKOS_API_KEY belongs to the Staging environment that holds the redirect URIs.
       - name: Smoke test
-        run: node infra/scripts/smoke.ts "https://$STAGE.app.surveybeat.app" "https://$STAGE.submit.surveybeat.app"
+        run: node infra/scripts/smoke.ts "https://$STAGE.dashboard.surveybeat.app" "https://$STAGE.submit.surveybeat.app"
         env:
           WORKOS_API_KEY: ${{ secrets.WORKOS_API_KEY }}
           WORKOS_CLIENT_ID: ${{ secrets.WORKOS_CLIENT_ID }}
@@ -90,7 +90,7 @@ jobs:
           fi
       - name: Canary sweep with a positive control
         if: steps.paths.outputs.required == 'true'
-        run: pnpm test:preview-privacy --stage "$STAGE" "https://$STAGE.app.surveybeat.app" "https://$STAGE.submit.surveybeat.app"
+        run: pnpm test:preview-privacy --stage "$STAGE" "https://$STAGE.dashboard.surveybeat.app" "https://$STAGE.submit.surveybeat.app"
 
   # The SPEC §7 end-to-end flow on the PR stage. It grows as the slices land.
   e2e:
@@ -131,7 +131,7 @@ jobs:
       - name: End-to-end tests
         run: pnpm test:e2e
         env:
-          E2E_BASE_URL: https://${{ env.STAGE }}.app.surveybeat.app
+          E2E_BASE_URL: https://${{ env.STAGE }}.dashboard.surveybeat.app
       - if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

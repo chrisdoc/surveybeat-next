@@ -1,15 +1,33 @@
 import { assert, describe, it } from "@effect/vitest";
-import { hostnameFor, siteDomainFor } from "./Hostnames.ts";
+import { hostnameFor, mainWorkerDomainFor, siteDomainFor } from "./Hostnames.ts";
 
 describe("hostnameFor (app and submit hostnames)", () => {
   it("serves production, staging and PR stages on their subdomains", () => {
-    assert.strictEqual(hostnameFor("production", "app"), "app.surveybeat.app");
+    assert.strictEqual(hostnameFor("production", "app"), "dashboard.surveybeat.app");
     assert.strictEqual(hostnameFor("staging", "submit"), "staging.submit.surveybeat.app");
-    assert.strictEqual(hostnameFor("pr-12", "app"), "pr-12.app.surveybeat.app");
+    assert.strictEqual(hostnameFor("staging", "app"), "staging.dashboard.surveybeat.app");
+    assert.strictEqual(hostnameFor("pr-12", "app"), "pr-12.dashboard.surveybeat.app");
   });
 
   it("leaves personal stages on workers.dev", () => {
     assert.strictEqual(hostnameFor("dev-christoph", "app"), undefined);
+  });
+});
+
+describe("mainWorkerDomainFor (app domain configuration)", () => {
+  it("serves dashboard.surveybeat.app with app.surveybeat.app redirect in production", () => {
+    assert.deepStrictEqual(mainWorkerDomainFor("production"), {
+      name: "dashboard.surveybeat.app",
+      redirects: ["app.surveybeat.app"],
+    });
+  });
+
+  it("serves staging.dashboard.surveybeat.app in staging", () => {
+    assert.strictEqual(mainWorkerDomainFor("staging"), "staging.dashboard.surveybeat.app");
+  });
+
+  it("leaves personal stages undefined", () => {
+    assert.strictEqual(mainWorkerDomainFor("dev-christoph"), undefined);
   });
 });
 

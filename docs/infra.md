@@ -4,9 +4,9 @@ The stack is `infra/alchemy.run.ts` (stack name `Surveybeat`). Run Alchemy from 
 
 | Stage | Hostnames |
 | --- | --- |
-| `pr-<n>` | `pr-<n>.app.surveybeat.app`, `pr-<n>.submit.surveybeat.app` |
-| `staging` | `staging.app.surveybeat.app`, `staging.submit.surveybeat.app` |
-| `production` | `app.surveybeat.app`, `submit.surveybeat.app` |
+| `pr-<n>` | `pr-<n>.dashboard.surveybeat.app`, `pr-<n>.submit.surveybeat.app` |
+| `staging` | `staging.dashboard.surveybeat.app`, `staging.submit.surveybeat.app` |
+| `production` | `dashboard.surveybeat.app`, `submit.surveybeat.app` (with `app.surveybeat.app` redirecting to `dashboard`) |
 | any other (personal dev, tests) | workers.dev |
 
 A new custom hostname takes about a minute to get its certificate, so the first requests fail the TLS handshake. `infra/scripts/smoke.ts` retries.
@@ -54,15 +54,15 @@ The Main Worker handles `/auth/login`, `/auth/callback`, and `/auth/logout` with
 
 **WorkOS environments.** `pr-*` and personal stages use **SurveyBeat Staging** (`environment_01M6TXKPTEY2HWYAEFC0XMMVB2`, AuthKit domain `straightforward-mouse-82-staging.authkit.app`). Production is **SurveyBeat Production** (`environment_01M6TXKQ8G5Q9ASGGJCQE1FAFH`). Staging has:
 
-- redirect URIs `https://pr-*.app.surveybeat.app/auth/callback`, `https://staging.app.surveybeat.app/auth/callback`, `https://*.chrisdoc.workers.dev/auth/callback`, `http://localhost:5173/auth/callback`. Wildcards work: WorkOS sends `pr-52` to the hosted page and a host outside the list to `/redirect-uri-invalid` (checked on 2026-11-07);
-- logout URIs `https://pr-*.app.surveybeat.app/` (default), `https://staging.app.surveybeat.app/`, `https://*.chrisdoc.workers.dev/`, `http://localhost:5173/`, set with `workos authkit logout-uris set --environment-id environment_01M6TXKPTEY2HWYAEFC0XMMVB2`;
+- redirect URIs `https://pr-*.dashboard.surveybeat.app/auth/callback`, `https://staging.dashboard.surveybeat.app/auth/callback`, `https://*.chrisdoc.workers.dev/auth/callback`, `http://localhost:5173/auth/callback`. Wildcards work: WorkOS sends `pr-52` to the hosted page and a host outside the list to `/redirect-uri-invalid` (checked on 2026-11-07);
+- logout URIs `https://pr-*.dashboard.surveybeat.app/` (default), `https://staging.dashboard.surveybeat.app/`, `https://*.chrisdoc.workers.dev/`, `http://localhost:5173/`, set with `workos authkit logout-uris set --environment-id environment_01M6TXKPTEY2HWYAEFC0XMMVB2`;
 - the roles `member` (default) and `admin` (Organization admin, created with `workos role create`).
 
 Production has:
 
 - sign-in methods enabled in the dashboard (a new environment allows only SSO, which shows "This account is not authorized to sign in");
-- redirect URI `https://app.surveybeat.app/auth/callback`;
-- logout URI `https://app.surveybeat.app/`;
+- redirect URI `https://dashboard.surveybeat.app/auth/callback` (default), `https://app.surveybeat.app/auth/callback`;
+- logout URI `https://dashboard.surveybeat.app/` (default), `https://app.surveybeat.app/`;
 - the roles `member` (default) and `admin` (Organization admin).
 
 The smoke test checks that WorkOS accepts the stage's authorization URL and that `WORKOS_API_KEY` belongs to the client's environment: a key from another environment deploys fine and only fails at the first real sign-in.

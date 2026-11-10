@@ -48,11 +48,13 @@ const prerenderAnswer = (): Plugin => {
     }
     if (t) {
       var host = location.hostname;
-      var submitOrigin = (host === "app.surveybeat.app")
+      var submitOrigin = (host === "dashboard.surveybeat.app" || host === "app.surveybeat.app")
         ? "https://submit.surveybeat.app"
-        : (host.endsWith(".app.surveybeat.app")
-            ? "https://" + host.replace(".app.surveybeat.app", ".submit.surveybeat.app")
-            : location.origin);
+        : (host.endsWith(".dashboard.surveybeat.app")
+            ? "https://" + host.replace(".dashboard.surveybeat.app", ".submit.surveybeat.app")
+            : (host.endsWith(".app.surveybeat.app")
+                ? "https://" + host.replace(".app.surveybeat.app", ".submit.surveybeat.app")
+                : location.origin));
       window.__sb_submitOrigin = submitOrigin;
       window.__exchangePromise = fetch(submitOrigin + "/exchange", {
         method: "POST",
