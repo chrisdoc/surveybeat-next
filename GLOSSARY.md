@@ -119,7 +119,7 @@ A machine-written summary of at least two of a Round's redacted comments: a shor
 _Avoid_: Cluster, topic, insight
 
 **Review window**:
-The time after a Round closes during which only the Lead sees its Result. It ends when the Lead shares the Result with the Team, or automatically when the window runs out (0–7 days per Pulse, default 3). The Lead cannot withhold a Result beyond it.
+The time after a Round's Result is computed (normally at close) during which only the Lead sees it. It ends when the Lead shares the Result with the Team, or automatically when the window runs out (0–7 days per Pulse, default 3). The Lead cannot withhold a Result beyond it.
 _Avoid_: Embargo, approval, moderation
 
 **Action**:

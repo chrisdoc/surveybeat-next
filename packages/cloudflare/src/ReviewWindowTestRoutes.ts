@@ -57,7 +57,7 @@ interface People {
 }
 
 /** The People, and one Round of their Pulse (the one the scenario drives). */
-interface Cast extends People {
+export interface Cast extends People {
   readonly roundId: RoundId;
   readonly closeJobId: string;
   readonly closeDue: number;
@@ -188,7 +188,7 @@ const openAndAnswer = (people: People, roundId: RoundId, tag: string) =>
   });
 
 /** A Pulse's first Round, opened and answered, not yet closed. */
-const openedRound = (organizations: Organizations, label: string, windowDays: number, now: number) =>
+export const openedRound = (organizations: Organizations, label: string, windowDays: number, now: number) =>
   Effect.gen(function* () {
     const people = yield* setUpPulse(organizations, label, windowDays, now);
     return yield* openAndAnswer(people, yield* roundOf(people, null), label);
@@ -203,7 +203,7 @@ const closedRound = (organizations: Organizations, label: string, windowDays: nu
   });
 
 /** The Round's jobs of one type, as the schedule table holds them. */
-const jobsOfType = (cast: Cast, type: string) =>
+export const jobsOfType = (cast: Cast, type: string) =>
   Effect.map(cast.organization.getJobsForRound(cast.roundId), (jobs) =>
     jobs.filter((job) => job.type === type),
   );
@@ -226,7 +226,7 @@ const resultsReadyFor = (cast: Cast) =>
       .sort();
   });
 
-const viewOf = (cast: Cast, person: PersonId) =>
+export const viewOf = (cast: Cast, person: PersonId) =>
   Effect.map(cast.organization.viewResults(person, cast.teamId, cast.roundId), (viewed): RoundResult | null =>
     viewed._tag === "Viewed" ? viewed.value : null,
   );
@@ -237,11 +237,11 @@ const hasNote = (cast: Cast, person: PersonId) =>
     (viewed) => viewed._tag === "Viewed" && viewed.value.note !== null,
   );
 
-const statusOf = (cast: Cast) =>
+export const statusOf = (cast: Cast) =>
   Effect.map(cast.organization.getRound(cast.roundId), (round) => round?.status ?? null);
 
 /** "Accepted", or the rejection's tag. */
-const commandOutcome = (result: RoundCommandResult) =>
+export const commandOutcome = (result: RoundCommandResult) =>
   result._tag === "Accepted" ? "Accepted" : result.rejection._tag;
 
 const shareCommand = (cast: Cast, actor: PersonId, now: number) =>

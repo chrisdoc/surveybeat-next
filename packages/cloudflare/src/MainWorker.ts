@@ -78,6 +78,7 @@ import { roundHandlers } from "./RoundHandlers.ts";
 import { PULSES_TEST_ROUTE, pulseTestRoutes } from "./PulseTestRoutes.ts";
 import { ROUNDS_TEST_ROUTE, roundTestRoutes } from "./RoundTestRoutes.ts";
 import { REVIEW_TEST_ROUTE, reviewTestRoutes } from "./ReviewWindowTestRoutes.ts";
+import { RESULT_RECOVERY_TEST_ROUTE, resultRecoveryTestRoutes } from "./ResultRecoveryTestRoutes.ts";
 import { THEMES_TEST_ROUTE, themesTestRoutes } from "./ThemesTestRoutes.ts";
 import Organization from "./Organization.ts";
 import { Jobs, JobsDlq, type JobMessage } from "./Queues.ts";
@@ -141,6 +142,7 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
                 ROUNDS_TEST_ROUTE,
                 THEMES_TEST_ROUTE,
                 REVIEW_TEST_ROUTE,
+                RESULT_RECOVERY_TEST_ROUTE,
               ]
             : []),
         ],
@@ -429,6 +431,7 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
           if (path === ROUNDS_TEST_ROUTE) return yield* roundTestRoutes(organizations, database);
           if (path === THEMES_TEST_ROUTE) return yield* themesTestRoutes(organizations);
           if (path === REVIEW_TEST_ROUTE) return yield* reviewTestRoutes(organizations);
+          if (path === RESULT_RECOVERY_TEST_ROUTE) return yield* resultRecoveryTestRoutes(organizations);
         }
 
         return yield* api;

@@ -174,6 +174,8 @@ export const RoundResult = Schema.Struct({
   discussionGuide: Schema.optionalKey(Schema.NullOr(DiscussionGuide)),
   /** Set while the Round is Ready: when the Review window ends and the Result is shared. */
   reviewEndsAt: Schema.optionalKey(Schema.Int),
+  /** Lead only: the Result could not be computed and no retry is pending (Issue #128). */
+  couldNotCompute: Schema.optionalKey(Schema.Boolean),
 });
 export type RoundResult = typeof RoundResult.Type;
 
@@ -941,6 +943,44 @@ export const calculateRoundResult = (params: {
     questions: finalQuestions,
     dimensions: finalDimensions,
     comments: finalComments,
+  };
+};
+
+/**
+ * The stand-in Result for a closed Round whose Result is not stored (yet, or ever). It carries the counts
+ * and the response rate, and no scores or comments. It never runs the aggregate computation, which is what
+ * may have failed (Issue #128).
+ */
+export const delayedRoundResult = (params: {
+  readonly roundId: RoundId;
+  readonly pulseId: PulseId;
+  readonly teamId: TeamId;
+  readonly status: RoundStatus;
+  readonly plannedOpenDate: string;
+  readonly anonymityMode: AnonymityMode;
+  readonly closedAt: number | null;
+  readonly effectiveMinimumGroupSize: number;
+  readonly eligibleMembersCount: number;
+  readonly submissionsCount: number;
+}): RoundResult => {
+  const { submissionsCount, eligibleMembersCount, effectiveMinimumGroupSize } = params;
+  return {
+    roundId: params.roundId,
+    pulseId: params.pulseId,
+    teamId: params.teamId,
+    status: params.status,
+    plannedOpenDate: params.plannedOpenDate,
+    anonymityMode: params.anonymityMode,
+    closedAt: params.closedAt,
+    effectiveMinimumGroupSize,
+    meetsMinimumGroupSize: submissionsCount >= effectiveMinimumGroupSize,
+    eligibleMembersCount,
+    submissionsCount,
+    responseRate: eligibleMembersCount > 0 ? roundDecimals(submissionsCount / eligibleMembersCount, 4) : null,
+    delayed: true,
+    questions: [],
+    dimensions: [],
+    comments: [],
   };
 };
 

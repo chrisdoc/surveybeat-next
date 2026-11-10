@@ -364,9 +364,15 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
             review_ends_at = ${reviewEndsAt}, updated_at = ${closedAt}
         WHERE id = ${roundId} AND status = 'open'`.pipe(Effect.asVoid, Effect.orDie);
 
+  /**
+   * The Review window starts when the Result exists (Issue #128): its end moves by the time the Result took to
+   * compute after close. A Round whose Result is computed at close keeps its end unchanged.
+   */
   const markRoundReady = (roundId: RoundId, now: number): Effect.Effect<void> =>
     sql`UPDATE round
-        SET status = 'ready', updated_at = ${now}
+        SET status = 'ready', updated_at = ${now},
+            review_ends_at = CASE WHEN review_ends_at IS NULL OR closed_at IS NULL THEN review_ends_at
+              ELSE review_ends_at + (${now} - closed_at) END
         WHERE id = ${roundId} AND status = 'closed'`.pipe(Effect.asVoid, Effect.orDie);
 
   /** True when this call shared the Round; false when it was already shared, so a repeat is a no-op. */
@@ -477,6 +483,14 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
       { discard: true },
     ).pipe(Effect.orDie);
   };
+
+  const hasPendingJob = (roundId: RoundId, type: ScheduleJobType): Effect.Effect<boolean> =>
+    sql<{
+      id: string;
+    }>`SELECT id FROM schedule_job WHERE round_id = ${roundId} AND type = ${type} AND status = 'pending' LIMIT 1`.pipe(
+      Effect.map((rows) => rows.length > 0),
+      Effect.orDie,
+    );
 
   const getJob = (jobId: JobId): Effect.Effect<ScheduleJobRecord | null> =>
     sql`SELECT * FROM schedule_job WHERE id = ${jobId}`.pipe(
@@ -860,6 +874,10 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
     );
   };
 
+  /** Removes the stored Result, so a retried computation starts from nothing (Issue #128). */
+  const deleteRoundResult = (roundId: RoundId): Effect.Effect<void> =>
+    sql`DELETE FROM round_result WHERE round_id = ${roundId}`.pipe(Effect.asVoid, Effect.orDie);
+
   const getRoundResult = (roundId: RoundId): Effect.Effect<RoundResult | null> =>
     sql<{ payload: string }>`SELECT payload FROM round_result WHERE round_id = ${roundId}`.pipe(
       Effect.map((rows) => {
@@ -1128,6 +1146,7 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
     getJob,
     getDueJobs,
     getEarliestPendingJobDueAt,
+    hasPendingJob,
     // Invitations
     insertInvitations,
     getInvitations,
@@ -1151,6 +1170,7 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
     saveAnswer,
     // Results
     saveRoundResult,
+    deleteRoundResult,
     getRoundResult,
     getSharedRoundResultsForTeam,
     getRoundMembersCount,

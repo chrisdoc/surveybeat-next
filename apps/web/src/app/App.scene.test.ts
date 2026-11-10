@@ -55,6 +55,7 @@ import {
   RemoveQuestionCmd,
   ResendInvitationCmd,
   ResumePulseCmd,
+  RetryResultCmd,
   SaveRoundNoteCmd,
   ShareResultsCmd,
   SkipWeekCmd,
@@ -1843,6 +1844,96 @@ describe("App Scenes", () => {
           Scene.expect(Scene.role("button", { name: "Share with the team" })).toBeAbsent(),
           Scene.expect(Scene.role("heading", { name: "Commit an action" })).toBeAbsent(),
           Scene.expect(Scene.role("heading", { name: "Actions" })).toExist(),
+        );
+      });
+
+      const withoutFlag = ({ couldNotCompute: _flag, ...rest }: RoundResult): RoundResult => rest;
+
+      const failedResult: RoundResult = {
+        roundId,
+        pulseId,
+        teamId,
+        status: "closed",
+        plannedOpenDate: "2026-11-09",
+        anonymityMode: "anonymous",
+        closedAt: 1731140000000,
+        effectiveMinimumGroupSize: 4,
+        meetsMinimumGroupSize: true,
+        eligibleMembersCount: 8,
+        submissionsCount: 6,
+        responseRate: 0.75,
+        delayed: true,
+        couldNotCompute: true,
+        questions: [],
+        dimensions: [],
+        comments: [],
+      };
+
+      it("lets the Lead retry a Result that could not be computed, then reloads it", () => {
+        Scene.scene(
+          { update, view },
+          Scene.given({
+            ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}/rounds/${roundId}`)),
+            session: signedInAdmin,
+            results: { _tag: "Loaded", result: failedResult },
+            teamDetail: { _tag: "Loaded", detail: leadTeamDetail(teamId) },
+            actions: { _tag: "Loaded", actions: [] },
+          }),
+          Scene.expect(Scene.text("These Results couldn't be computed.")).toExist(),
+          Scene.expect(Scene.text("Results delayed")).toBeAbsent(),
+          Scene.click(Scene.role("button", { name: "Try again" })),
+          Scene.Command.expectHas(RetryResultCmd),
+          Scene.expect(Scene.role("button", { name: "Trying again…" })).toExist(),
+          Scene.Command.resolve(RetryResultCmd, Message.RetryResultDone({ outcome: { _tag: "Success" } })),
+          Scene.Command.expectHas(GetResultsCmd),
+          Scene.Command.resolve(
+            GetResultsCmd,
+            Message.GotResults({
+              outcome: {
+                _tag: "Success",
+                result: { ...withoutFlag(failedResult), status: "ready", delayed: false },
+              },
+            }),
+          ),
+          Scene.expect(Scene.text("These Results couldn't be computed.")).toBeAbsent(),
+        );
+      });
+
+      it("shows the Lead a failed retry and keeps the Try again button", () => {
+        Scene.scene(
+          { update, view },
+          Scene.given({
+            ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}/rounds/${roundId}`)),
+            session: signedInAdmin,
+            results: { _tag: "Loaded", result: failedResult },
+            teamDetail: { _tag: "Loaded", detail: leadTeamDetail(teamId) },
+            actions: { _tag: "Loaded", actions: [] },
+          }),
+          Scene.click(Scene.role("button", { name: "Try again" })),
+          Scene.Command.expectHas(RetryResultCmd),
+          Scene.Command.resolve(
+            RetryResultCmd,
+            Message.RetryResultDone({ outcome: { _tag: "Failure", failure: "Forbidden" } }),
+          ),
+          Scene.Command.expectNone(),
+          Scene.expect(Scene.role("alert")).toExist(),
+          Scene.expect(Scene.role("button", { name: "Try again" })).toExist(),
+        );
+      });
+
+      it("shows a Member a delayed Result as delayed, with no retry", () => {
+        Scene.scene(
+          { update, view },
+          Scene.given({
+            ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}/rounds/${roundId}`)),
+            session: signedInAdmin,
+            results: { _tag: "Loaded", result: withoutFlag(failedResult) },
+            teamDetail: { _tag: "Loaded", detail: leadTeamDetail(teamId, "member") },
+            actions: { _tag: "Loaded", actions: [] },
+          }),
+          Scene.expect(Scene.text("Results delayed")).toExist(),
+          Scene.expect(Scene.text("These Results couldn't be computed.")).toBeAbsent(),
+          Scene.expect(Scene.role("button", { name: "Try again" })).toBeAbsent(),
         );
       });
     });

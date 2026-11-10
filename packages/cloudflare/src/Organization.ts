@@ -71,6 +71,8 @@ import {
   runThemesAttempt,
   shouldRequestThemes,
   viewRoundResult,
+  delayedRoundResult,
+  nextRetryAt,
   type NoteViewed,
   type RoundNoteView,
   noteChange,
@@ -944,11 +946,23 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
           yield* rounds.markJobCompleted(jobId, now);
         });
 
-      /** Idempotent DO method: computes Result, saves to round_result, moves to Ready then Shared. */
+      /**
+       * Test stages only (reached through test routes behind `isTestStage`): the next compute attempts of a Round
+       * that fail with a defect, before any write. Lives in memory, so it is gone when the object is evicted.
+       */
+      const injectedComputeFailures = new Map<RoundId, number>();
+
+      /**
+       * Idempotent DO method: computes Result, saves to round_result, moves to Ready then Shared. A defect retries at
+       * the backoff time (Issue #128). It gives up once 24 h have passed since the job was created: a delayed Result is
+       * stored, and the Lead may retry from the Round.
+       */
       const executeComputeJob = (jobId: JobId, roundId: RoundId, now: number) =>
         Effect.gen(function* () {
           const job = yield* rounds.getJob(jobId);
           if (job === null || job.status !== "pending") return;
+          // A retry that is not due yet: a doubled alarm or request changes nothing.
+          if (job.dueAt > now) return;
 
           const round = yield* rounds.getRound(roundId);
           if (
@@ -989,6 +1003,13 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
               submissions,
               pastRoundsHistory: pastHistory,
             });
+
+            // Test stages only: a defect here is raised before any write, as a failing computation would be.
+            const injected = injectedComputeFailures.get(roundId) ?? 0;
+            if (injected > 0) {
+              injectedComputeFailures.set(roundId, injected - 1);
+              return yield* Effect.die(new Error("injected compute failure"));
+            }
 
             yield* rounds.saveRoundResult(roundId, result, now);
             yield* rounds.markRoundReady(roundId, now);
@@ -1038,35 +1059,45 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
           yield* computeEffect.pipe(
             Effect.catchDefect((defect: unknown) =>
               Effect.gen(function* () {
-                const attempts = parseAttempts(job.payload) + 1;
-
-                if (attempts >= 3) {
+                // A defect after the Result was stored (the Round is no longer Closed) leaves that Result in place.
+                const current = yield* rounds.getRound(roundId);
+                if (current === null || current.status !== "closed") {
                   yield* Effect.logError(
-                    `[OPERATOR_ALERT] Results computation failed repeatedly for round ${roundId}: ${String(defect)}`,
+                    `[OPERATOR_ALERT] Results follow-up failed after compute for round ${roundId}: ${String(defect)}`,
                   );
-                  const questions = yield* rounds.getRoundQuestionsDetailed(roundId);
-                  const submissions = yield* rounds.getSubmissionsForRound(roundId);
-                  const eligibleMembersCount = yield* rounds.getRoundMembersCount(roundId);
-                  const delayedResult = calculateRoundResult({
-                    roundId,
-                    pulseId: round.pulseId,
-                    teamId: round.teamId,
-                    status: round.status,
-                    plannedOpenDate: round.plannedOpenDate,
-                    anonymityMode: round.anonymityMode,
-                    closedAt: round.closedAt,
-                    effectiveMinimumGroupSize: effectiveN,
-                    eligibleMembersCount,
-                    questions,
-                    submissions,
-                    pastRoundsHistory: [],
-                    delayed: true,
-                  });
-                  yield* rounds.saveRoundResult(roundId, delayedResult, now);
                   yield* rounds.markJobCompleted(jobId, now);
-                } else {
-                  yield* rounds.updateJobPayload(jobId, JSON.stringify({ attempts }));
+                  return;
                 }
+                // The 24 h budget starts when the job is created: a Lead's retry makes a new job, so a fresh one.
+                const attempts = parseAttempts(job.payload) + 1;
+                const dueAt = nextRetryAt(job.createdAt, attempts, now);
+
+                if (dueAt !== null) {
+                  yield* rounds.updateJobPayload(jobId, JSON.stringify({ attempts }));
+                  yield* rounds.updateJobDueAtById(jobId, dueAt);
+                  yield* repairAlarm();
+                  return;
+                }
+
+                yield* Effect.logError(
+                  `[OPERATOR_ALERT] Results computation gave up for round ${roundId}: ${String(defect)}`,
+                );
+                const submissions = yield* rounds.getSubmissionsForRound(roundId);
+                const eligibleMembersCount = yield* rounds.getRoundMembersCount(roundId);
+                const delayedResult = delayedRoundResult({
+                  roundId,
+                  pulseId: round.pulseId,
+                  teamId: round.teamId,
+                  status: round.status,
+                  plannedOpenDate: round.plannedOpenDate,
+                  anonymityMode: round.anonymityMode,
+                  closedAt: round.closedAt,
+                  effectiveMinimumGroupSize: effectiveN,
+                  eligibleMembersCount,
+                  submissionsCount: submissions.length,
+                });
+                yield* rounds.saveRoundResult(roundId, delayedResult, now);
+                yield* rounds.markJobCompleted(jobId, now);
               }),
             ),
           );
@@ -1467,6 +1498,54 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
                     return { _tag: "Accepted" } satisfies RoundCommandResult;
                   }
 
+                  case "RetryResult": {
+                    const round = yield* rounds.getRound(command.roundId);
+                    if (round === null || round.teamId !== command.teamId) {
+                      return {
+                        _tag: "Rejected",
+                        rejection: { _tag: "RoundNotFound" },
+                      } satisfies RoundCommandResult;
+                    }
+                    // Only a Lead retries: only a Lead sees that the Result could not be computed.
+                    if (auth.actor.roles.get(command.teamId) !== "lead") {
+                      return {
+                        _tag: "Rejected",
+                        rejection: { _tag: "Forbidden" },
+                      } satisfies RoundCommandResult;
+                    }
+                    // Already computed: a repeated click changes nothing.
+                    if (round.status === "ready" || round.status === "shared") {
+                      return { _tag: "Accepted" } satisfies RoundCommandResult;
+                    }
+                    if (round.status !== "closed") {
+                      return {
+                        _tag: "Rejected",
+                        rejection: { _tag: "InvalidRoundState", status: round.status },
+                      } satisfies RoundCommandResult;
+                    }
+                    // A computation is already retrying: a repeated click joins it.
+                    if (yield* rounds.hasPendingJob(round.id, "compute")) {
+                      return { _tag: "Accepted" } satisfies RoundCommandResult;
+                    }
+
+                    // A fresh compute job: its own 24 h budget, run at once like the close.
+                    yield* rounds.deleteRoundResult(round.id);
+                    const computeJobId = JobId.make(randomId());
+                    yield* rounds.insertJob({
+                      id: computeJobId,
+                      roundId: round.id,
+                      type: "compute",
+                      dueAt: now,
+                      status: "pending",
+                      payload: null,
+                      createdAt: now,
+                      completedAt: null,
+                    });
+                    yield* executeComputeJob(computeJobId, round.id, now);
+                    yield* repairAlarm();
+                    return { _tag: "Accepted" } satisfies RoundCommandResult;
+                  }
+
                   case "CancelRound": {
                     const round = yield* rounds.getRound(command.roundId);
                     if (round === null || round.teamId !== command.teamId) {
@@ -1725,21 +1804,14 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
               return { _tag: "Viewed", value: openResult } satisfies RoundViewed<RoundResult>;
             }
 
-            // Closed/ready/shared round: read stored round_result
-            let storedResult = yield* rounds.getRoundResult(roundId);
-            if (storedResult === null) {
-              // Compute in place if not computed yet
-              const now = yield* Clock.currentTimeMillis;
-              const questions = yield* rounds.getRoundQuestionsDetailed(roundId);
-              const submissions = yield* rounds.getSubmissionsForRound(roundId);
-              const eligibleMembersCount = yield* rounds.getRoundMembersCount(roundId);
-              const pastHistory = yield* rounds.getPastRoundsResultsForPulse(
-                r.pulseId,
-                12,
-                r.plannedOpenDate,
-              );
-
-              storedResult = calculateRoundResult({
+            // Closed/ready/shared round: read the stored round_result. Without one, the compute job owns the Result
+            // (it is pending, or retrying): show the delayed stand-in and store nothing (Issue #128).
+            const storedResult = yield* rounds.getRoundResult(roundId);
+            // Delayed while a compute job is pending; with no Result and no job left, the Lead may retry.
+            const resultPending = storedResult === null && (yield* rounds.hasPendingJob(roundId, "compute"));
+            const result: RoundResult =
+              storedResult ??
+              delayedRoundResult({
                 roundId,
                 pulseId: r.pulseId,
                 teamId: r.teamId,
@@ -1748,24 +1820,21 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
                 anonymityMode: r.anonymityMode,
                 closedAt: r.closedAt,
                 effectiveMinimumGroupSize: effectiveN,
-                eligibleMembersCount,
-                questions,
-                submissions,
-                pastRoundsHistory: pastHistory,
+                eligibleMembersCount: yield* rounds.getRoundMembersCount(roundId),
+                submissionsCount: (yield* rounds.getSubmissionsForRound(roundId)).length,
               });
-              yield* rounds.saveRoundResult(roundId, storedResult, now);
-            }
 
             // Members/viewers see results without comments; only Lead sees comments behind N (ADR 0004, Issue #3).
             // Effective N (Rule R9) and the themes and discussion guide (ADR 0016, 0019) are applied in viewRoundResult.
             const isLead = auth.actor.roles.get(teamId) === "lead";
             const themes = yield* rounds.getRoundThemes(roundId);
             const resultToShow = viewRoundResult({
-              stored: storedResult,
+              stored: result,
               organizationN: dirState.minimumGroupSize,
               isLead,
               themes,
               round: { status: r.status, reviewEndsAt: r.reviewEndsAt },
+              resultPending,
             });
 
             const viewed: RoundViewed<RoundResult> = {
@@ -2117,6 +2186,11 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
             return true;
           }).pipe(Effect.orDie),
 
+        /** Test stages only (`isTestStage`): the next `count` compute attempts of the Round fail with a defect. */
+        injectComputeFailures: (roundId: string, count: number) =>
+          Effect.sync(() => {
+            injectedComputeFailures.set(RoundId.make(roundId), count);
+          }),
         getRoundResult: (roundId: string) => rounds.getRoundResult(RoundId.make(roundId)),
         getRoundThemes: (roundId: string) => rounds.getRoundThemes(RoundId.make(roundId)),
 

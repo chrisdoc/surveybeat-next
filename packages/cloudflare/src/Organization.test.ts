@@ -453,3 +453,80 @@ test(
   }),
   { timeout: 240_000 },
 );
+
+test(
+  "Result recovery: a failed compute retries with backoff, gives up within 24 hours, and the Lead's retry computes it",
+  Effect.gen(function* () {
+    const { url } = yield* stack;
+    const run = crypto.randomUUID();
+    const response = yield* Effect.promise(() => fetch(`${url}/__test/result-recovery?run=${run}`));
+    assert.strictEqual(response.status, 200);
+    const body: unknown = yield* Effect.promise(() => response.json());
+    assert.deepStrictEqual(body, {
+      // a: two failures, then success. Retries at 5 and then 10 minutes; a doubled alarm changes nothing; the Review
+      // window ends 3 days after the Result is computed.
+      failThenSucceed: {
+        roundAtClose: "closed",
+        computeAtClose: { status: "pending", attempts: 1, dueMinutesAfterClose: 5 },
+        leadAtClose: { status: "closed", delayed: true, couldNotCompute: false, couldNotComputeKey: false },
+        memberAtClose: { status: "closed", delayed: true, couldNotCompute: false, couldNotComputeKey: false },
+        doubledAlarm: { status: "pending", attempts: 1, dueUnchanged: true },
+        afterSecondFailure: { status: "pending", attempts: 2, dueMinutesLater: 10 },
+        roundAfterSuccess: "ready",
+        computeAfterSuccess: "completed",
+        reviewEndsAtDays: 3,
+        shareJobDueIsReviewEnd: true,
+        leadAfterSuccess: {
+          status: "ready",
+          delayed: false,
+          couldNotCompute: false,
+          couldNotComputeKey: false,
+        },
+      },
+      // b: every attempt fails. Attempts at 0, 5, 15, 35, 75, 155, 315, 555, 795, 1035, 1275 minutes after close (the
+      // backoff, capped at 4 hours); the next would fall after 24 hours, so the job gives up. The Lead sees that the
+      // Result could not be computed; a member sees only that it is delayed.
+      giveUp: {
+        attemptOffsetsMinutes: [0, 5, 15, 35, 75, 155, 315, 555, 795, 1035, 1275],
+        withinWindow: true,
+        roundStatus: "closed",
+        computeStatus: "completed",
+        leadView: { status: "closed", delayed: true, couldNotCompute: true, couldNotComputeKey: true },
+        memberView: { status: "closed", delayed: true, couldNotCompute: false, couldNotComputeKey: false },
+      },
+      // c: only the Lead may retry; a doubled click computes the Result once.
+      leadRetry: {
+        memberRetry: "Forbidden",
+        adminRetry: "Forbidden",
+        leadFirstRetry: "Accepted",
+        leadSecondRetry: "Accepted",
+        roundStatus: "ready",
+        reviewEndsAtDays: 3,
+        computeJobStatuses: ["completed", "completed"],
+        leadView: { status: "ready", delayed: false, couldNotCompute: false, couldNotComputeKey: false },
+      },
+      // d: the Lead's retry fails once, so the Lead sees the Result as still being retried; the next attempt succeeds.
+      failedRetry: {
+        firstRetry: "Accepted",
+        secondRetry: "Accepted",
+        computeJobStatuses: ["completed", "pending"],
+        pendingAttempts: 1,
+        pendingDueMinutesLater: 5,
+        leadWhileRetrying: {
+          status: "closed",
+          delayed: true,
+          couldNotCompute: false,
+          couldNotComputeKey: false,
+        },
+        roundStatus: "ready",
+        leadAfterSuccess: {
+          status: "ready",
+          delayed: false,
+          couldNotCompute: false,
+          couldNotComputeKey: false,
+        },
+      },
+    });
+  }),
+  { timeout: 240_000 },
+);

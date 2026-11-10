@@ -11,6 +11,7 @@ import {
   median,
   type QuestionInput,
   RoundResult,
+  delayedRoundResult,
 } from "./Results.ts";
 import { RoundId } from "./Round.ts";
 import type { SubmissionAnswer } from "./Submission.ts";
@@ -805,5 +806,46 @@ describe("RoundResult anonymity mode (issue #79)", () => {
         comments: [],
       }),
     );
+  });
+});
+
+describe("delayedRoundResult: the stand-in for a Result that is not computed (Issue #128)", () => {
+  const params = {
+    roundId: ROUND_1,
+    pulseId: PULSE_ID,
+    teamId: TEAM_ID,
+    status: "closed" as const,
+    plannedOpenDate: "2026-11-09",
+    anonymityMode: "anonymous" as const,
+    closedAt: 1_731_140_000_000,
+    effectiveMinimumGroupSize: 3,
+    eligibleMembersCount: 8,
+  };
+
+  it("carries the counts and the response rate, and is delayed", () => {
+    const result = delayedRoundResult({ ...params, submissionsCount: 6 });
+    assert.strictEqual(result.roundId, ROUND_1);
+    assert.strictEqual(result.status, "closed");
+    assert.strictEqual(result.closedAt, 1_731_140_000_000);
+    assert.strictEqual(result.effectiveMinimumGroupSize, 3);
+    assert.strictEqual(result.submissionsCount, 6);
+    assert.strictEqual(result.eligibleMembersCount, 8);
+    assert.strictEqual(result.responseRate, 0.75);
+    assert.strictEqual(result.meetsMinimumGroupSize, true);
+    assert.strictEqual(result.delayed, true);
+  });
+
+  it("holds no scores, questions, dimensions or comments", () => {
+    const result = delayedRoundResult({ ...params, submissionsCount: 6 });
+    assert.deepStrictEqual(result.questions, []);
+    assert.deepStrictEqual(result.dimensions, []);
+    assert.deepStrictEqual(result.comments, []);
+  });
+
+  it("does not meet N below the group size, and has no response rate without eligible members", () => {
+    const below = delayedRoundResult({ ...params, submissionsCount: 2 });
+    assert.strictEqual(below.meetsMinimumGroupSize, false);
+    const none = delayedRoundResult({ ...params, eligibleMembersCount: 0, submissionsCount: 0 });
+    assert.strictEqual(none.responseRate, null);
   });
 });

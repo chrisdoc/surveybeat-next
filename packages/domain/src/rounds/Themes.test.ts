@@ -5,17 +5,16 @@ import { fakeAiClient } from "../ai/testing.ts";
 import { PulseId } from "../pulses/Pulse.ts";
 import { type QuestionType, QuestionVersionId } from "../pulses/Question.ts";
 import { TeamId } from "../people/Team.ts";
-import type { Highlight, RoundResult } from "./Results.ts";
+import { delayedRoundResult, type Highlight, type RoundResult } from "./Results.ts";
 import { RoundId } from "./Round.ts";
+import { RETRY_WINDOW_MS } from "./Retry.ts";
 import {
   buildThemesInput,
   checkThemesReply,
-  nextThemesAttemptAt,
   repeatsCommentWords,
   runThemesAttempt,
   type RoundThemesRecord,
   shouldRequestThemes,
-  THEMES_RETRY_WINDOW_MS,
   ThemesReplyInvalid,
   type ThemesJobDecision,
   viewRoundResult,
@@ -342,29 +341,6 @@ describe("checkThemesReply (ADR 0016, 0019)", () => {
   );
 });
 
-describe("nextThemesAttemptAt (ADR 0016)", () => {
-  it("first failure retries 5 minutes later", () => {
-    expect(nextThemesAttemptAt(REQUESTED_AT, 1, REQUESTED_AT)).toBe(REQUESTED_AT + 5 * MINUTE);
-  });
-
-  it("doubles the wait and caps it at 4 hours", () => {
-    const now = REQUESTED_AT;
-    expect(nextThemesAttemptAt(REQUESTED_AT, 2, now)).toBe(now + 10 * MINUTE);
-    expect(nextThemesAttemptAt(REQUESTED_AT, 3, now)).toBe(now + 20 * MINUTE);
-    expect(nextThemesAttemptAt(REQUESTED_AT, 7, now)).toBe(now + 4 * HOUR);
-    expect(nextThemesAttemptAt(REQUESTED_AT, 20, now)).toBe(now + 4 * HOUR);
-  });
-
-  it("gives up once the next attempt would fall after 24 hours", () => {
-    expect(nextThemesAttemptAt(REQUESTED_AT, 1, REQUESTED_AT + THEMES_RETRY_WINDOW_MS - 5 * MINUTE)).toBe(
-      REQUESTED_AT + THEMES_RETRY_WINDOW_MS,
-    );
-    expect(
-      nextThemesAttemptAt(REQUESTED_AT, 1, REQUESTED_AT + THEMES_RETRY_WINDOW_MS - 4 * MINUTE),
-    ).toBeNull();
-  });
-});
-
 describe("buildThemesInput (ADR 0015, 0019)", () => {
   it("maps scores, changes and largerThanUsual, and hides scores below N", () => {
     const built = buildThemesInput(sampleResult(), [], []);
@@ -504,7 +480,7 @@ describe("themes job lifecycle (ADR 0016)", () => {
       while (attemptTimes.length <= 100) {
         const failures = attemptTimes.length;
         const next = (attemptTimes[failures - 1] ?? 0) + gap(failures);
-        if (next > REQUESTED_AT + THEMES_RETRY_WINDOW_MS) break;
+        if (next > REQUESTED_AT + RETRY_WINDOW_MS) break;
         attemptTimes.push(next);
       }
 
@@ -519,7 +495,7 @@ describe("themes job lifecycle (ADR 0016)", () => {
         expect(decision).toEqual({ _tag: "RetryAt", dueAt: attemptTimes[i + 1], attempts: i + 1 });
       });
       for (const time of attemptTimes) {
-        expect(time).toBeLessThanOrEqual(REQUESTED_AT + THEMES_RETRY_WINDOW_MS);
+        expect(time).toBeLessThanOrEqual(REQUESTED_AT + RETRY_WINDOW_MS);
       }
       const requests = yield* fake.requests;
       expect(requests).toHaveLength(attemptTimes.length);
@@ -703,4 +679,69 @@ describe("viewRoundResult: the Review window (issue 106)", () => {
       expect(lead.discussionGuide).toEqual(VIEW_GUIDE);
     },
   );
+});
+
+describe("viewRoundResult: a Result that could not be computed (Issue #128)", () => {
+  const DELAYED_ROUND = RoundId.make("round-failed-3c9e");
+  const stored = (): RoundResult =>
+    delayedRoundResult({
+      roundId: DELAYED_ROUND,
+      pulseId: PulseId.make("pulse-failed-3c9e"),
+      teamId: TeamId.make("team-failed-3c9e"),
+      status: "closed",
+      plannedOpenDate: "2026-11-09",
+      anonymityMode: "anonymous",
+      closedAt: REQUESTED_AT,
+      effectiveMinimumGroupSize: 3,
+      eligibleMembersCount: 8,
+      submissionsCount: 6,
+    });
+
+  it("tells the Lead it could not be computed when the stored Result gave up", () => {
+    const lead = viewRoundResult({
+      stored: stored(),
+      organizationN: 3,
+      isLead: true,
+      themes: null,
+      round: { status: "closed", reviewEndsAt: REQUESTED_AT + 3 * 24 * HOUR },
+    });
+    expect(lead.couldNotCompute).toBe(true);
+    expect(lead.delayed).toBe(true);
+  });
+
+  it("shows a member only that the Result is delayed", () => {
+    const member = viewRoundResult({
+      stored: stored(),
+      organizationN: 3,
+      isLead: false,
+      themes: null,
+      round: { status: "closed", reviewEndsAt: REQUESTED_AT + 3 * 24 * HOUR },
+    });
+    expect(member.delayed).toBe(true);
+    expect(member).not.toHaveProperty("couldNotCompute");
+  });
+
+  it("does not report a failure while a compute retry is pending", () => {
+    const lead = viewRoundResult({
+      stored: stored(),
+      organizationN: 3,
+      isLead: true,
+      themes: null,
+      round: { status: "closed", reviewEndsAt: null },
+      resultPending: true,
+    });
+    expect(lead.delayed).toBe(true);
+    expect(lead).not.toHaveProperty("couldNotCompute");
+  });
+
+  it("never reports a failure for a Ready Round", () => {
+    const lead = viewRoundResult({
+      stored: { ...stored(), delayed: false },
+      organizationN: 3,
+      isLead: true,
+      themes: null,
+      round: { status: "ready", reviewEndsAt: REQUESTED_AT + 3 * 24 * HOUR },
+    });
+    expect(lead).not.toHaveProperty("couldNotCompute");
+  });
 });
