@@ -1,0 +1,11 @@
+Act as the implementation sub-agent for this task.
+
+You orchestrate issue #118 ("Redaction: plain numbers over-matched as phones; stray 0 left in spaced German numbers") in chrisdoc/surveybeat-next. THIS TASK EXPLICITLY ASKS YOU TO USE SUBAGENTS: `implementer` (model "haiku") writes the code, `reviewer` (model "sonnet") reviews the diff; you write the brief, check the diff, and run the suite (follow ~/.claude/CLAUDE.md). Keep it to one implementer run; this is a small, privacy-relevant fix.
+
+Read: `gh issue view 118`, PR #117's description (`gh pr view 117`), docs/adr/0009-comments-redacted-at-store-time.md, the domain `redact` function and its table/property tests. First establish facts yourself: does "10 000 000 Euro" get redacted as [phone] on main, and did it before #117 (check out 06991793^ in a scratch worktree or use `git show` to run the old function)? Does "0 30 12 34 56" leave a stray "0"?
+
+Goal: both cases fixed with table tests, no regression in the German/international phone cases from #117 or the date/year negatives, and no weakening of redaction (when in doubt, a real phone number must still be caught: privacy beats a false positive — document any remaining false positive in a test comment rather than loosening the phone rule).
+
+Workflow: branch `r2-118-redaction-numbers` from origin/main. Validation: pnpm typecheck, pnpm lint, pnpm format:check, pnpm test, pnpm test:privacy. Commit (subject "R2 10: Redaction keeps plain numbers and full spaced German numbers", end with "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"), push (retry once if rejected without reason), PR with "Closes #118. Part of #101.", summary incl. the before/after facts, body ending "🤖 Generated with [Claude Code](https://claude.com/claude-code)". Wait for checks (`gh pr checks <n> --watch`), fix failures, squash-merge your own PR (user-authorized): `gh pr merge <n> --squash --delete-branch`.
+
+Final report (≤ 8 lines): facts found, fix, reviewer findings, tests, PR URL, merge SHA.
