@@ -723,38 +723,6 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
         }),
       );
 
-  const getMyAnswers = (
-    editKeyHash: string,
-  ): Effect.Effect<ReadonlyArray<SubmissionAnswer>, SubmissionNotFound> =>
-    sql
-      .withTransaction(
-        Effect.gen(function* () {
-          const sub = yield* getSubmissionByEditKeyHash(editKeyHash);
-          if (sub === null) {
-            return yield* new SubmissionNotFound();
-          }
-          const rows = yield* sql<{
-            question_version_id: string;
-            value: number | null;
-            comment: string | null;
-          }>`SELECT question_version_id, value, comment FROM answer WHERE submission_id = ${sub.id} ORDER BY question_version_id ASC`;
-
-          return rows.map((r) => ({
-            questionVersionId: QuestionVersionId.make(r.question_version_id),
-            value: r.value,
-            comment: r.comment,
-          }));
-        }),
-      )
-      .pipe(
-        Effect.catch((err: unknown) => {
-          if (err instanceof SubmissionNotFound) {
-            return Effect.fail(err);
-          }
-          return Effect.die(err);
-        }),
-      );
-
   const getSubmissionRoundContext = (
     roundId: RoundId,
     personId: PersonId | null,
@@ -1149,7 +1117,6 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
     getSubmissionRoundContext,
     recordFirstAnswer,
     saveAnswer,
-    getMyAnswers,
     // Results
     saveRoundResult,
     getRoundResult,
