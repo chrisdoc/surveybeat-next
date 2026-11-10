@@ -1,6 +1,7 @@
 import { Option } from "effect";
-import { actorOf, type DirectoryState, teamSummaryOf } from "../people/Directory.ts";
+import { actorOf, type DirectoryState, emailLocaleOf, teamSummaryOf } from "../people/Directory.ts";
 import type { PersonId } from "../people/Identity.ts";
+import type { Locale } from "../people/Locale.ts";
 import { type Actor, can, type TeamAction } from "../people/Permissions.ts";
 import type { TeamId } from "../people/Team.ts";
 import {
@@ -24,7 +25,7 @@ import {
   type QuestionType,
   type QuestionVersionId,
 } from "./Question.ts";
-import { templateQuestion, type TemplateQuestionKey, WEEKLY_TEAM_HEALTH } from "./Template.ts";
+import { templateQuestion, type TemplateQuestionKey, weeklyTeamHealth } from "./Template.ts";
 
 /**
  * The question library and the Pulses of one Organization, and the Pulse editor's rules. Pure,
@@ -158,15 +159,18 @@ export type PulseViewed<A> =
 const reject = (rejection: PulseRejection) => ({ _tag: "Rejected", rejection }) as const;
 const accept = (changes: ReadonlyArray<PulseChange>): PulseDecision => ({ _tag: "Accepted", changes });
 
-/** The settings of a new Pulse: Monday 09:00, a three-day window, one reminder, anonymous, by Invitation. */
-export const DEFAULT_PULSE_SETTINGS: PulseSettings = {
-  name: WEEKLY_TEAM_HEALTH.name,
+/**
+ * The settings of a new Pulse in `locale`, named after the Template: Monday 09:00, a three-day
+ * window, one reminder, anonymous, by Invitation.
+ */
+export const defaultPulseSettings = (locale: Locale): PulseSettings => ({
+  name: weeklyTeamHealth(locale).name,
   cadence: { _tag: "Weekly", day: "monday", time: SendTime.make("09:00") },
   answerWindowDays: 3,
   reminders: 1,
   anonymityMode: "anonymous",
   distribution: "invitation",
-};
+});
 
 /**
  * Seconds a member needs for one Question, by type: a rating is a tap, a single choice means
@@ -274,12 +278,16 @@ const authorize = (
   return { _tag: "Allowed", actor: actor.value };
 };
 
-/** Adds one Question at the end, always as a new library Question with its first version. */
+/**
+ * Adds one Question at the end, always as a new library Question with its first version. A Template
+ * Question is copied in `locale`, the language of the Person adding it.
+ */
 const addQuestion = (
   state: PulseState,
   pulse: PulseRecord,
   question: NewPulseQuestion,
   questionId: QuestionId,
+  locale: Locale,
   now: number,
 ): PulseDecision => {
   if (pulse.questions.length >= MAX_QUESTIONS) return reject({ _tag: "PulseFull", maximum: MAX_QUESTIONS });
@@ -287,7 +295,7 @@ const addQuestion = (
   if (question._tag === "Written") {
     added = newQuestion(questionId, null, contentOf(question), now);
   } else {
-    const fromTemplate = templateQuestion(question.key);
+    const fromTemplate = templateQuestion(question.key, locale);
     if (fromTemplate === undefined) return reject({ _tag: "QuestionNotFound" });
     if (questionsOf(state, pulse).some(({ templateKey }) => templateKey === question.key))
       return reject({ _tag: "QuestionAlreadyInPulse" });
@@ -317,10 +325,13 @@ export const decidePulse = (
   const allowed = authorize(directory, actorId, action, command.teamId);
   if (allowed._tag === "Rejected") return allowed;
 
+  // The language of the Pulse's new Questions and settings: the acting Person's (ADR 0018).
+  const locale = emailLocaleOf(directory, actorId);
+
   if (command._tag === "CreatePulse") {
     // Ids are minted fresh, so a taken one can only be a retry of this same create.
     if (state.pulses.some((pulse) => pulse.id === command.pulseId)) return accept([]);
-    const added = WEEKLY_TEAM_HEALTH.questions.map((question) =>
+    const added = weeklyTeamHealth(locale).questions.map((question) =>
       newQuestion(initialQuestionId(command.pulseId, question.key), question.key, contentOf(question), now),
     );
     return accept([
@@ -330,7 +341,7 @@ export const decidePulse = (
         pulse: {
           id: command.pulseId,
           teamId: command.teamId,
-          settings: DEFAULT_PULSE_SETTINGS,
+          settings: defaultPulseSettings(locale),
           createdAt: now,
           questions: added.map(({ version }) => version.id),
         },
@@ -346,7 +357,7 @@ export const decidePulse = (
       return accept([{ _tag: "PulseSettingsUpdated", pulseId: pulse.id, settings: command.settings }]);
 
     case "AddQuestion":
-      return addQuestion(state, pulse, command.question, command.questionId, now);
+      return addQuestion(state, pulse, command.question, command.questionId, locale, now);
 
     case "EditQuestion": {
       const version = versionInPulse(state, pulse, command.questionId);
@@ -509,7 +520,9 @@ export const pulseView = (
         questions,
         estimatedSeconds: estimateSeconds(questions),
         warnings: pulseWarnings(questions, membersOf(directory, teamId), directory.minimumGroupSize),
-        templateQuestions: WEEKLY_TEAM_HEALTH.questions.filter((question) => !asked.has(question.key)),
+        templateQuestions: weeklyTeamHealth(emailLocaleOf(directory, actorId)).questions.filter(
+          (question) => !asked.has(question.key),
+        ),
       },
     };
   });

@@ -152,3 +152,124 @@ describe("redact", () => {
     }
   });
 });
+
+describe("redact German phone numbers", () => {
+  const sentence = (number: string): string => `Ruf mich an: ${number} danke.`;
+  const redacted = "Ruf mich an: [phone] danke.";
+
+  it.each([
+    "+49 30 12345678",
+    "+49 (0)30 12345678",
+    "+49 (0) 30 1234 5678",
+    "+49-30-12345678",
+    "+49/30/12345678",
+    "+4930123456",
+    "+49 170 1234567",
+    "+491701234567",
+    "0049 30 12345678",
+    "0049 170 1234567",
+    "004930123456",
+    "030 12345678",
+    "030/12345678",
+    "030-12345678",
+    "(030) 12345678",
+    "030 / 123 456 78",
+    "0170 1234567",
+    "0170/1234567",
+    "0170-123 45 67",
+    "01701234567",
+    "0151 23456789",
+    "0160 9876543",
+    "0176 12345678",
+    "089 123456",
+    "0221 / 123 45 67",
+    "06221 123456",
+    "040 - 123 456 7",
+  ])("redacts German phone number %s", (number) => {
+    expect(redact(sentence(number), [])).toBe(redacted);
+  });
+
+  it.each([
+    "12.11.2026",
+    "am 12.11.2026 um 10:30",
+    "01.12.2026",
+    "12.11.26",
+    "2026",
+    "2025-2026",
+    "2026-11-12",
+    "Raum 3/12",
+    "Raum 03/12",
+    "3/12/2026",
+    "Version 1.2.3.4",
+    "PLZ 10115 Berlin",
+    "Ticket 12345678",
+    "Ticket 012345678",
+    "1000000",
+    "Seite 0815",
+    "Kosten: 1.250.000 Euro",
+    "10:30 Uhr",
+    "KW 46",
+  ])("keeps non-phone text unchanged: %s", (text) => {
+    expect(redact(text, [])).toBe(text);
+  });
+
+  it.each([
+    ["Am 12.11.2026 12 34 56 78", "Am 12.11.2026 [phone]"],
+    ["12.11.2026 555-234-5678", "12.11.2026 [phone]"],
+    ["1.2.2024 5551234 99", "1.2.2024 [phone]"],
+    ["2026-11-10 0170 1234567", "2026-11-10 [phone]"],
+  ])("keeps a date but redacts the phone number after it: %s", (text, expected) => {
+    expect(redact(text, [])).toBe(expected);
+  });
+
+  it("property test: generated German numbers are redacted and dates are kept", () => {
+    // Seeded-style pseudo random generator
+    let seed = 7;
+    const rnd = () => {
+      seed = (seed * 9301 + 49297) % 233280;
+      return seed / 233280;
+    };
+    const pick = <T>(items: ReadonlyArray<T>): T => items[Math.floor(rnd() * items.length)]!;
+    const digits = (count: number): string =>
+      Array.from({ length: count }, () => String(Math.floor(rnd() * 10))).join("");
+    const pad = (value: number): string => String(value).padStart(2, "0");
+
+    const prefixes = ["+49 ", "+49", "0049 ", "+49 (0)", "0"];
+    const separators = [" ", "-", "/", " / ", ""];
+    const areaDigits = ["2", "3", "4", "5", "6", "7", "8", "9"];
+
+    const germanNumber = (): string => {
+      const code =
+        rnd() < 0.4
+          ? `1${pick(["5", "6", "7"])}${digits(1)}`
+          : `${pick(areaDigits)}${digits(1 + Math.floor(rnd() * 3))}`;
+      const subscriber = digits(6 + Math.floor(rnd() * 3));
+      let groups = "";
+      for (let i = 0; i < subscriber.length;) {
+        const size = 2 + Math.floor(rnd() * 2);
+        groups += pick(separators) + subscriber.slice(i, i + size);
+        i += size;
+      }
+      return `${pick(prefixes)}${code}${groups}`;
+    };
+
+    for (let i = 0; i < 200; i++) {
+      const number = germanNumber();
+      expect(redact(sentence(number), [])).toBe(redacted);
+    }
+
+    for (let i = 0; i < 200; i++) {
+      const day = 1 + Math.floor(rnd() * 28);
+      const month = 1 + Math.floor(rnd() * 12);
+      const year = 1990 + Math.floor(rnd() * 110);
+      const date = pick([
+        `${pad(day)}.${pad(month)}.${year}`,
+        `${pad(day)}.${pad(month)}.${pad(year % 100)}`,
+        `${year}-${pad(month)}-${pad(day)}`,
+        `${year}`,
+      ]);
+      const text = `Am ${date} um 10:30 Uhr danke.`;
+      expect(redact(text, [])).toBe(text);
+    }
+  });
+});
