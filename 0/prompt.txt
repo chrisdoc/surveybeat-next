@@ -1,0 +1,231 @@
+Act as the implementation sub-agent for this task.
+
+You orchestrate Release 2 slice #111 ("R2 10: Bilingual Template and German redaction") in chrisdoc/surveybeat-next. You are the Opus orchestrator; THIS TASK EXPLICITLY ASKS YOU TO USE SUBAGENTS: `scoper` (model "haiku"), `implementer` (model "haiku") writes all code, `reviewer` (model "sonnet") reviews each implementer diff. Follow ~/.claude/CLAUDE.md: scope → you write the plan and small, exact, file-owned briefs → implementer → reviewer → you check the diff and run the full suite.
+
+Read first: `gh issue view 111`, docs/adr/0018-german-localization.md, docs/adr/0009-comments-redacted-at-store-time.md, AGENTS.md, GLOSSARY.md. German landed in PR #113: `Locale` domain module, `de.ts` catalogs, Person/Organization language, `session.locale` in the app. Template lives in packages/domain/src/pulses/Template.ts ("Template's text in code never changes a Pulse"); redaction in the domain `redact` function (find it; table + property tests exist).
+
+Decisions (don't relitigate): the weekly team health Template carries its Questions, labels, and choice options in English and German; a new Pulse copies them in the Lead's language (from the creating Person's resolved locale); existing Pulses are unchanged; Template keys stay the same. German wording: informal "du", product nouns per ADR 0018 (Pulse and Team stay English; Runde, Teamleitung). Draft German Question texts yourself, natural and neutral (they are survey questions — keep the scales' meaning identical), and note in the PR that the product owner reviews them. Redaction recognises German phone formats (+49 / 0049 / leading 0 prefixes; spaces, slashes, dashes, parentheses; mobile 015x/016x/017x and landline area codes) with table tests, without regressing existing cases or over-matching dates/years/plain numbers (add negative cases such as "12.11.2026", "2026", "Raum 3/12").
+
+Workflow: branch `r2-111-template-de` from origin/main. Validation: pnpm typecheck, pnpm typecheck:effect, pnpm lint, pnpm format:check, pnpm test, pnpm test:privacy, pnpm --filter @surveybeat/web build. Commit (subject "R2 10: Bilingual Template and German redaction", end with "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"), push (retry once if rejected without reason), PR with "Closes #111. Part of #101.", summary, verification, a note that German Question wording awaits the product owner's review, body ending "🤖 Generated with [Claude Code](https://claude.com/claude-code)" (restore attribution if the shipper drops it). Wait for checks (`gh pr checks <n> --watch`), fix failures, squash-merge your own PR (user-authorized): `gh pr merge <n> --squash --delete-branch`. Others work in parallel (#103, #105, #108); rebase on conflicts keeping both sides; force-push only your branch.
+
+Final report (≤ 10 lines): what was built, deviations, reviewer findings and handling, test counts, PR URL, merge SHA.
+
+---
+
+<task-notification>
+<task-id>aef0d1b43a03944ee</task-id>
+<tool-use-id>toolu_017JoaP3aaajLq3SAs7T8mEp</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-4489afcd-9256957e8ff1b83e/930bf514-4be3-4546-8b66-4019a45d831f/tasks/aef0d1b43a03944ee.output</output-file>
+<status>completed</status>
+<summary>Agent "Scope bilingual Template" stopped at its 12-turn limit (partial result; SendMessage to task-id to continue)</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>NOTE: this agent stopped at its 12-turn limit before finishing. It was still calling tools and had produced no report. Send the agent a message (SendMessage) to let it continue from where it stopped.
+</result>
+<usage><subagent_tokens>57625</subagent_tokens><tool_uses>12</tool_uses><duration_ms>53756</duration_ms></usage>
+</task-notification>
+
+---
+
+Continue where you left off.
+
+---
+
+<task-notification>
+<task-id>aeb872137dba231d7</task-id>
+<tool-use-id>toolu_01VotBQNVTaN73TRMXYdqoQu</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-4489afcd-9256957e8ff1b83e/930bf514-4be3-4546-8b66-4019a45d831f/tasks/aeb872137dba231d7.output</output-file>
+<status>completed</status>
+<summary>Agent "Bilingual Template slice" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>## Changes
+
+- **`packages/domain/src/pulses/Template.ts`**: `WEEKLY_TEAM_HEALTH` is now a module-private `{ readonly [L in Locale]: Template }` with `en` (byte-identical to before) and `de` (your exact German texts). The exported API is `weeklyTeamHealth(locale)` and `templateQuestion(key, locale)`. Types are unchanged, and the doc comment covers ADR 0018 and language-independent keys.
+- **`packages/domain/src/pulses/Editor.ts`**:
+  - `DEFAULT_PULSE_SETTINGS` is replaced by `defaultPulseSettings(locale)`.
+  - `decidePulse` computes `locale = emailLocaleOf(directory, actorId)` after authorization. It is used for CreatePulse (questions and settings) and for AddQuestion FromTemplate, which takes a `locale` parameter in `addQuestion`.
+  - `pulseView.templateQuestions` uses the viewer's locale.
+  - Stored Questions are not re-read.
+- **`packages/domain/src/pulses/Editor.test.ts`**: the "weekly team health Template" describe moved out. The file now uses `defaultPulseSettings("en")` and `weeklyTeamHealth("en")`. `run` and `detail` take an optional directory. A new describe, "the language of a Pulse (ADR 0018)", covers:
+  - a German Lead's Pulse and name
+  - resolution by own choice, browser language, and Organization default (it.each)
+  - an English choice beating a German browser and default
+  - a German AddQuestion copy
+  - templateQuestions in the viewer's language
+  - an English Pulse keeping English text after the Lead switches to German
+- **`packages/domain/src/pulses/Template.test.ts`** (new): the moved Template checks run for `en` and `de` via `describe.each`. Cross-language checks cover keys, dimension, type, comment flags, option counts, and that every German text differs from English. Schema checks use `Schema.is` on `QuestionContent`, `QuestionType`, `ScaleLabel` and `ChoiceOption`. Also covers `templateQuestion` for both languages and an unknown key.
+- **`packages/cloudflare/src/PulsesApi.test.ts`**: `WEEKLY_TEAM_HEALTH` is replaced with `weeklyTeamHealth("en")` in two places. Not run, only typechecked.
+- `packages/domain/src/pulses/index.ts` is unchanged, since `export *` already covers the new function.
+- No Redaction files were touched. No git operations were run.
+
+## Validation
+
+- `pnpm format`: done. `pnpm format:check`: passes.
+- `pnpm typecheck`: exit 0.
+- `pnpm typecheck:effect`: exit 0. It prints only suggestion-level diagnostics in files outside my scope.
+- `pnpm lint`: exit 0.
+- `pnpm test packages/domain/src/pulses`: 2 files, **70 tests passed**.
+- The grep for `WEEKLY_TEAM_HEALTH|DEFAULT_PULSE_SETTINGS|templateQuestion(` across `packages` and `apps` shows no stale references.
+
+## Notes
+
+- **Deviation (minor):** `WEEKLY_TEAM_HEALTH` is not exported, since only `weeklyTeamHealth` and `templateQuestion` are public.
+- **Mixed-language Pulse (by design, flagged for you):** a German Lead who adds a Template Question to an English Pulse gets the German copy. This follows the brief's "AddQuestion uses the actor's locale" rule. I did not assert this case beyond the scenario in the brief. Say if you want the Pulse's own language used instead.
+- `locale` is computed for every command, not only the ones that use it. This is cheap and keeps the code simple.</result>
+<usage><subagent_tokens>68921</subagent_tokens><tool_uses>12</tool_uses><duration_ms>216321</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>acde90b2feb499e85</task-id>
+<tool-use-id>toolu_01XrFP8KyjxDa7VYhdfTAdLQ</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-4489afcd-9256957e8ff1b83e/930bf514-4be3-4546-8b66-4019a45d831f/tasks/acde90b2feb499e85.output</output-file>
+<status>completed</status>
+<summary>Agent "German phone redaction slice" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>Slice B is done: German phone numbers are now redacted in comments and date-like text is no longer swallowed. The privacy tests pass (58), typecheck and repo-wide lint are clean.
+
+## Changes
+
+- `packages/domain/src/privacy/Redaction.ts`
+  - New step 4 (before the generic phone step) using `GERMAN_PHONE_PATTERN`, with a callback that redacts only when the significant national digit count is 7–12.
+  - Step 5 (generic phone) gets a guard: matches that start with a date shape or a year range are returned unchanged.
+  - Step comments renumbered (roster names is now step 6).
+- `packages/domain/src/privacy/Redaction.privacy.test.ts`
+  - One new top-level `describe("redact German phone numbers")` appended after the existing block. The existing tests are untouched (diff is additions only).
+
+Final regexes:
+
+```ts
+GERMAN_PHONE_PATTERN =
+  /(?&lt;![\w+])(?:(?:\+|00)49[ /-]?(?:\(0\) ?)?|\(?0)(?:1[5-7]\d|[2-9]\d{1,4})\)?(?:(?: [-/] |[ /-])?\d{1,6}){1,6}(?!\w|[.,]\d)/g;
+
+DATE_OR_YEAR_RANGE_PATTERNS = [
+  /^\d{1,2}\.\d{1,2}\.(?:\d{4}|\d{2})(?!\d)/,
+  /^\d{4}-\d{1,2}-\d{1,2}(?!\d)/,
+  /^\d{1,2}\/\d{1,2}\/\d{2,4}(?!\d)/,
+  /^\d{4} ?[-\u2013] ?\d{4}$/,
+];
+```
+
+Callback helper: `germanSignificantDigits` strips `+49`/`0049`, the `(0)` trunk, and (for national numbers) the leading 0, then counts digits.
+
+## Validation
+
+- `pnpm test:privacy packages/domain/src/privacy`: 58 passed (11 existing, 27 German positives, 19 negatives, 1 seeded property test covering 200 generated numbers and 200 generated dates/years).
+- `pnpm typecheck`: exit 0.
+- `pnpm lint`: exit 0.
+- Formatting: ran `oxfmt` on the two owned files only, and `oxfmt --check` on them passes.
+
+## Notes
+
+- Deviation: I did not run repo-wide `pnpm format` or `pnpm format:check`. `oxfmt .` would rewrite the other agent's in-progress `packages/domain/src/pulses` files. Run `pnpm format:check` once that slice is settled.
+- Interpretation: "1–6 digit groups" is implemented as 1–6 repetitions of a separator plus up to 6 digits. Everything in the positive list fits this.
+- Edge case, not covered by the spec's list: a number followed by a separated digit run that pushes the total past 12 digits (e.g. `Tel 030 12345678 2026`). The German step rejects it, and the generic fallback then redacts the whole run as `[phone]`, year included. I checked this directly; it is privacy-safe but over-redacts.
+- The seeded property test asserts exact output (`Ruf mich an: [phone] danke.`), which is stricter than the "contains [phone] and no 4-digit run" in the brief.
+- Callers of `redact` (`packages/domain/src/privacy/index.ts`, `packages/cloudflare/src/SqlRounds.ts`) were not run beyond the privacy suite and typecheck.</result>
+<usage><subagent_tokens>65567</subagent_tokens><tool_uses>14</tool_uses><duration_ms>248040</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>ab1bb665609025bd0</task-id>
+<tool-use-id>toolu_01ELj2Kp28r6R6ptYEzyUfrF</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-4489afcd-9256957e8ff1b83e/930bf514-4be3-4546-8b66-4019a45d831f/tasks/ab1bb665609025bd0.output</output-file>
+<status>completed</status>
+<summary>Agent "Review bilingual Template diff" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>No BLOCKER or MAJOR findings. The three MINOR items below don't block the change.
+
+I ran `packages/domain/src/pulses` with vitest: 2 files, 70 tests, all passing. I did not run typecheck, lint, or the `PulsesApi` adapter test.
+
+What I verified:
+- **English content:** the string literals in the `en` block are identical to `origin/main`. The `en` block contains the same quoted strings as `origin/main`. The only differences in the diff were the import and key-schema names that sit outside the `en` block. The text, labels, options and key order are unchanged.
+- **Keys and language resolution:** keys are unchanged. `emailLocaleOf` already implements person, then detected browser language, then Organization default, which is the order the issue asks for. It is also the right actor for both `CreatePulse` and `AddQuestion` (`Editor.ts:329`). `pulseView` uses the viewer's locale for `templateQuestions` (`Editor.ts:523`).
+- **Stored Questions:** nothing re-reads the Template for stored Questions. The only readers are `Editor.ts:298`, `:334` and `:344`, plus `pulseView`'s `templateQuestions` list. `Organization.ts:1074` and `:1091` only call `decidePulse` and `pulseView`. There are no `as` assertions outside tests.
+- **Other callers:** no other callers of `WEEKLY_TEAM_HEALTH` or `DEFAULT_PULSE_SETTINGS` remain in `apps/`, `packages/` or `infra`. The `dist` and `dist-types` hits are gitignored build output. `apps/web/src/app/pulses.ts:515` only renders `detail.templateQuestions` from the API, so it already shows the viewer's language. No hard-coded "Weekly team health" appears outside tests.
+- **Tests:** they cover the German path, all three resolution sources, the Lead's English choice overriding a German browser and Organization, `AddQuestion` from the Template in German, and the viewer-language `templateQuestions` list. They also cover an English Pulse staying English after the Lead switches to German, and the schema limits on German labels and options. Together these show that existing Pulses are unchanged.
+
+Findings:
+
+1. **MINOR** — `packages/domain/src/pulses/Template.ts`, German `work-recognised` high label, "Sehr stark". "Stark" reads oddly next to "Wie sehr hast du dich … wertgeschätzt gefühlt?". "Voll und ganz" or "Sehr" is more natural and keeps the "Very much" meaning, with "Überhaupt nicht" as the low end. It is a taste call, not wrong.
+2. **MINOR** — `packages/domain/src/pulses/Template.ts`, German Pulse name "Wöchentlicher Team-Check". The English name is "Weekly team health". "Team-Check" is natural and fine, but it is looser than "Teamgesundheit" or "Team-Health-Check". Confirm this is the wording you want, since the name is user-visible and stored.
+3. **MINOR** — `packages/cloudflare/src/PulsesApi.test.ts` only switched to `weeklyTeamHealth("en")`. It has no German end-to-end case, such as a Lead with `locale: "de"` creating a Pulse through the Organization and API path. The domain tests cover the logic, so this only matters if you want proof that the Organization passes the actor's directory state. It does: `Organization.ts:1074` passes `people`.
+
+Files reviewed:
+- `/home/ubuntu/.t3/worktrees/surveybeat-next/t3-4489afcd-9256957e8ff1b83e/packages/domain/src/pulses/Template.ts`
+- `/home/ubuntu/.t3/worktrees/surveybeat-next/t3-4489afcd-9256957e8ff1b83e/packages/domain/src/pulses/Editor.ts`
+- `/home/ubuntu/.t3/worktrees/surveybeat-next/t3-4489afcd-9256957e8ff1b83e/packages/domain/src/pulses/Editor.test.ts`
+- `/home/ubuntu/.t3/worktrees/surveybeat-next/t3-4489afcd-9256957e8ff1b83e/packages/domain/src/pulses/Template.test.ts`
+- `/home/ubuntu/.t3/worktrees/surveybeat-next/t3-4489afcd-9256957e8ff1b83e/packages/cloudflare/src/PulsesApi.test.ts`
+
+PASS — no blocking or major issues found.</result>
+<usage><subagent_tokens>36357</subagent_tokens><tool_uses>5</tool_uses><duration_ms>43001</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>abf8d85731dd487c8</task-id>
+<tool-use-id>toolu_01D73TqBE9VHstnkuyo8Kahe</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-4489afcd-9256957e8ff1b83e/930bf514-4be3-4546-8b66-4019a45d831f/tasks/abf8d85731dd487c8.output</output-file>
+<status>completed</status>
+<summary>Agent "Review German redaction diff" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>Findings from probing `Redaction.ts` with about 90 inputs (all outputs below are real). I ran no ReDoS-style input over 2.5 ms and did not run the existing test suite.
+
+**MAJOR: date guard leaks a phone number that follows a date or year range (fail-open privacy gap).**
+- `"12.11.2026 12345678"` → unchanged
+- `"Am 12.11.2026 12 34 56 78"` → unchanged
+- `"12.34.5678 9"` → unchanged
+- Cause: `DATE_OR_YEAR_RANGE_PATTERNS` only tests the start of `p1`, and the generic `PHONE_PATTERN` match can run past the date. When the guard hits, the whole match is returned, including the trailing digits. "Termin 12.11.2026 0171 ..." is fine because the German step runs first. A non-German or separator-less tail after a date is not.
+- Fix: when the guard hits, strip only the date prefix, then re-evaluate the remainder (at least 7 digits plus a separator) and redact that. Alternatively, tighten the guard to match the whole `p1`. The year-range pattern already uses `$`, so the other three are inconsistent with it.
+
+**MINOR: generic step still redacts the first digit group after a date or range as "phone", with the partial-match fallout.**
+- `"1.2.2024 5551234 99"` → `"1.2.[phone]"`. The date is mangled because `1.2.2024 5551234 99` was not guarded, since the date pattern needs a 4-digit year and `1.2.2024` does match it. So here the guard didn't fire because the match started at a different offset. This is odd partial-match behaviour.
+- `"2020 - 2024 555 1234"` → `"2020 - [phone]"`. The range guard has `$`, so it never fires when anything follows.
+
+**MINOR: false positives (over-match), all from the generic step and likely pre-existing, but the issue says plain numbers must not match.**
+- `"10 000 000 Euro"` → `"[phone] Euro"`
+- `"Jahr 2019 2020 2021"` → `"Jahr [phone]"`
+- `"2019 2020 2021 2022"` → `"[phone]"`
+- `"Nr. 12 345 678"` → `"Nr. [phone]"`
+- `"Bestellung 0123 4567"` → `"Bestellung [phone]"`
+- `"ID 0815 4711"` → `"ID [phone]"`
+- `"Budget 0 100 200 300"` → `"Budget 0 [phone]"`
+- `"DE89 3704 0044 0532 0130 00"` → `"DE89 [phone] [phone]"`. An IBAN being redacted is arguably desirable.
+- I did not compare against `main`, so I can't say which of these predate the diff. The German step's digit-count window (7–12) also treats "0123 4567" and "0815 4711" as phones. That is probably acceptable given the privacy bias, but you should decide on purpose.
+
+**MINOR: leading-"0" separated groups leave a stray "0".**
+- `"0 30 12 34 56"` → `"0 [phone]"`
+- `"0 170 1234567"` → `"0 [phone]"`
+- The number is redacted except for the leading 0. This is harmless, but a table test should pin it down or the pattern should allow `0 ` as a prefix.
+
+**Not a problem (checked):**
+- All of these redact correctly:
+  - `+49 (0)170 1234567`
+  - `0049(0)30 1234567`
+  - `Tel.: 030 1234567-0`
+  - `+49 30 123 456-78`
+  - `(030) 1234567`
+  - `0170/1234567`
+  - `0171 / 123 45 67.`
+  - `+49-170-1234567`
+  - `01701234567`
+  - `03012345678`
+  - `030 1234567.` and `030 1234567,`
+  - numbers in parentheses
+  - `tel 030.1234567`
+- Not over-matched: `1.250,00`, `Kosten 0,50`, `14:30 bis 16:45`, `Q3/2026`, `Sprint 23-24`, `10-15 Leute`, `Raum 0.12`, `v2.0.1`, `Version 2.0.1.3`, `2020-2024`, `01.02.2024`, `1.2.2024`, `10.11.26`, `2024/11/10`, `15.10. 20.11. 30.12.`, `1234567` and `0123456`.
+- A real number after a date is caught when the German pattern applies: `12.11.2026 030 1234567` → `12.11.2026 [phone]`, and `2026-11-10 0170 1234567` → `2026-11-10 [phone]`.
+- ReDoS: adversarial 960–990-char strings took at most 2.5 ms, with repeated `1 `, `3/`, `1.` and long zero runs. There is no risk.
+
+**Unchanged and arguably expected:**
+- `"Tel 5551234567"` (10 plain digits, no separators) is not redacted. That is the existing "keep plain numbers" rule.
+
+Probe scripts are at `/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-4489afcd-9256957e8ff1b83e/930bf514-4be3-4546-8b66-4019a45d831f/scratchpad/p.ts` and `q.ts`. Code is in `/home/ubuntu/.t3/worktrees/surveybeat-next/t3-4489afcd-9256957e8ff1b83e/packages/domain/src/privacy/Redaction.ts`.
+
+Verdict: no BLOCKER. One MAJOR to fix: the date guard returns the entire match when the match starts with a date, so a following phone number leaks.</result>
+<usage><subagent_tokens>22738</subagent_tokens><tool_uses>3</tool_uses><duration_ms>32513</duration_ms></usage>
+</task-notification>

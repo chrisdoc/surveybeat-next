@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01D73TqBE9VHstnkuyo8Kahe",
+  "agent_id": "abf8d85731dd487c8",
+  "subagent_type": "reviewer",
+  "task_description": "Review German redaction diff",
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 17600,
+    "cache_read_tokens": 51046,
+    "output_tokens": 4092,
+    "api_call_count": 4
+  },
+  "started_at": "2026-11-10T11:15:50.036069786Z",
+  "completed_at": "2026-11-10T11:16:22.349849862Z"
+}

@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01ELj2Kp28r6R6ptYEzyUfrF",
+  "agent_id": "ab1bb665609025bd0",
+  "subagent_type": "reviewer",
+  "task_description": "Review bilingual Template diff",
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 31434,
+    "cache_read_tokens": 107801,
+    "output_tokens": 3668,
+    "api_call_count": 5
+  },
+  "started_at": "2026-11-10T11:14:53.02437444Z",
+  "completed_at": "2026-11-10T11:15:35.687895818Z"
+}
