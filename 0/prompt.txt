@@ -1,0 +1,83 @@
+continue with all, also you are free to merge your own work so that i don't become the blocker
+
+---
+
+Delegated task node:delegated-task:command%3Amcp%3A3334ea9b-f5ff-4cf7-9ced-be6959bf84f1%3Adelegate-task%3Accc9adbb-0ae2-4d27-a77d-8a51067c2e1d (R2 08 orchestrator (#109)) [completed]:
+German fixes are applied and the 16 message tests pass. Still waiting on the backend slice.
+
+---
+
+Delegated task node:delegated-task:provider-continuation%3Amessage%3Athread%3Athread%253Adelegated-task%253Acommand%25253Amcp%25253A3334ea9b-f5ff-4cf7-9ced-be6959bf84f1%25253Adelegate-task%25253Accc9adbb-0ae2-4d27-a77d-8a51067c2e1d%3Aordinal%3A1%3A8160dcf6-3a34-4298-bafb-90c2e105056c (R2 08 orchestrator (#109)) [completed]:
+The backend diff checks out on the spot check: all five send sites use the recipient's locale. Waiting for the backend review and the app-wiring slice.
+
+---
+
+Delegated task node:delegated-task:provider-continuation%3Amessage%3Athread%3Athread%253Adelegated-task%253Acommand%25253Amcp%25253A3334ea9b-f5ff-4cf7-9ced-be6959bf84f1%25253Adelegate-task%25253Accc9adbb-0ae2-4d27-a77d-8a51067c2e1d%3Aordinal%3A1%3Aaf45e149-1052-4ebd-9c4c-19bd8323d072 (R2 08 orchestrator (#109)) [completed]:
+The backend review passed. Its one gap (the web fixtures) is covered by the app-wiring slice, which is still running.
+
+---
+
+Delegated task node:delegated-task:command%3Amcp%3A3334ea9b-f5ff-4cf7-9ced-be6959bf84f1%3Adelegate-task%3A46e0db5e-60b9-41f5-81c4-dc42fbba940e (R2 06 orchestrator (#107)) [completed]:
+I fixed the slice 2 review's minor findings myself: added a sort tiebreaker, put comments back in the perf seed, and made the test name and notes say what the tests actually cover. Still waiting on the web slice.
+
+---
+
+Delegated task node:delegated-task:provider-continuation%3Amessage%3Athread%3Athread%253Adelegated-task%253Acommand%25253Amcp%25253A3334ea9b-f5ff-4cf7-9ced-be6959bf84f1%25253Adelegate-task%25253A46e0db5e-60b9-41f5-81c4-dc42fbba940e%3Aordinal%3A1%3Af1cb9c8c-318a-4739-8b45-f678b7dc7320 (R2 06 orchestrator (#107)) [completed]:
+Full suite is green before these fixes: typechecks, lint and format pass; `pnpm test` 599/599; privacy 35/35. The web implementer is now fixing the slice 3 review findings: stronger chart tests, a guard against a late response landing on the wrong Team, the perf-test naming, and tooltip clipping at the edges.
+
+---
+
+Delegated task node:delegated-task:command%3Amcp%3A3334ea9b-f5ff-4cf7-9ced-be6959bf84f1%3Adelegate-task%3A31b744d7-3d22-4c07-861e-1de59b345dfe (R2 02 orchestrator (#103)) [completed]:
+Slice C (Organization object) is still running; I'll review it when it reports back.
+
+---
+
+Delegated task node:delegated-task:provider-continuation%3Amessage%3Athread%3Athread%253Adelegated-task%253Acommand%25253Amcp%25253A3334ea9b-f5ff-4cf7-9ced-be6959bf84f1%25253Adelegate-task%25253A31b744d7-3d22-4c07-861e-1de59b345dfe%3Aordinal%3A1%3Af07d5bea-1d10-426f-8d92-c5258d2851ea (R2 02 orchestrator (#103)) [completed]:
+Fixed the N-at-attempt-time issue myself. The implementer is adding storage round-trip and upgrade tests, re-arming the alarm after the lease, a fixed-message decode defect, and a no-key guard on the test route. I'll review when it reports.
+
+---
+
+Delegated task node:delegated-task:provider-continuation%3Amessage%3Athread%3Athread%253Adelegated-task%253Acommand%25253Amcp%25253A3334ea9b-f5ff-4cf7-9ced-be6959bf84f1%25253Adelegate-task%25253Accc9adbb-0ae2-4d27-a77d-8a51067c2e1d%3Aordinal%3A1%3Aa293b4ba-918f-4058-bd26-808af53fb59d (R2 08 orchestrator (#109)) [completed]:
+The shipper is committing, pushing, and opening the PR.
+
+---
+
+Delegated task node:delegated-task:provider-continuation%3Amessage%3Athread%3Athread%253Adelegated-task%253Acommand%25253Amcp%25253A3334ea9b-f5ff-4cf7-9ced-be6959bf84f1%25253Adelegate-task%25253Accc9adbb-0ae2-4d27-a77d-8a51067c2e1d%3Aordinal%3A1%3A6dec2bfc-ad48-4ab2-804a-bfc6e4e5a74f (R2 08 orchestrator (#109)) [completed]:
+I confirmed the adapter tests myself and told the shipper to go ahead.
+
+---
+
+Delegated task node:delegated-task:provider-continuation%3Amessage%3Athread%3Athread%253Adelegated-task%253Acommand%25253Amcp%25253A3334ea9b-f5ff-4cf7-9ced-be6959bf84f1%25253Adelegate-task%25253Accc9adbb-0ae2-4d27-a77d-8a51067c2e1d%3Aordinal%3A1%3A50102c03-5584-421a-87d9-6f36013349ba (R2 08 orchestrator (#109)) [completed]:
+The PR is open and its checks are running. I'll merge once they're green.
+
+PR https://github.com/chrisdoc/surveybeat-next/pull/113, head bbdf75f6b1ac7745828aad87882f66e3d976599c, checks and reviews pending.
+
+---
+
+Delegated task node:delegated-task:provider-continuation%3Amessage%3Athread%3Athread%253Adelegated-task%253Acommand%25253Amcp%25253A3334ea9b-f5ff-4cf7-9ced-be6959bf84f1%25253Adelegate-task%25253A46e0db5e-60b9-41f5-81c4-dc42fbba940e%3Aordinal%3A1%3Ae94b9487-3ee4-4591-ab1a-cf2c5d3c57a0 (R2 06 orchestrator (#107)) [completed]:
+PR #114 is open and CI is running. I'm waiting on the checks, then I'll squash-merge.
+
+PR https://github.com/chrisdoc/surveybeat-next/pull/114, head 08e678e2, checks pending, no reviews.
+
+---
+
+Delegated task node:delegated-task:provider-continuation%3Amessage%3Athread%3Athread%253Adelegated-task%253Acommand%25253Amcp%25253A3334ea9b-f5ff-4cf7-9ced-be6959bf84f1%25253Adelegate-task%25253A46e0db5e-60b9-41f5-81c4-dc42fbba940e%3Aordinal%3A1%3Aa270dc06-48e1-4c05-9ffc-8294e0737b1d (R2 06 orchestrator (#107)) [completed]:
+The Team page now shows the Team health overview. PR #114 is merged with all checks green; merge SHA `43424c31`.
+
+- **What was built:** a new endpoint, `GET /api/teams/:teamId/overview`, gives one line per Dimension across all shared Rounds, with no 12-Round limit. It reuses the existing effective-N code (`enforceEffectiveNOnResult`), so a Round below the stricter of its stored N and today's N shows as a gap, and lowering N never reveals a Round. Committed and done Actions appear as markers on their dates. The Team page has one chart per Dimension, a row of marker buttons that show the Action title on hover and keyboard focus, and a table view. Lead and members see the same page; Organization admins outside the Team get 403 and see nothing. The Results page chart now runs on the same shared chart code, with identical output.
+- **Deviations:**
+  - A Dimension counts as asked only if a Rating Question in that Round has it, because every stored Result lists all four Dimensions.
+  - Dropped and proposed Actions get no marker.
+  - The fast route test runs against the test fake, so it checks authorization and routing, not the database.
+- **Reviewer findings:**
+  - Slice 1 (domain and API): no findings.
+  - Slice 2 (Cloudflare): I fixed three minor points myself: a sort tiebreaker, comments back in the test data, and a clearer test name.
+  - Slice 3 (web): the tests were too weak to catch real chart bugs, and a late response could show the previous Team's overview. Both went back to the implementer and are fixed, along with two minor points (test naming, tooltips clipping at the edges).
+  - The shipper dropped the attribution lines; I restored them and force-pushed my branch.
+- **Tests:** `pnpm test` 614 passed, `pnpm test:privacy` 35 passed. Both typechecks, lint, format check and the web build pass. The privacy property test now covers the new endpoint.
+- **Performance, 104 weekly Rounds:** database query, decode and build take 13 ms; the page view builds in about 100 ms in tests, against the 1.5 s budget. This hasn't been checked in a real browser on a deployed stage yet.
+- **Not fixed:** the query behind the existing 12-Round trend on the Results page fetches the oldest 12 Rounds rather than the latest. It sorts ascending before applying the limit (`SqlRounds.ts`, `getPastRoundsResultsForPulse`). I left it for a separate issue.
+
+The local branch wasn't deleted because this worktree still has it checked out.
+
+PR https://github.com/chrisdoc/surveybeat-next/pull/114, head 08e678e2, checks and reviews: all passing, merged.
