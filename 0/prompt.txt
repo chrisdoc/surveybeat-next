@@ -1,0 +1,9 @@
+we completed the first release https://github.com/chrisdoc/surveybeat-next/issues/34 do a review to check that we did the right thing
+
+---
+
+can you send the work to sonnet 5.5 sub agents
+
+---
+
+create a PR
