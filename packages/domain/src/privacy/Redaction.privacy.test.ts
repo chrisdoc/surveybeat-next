@@ -265,6 +265,22 @@ describe("redact German phone numbers", () => {
     expect(redact(text, [])).toBe(expected);
   });
 
+  it.each([
+    ["3 0301234567 4 0301234567", "3 [phone] [phone]"],
+    ["0301234567 4 0301234567", "[phone] [phone]"],
+    ["030 1234 5678 030 9876 5432", "[phone] [phone]"],
+    ["Ruf 0170 1234567 0170 7654321 an", "Ruf [phone] [phone] an"],
+    ["0301234567/0301234567", "[phone]/[phone]"],
+    ["0301234567890123", "[phone]"],
+    ["040 - 123 456 7 040 - 765 432 1", "[phone] [phone]"],
+    ["030 / 123 456 78 030 / 987 654 32", "[phone] [phone]"],
+    ["+49 30 1234 5678 +49 30 8765 4321", "[phone] [phone]"],
+  ])("redacts German numbers written next to each other: %s", (text, expected) => {
+    const result = redact(text, []);
+    expect(result).toBe(expected);
+    expect(result).not.toMatch(/\d{2}/);
+  });
+
   it("keeps a currency amount with a phone-shaped 3-3-3 grouping (accepted false negative)", () => {
     // Accepted risk: a 9-digit 3-3-3 phone number written directly next to a currency marker and
     // without a phone cue reads as an amount and is kept.
