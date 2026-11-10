@@ -1,0 +1,50 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "01M72KK38X9GGNMFMJP5KABKKJ",
+  "strategy": "manual-commit",
+  "branch": "r2-105-note",
+  "checkpoints_count": 6,
+  "files_touched": [
+    "apps/web/src/messages/catalog.ts",
+    "apps/web/src/messages/de.ts",
+    "packages/cloudflare/migrations/0014_round_notes.sql",
+    "packages/domain/src/notes/Note.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 5502,
+    "cache_read_tokens": 936767,
+    "output_tokens": 3139,
+    "api_call_count": 7,
+    "subagent_tokens": {
+      "input_tokens": 24,
+      "cache_creation_tokens": 16168,
+      "cache_read_tokens": 1271795,
+      "output_tokens": 13011,
+      "api_call_count": 12
+    }
+  },
+  "redaction": {
+    "replacements": 6,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 4,
+      "key_context": 2,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
