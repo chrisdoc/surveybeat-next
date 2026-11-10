@@ -292,6 +292,7 @@ describe("every Pulse endpoint", () => {
     ["PUT", "/api/teams/t/pulses/p/questions/q", { text: "X?", dimension: null, type: { _tag: "LongText" } }],
     ["DELETE", "/api/teams/t/pulses/p/questions/q", undefined],
     ["PUT", "/api/teams/t/pulses/p/order", { order: [] }],
+    ["POST", "/api/teams/t/pulses/p/test-invitation", undefined],
   ];
 
   it.each(ENDPOINTS)("%s %s answers 401 without a session", async (method, path, body) => {
@@ -322,5 +323,77 @@ describe("every Pulse endpoint", () => {
     await outsider.session();
     expect((await outsider.call("GET", `/api/teams/${teamId}/pulses`)).status).toBe(404);
     expect((await outsider.call("POST", `/api/teams/${teamId}/pulses`)).status).toBe(404);
+  });
+});
+
+/** The test Invitations sent so far, across every Organization (ADR 0021). */
+const testSends = (world: SignInWorld) =>
+  [...world.durable.organizations.values()]
+    .flatMap(({ sends }) => [...sends.values()])
+    .filter(({ email }) => email._tag === "TestInvitationEmail");
+
+describe("sending a test of a Pulse (ADR 0021)", () => {
+  const testPath = (teamId: string, pulseId: string) =>
+    `/api/teams/${teamId}/pulses/${pulseId}/test-invitation`;
+
+  it("sends a Lead the test to their own address, and nobody else", async () => {
+    const { world, lead, teamId } = await setup();
+    const pulse = await createPulse(lead, teamId);
+    expect(await lead.call("POST", testPath(teamId, pulse.id))).toMatchObject({
+      status: 200,
+      body: { email: "grace@example.com" },
+    });
+    expect(testSends(world).map(({ recipient, email }) => [recipient, email._tag])).toEqual([
+      ["grace@example.com", "TestInvitationEmail"],
+    ]);
+  });
+
+  it("sends an Organization admin the test to their own address", async () => {
+    const { admin, teamId } = await setup();
+    const pulse = await createPulse(admin, teamId);
+    expect(await admin.call("POST", testPath(teamId, pulse.id))).toMatchObject({
+      status: 200,
+      body: { email: "admin@example.com" },
+    });
+  });
+
+  it("refuses a plain member, and sends nothing", async () => {
+    const { world, lead, member, teamId } = await setup();
+    const pulse = await createPulse(lead, teamId);
+    expect((await member.call("POST", testPath(teamId, pulse.id))).status).toBe(403);
+    expect(testSends(world)).toEqual([]);
+  });
+
+  it("refuses a Lead of another Team, and a Pulse of another Team", async () => {
+    const { world, lead, otherLead, teamId, otherTeamId } = await setup();
+    const pulse = await createPulse(lead, teamId);
+    expect((await otherLead.call("POST", testPath(teamId, pulse.id))).status).toBe(403);
+    expect((await otherLead.call("POST", testPath(otherTeamId, pulse.id))).status).toBe(404);
+    expect(testSends(world)).toEqual([]);
+  });
+
+  it("refuses a sixth test in the hour, with the limit", async () => {
+    const { lead, teamId } = await setup();
+    const pulse = await createPulse(lead, teamId);
+    const statuses = [];
+    for (let i = 0; i < 5; i++) statuses.push((await lead.call("POST", testPath(teamId, pulse.id))).status);
+    expect(statuses).toEqual([200, 200, 200, 200, 200]);
+    expect(await lead.call("POST", testPath(teamId, pulse.id))).toMatchObject({
+      status: 429,
+      body: { _tag: "TestSendLimitReached", perHour: 5 },
+    });
+  });
+
+  it("refuses a test from another origin, and sends nothing", async () => {
+    const { world, lead, teamId } = await setup();
+    const pulse = await createPulse(lead, teamId);
+    const response = await lead.send(
+      "POST",
+      testPath(teamId, pulse.id),
+      undefined,
+      "https://pr-1.submit.surveybeat.app",
+    );
+    expect(response.status).toBe(403);
+    expect(testSends(world)).toEqual([]);
   });
 });

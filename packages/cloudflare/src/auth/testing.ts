@@ -3,7 +3,11 @@ import {
   applyChanges,
   applyPulseChanges,
   decidePulse,
+  decideTestSend,
   EMPTY_PULSE_STATE,
+  emailLocaleOf,
+  testSendsPerHour,
+  type TestSendResult,
   OrganizationPulses,
   OrganizationRounds,
   PulseId,
@@ -23,7 +27,7 @@ import {
   MembershipId,
   OrganizationDirectory,
   type PersonRecord,
-  type SendId,
+  SendId,
   settingsView,
   TeamId,
   teamsView,
@@ -363,6 +367,8 @@ interface MemoryOrganization {
   /** The Lead's Note per Round. */
   notes: Map<RoundId, RoundNote>;
   readonly sends: Map<SendId, { readonly recipient: EmailAddress; readonly email: TransactionalEmail }>;
+  /** When each Person sent a test of a Pulse, for the hourly limit (ADR 0021). */
+  readonly testSendTimes: Map<PersonId, ReadonlyArray<number>>;
 }
 
 /**
@@ -391,6 +397,7 @@ export class MemoryOrganizations {
       rounds: new Map(),
       notes: new Map(),
       sends: new Map(),
+      testSendTimes: new Map(),
     };
   }
 
@@ -423,6 +430,7 @@ export class MemoryOrganizations {
           rounds: new Map(),
           notes: new Map(),
           sends: new Map(),
+          testSendTimes: new Map(),
         });
       }),
     linkPerson: (organizationId, personId, userId, email) =>
@@ -502,6 +510,42 @@ export class MemoryOrganizations {
       Effect.sync(() => {
         const organization = this.organization(organizationId);
         return pulseView(organization.state, organization.pulses, actorId, teamId, pulseId);
+      }),
+    sendTest: (organizationId, actorId, teamId, pulseId, now) =>
+      Effect.sync((): TestSendResult => {
+        const organization = this.organization(organizationId);
+        const decision = decideTestSend(organization.state, organization.pulses, actorId, teamId, pulseId);
+        if (decision._tag === "Rejected") return decision;
+        const { person, pulse } = decision;
+        const recent = (organization.testSendTimes.get(actorId) ?? []).filter((at) => at > now - 3_600_000);
+        if (recent.length >= testSendsPerHour) {
+          return { _tag: "Rejected", rejection: { _tag: "TestSendLimitReached", perHour: testSendsPerHour } };
+        }
+        organization.testSendTimes.set(actorId, [...recent, now]);
+        // The fake keeps the email as the real object stores it: no token, marked as a test.
+        const first = organization.pulses.versions.find((version) => version.id === pulse.questions[0]);
+        const testEmail: TransactionalEmail = {
+          _tag: "TestInvitationEmail",
+          locale: emailLocaleOf(organization.state, actorId),
+          pulseName: pulse.settings.name,
+          minimumGroupSize: organization.state.minimumGroupSize,
+          test: { pulseId, personId: actorId, testId: crypto.randomUUID() },
+          baseUrl: "https://app.surveybeat.app",
+          ratingQuestion:
+            first !== undefined && first.content.type._tag === "Rating"
+              ? {
+                  text: first.content.text,
+                  lowLabel: first.content.type.lowLabel,
+                  highLabel: first.content.type.highLabel,
+                }
+              : null,
+          // The fake has no Round, so no Actions to offer; the real object lists the Team's open ones.
+          actions: [],
+          aiProcessing: organization.state.aiProcessing,
+        };
+        const sendId = SendId.make(crypto.randomUUID());
+        organization.sends.set(sendId, { recipient: person.email, email: testEmail });
+        return { _tag: "Accepted", sendId, email: person.email };
       }),
   });
 
@@ -769,6 +813,7 @@ export class SignInWorld {
       rounds: new Map(),
       notes: new Map(),
       sends: new Map(),
+      testSendTimes: new Map(),
     });
     return { id, name, workos };
   }

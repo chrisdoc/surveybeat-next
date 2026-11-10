@@ -164,6 +164,85 @@ describe("InvitationEmail rows stored before N was carried", () => {
   });
 });
 
+const testCases = [
+  {
+    locale: "en",
+    notice: "This is a test. Your answers aren't saved.",
+    personalNotice: "This link is personal.",
+    reason: "You sent yourself this test from the Pulse editor.",
+    memberReason: "you are a member of the team",
+    answerPath: "/a",
+  },
+  {
+    locale: "de",
+    notice: "Dies ist ein Test. Deine Antworten werden nicht gespeichert.",
+    personalNotice: "Dieser Link ist persönlich.",
+    reason: "Du hast dir diesen Test aus dem Pulse-Editor selbst geschickt.",
+    memberReason: "du Mitglied des Teams bist",
+    answerPath: "/de/a",
+  },
+] as const;
+
+describe.each(testCases)(
+  "a test InvitationEmail in $locale",
+  ({ locale, notice, personalNotice, reason, memberReason, answerPath }) => {
+    const testEmail: RenderableEmail = { ...examples.InvitationEmail, locale, test: true };
+
+    it("has Test in the subject", async () => {
+      const { subject } = await renderEmail(testEmail);
+      expect(subject).toBe("Test: Weekly Pulse");
+    });
+
+    it("states the test notice and carries the rating links and check-in link with the token", async () => {
+      const { html, text } = await renderEmail(testEmail);
+      expect(html).toContain(notice.replaceAll("'", "&#x27;")); // HTML escapes the apostrophe
+      expect(text).toContain(notice);
+      for (let v = 1; v <= 5; v++) {
+        expect(html).toContain(`https://app.surveybeat.app${answerPath}#t=test-token-123&amp;v=${v}`);
+        expect(text).toContain(`https://app.surveybeat.app${answerPath}#t=test-token-123&v=${v}`);
+      }
+      expect(html).toContain(`https://app.surveybeat.app${answerPath}#t=test-token-123"`);
+      expect(text).toContain(`https://app.surveybeat.app${answerPath}#t=test-token-123`);
+    });
+
+    it("has no delivery-time link and no personal notice", async () => {
+      const { html, text } = await renderEmail(testEmail);
+      expect(html).not.toContain("/delivery");
+      expect(text).not.toContain("/delivery");
+      expect(html).not.toContain(personalNotice);
+      expect(text).not.toContain(personalNotice);
+    });
+
+    it("gives the test's reason in the footer, not the member reason", async () => {
+      const { html, text } = await renderEmail(testEmail);
+      expect(html).toContain(reason);
+      expect(text).toContain(reason);
+      expect(html).not.toContain(memberReason);
+      expect(text).not.toContain(memberReason);
+    });
+  },
+);
+
+describe("a normal InvitationEmail", () => {
+  it("has no test notice and keeps the subject, delivery link, and personal notice", async () => {
+    const { subject, html, text } = await renderEmail(examples.InvitationEmail);
+    expect(subject).toBe("Weekly Pulse");
+    expect(html).not.toContain("This is a test.");
+    expect(text).not.toContain("This is a test.");
+    expect(html).toContain("/delivery?token=test-token-123");
+    expect(text).toContain("/delivery?token=test-token-123");
+    expect(html).toContain("This link is personal. Don&#x27;t forward it.");
+  });
+
+  it("gives the member reason in the footer, not the test reason", async () => {
+    const { html, text } = await renderEmail(examples.InvitationEmail);
+    expect(html).toContain("You received this email because you are a member of the team.");
+    expect(text).toContain("You received this email because you are a member of the team.");
+    expect(html).not.toContain("You sent yourself this test");
+    expect(text).not.toContain("You sent yourself this test");
+  });
+});
+
 describe("ReminderEmail", () => {
   it("renders the unsubscribe URL stored by an older row as is", async () => {
     const { headers } = await renderEmail({

@@ -16,13 +16,16 @@ export const de = {
   "addedToTeam.reason": "Du hast diese E-Mail erhalten, weil {lead} dich zu {team} hinzugefügt hat.",
 
   "invitation.subject": "{pulse}",
+  "invitation.subjectTest": "Test: {pulse}",
   "invitation.preview": "Dein Check-in für {pulse} ist offen.",
+  "invitation.testNotice": "Dies ist ein Test. Deine Antworten werden nicht gespeichert.",
   "invitation.anonymity":
     "Deine Teamleitung sieht nur gesammelte Antworten von mindestens {n} Personen, aber nie, wer was geantwortet hat. Dein Name wird nie zusammen mit deinen Antworten gespeichert.",
   "invitation.openCheckIn": "Check-in öffnen",
   "invitation.changeWhen": "Zustellzeit ändern",
   "invitation.personalNotice": "Dieser Link ist persönlich. Bitte nicht weiterleiten.",
   "invitation.reason": "Du hast diese E-Mail erhalten, weil du Mitglied des Teams bist.",
+  "invitation.reasonTest": "Du hast dir diesen Test aus dem Pulse-Editor selbst geschickt.",
   "privacy.aiNotice":
     "Kommentare werden von einem KI-Dienst in der EU zusammengefasst, nachdem Namen, E-Mail-Adressen, Telefonnummern, Handles und Links entfernt wurden. Er speichert nichts.",
   "invitation.actionsHeading": "Laufende Maßnahmen im Team",

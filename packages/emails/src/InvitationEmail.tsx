@@ -2,7 +2,15 @@ import type { InvitationEmailWithToken as InvitationEmailData } from "@surveybea
 import { Layout, textLayout } from "./Layout.tsx";
 import { answerPath, langQuery } from "./links.ts";
 import { type Messages, messagesFor } from "./messages/index.ts";
-import { ActionRow, ActionsCard, DisplayHeading, Notices, PrivacyPanel, RatingRow } from "./Parts.tsx";
+import {
+  ActionRow,
+  ActionsCard,
+  BodyText,
+  DisplayHeading,
+  Notices,
+  PrivacyPanel,
+  RatingRow,
+} from "./Parts.tsx";
 
 /** The AI notice, present only when the Organization processes comments with AI (ADR 0015). */
 const aiNotice = (email: InvitationEmailData, m: Messages): string | undefined =>
@@ -17,8 +25,17 @@ const anonymityStatement = (email: InvitationEmailData, m: Messages): string =>
     ? (email.anonymityStatement ?? "")
     : m.message("invitation.anonymity", { n: email.minimumGroupSize });
 
+/** A test send (ADR 0021) is marked in the subject and the body, and has no delivery-time link. */
+const isTest = (email: InvitationEmailData): boolean => email.test === true;
+
+/** The footer says why the reader got the email: a test is sent by a Lead or admin to themselves. */
+const reason = (email: InvitationEmailData, m: Messages): string =>
+  m.message(isTest(email) ? "invitation.reasonTest" : "invitation.reason");
+
 export const subject = (email: InvitationEmailData): string =>
-  messagesFor(email.locale).message("invitation.subject", { pulse: email.pulseName });
+  messagesFor(email.locale).message(isTest(email) ? "invitation.subjectTest" : "invitation.subject", {
+    pulse: email.pulseName,
+  });
 
 export function InvitationEmailComponent({ email }: { email: InvitationEmailData }) {
   const m = messagesFor(email.locale);
@@ -30,7 +47,7 @@ export function InvitationEmailComponent({ email }: { email: InvitationEmailData
     <Layout
       messages={m}
       preview={m.message("invitation.preview", { pulse: email.pulseName })}
-      reason={m.message("invitation.reason")}
+      reason={reason(email, m)}
       outside={
         <>
           <ActionsCard actions={email.actions} messages={m} />
@@ -43,10 +60,11 @@ export function InvitationEmailComponent({ email }: { email: InvitationEmailData
               </>
             )}
           </PrivacyPanel>
-          <Notices deliveryUrl={deliveryUrl} messages={m} />
+          {!isTest(email) && <Notices deliveryUrl={deliveryUrl} messages={m} />}
         </>
       }
     >
+      {isTest(email) && <BodyText>{m.message("invitation.testNotice")}</BodyText>}
       <DisplayHeading>{email.pulseName}</DisplayHeading>
       {email.ratingQuestion && (
         <RatingRow
@@ -66,6 +84,7 @@ export const text = (email: InvitationEmailData): string => {
   const openUrl = `${email.baseUrl}${answerPath(email.locale)}#t=${email.token}`;
   const deliveryUrl = `${email.baseUrl}/delivery?token=${email.token}${langQuery(email.locale)}`;
   const notice = aiNotice(email, m);
+  const testLines = isTest(email) ? [m.message("invitation.testNotice"), ""] : [];
 
   const ratingLines: Array<string> = [];
   if (email.ratingQuestion) {
@@ -94,6 +113,7 @@ export const text = (email: InvitationEmailData): string => {
   return textLayout(
     m,
     [
+      ...testLines,
       email.pulseName,
       "",
       anonymityStatement(email, m),
@@ -103,9 +123,10 @@ export const text = (email: InvitationEmailData): string => {
       `${m.message("invitation.openCheckIn")}: ${openUrl}`,
       "",
       ...actionLines,
-      `${m.message("invitation.changeWhen")}: ${deliveryUrl}`,
-      m.message("invitation.personalNotice"),
+      ...(isTest(email)
+        ? []
+        : [`${m.message("invitation.changeWhen")}: ${deliveryUrl}`, m.message("invitation.personalNotice")]),
     ],
-    m.message("invitation.reason"),
+    reason(email, m),
   );
 };

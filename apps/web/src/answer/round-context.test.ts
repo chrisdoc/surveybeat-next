@@ -57,3 +57,23 @@ describe("answer page anonymity statement", () => {
     expect(parseRoundContext("nope")).toBeNull();
   });
 });
+
+describe("answer page test flag", () => {
+  it("reads test: true from a test Invitation's context", () => {
+    const context = parseRoundContext(roundContext({ test: true }));
+    expect(context).not.toBeNull();
+    expect(context?.test).toBe(true);
+  });
+
+  it("treats a context without the flag as a real Invitation", () => {
+    const context = parseRoundContext(roundContext());
+    expect(context).not.toBeNull();
+    expect(context?.test).toBe(false);
+  });
+
+  it("treats any value other than true as a real Invitation", () => {
+    const context = parseRoundContext(roundContext({ test: "true" }));
+    expect(context).not.toBeNull();
+    expect(context?.test).toBe(false);
+  });
+});

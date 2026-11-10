@@ -48,6 +48,13 @@ export const LoadedPulse = defineTaggedUnion({
 });
 export type LoadedPulse = typeof LoadedPulse.Type;
 
+/** The last "Send me a test" (ADR 0021): the address it went to, or why it did not go. */
+export const TestSendResult = Schema.Union([
+  Schema.TaggedStruct("Sent", { email: Schema.String }),
+  Schema.TaggedStruct("Failed", { failure: Failure }),
+]);
+export type TestSendResult = typeof TestSendResult.Type;
+
 export const dimensionName = (dimension: Dimension | null): string =>
   dimension === null ? message("dimension.none") : message(`dimension.${dimension}`);
 
@@ -337,6 +344,8 @@ export const pulseEditorView = <Message>(
     readonly settingsSaved: boolean;
     readonly settingsBusy: boolean;
     readonly settingsFailure?: Failure | undefined;
+    readonly testSendBusy: boolean;
+    readonly testSendResult?: TestSendResult | undefined;
   },
   actions: {
     readonly onMoveQuestion: (index: number, by: -1 | 1) => Message;
@@ -359,6 +368,7 @@ export const pulseEditorView = <Message>(
     readonly onSettingsReviewWindowChange: (days: string) => Message;
     readonly onSettingsRemindersChange: (reminders: string) => Message;
     readonly onSubmitSettings: Message;
+    readonly onSendTest: Message;
   },
   h: HtmlBuilder<Message>,
 ): Html => {
@@ -600,6 +610,32 @@ export const pulseEditorView = <Message>(
       ),
     );
   }
+
+  // Send me a test (ADR 0021): the Pulse's Invitation to the sender, and the answer page it leads to
+  children.push(
+    h.div(
+      [h.Class("mt-8 flex flex-col gap-3")],
+      [
+        appButton(
+          {
+            text: message("pulse.test.send"),
+            isDisabled: state.testSendBusy,
+            className: secondaryButtonClass,
+            onClick: actions.onSendTest,
+          },
+          h,
+        ),
+        h.p([h.Class("text-sm text-muted")], [message("pulse.test.help")]),
+        state.testSendResult?._tag === "Sent"
+          ? h.p(
+              [h.Role("status"), h.Class("text-sm font-medium text-primary")],
+              [message("pulse.test.sent", { email: state.testSendResult.email })],
+            )
+          : null,
+        state.testSendResult?._tag === "Failed" ? problemView(state.testSendResult.failure, h) : null,
+      ].filter(Predicate.isNotNull),
+    ),
+  );
 
   // Settings form
   children.push(

@@ -1,4 +1,5 @@
 import { Schema } from "effect";
+import { EmailAddress } from "../email/Email.ts";
 import { TeamSummary } from "../people/Team.ts";
 import { QuestionContent, QuestionId, QuestionVersionId } from "./Question.ts";
 import { TemplateQuestion, TemplateQuestionKey } from "./Template.ts";
@@ -198,3 +199,18 @@ export class OrderMismatch extends Schema.TaggedError<OrderMismatch, { readonly 
   {},
   { httpApiStatus: 409 },
 ) {}
+
+/** A Person may send themselves at most this many test Invitations in an hour (ADR 0021). */
+export const testSendsPerHour = 5;
+/** A test Invitation's links work for this long after it is sent (ADR 0021). */
+export const testInvitationLifetimeMs = 7 * 24 * 60 * 60 * 1000;
+
+/** The sixth test send in the hour: the Person must wait before sending another (ADR 0021). */
+export class TestSendLimitReached extends Schema.TaggedError<
+  TestSendLimitReached,
+  { readonly brand: unique symbol }
+>()("TestSendLimitReached", { perHour: Schema.Int }, { httpApiStatus: 429 }) {}
+
+/** What the sender is told once a test Invitation is sent: the address it went to, which is their own. */
+export const TestInvitationSent = Schema.Struct({ email: EmailAddress });
+export type TestInvitationSent = typeof TestInvitationSent.Type;

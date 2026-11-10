@@ -58,6 +58,14 @@ export const InvitationRef = Schema.Struct({
 });
 export type InvitationRef = typeof InvitationRef.Type;
 
+/** Which test send an email's links belong to (ADR 0021). `testId` is random per send. */
+export const TestInvitationRef = Schema.Struct({
+  pulseId: Schema.NonEmptyString,
+  personId: Schema.NonEmptyString,
+  testId: Schema.NonEmptyString,
+});
+export type TestInvitationRef = typeof TestInvitationRef.Type;
+
 /** One Invitation email with one-tap rating links (ADR 0005, 0007). As stored: no token. */
 export const InvitationEmail = Schema.TaggedStruct("InvitationEmail", {
   locale: EmailLocale,
@@ -70,6 +78,22 @@ export const InvitationEmail = Schema.TaggedStruct("InvitationEmail", {
   aiProcessing: AiProcessing,
 });
 export type InvitationEmail = typeof InvitationEmail.Type;
+
+/**
+ * A test send of a Pulse to its sender (ADR 0021): the Invitation email, as stored, with no token. Its
+ * links are derived from `test`, and the rendered email is marked as a test.
+ */
+export const TestInvitationEmail = Schema.TaggedStruct("TestInvitationEmail", {
+  locale: EmailLocale,
+  pulseName: Schema.NonEmptyString,
+  minimumGroupSize: MinimumGroupSize,
+  test: TestInvitationRef,
+  baseUrl: HttpsUrl,
+  ratingQuestion: Schema.NullOr(EmailRatingQuestion),
+  actions: Schema.Array(Schema.String),
+  aiProcessing: AiProcessing,
+});
+export type TestInvitationEmail = typeof TestInvitationEmail.Type;
 
 /** A reminder email for an open round with one-click unsubscribe headers (RFC 8058). As stored: no token. */
 export const ReminderEmail = Schema.TaggedStruct("ReminderEmail", {
@@ -95,6 +119,8 @@ export const InvitationEmailWithToken = Schema.TaggedStruct("InvitationEmail", {
   minimumGroupSize: Schema.optionalKey(MinimumGroupSize),
   anonymityStatement: Schema.optionalKey(Schema.NonEmptyString),
   token: Schema.NonEmptyString,
+  /** Present only on a test Invitation (ADR 0021): the template marks it as a test. */
+  test: Schema.optionalKey(Schema.Literal(true)),
   baseUrl: HttpsUrl,
   ratingQuestion: Schema.NullOr(EmailRatingQuestion),
   actions: Schema.Array(Schema.String),
@@ -135,6 +161,7 @@ export type ResultsReadyEmail = typeof ResultsReadyEmail.Type;
 export const TransactionalEmail = Schema.Union([
   AddedToTeam,
   InvitationEmail,
+  TestInvitationEmail,
   ReminderEmail,
   ResultsReadyEmail,
 ]);
@@ -144,6 +171,7 @@ export type TransactionalEmail = typeof TransactionalEmail.Type;
 export const StoredEmail = Schema.Union([
   AddedToTeam,
   InvitationEmail,
+  TestInvitationEmail,
   ReminderEmail,
   ResultsReadyEmail,
   InvitationEmailWithToken,

@@ -4,11 +4,15 @@ import {
   type CommandResult,
   decide,
   decidePulse,
+  decideTestSend,
   type PulseCommand,
   type PulseCommandResult,
   PulseId,
   pulsesView,
   pulseView,
+  type TestSendResult,
+  testInvitationLifetimeMs,
+  testSendsPerHour,
   defaultSendPolicy,
   type DeliveryEventKind,
   type DirectoryCommand,
@@ -32,6 +36,7 @@ import {
   calculateResultsReadyDeliveryTime,
   calculateRoundInstants,
   deriveInvitationToken,
+  deriveTestInvitationToken,
   hashToken,
   importInvitationTokenKey,
   type InvitationTokenRef,
@@ -76,6 +81,8 @@ import {
   type NoteViewed,
   type RoundNoteView,
   noteChange,
+  previewAnswers,
+  testSubmissionContext,
 } from "@surveybeat/domain";
 import * as Clock from "effect/Clock";
 import * as Config from "effect/Config";
@@ -117,6 +124,8 @@ const randomId = (): string =>
   Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) => byte.toString(16).padStart(2, "0")).join(
     "",
   );
+
+const TestSendCount = Schema.Struct({ n: Schema.Int });
 
 const AttemptsPayload = Schema.Struct({ attempts: Schema.Int });
 const parseAttempts = (payload: string | null): number => {
@@ -194,6 +203,10 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
       // The Lead's Note on a Round (R2 04).
       const notes = makeSqlNotes(sql);
       const both = Effect.all([directory.load, pulses.load]);
+
+      /** A removed Person's test sends are forgotten with their other records (ADR 0021). */
+      const deleteTestSendsForPerson = (personId: PersonId) =>
+        sql`DELETE FROM test_send WHERE person_id = ${personId}`.pipe(Effect.asVoid, Effect.orDie);
 
       /** Only sends still waiting go back to the queue; one already sent or failed stays as it is. */
       const pendingOnly = (followUps: ReadonlyArray<FollowUp>) =>
@@ -1305,6 +1318,7 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
                 if (command._tag === "RemovePerson") {
                   yield* rounds.revokeInvitationForPerson(command.personId, now);
                   yield* rounds.deleteParticipationForPerson(command.personId);
+                  yield* deleteTestSendsForPerson(command.personId);
                 }
                 return {
                   _tag: "Accepted",
@@ -1343,6 +1357,71 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
           both.pipe(Effect.map(([people, library]) => pulsesView(people, library, actorId, teamId))),
         viewPulse: (actorId: PersonId, teamId: TeamId, pulseId: PulseId) =>
           both.pipe(Effect.map(([people, library]) => pulseView(people, library, actorId, teamId, pulseId))),
+
+        /**
+         * A test of a Pulse to the actor's own address (ADR 0021). Only the send is recorded here: its
+         * token is derived from a random test id and stored as a hash, and the email goes through the
+         * queue like every other. No Submission, Answer, or Participation is written.
+         */
+        sendTestInvitation: (actorId: PersonId, teamId: TeamId, pulseId: PulseId, now: number) =>
+          sql
+            .withTransaction(
+              Effect.gen(function* () {
+                const [people, library] = yield* both;
+                const decision = decideTestSend(people, library, actorId, teamId, pulseId);
+                if (decision._tag === "Rejected")
+                  return { _tag: "Rejected", rejection: decision.rejection } satisfies TestSendResult;
+                const { person, pulse } = decision;
+
+                const sentRecently = yield* sql`SELECT COUNT(*) AS n FROM test_send
+                  WHERE person_id = ${actorId} AND sent_at > ${now - 3_600_000}`.pipe(
+                  Effect.flatMap(Schema.decodeUnknownEffect(Schema.Array(TestSendCount))),
+                  Effect.orDie,
+                );
+                if ((sentRecently[0]?.n ?? 0) >= testSendsPerHour)
+                  return {
+                    _tag: "Rejected",
+                    rejection: { _tag: "TestSendLimitReached", perHour: testSendsPerHour },
+                  } satisfies TestSendResult;
+
+                yield* sql`DELETE FROM test_send WHERE sent_at <= ${now - testInvitationLifetimeMs}`;
+
+                const ref = { pulseId, personId: actorId, testId: randomId() };
+                const token = yield* Effect.promise(() => deriveTestInvitationToken(invitationKey, ref));
+                const tokenHash = yield* Effect.promise(() => hashToken(token));
+                const sendId = SendId.make(randomId());
+                yield* sql`INSERT INTO test_send (send_id, person_id, pulse_id, token_hash, sent_at)
+                  VALUES (${sendId}, ${actorId}, ${pulseId}, ${tokenHash}, ${now})`;
+
+                const eligibleActions = yield* actions.getEligibleActionsForRound(teamId, pulseId, now);
+                const testEmail: TransactionalEmail = {
+                  _tag: "TestInvitationEmail",
+                  locale: emailLocaleOf(people, actorId),
+                  pulseName: pulse.settings.name,
+                  minimumGroupSize: people.minimumGroupSize,
+                  test: ref,
+                  baseUrl: appOrigin,
+                  ratingQuestion: firstRatingQuestionOf(pulse, library),
+                  actions: eligibleActions.slice(0, 3).map((action) => action.title),
+                  aiProcessing: people.aiProcessing,
+                };
+                yield* sends.create(sendId, person.email, testEmail);
+                return { _tag: "Accepted", sendId, email: person.email } satisfies TestSendResult;
+              }),
+            )
+            .pipe(Effect.orDie),
+        /** The test send a token-less email belongs to, for indexing its token once sent (ADR 0021). */
+        getTestSendBySendId: (sendId: string) =>
+          sql<{ token_hash: string; pulse_id: string; sent_at: number }>`
+            SELECT token_hash, pulse_id, sent_at FROM test_send WHERE send_id = ${sendId}`.pipe(
+            Effect.map((rows) => {
+              const row = rows[0];
+              return row === undefined
+                ? null
+                : { tokenHash: row.token_hash, pulseId: row.pulse_id, sentAt: row.sent_at };
+            }),
+            Effect.orDie,
+          ),
 
         /** Lead controls: skip, pause, resume, close early, cancel. Authorised through permission table. */
         runRoundCommand: (actorId: PersonId, command: RoundCommand, now: number) =>
@@ -2297,6 +2376,37 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
               dirState.minimumGroupSize,
             );
           }),
+        /**
+         * The answer page's context for a test Invitation (ADR 0021). Read-only: no Round, no Submission,
+         * and no Invitation row. Built from the Pulse's saved Questions and settings; `null` when the Pulse
+         * is gone or has no Questions.
+         */
+        getTestSubmissionContext: (pulseId: string, expiresAt: number) =>
+          Effect.gen(function* () {
+            const [dirState, pulseState] = yield* both;
+            const pulse = pulseState.pulses.find((p) => p.id === PulseId.make(pulseId));
+            if (pulse === undefined || pulse.questions.length === 0) return null;
+            const questions = pulse.questions.flatMap((versionId) => {
+              const version = pulseState.versions.find((v) => v.id === versionId);
+              return version === undefined
+                ? []
+                : [{ id: versionId, text: version.content.text, type: version.content.type }];
+            });
+            const now = yield* Clock.currentTimeMillis;
+            const eligibleActions = yield* actions.getEligibleActionsForRound(pulse.teamId, pulse.id, now);
+            return testSubmissionContext({
+              pulseName: pulse.settings.name,
+              minimumGroupSize: dirState.minimumGroupSize,
+              pulseId: pulse.id,
+              questions,
+              actions: eligibleActions.map((action) => ({ id: action.id, title: action.title })),
+              expiresAt,
+              aiProcessing: dirState.aiProcessing,
+            });
+          }),
+        /** What the Lead would be shown for test answers: redacted as the real path does, and written nowhere (ADR 0021). */
+        previewTestAnswers: (answers: ReadonlyArray<SubmissionAnswer>) =>
+          directory.load.pipe(Effect.map((dirState) => previewAnswers(answers, dirState.people))),
         recordFirstAnswer: (
           roundId: string,
           personId: string,

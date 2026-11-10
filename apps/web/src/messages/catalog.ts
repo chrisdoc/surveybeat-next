@@ -103,6 +103,10 @@ export const catalog = {
   "pulse.template.add": "Add",
   "pulse.write.title": "Write a Question",
   "pulse.write.action": "Add Question",
+  "pulse.test.send": "Send me a test",
+  "pulse.test.help":
+    "Get this Pulse's Invitation by email, exactly as members get it. Answers to a test are never saved.",
+  "pulse.test.sent": "Test sent to {email}. Answers to a test are never saved.",
   "pulse.settings.title": "Settings",
   "pulse.settings.name": "Name",
   "pulse.settings.day": "Day",
@@ -318,6 +322,7 @@ export const catalog = {
   "error.QuestionHasAnswers": "This Question has answers, so it can't be edited.",
   "error.PulseNeedsAQuestion": "A Pulse needs at least one Question.",
   "error.PulseFull": "This Pulse has as many Questions as it can hold.",
+  "error.TestSendLimitReached": "You've sent 5 tests in the last hour. Try again later.",
   "error.OrderMismatch": "Someone else changed this Pulse. Reload the page and try again.",
   "error.Invalid": "Check what you entered and try again.",
   "error.Unavailable": "Something went wrong. Try again in a moment.",

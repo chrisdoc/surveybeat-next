@@ -64,6 +64,8 @@ export const durableObjectPulses = (organizations: Organizations) =>
       organizations.getByName(organizationId).viewPulses(actorId, teamId),
     pulse: (organizationId, actorId, teamId, pulseId) =>
       organizations.getByName(organizationId).viewPulse(actorId, teamId, pulseId),
+    sendTest: (organizationId, actorId, teamId, pulseId, now) =>
+      organizations.getByName(organizationId).sendTestInvitation(actorId, teamId, pulseId, now),
   });
 
 /** `OrganizationRounds` on the same objects: the Round lifecycle engine and schedule table. */

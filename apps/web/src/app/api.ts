@@ -16,6 +16,7 @@ export const Failure = Schema.Literals([
   "PulseNeedsAQuestion",
   "PulseFull",
   "OrderMismatch",
+  "TestSendLimitReached",
   "Invalid",
   "Unavailable",
 ]);
@@ -45,6 +46,8 @@ export const failureMessage = (failure: Failure): string => {
       return message("error.PulseFull");
     case "OrderMismatch":
       return message("error.OrderMismatch");
+    case "TestSendLimitReached":
+      return message("error.TestSendLimitReached");
     case "Invalid":
       return message("error.Invalid");
     case "Unavailable":
@@ -75,6 +78,7 @@ export const failureOf = (error: unknown): Failure => {
     "PulseNeedsAQuestion",
     "PulseFull",
     "OrderMismatch",
+    "TestSendLimitReached",
   ] as const) {
     if (Predicate.isTagged(error, tag)) return tag;
   }

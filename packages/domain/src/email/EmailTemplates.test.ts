@@ -6,6 +6,7 @@ import {
   type ReminderEmail,
   type ReminderEmailWithToken,
   StoredEmail,
+  type TestInvitationEmail,
   TransactionalEmail,
 } from "./Email.ts";
 import { InvitationTokens, withToken } from "./EmailTemplates.ts";
@@ -20,6 +21,8 @@ const base = {
 
 const tokens = {
   derive: (ref: typeof invitation) => Effect.succeed(`${ref.roundId}.${ref.personId}.${ref.generation}`),
+  deriveTest: (ref: { pulseId: string; personId: string; testId: string }) =>
+    Effect.succeed(`test.${ref.pulseId}.${ref.personId}.${ref.testId}`),
 };
 const resolve = (email: StoredEmail) =>
   withToken(email).pipe(Effect.provideService(InvitationTokens, tokens));
@@ -32,6 +35,13 @@ const invitationEmail: InvitationEmail = {
   invitation,
 };
 const reminderEmail: ReminderEmail = { _tag: "ReminderEmail", locale: "en", ...base, invitation };
+const testEmail: TestInvitationEmail = {
+  _tag: "TestInvitationEmail",
+  locale: "en",
+  ...base,
+  minimumGroupSize: 4,
+  test: { pulseId: "pulse-1", personId: "person-1", testId: "test-7" },
+};
 
 describe("withToken", () => {
   it.effect("derives the token an Invitation or reminder refers to", () =>
@@ -41,6 +51,20 @@ describe("withToken", () => {
       expect(invited).not.toHaveProperty("invitation");
       const reminded = yield* resolve(reminderEmail);
       expect(reminded).toMatchObject({ _tag: "ReminderEmail", token: "round-1.person-1.2" });
+    }),
+  );
+
+  it.effect("renders a test send as an Invitation marked as a test, with a test token", () =>
+    Effect.gen(function* () {
+      const rendered = yield* resolve(testEmail);
+      expect(rendered).toEqual({
+        _tag: "InvitationEmail",
+        locale: "en",
+        ...base,
+        minimumGroupSize: 4,
+        token: "test.pulse-1.person-1.test-7",
+        test: true,
+      });
     }),
   );
 
@@ -114,6 +138,19 @@ describe("stored email schemas", () => {
     const flagged = { ...invitationEmail, aiProcessing: true };
     expect(decodeStored(flagged)).toEqual(flagged);
     expect(decodeWritable(flagged)).toEqual(flagged);
+  });
+
+  it("round-trip a stored test send without a token", () => {
+    const testSend: TestInvitationEmail = {
+      _tag: "TestInvitationEmail",
+      locale: "de",
+      ...base,
+      minimumGroupSize: 4,
+      test: { pulseId: "pulse-1", personId: "person-1", testId: "test-7" },
+    };
+    expect(decodeStored(testSend)).toEqual(testSend);
+    expect(decodeWritable(testSend)).toEqual(testSend);
+    expect(JSON.stringify(Schema.encodeSync(StoredEmail)(testSend))).not.toContain("token");
   });
 
   it("round-trip a new row without a token", () => {
