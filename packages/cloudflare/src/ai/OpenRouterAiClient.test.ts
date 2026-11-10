@@ -18,6 +18,7 @@ const request: AiRequest = {
       },
     ],
     comments: [{ questionPosition: 1, text: RedactedText.make("Too many meetings") }],
+    dimensions: [],
     actions: [{ title: RedactedText.make("Fewer standing meetings") }],
   },
   schemaName: "comment_themes",

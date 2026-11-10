@@ -119,6 +119,30 @@ export const CommentResult = Schema.Struct({
 });
 export type CommentResult = typeof CommentResult.Type;
 
+/** A Comment theme as shown (ADR 0016). `supportingComments` is Lead only; members never get it. */
+export const CommentTheme = Schema.Struct({
+  label: Schema.String,
+  sentence: Schema.String,
+  supportingComments: Schema.optionalKey(Schema.Int),
+});
+export type CommentTheme = typeof CommentTheme.Type;
+
+/** The Round's discussion guide (ADR 0019), Lead only. */
+export const DiscussionGuide = Schema.Struct({
+  whatStoodOut: Schema.Array(Schema.String),
+  whatPeopleRaised: Schema.Array(Schema.String),
+  actionsToCheckOn: Schema.Array(Schema.String),
+  questions: Schema.Array(Schema.String).pipe(Schema.check(Schema.isMaxLength(3))),
+});
+export type DiscussionGuide = typeof DiscussionGuide.Type;
+
+/**
+ * notRequested: AI off at close, closed before AI was on, or below N. preparing: call pending.
+ * ready: stored. unavailable: gave up after 24 h.
+ */
+export const ThemesStatus = Schema.Literals(["notRequested", "preparing", "ready", "unavailable"]);
+export type ThemesStatus = typeof ThemesStatus.Type;
+
 /**
  * The complete Result of a Round.
  * Gated by effective minimum group size rules (ADR 0004, Issue #3, Issue #4).
@@ -143,6 +167,11 @@ export const RoundResult = Schema.Struct({
   questions: Schema.Array(QuestionResult),
   dimensions: Schema.Array(DimensionResult),
   comments: Schema.Array(CommentResult),
+  /** Optional so stored payloads decode without them; the view sets them (ADR 0016, 0019). */
+  themesStatus: Schema.optionalKey(ThemesStatus),
+  themes: Schema.optionalKey(Schema.Array(CommentTheme)),
+  /** Lead only. */
+  discussionGuide: Schema.optionalKey(Schema.NullOr(DiscussionGuide)),
 });
 export type RoundResult = typeof RoundResult.Type;
 

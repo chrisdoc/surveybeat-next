@@ -300,3 +300,44 @@ test(
     assert.include(unsubText, "Unsubscribed from reminders.");
   }),
 );
+
+test(
+  "Comment themes: a meets-N close requests one themes call, which gives up without a key and shows as unavailable; AI off requests none",
+  Effect.gen(function* () {
+    const { url } = yield* stack;
+    const run = crypto.randomUUID();
+    const response = yield* Effect.promise(() => fetch(`${url}/__test/themes?run=${run}`));
+    assert.strictEqual(response.status, 200);
+    const body = (yield* Effect.promise(() => response.json())) as Record<string, Record<string, unknown>>;
+    // AI on: the stage has no OpenRouter key, so the call gives up and the themes are stored as failed.
+    // The Lead sees the failure and a null guide; a member sees no discussionGuide key at all.
+    assert.deepStrictEqual(body["withAi"], {
+      themesJobExisted: true,
+      themesJobCompleted: true,
+      storedStatus: "failed",
+      leadThemesStatus: "unavailable",
+      leadHasDiscussionGuideKey: true,
+      leadDiscussionGuide: null,
+      leadHasComments: true,
+      memberThemesStatus: "unavailable",
+      memberHasDiscussionGuideKey: false,
+      memberThemes: [],
+      memberHasComments: false,
+    });
+    // AI off: nothing is requested, so no job and no record; the Lead sees "notRequested".
+    assert.deepStrictEqual(body["withoutAi"], {
+      themesJobExisted: false,
+      themesJobCompleted: false,
+      storedStatus: null,
+      leadThemesStatus: "notRequested",
+      leadHasDiscussionGuideKey: true,
+      leadDiscussionGuide: null,
+      leadHasComments: true,
+      memberThemesStatus: "notRequested",
+      memberHasDiscussionGuideKey: false,
+      memberThemes: [],
+      memberHasComments: false,
+    });
+  }),
+  { timeout: 240_000 },
+);

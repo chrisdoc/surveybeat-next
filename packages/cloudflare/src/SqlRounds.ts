@@ -33,6 +33,8 @@ import {
   SubmissionId,
   SubmissionNotFound,
   type SubmissionRoundContext,
+  StoredThemes,
+  type RoundThemesRecord,
   TeamId,
 } from "@surveybeat/domain";
 import * as Effect from "effect/Effect";
@@ -69,6 +71,16 @@ const ScheduleJobRow = Schema.Struct({
   created_at: Schema.Int,
   completed_at: Schema.NullOr(Schema.Int),
 });
+
+const ThemesRow = Schema.Struct({
+  status: Schema.Literals(["pending", "ready", "failed"]),
+  requested_at: Schema.Int,
+  attempts: Schema.Int,
+  payload: Schema.NullOr(Schema.String),
+});
+
+const StoredThemesJson = Schema.fromJsonString(StoredThemes);
+const decodeStoredThemes = Schema.decodeUnknownEffect(StoredThemesJson);
 
 const RoundQuestionRow = Schema.Struct({
   round_id: RoundId,
@@ -989,6 +1001,67 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
   const updateJobPayload = (jobId: JobId, payload: string): Effect.Effect<void> =>
     sql`UPDATE schedule_job SET payload = ${payload} WHERE id = ${jobId}`.pipe(Effect.asVoid, Effect.orDie);
 
+  // Comment themes and discussion guide (ADR 0016, ADR 0019): one row per Round, stored once.
+  const requestThemes = (roundId: RoundId, now: number): Effect.Effect<boolean> =>
+    sql<{ round_id: string }>`INSERT INTO round_themes (round_id, status, requested_at, attempts)
+        VALUES (${roundId}, 'pending', ${now}, 0)
+        ON CONFLICT (round_id) DO NOTHING
+        RETURNING round_id`.pipe(
+      Effect.map((inserted) => inserted.length > 0),
+      Effect.orDie,
+    );
+
+  const getRoundThemes = (roundId: RoundId): Effect.Effect<RoundThemesRecord | null> =>
+    Effect.gen(function* () {
+      const found =
+        yield* sql`SELECT status, requested_at, attempts, payload FROM round_themes WHERE round_id = ${roundId}`.pipe(
+          Effect.flatMap(rows(ThemesRow)),
+        );
+      const row = found[0];
+      if (row === undefined) return null;
+      if (row.status === "pending") {
+        const pending: RoundThemesRecord = {
+          status: "pending",
+          requestedAt: row.requested_at,
+          attempts: row.attempts,
+        };
+        return pending;
+      }
+      if (row.status === "failed") {
+        const failed: RoundThemesRecord = { status: "failed" };
+        return failed;
+      }
+      // A payload that fails to decode is a defect with a fixed message: its text is AI output and never logged.
+      const themes = yield* decodeStoredThemes(row.payload ?? "").pipe(
+        Effect.mapError(() => new Error("round_themes payload invalid")),
+        Effect.orDie,
+      );
+      const ready: RoundThemesRecord = { status: "ready", themes };
+      return ready;
+    }).pipe(Effect.orDie);
+
+  const recordThemesAttemptFailed = (roundId: RoundId, attempts: number): Effect.Effect<void> =>
+    sql`UPDATE round_themes SET attempts = ${attempts} WHERE round_id = ${roundId} AND status = 'pending'`.pipe(
+      Effect.asVoid,
+      Effect.orDie,
+    );
+
+  const storeThemes = (roundId: RoundId, themes: StoredThemes, now: number): Effect.Effect<void> => {
+    const payload = JSON.stringify(themes);
+    return sql`UPDATE round_themes SET status = 'ready', payload = ${payload}, completed_at = ${now}
+        WHERE round_id = ${roundId} AND status = 'pending'`.pipe(Effect.asVoid, Effect.orDie);
+  };
+
+  const giveUpThemes = (roundId: RoundId, now: number): Effect.Effect<void> =>
+    sql`UPDATE round_themes SET status = 'failed', completed_at = ${now}
+        WHERE round_id = ${roundId} AND status = 'pending'`.pipe(Effect.asVoid, Effect.orDie);
+
+  const updateJobDueAtById = (jobId: JobId, dueAt: number): Effect.Effect<void> =>
+    sql`UPDATE schedule_job SET due_at = ${dueAt} WHERE id = ${jobId} AND status = 'pending'`.pipe(
+      Effect.asVoid,
+      Effect.orDie,
+    );
+
   return {
     getRound,
     getRoundsForPulse,
@@ -1047,6 +1120,13 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
     getSubmissionsForRound,
     getPastRoundsResultsForPulse,
     updateJobPayload,
+    // Comment themes and discussion guide
+    requestThemes,
+    getRoundThemes,
+    recordThemesAttemptFailed,
+    storeThemes,
+    giveUpThemes,
+    updateJobDueAtById,
   };
 };
 

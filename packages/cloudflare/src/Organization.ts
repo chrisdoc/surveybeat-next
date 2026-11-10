@@ -64,6 +64,11 @@ import {
   type ActionViewed,
   buildTeamOverview,
   type TeamOverview,
+  AiClient,
+  buildThemesInput,
+  runThemesAttempt,
+  shouldRequestThemes,
+  viewRoundResult,
 } from "@surveybeat/domain";
 import * as Clock from "effect/Clock";
 import * as Config from "effect/Config";
@@ -73,6 +78,7 @@ import * as Redacted from "effect/Redacted";
 import * as Reactivity from "effect/reactivity/Reactivity";
 import * as Schema from "effect/Schema";
 import * as Scope from "effect/Scope";
+import { makeOpenRouterAiClient } from "./ai/OpenRouterAiClient.ts";
 import { makeSqlActions } from "./SqlActions.ts";
 import { makeSqlDirectory } from "./SqlDirectory.ts";
 import { makeSqlPulses } from "./SqlPulses.ts";
@@ -89,6 +95,12 @@ const migrationsDirectory = "packages/cloudflare/migrations";
 const localeOrNull = (value: string | null): Locale | null => (Schema.is(Locale)(value) ? value : null);
 const localeOr = (value: string | null, fallback: Locale): Locale =>
   Schema.is(Locale)(value) ? value : fallback;
+
+/**
+ * The lease a themes job takes while its network call is in flight: its due time moves this far ahead, so a
+ * concurrent alarm or request cannot start a second call. If the object dies mid-call, the job retries after it.
+ */
+const THEMES_LEASE_MS = 10 * 60_000;
 
 /** Origin used in email links when the stage has no custom hostname (never delivered for real). */
 const fallbackAppOrigin = "https://app.invalid";
@@ -143,6 +155,14 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
       );
       const tokenOf = (ref: InvitationTokenRef) =>
         Effect.promise(() => deriveInvitationToken(invitationKey, ref));
+
+      // The OpenRouter key for the Comment themes call (ADR 0015). Empty on stages without it: the call then
+      // fails closed with AiNotConfigured. Provided only where the themes attempt runs, never to other code.
+      const aiKey = yield* Config.Redacted("OPENROUTER_API_KEY").pipe(
+        Config.withDefault(Redacted.make("")),
+        Effect.orDie,
+      );
+      const ai = makeOpenRouterAiClient(aiKey);
 
       // Pass `storage` (not just `db`) so `withTransaction` uses `storage.transaction()`.
       const scope = yield* Scope.make();
@@ -868,6 +888,23 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
             yield* rounds.saveRoundResult(roundId, result, now);
             yield* rounds.markRoundReadyAndShared(roundId, now);
 
+            // The one themes call for this Round (ADR 0016, 0019). It runs as its own job, never inside this transaction.
+            if (shouldRequestThemes(result, dirState.aiProcessing)) {
+              const requested = yield* rounds.requestThemes(roundId, now);
+              if (requested) {
+                yield* rounds.insertJob({
+                  id: JobId.make(`themes-${roundId}`),
+                  roundId,
+                  type: "themes",
+                  dueAt: now,
+                  status: "pending",
+                  payload: null,
+                  createdAt: now,
+                  completedAt: null,
+                });
+              }
+            }
+
             // Schedule results-ready emails for active members and leads of the team
             const team = dirState.teams.find((t) => t.id === round.teamId);
             const teamTimeZone = team?.timeZone ?? "UTC";
@@ -943,6 +980,93 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
           );
         });
 
+      /**
+       * Idempotent: the Round's one Comment themes and discussion guide call (ADR 0016, ADR 0019). The network
+       * call runs between two transactions, never inside one. The job's due time is moved ahead as a lease
+       * while the call is in flight. Nothing is logged: the input, the reply, and any error body stay out.
+       */
+      const executeThemesJob = (jobId: JobId, roundId: RoundId, now: number) =>
+        Effect.gen(function* () {
+          // 1. Check everything the call needs, and take the lease.
+          const prepared = yield* sql.withTransaction(
+            Effect.gen(function* () {
+              const job = yield* rounds.getJob(jobId);
+              if (job === null || job.status !== "pending" || job.type !== "themes") return null;
+
+              const themes = yield* rounds.getRoundThemes(roundId);
+              if (themes === null || themes.status !== "pending") {
+                yield* rounds.markJobCompleted(jobId, now);
+                return null;
+              }
+
+              const dirState = yield* directory.load;
+              // An admin may have turned AI processing off since the request: then nothing is sent.
+              if (!dirState.aiProcessing) {
+                yield* rounds.giveUpThemes(roundId, now);
+                yield* rounds.markJobCompleted(jobId, now);
+                return null;
+              }
+
+              const round = yield* rounds.getRound(roundId);
+              const stored = yield* rounds.getRoundResult(roundId);
+              // The Organization's N may have been raised since close: decide on, and send, only what
+              // the Result shows under today's effective N (ADR 0004, Rule R9).
+              const effective =
+                stored === null ? null : enforceEffectiveNOnResult(stored, dirState.minimumGroupSize);
+              if (round === null || effective === null || !shouldRequestThemes(effective, true)) {
+                yield* rounds.giveUpThemes(roundId, now);
+                yield* rounds.markJobCompleted(jobId, now);
+                return null;
+              }
+
+              yield* rounds.updateJobDueAtById(jobId, now + THEMES_LEASE_MS);
+              const openActionTitles = yield* actions.getOpenActionTitlesForTeam(round.teamId);
+              return {
+                input: buildThemesInput(effective, openActionTitles, dirState.people),
+                requestedAt: themes.requestedAt,
+                attempts: themes.attempts,
+              };
+            }),
+          );
+          if (prepared === null) return;
+          // The lease is now the job's due time: arm the alarm for its expiry, in case the object dies mid-call.
+          yield* repairAlarm();
+
+          // 2. The one network call, outside any transaction.
+          const decision = yield* runThemesAttempt({
+            input: prepared.input,
+            requestedAt: prepared.requestedAt,
+            attempts: prepared.attempts,
+            now,
+          }).pipe(Effect.provideService(AiClient, ai));
+
+          // 3. Record the outcome, unless the Round's themes were settled meanwhile.
+          yield* sql.withTransaction(
+            Effect.gen(function* () {
+              const current = yield* rounds.getRoundThemes(roundId);
+              if (current === null || current.status !== "pending") {
+                yield* rounds.markJobCompleted(jobId, now);
+                return;
+              }
+              switch (decision._tag) {
+                case "Store":
+                  yield* rounds.storeThemes(roundId, decision.themes, now);
+                  yield* rounds.markJobCompleted(jobId, now);
+                  return;
+                case "RetryAt":
+                  yield* rounds.recordThemesAttemptFailed(roundId, decision.attempts);
+                  yield* rounds.updateJobDueAtById(jobId, decision.dueAt);
+                  return;
+                case "GiveUp":
+                  yield* rounds.giveUpThemes(roundId, now);
+                  yield* rounds.markJobCompleted(jobId, now);
+                  return;
+              }
+            }),
+          );
+          yield* repairAlarm();
+        });
+
       /** Processes all jobs currently due from the schedule table, then updates the alarm. */
       const runDueJobs = (nowMs?: number) =>
         Effect.gen(function* () {
@@ -951,6 +1075,11 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
             const dueJobs = yield* rounds.getDueJobs(now);
             if (dueJobs.length === 0) break;
             for (const job of dueJobs) {
+              // The themes call makes a network request, so it runs outside any transaction (ADR 0016).
+              if (job.type === "themes") {
+                yield* executeThemesJob(job.id, job.roundId, now);
+                continue;
+              }
               yield* sql.withTransaction(
                 Effect.gen(function* () {
                   if (job.type === "open") {
@@ -1499,17 +1628,16 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
               yield* rounds.saveRoundResult(roundId, storedResult, now);
             }
 
-            // Apply effective N enforcement (Rule R9)
-            let resultToShow = enforceEffectiveNOnResult(storedResult, dirState.minimumGroupSize);
-
-            // Members/viewers see results without comments; only Lead sees comments behind N (ADR 0004, Issue #3)
+            // Members/viewers see results without comments; only Lead sees comments behind N (ADR 0004, Issue #3).
+            // Effective N (Rule R9) and the themes and discussion guide (ADR 0016, 0019) are applied in viewRoundResult.
             const isLead = auth.actor.roles.get(teamId) === "lead";
-            if (!isLead) {
-              resultToShow = {
-                ...resultToShow,
-                comments: [],
-              };
-            }
+            const themes = yield* rounds.getRoundThemes(roundId);
+            const resultToShow = viewRoundResult({
+              stored: storedResult,
+              organizationN: dirState.minimumGroupSize,
+              isLead,
+              themes,
+            });
 
             const viewed: RoundViewed<RoundResult> = {
               _tag: "Viewed",
@@ -1773,12 +1901,21 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
           }).pipe(Effect.orDie),
 
         getRoundResult: (roundId: string) => rounds.getRoundResult(RoundId.make(roundId)),
+        getRoundThemes: (roundId: string) => rounds.getRoundThemes(RoundId.make(roundId)),
 
         runDueJobs: (now?: number) => runDueJobs(now),
 
         runScheduleJob: (jobId: string, nowMs?: number) =>
-          sql
-            .withTransaction(
+          Effect.gen(function* () {
+            const peeked = yield* rounds.getJob(JobId.make(jobId));
+            if (peeked !== null && peeked.type === "themes") {
+              // Outside any transaction, as in runDueJobs (ADR 0016).
+              const now = nowMs ?? (yield* Clock.currentTimeMillis);
+              yield* executeThemesJob(peeked.id, peeked.roundId, now);
+              yield* repairAlarm();
+              return;
+            }
+            yield* sql.withTransaction(
               Effect.gen(function* () {
                 const job = yield* rounds.getJob(JobId.make(jobId));
                 if (job === null || job.status !== "pending") return;
@@ -1796,8 +1933,8 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
                 }
                 yield* repairAlarm();
               }),
-            )
-            .pipe(Effect.orDie),
+            );
+          }).pipe(Effect.orDie),
 
         repairAlarm: () => repairAlarm(),
         getAlarm: () => Effect.promise(() => state.raw.storage.getAlarm()).pipe(Effect.orDie),
