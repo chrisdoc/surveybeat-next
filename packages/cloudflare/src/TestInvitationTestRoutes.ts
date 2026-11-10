@@ -91,6 +91,37 @@ export const testInvitationTestRoutes = (
     const record = yield* organization.getTestSendBySendId(sendId);
     const invitation = yield* organization.getInvitationBySendId(sendId);
 
+    // The editor's poll (issue 147): a fresh test send reads as queued, and a stranger's read is refused.
+    const queued = yield* organization.viewTestSend(admin, teamId, pulseId, sendId, now);
+    const memberRead = yield* organization.viewTestSend(member, teamId, pulseId, sendId, now);
+
+    // A second test send is failed by the queue's own transitions: claimed, then rejected for good.
+    const accepted = burst.flatMap((result) => (result._tag === "Accepted" ? [result.sendId] : []));
+    const failing = SendId.make(accepted[1] ?? "none");
+    yield* organization.claimEmailSend(failing, now + 1);
+    yield* organization.settleEmailSend(
+      failing,
+      1,
+      { _tag: "Rejected", code: "E_SENDER_NOT_VERIFIED", permanent: true },
+      now + 2,
+    );
+    const failedStatus = yield* organization.viewTestSend(admin, teamId, pulseId, failing, now + 3);
+    const failedBefore = yield* organization.listFailedEmails(admin);
+
+    // Fifty-one more sends fail, one after another: the list keeps the newest fifty.
+    for (let i = 0; i < 51; i++) {
+      const bulk = SendId.make(`bulk-${run}-${i}`);
+      yield* organization.createEmailSend(bulk, EmailAddress.make("grace@example.com"), {
+        _tag: "AddedToTeam",
+        locale: "en",
+        teamName: "Platform",
+        leadName: "Acme admin",
+        signInUrl,
+      });
+      yield* organization.abandonEmailSend(bulk, now + 100 + i);
+    }
+    const failedAfter = yield* organization.listFailedEmails(admin);
+
     // The first test goes through the real queue: the consumer renders it and indexes its token.
     yield* queue.send(
       yield* Schema.encodeEffect(EmailSendRequested)({
@@ -140,6 +171,12 @@ export const testInvitationTestRoutes = (
 
     return yield* HttpServerResponse.json({
       burst: burst.map(outcome),
+      queued,
+      memberRead,
+      failing,
+      failedStatus,
+      failedBefore,
+      failedAfter,
       afterAnHour: outcome(afterAnHour),
       member: outcome(byMember),
       sentAt: now,

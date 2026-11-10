@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@effect/vitest";
-import { weeklyTeamHealth } from "@surveybeat/domain";
+import { SendId, type SendState, weeklyTeamHealth } from "@surveybeat/domain";
 import { Browser, SignInWorld } from "./auth/testing.ts";
 
 /**
@@ -293,6 +293,7 @@ describe("every Pulse endpoint", () => {
     ["DELETE", "/api/teams/t/pulses/p/questions/q", undefined],
     ["PUT", "/api/teams/t/pulses/p/order", { order: [] }],
     ["POST", "/api/teams/t/pulses/p/test-invitation", undefined],
+    ["GET", "/api/teams/t/pulses/p/test-invitations/s", undefined],
   ];
 
   it.each(ENDPOINTS)("%s %s answers 401 without a session", async (method, path, body) => {
@@ -341,7 +342,7 @@ describe("sending a test of a Pulse (ADR 0021)", () => {
     const pulse = await createPulse(lead, teamId);
     expect(await lead.call("POST", testPath(teamId, pulse.id))).toMatchObject({
       status: 200,
-      body: { email: "grace@example.com" },
+      body: { email: "grace@example.com", sendId: expect.any(String) },
     });
     expect(testSends(world).map(({ recipient, email }) => [recipient, email._tag])).toEqual([
       ["grace@example.com", "TestInvitationEmail"],
@@ -395,5 +396,95 @@ describe("sending a test of a Pulse (ADR 0021)", () => {
     );
     expect(response.status).toBe(403);
     expect(testSends(world)).toEqual([]);
+  });
+});
+
+/** The state the sender reads back for one test send: the editor's poll (ADR 0021). */
+describe("reading a test send's state (issue 147)", () => {
+  const testPath = (teamId: string, pulseId: string) =>
+    `/api/teams/${teamId}/pulses/${pulseId}/test-invitation`;
+  const statePath = (teamId: string, pulseId: string, sendId: string) =>
+    `/api/teams/${teamId}/pulses/${pulseId}/test-invitations/${sendId}`;
+
+  /** Sets a test send's email state by hand: the fake never delivers, so a test decides how it ends. */
+  const setState = (world: SignInWorld, sendId: string, state: SendState) => {
+    for (const organization of world.durable.organizations.values()) {
+      const send = organization.sends.get(SendId.make(sendId));
+      if (send !== undefined) organization.sends.set(SendId.make(sendId), { ...send, state });
+    }
+  };
+
+  /** Sends a test as the Lead, and returns its id. */
+  const sendTest = async (lead: Browser, teamId: string, pulseId: string) =>
+    ((await lead.call("POST", testPath(teamId, pulseId))).body as { readonly sendId: string }).sendId;
+
+  it("is Queued from the send, with no message, token, or address in it", async () => {
+    const { lead, teamId } = await setup();
+    const pulse = await createPulse(lead, teamId);
+    const sendId = await sendTest(lead, teamId, pulse.id);
+    const status = await lead.call("GET", statePath(teamId, pulse.id, sendId));
+    expect(status).toMatchObject({
+      status: 200,
+      body: {
+        queuedAt: expect.any(Number),
+        checkedAt: expect.any(Number),
+        state: { _tag: "Queued", attempts: 0, lastCode: null },
+      },
+    });
+    expect(Object.keys(status.body as object).sort()).toEqual(["checkedAt", "queuedAt", "state"]);
+  });
+
+  it("follows the send through each state the queue can put it in", async () => {
+    const { world, lead, teamId } = await setup();
+    const pulse = await createPulse(lead, teamId);
+    const sendId = await sendTest(lead, teamId, pulse.id);
+    const path = statePath(teamId, pulse.id, sendId);
+
+    setState(world, sendId, { _tag: "Sending", attempt: 2, leaseExpiresAt: 99 });
+    expect((await lead.call("GET", path)).body).toMatchObject({ state: { _tag: "Sending", attempt: 2 } });
+
+    setState(world, sendId, { _tag: "Sent", messageId: "provider-7", sentAt: 4 });
+    const sent = await lead.call("GET", path);
+    expect(sent.body).toMatchObject({ state: { _tag: "Sent", sentAt: 4 } });
+    expect(JSON.stringify(sent.body)).not.toContain("provider-7");
+
+    setState(world, sendId, {
+      _tag: "Failed",
+      reason: "rejected",
+      code: "E_SENDER_NOT_VERIFIED",
+      failedAt: 9,
+    });
+    expect((await lead.call("GET", path)).body).toMatchObject({
+      state: { _tag: "Failed", reason: "rejected", code: "E_SENDER_NOT_VERIFIED", failedAt: 9 },
+    });
+  });
+
+  it("is not found to anyone but the sender, for another Pulse, or for a send that never was", async () => {
+    const { admin, lead, otherLead, teamId } = await setup();
+    const pulse = await createPulse(lead, teamId);
+    const other = await createPulse(lead, teamId);
+    const sendId = await sendTest(lead, teamId, pulse.id);
+
+    // An admin may edit the Team's Pulses, but this send is the Lead's own.
+    expect(await admin.call("GET", statePath(teamId, pulse.id, sendId))).toMatchObject({
+      status: 404,
+      body: { _tag: "TestSendNotFound" },
+    });
+    expect(await lead.call("GET", statePath(teamId, other.id, sendId))).toMatchObject({
+      status: 404,
+      body: { _tag: "TestSendNotFound" },
+    });
+    expect(await lead.call("GET", statePath(teamId, pulse.id, "no-such-send"))).toMatchObject({
+      status: 404,
+      body: { _tag: "TestSendNotFound" },
+    });
+    expect((await otherLead.call("GET", statePath(teamId, pulse.id, sendId))).status).toBe(403);
+  });
+
+  it("is refused to a plain member, even for their own send", async () => {
+    const { lead, member, teamId } = await setup();
+    const pulse = await createPulse(lead, teamId);
+    const sendId = await sendTest(lead, teamId, pulse.id);
+    expect((await member.call("GET", statePath(teamId, pulse.id, sendId))).status).toBe(403);
   });
 });

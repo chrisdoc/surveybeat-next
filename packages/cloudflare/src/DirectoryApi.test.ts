@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@effect/vitest";
-import type { OrganizationId, PersonId } from "@surveybeat/domain";
+import type { OrganizationId, PersonId, SendState } from "@surveybeat/domain";
 import { Browser, ORIGIN, SignInWorld } from "./auth/testing.ts";
 
 /**
@@ -118,6 +118,7 @@ describe("an Organization admin", () => {
         leadName: "admin@example.com",
         signInUrl: `${ORIGIN}/`,
       },
+      state: { _tag: "Pending", attempts: 0, lastCode: null },
     });
   });
 
@@ -426,6 +427,7 @@ describe("every directory endpoint", () => {
     ["POST", "/api/teams/t/leads", email],
     ["DELETE", "/api/teams/t/leads/p", undefined],
     ["GET", "/api/organization", undefined],
+    ["GET", "/api/organization/failed-emails", undefined],
     ["PATCH", "/api/organization", { minimumGroupSize: 4 }],
     ["PATCH", "/api/me/language", { locale: "de" }],
     ["PUT", "/api/organization/admins/p", undefined],
@@ -466,5 +468,64 @@ describe("every directory endpoint", () => {
     await outsider.session();
     expect((await outsider.call("GET", `/api/teams/${teamId}`)).status).toBe(404);
     expect(await outsider.call("GET", "/api/teams")).toEqual({ status: 200, body: [] });
+  });
+});
+
+describe("the failed emails of the Organization (issue 147)", () => {
+  /** Marks the Organization's send to `recipient` as failed, the way the email queue would. */
+  const failSendTo = (world: SignInWorld, recipient: string, state: SendState) => {
+    for (const organization of world.durable.organizations.values()) {
+      for (const [sendId, send] of organization.sends) {
+        if (send.recipient === recipient) organization.sends.set(sendId, { ...send, state });
+      }
+    }
+  };
+
+  it("lists the failed sends to an admin, newest first, with kind, recipient, reason, code, and time", async () => {
+    const { world, admin } = await setup();
+    failSendTo(world, "grace@example.com", {
+      _tag: "Failed",
+      reason: "rejected",
+      code: "E_SENDER_NOT_VERIFIED",
+      failedAt: 30,
+    });
+    failSendTo(world, "ada@example.com", { _tag: "Failed", reason: "unknown", code: null, failedAt: 40 });
+    expect(await admin.call("GET", "/api/organization/failed-emails")).toMatchObject({
+      status: 200,
+      body: {
+        emails: [
+          {
+            sendId: expect.any(String),
+            kind: "AddedToTeam",
+            recipient: "ada@example.com",
+            reason: "unknown",
+            code: null,
+            failedAt: 40,
+          },
+          {
+            sendId: expect.any(String),
+            kind: "AddedToTeam",
+            recipient: "grace@example.com",
+            reason: "rejected",
+            code: "E_SENDER_NOT_VERIFIED",
+            failedAt: 30,
+          },
+        ],
+      },
+    });
+  });
+
+  it("lists nothing but the failed sends, and nothing at all when none failed", async () => {
+    const { admin } = await setup();
+    expect(await admin.call("GET", "/api/organization/failed-emails")).toEqual({
+      status: 200,
+      body: { emails: [] },
+    });
+  });
+
+  it("is refused to a Lead and to a member, who are not Organization admins", async () => {
+    const { lead, member } = await setup();
+    expect((await lead.call("GET", "/api/organization/failed-emails")).status).toBe(403);
+    expect((await member.call("GET", "/api/organization/failed-emails")).status).toBe(403);
   });
 });

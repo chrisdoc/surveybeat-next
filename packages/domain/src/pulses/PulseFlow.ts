@@ -19,6 +19,8 @@ import {
   QuestionHasAnswers,
   QuestionNotFound,
   TestSendLimitReached,
+  TestSendNotFound,
+  type TestSendStatus,
 } from "./Pulse.ts";
 
 /** What the Organization's Durable Object answers to a Pulse command once committed, or why not. */
@@ -64,6 +66,18 @@ export interface OrganizationPulsesShape {
     pulseId: PulseId,
     now: number,
   ) => Effect.Effect<TestSendResult>;
+  /**
+   * The state of the actor's own test send of this Pulse, read from the Durable Object: the send's row and
+   * its email's state. Read-only.
+   */
+  readonly testSend: (
+    organizationId: OrganizationId,
+    actorId: PersonId,
+    teamId: TeamId,
+    pulseId: PulseId,
+    sendId: SendId,
+    now: number,
+  ) => Effect.Effect<PulseViewed<TestSendStatus>>;
 }
 
 export class OrganizationPulses extends Context.Service<OrganizationPulses, OrganizationPulsesShape>()(
@@ -80,7 +94,8 @@ export type PulseError =
   | PulseNeedsAQuestion
   | PulseFull
   | OrderMismatch
-  | TestSendLimitReached;
+  | TestSendLimitReached
+  | TestSendNotFound;
 
 const fail = (rejection: PulseRejection): Effect.Effect<never, PulseError> => {
   switch (rejection._tag) {
@@ -104,6 +119,8 @@ const fail = (rejection: PulseRejection): Effect.Effect<never, PulseError> => {
       return Effect.fail(new OrderMismatch());
     case "TestSendLimitReached":
       return Effect.fail(new TestSendLimitReached({ perHour: rejection.perHour }));
+    case "TestSendNotFound":
+      return Effect.fail(new TestSendNotFound());
   }
 };
 
@@ -151,5 +168,25 @@ export const sendTestInvitation = Effect.fnUntraced(function* (
   );
   if (result._tag === "Rejected") return yield* fail(result.rejection);
   yield* (yield* EmailOutbox).queue(member.organization.id, result.sendId);
-  return { email: result.email };
+  return { email: result.email, sendId: result.sendId };
 });
+
+/**
+ * How the test send the signed-in Person made is doing in the queue, for the Pulse editor to poll until it
+ * settles. Only that Person's own test of that Pulse can be read; anything else is not found.
+ */
+export const viewTestInvitation = (member: Member, teamId: TeamId, pulseId: PulseId, sendId: SendId) =>
+  Effect.gen(function* () {
+    const pulses = yield* OrganizationPulses;
+    return yield* Effect.flatMap(
+      pulses.testSend(
+        member.organization.id,
+        member.personId,
+        teamId,
+        pulseId,
+        sendId,
+        yield* Clock.currentTimeMillis,
+      ),
+      viewed,
+    );
+  });

@@ -1,5 +1,6 @@
 import { Option } from "effect";
 import { EmailAddress, SendId, type TransactionalEmail } from "../email/Email.ts";
+import type { FailedEmail, FailedEmails } from "../email/FailedEmails.ts";
 import { normaliseEmail, type PersonId, type WorkosUserId } from "./Identity.ts";
 import { type Actor, can } from "./Permissions.ts";
 import { type Locale, resolveLocale } from "./Locale.ts";
@@ -655,4 +656,19 @@ export const settingsView = (state: DirectoryState, actorId: PersonId): Viewed<O
         .sort((a, b) => a.email.localeCompare(b.email, "en")),
     },
   };
+};
+
+/**
+ * The Organization's most recent failed sends, for its admins (never anyone else). `failed` is what the
+ * Durable Object read: the rows already newest first, and only the fields an admin may see.
+ */
+export const failedEmailsView = (
+  state: DirectoryState,
+  actorId: PersonId,
+  failed: ReadonlyArray<FailedEmail>,
+): Viewed<FailedEmails> => {
+  const actor = actorOf(state, actorId);
+  if (Option.isNone(actor)) return forbidden;
+  if (!can(actor.value, "organization.viewSettings", { _tag: "Organization" })) return forbidden;
+  return { _tag: "Viewed", value: { emails: failed } };
 };

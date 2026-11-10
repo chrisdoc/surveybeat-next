@@ -1,5 +1,6 @@
 import {
   Dimension,
+  type FailureReason,
   PulseDetail,
   PulseList,
   PulseSettings,
@@ -7,8 +8,10 @@ import {
   QuestionContent,
   type QuestionId,
   type QuestionType,
+  SendId,
   TemplateQuestionKey,
   type TeamId,
+  TestSendStatus,
   Weekday,
 } from "@surveybeat/domain";
 import { Option, Predicate, Schema } from "effect";
@@ -48,12 +51,103 @@ export const LoadedPulse = defineTaggedUnion({
 });
 export type LoadedPulse = typeof LoadedPulse.Type;
 
-/** The last "Send me a test" (ADR 0021): the address it went to, or why it did not go. */
+/**
+ * The last "Send me a test" (ADR 0021): the address it went to and its send, or why it did not go.
+ * `status` is the send's state as last read; `statusUnavailable` means the last read failed and polling stopped.
+ */
 export const TestSendResult = Schema.Union([
-  Schema.TaggedStruct("Sent", { email: Schema.String }),
+  Schema.TaggedStruct("Sent", {
+    email: Schema.String,
+    sendId: SendId,
+    status: Schema.optionalKey(TestSendStatus),
+    statusUnavailable: Schema.Boolean,
+  }),
   Schema.TaggedStruct("Failed", { failure: Failure }),
 ]);
 export type TestSendResult = typeof TestSendResult.Type;
+
+/** The editor checks a test send this often. */
+export const TEST_SEND_POLL_INTERVAL = "3 seconds";
+/** Queued for this long (server clock): the editor says the email service may not be processing sends. */
+export const TEST_SEND_STALLED_MILLIS = 5 * 60_000;
+/** The editor stops checking a test send that is still waiting after this long (server clock). */
+export const TEST_SEND_GIVE_UP_MILLIS = 15 * 60_000;
+
+/** Whether the editor should check this test send again: it is still queued or sending, and the editor has not given up. */
+export const testSendKeepsPolling = (status: TestSendStatus): boolean =>
+  (status.state._tag === "Queued" || status.state._tag === "Sending") &&
+  status.checkedAt - status.queuedAt < TEST_SEND_GIVE_UP_MILLIS;
+
+/** What the editor says about a test send, as a message key with its parameters (see `testSendNoticeText`). */
+export type TestSendNotice =
+  | { readonly _tag: "Queued" }
+  | { readonly _tag: "Retrying"; readonly code: string }
+  | { readonly _tag: "Stalled"; readonly minutes: number }
+  | { readonly _tag: "Sending" }
+  | { readonly _tag: "Sent" }
+  | { readonly _tag: "Failed"; readonly reason: FailureReason; readonly code: string | null };
+
+/**
+ * The notice for a test send's state. Queued for five minutes or more shows the stalled notice and drops
+ * the last rejection code; the minutes come from `checkedAt - queuedAt` on the server clock.
+ */
+export const testSendNotice = (status: TestSendStatus): TestSendNotice => {
+  const { state } = status;
+  switch (state._tag) {
+    case "Queued": {
+      const waited = status.checkedAt - status.queuedAt;
+      if (waited >= TEST_SEND_STALLED_MILLIS) {
+        return { _tag: "Stalled", minutes: Math.floor(waited / 60_000) };
+      }
+      return state.lastCode === null ? { _tag: "Queued" } : { _tag: "Retrying", code: state.lastCode };
+    }
+    case "Sending":
+      return { _tag: "Sending" };
+    case "Sent":
+      return { _tag: "Sent" };
+    case "Failed":
+      return { _tag: "Failed", reason: state.reason, code: state.code };
+  }
+};
+
+/** Why a send failed, in words that fit "Not sent: {reason}" and a table cell. Shared by the editor and the failed-emails list. */
+export const failureReasonText = (reason: FailureReason): string => {
+  switch (reason) {
+    case "unknown":
+      return message("email.reason.unknown");
+    case "rejected":
+      return message("email.reason.rejected");
+    case "abandoned":
+      return message("email.reason.abandoned");
+    case "bounced":
+      return message("email.reason.bounced");
+    case "complained":
+      return message("email.reason.complained");
+  }
+};
+
+/** The words for a test send notice in the current language. */
+export const testSendNoticeText = (notice: TestSendNotice): string => {
+  switch (notice._tag) {
+    case "Queued":
+      return message("pulse.test.status.queued");
+    case "Retrying":
+      return message("pulse.test.status.retrying", { code: notice.code });
+    case "Stalled":
+      return pluralMessage("pulse.test.status.stalled", notice.minutes);
+    case "Sending":
+      return message("pulse.test.status.sending");
+    case "Sent":
+      return message("pulse.test.status.sent");
+    case "Failed":
+      return notice.code === null
+        ? message("pulse.test.status.failed", { reason: failureReasonText(notice.reason) })
+        : message("pulse.test.status.failedCode", {
+            reason: failureReasonText(notice.reason),
+            code: notice.code,
+          });
+  }
+};
 
 export const dimensionName = (dimension: Dimension | null): string =>
   dimension === null ? message("dimension.none") : message(`dimension.${dimension}`);
@@ -315,6 +409,26 @@ export const questionFormView = <Message>(
         },
         h,
       ),
+    ].filter(Predicate.isNotNull),
+  );
+
+/** The live state of a sent test: what the send is doing now, or that its state could not be read. */
+const testSendStatusView = <Message>(
+  result: Extract<TestSendResult, { readonly _tag: "Sent" }>,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [h.Class("flex flex-col gap-1 text-sm text-muted")],
+    [
+      h.p(
+        [h.Role("status")],
+        [
+          result.status === undefined
+            ? message("pulse.test.status.queued")
+            : testSendNoticeText(testSendNotice(result.status)),
+        ],
+      ),
+      result.statusUnavailable ? h.p([], [message("pulse.test.status.unavailable")]) : null,
     ].filter(Predicate.isNotNull),
   );
 
@@ -632,6 +746,7 @@ export const pulseEditorView = <Message>(
               [message("pulse.test.sent", { email: state.testSendResult.email })],
             )
           : null,
+        state.testSendResult?._tag === "Sent" ? testSendStatusView(state.testSendResult, h) : null,
         state.testSendResult?._tag === "Failed" ? problemView(state.testSendResult.failure, h) : null,
       ].filter(Predicate.isNotNull),
     ),

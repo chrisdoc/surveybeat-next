@@ -10,6 +10,7 @@ import {
   type TeamId,
   viewPulse,
   viewPulses,
+  viewTestInvitation,
 } from "@surveybeat/domain";
 import type * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -101,6 +102,13 @@ export const pulseHandlers = <R>(services: Effect.Effect<Context.Context<PulseSe
             const member = yield* currentMember;
             return yield* sendTestInvitation(member, params.teamId, params.pulseId);
           }),
+        ),
+      )
+      .handle("getTestInvitation", ({ params }) =>
+        provide(
+          Effect.flatMap(currentMember, (member) =>
+            viewTestInvitation(member, params.teamId, params.pulseId, params.sendId),
+          ),
         ),
       ),
   );

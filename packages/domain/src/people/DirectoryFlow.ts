@@ -1,5 +1,6 @@
 import { Clock, Context, Effect, Option } from "effect";
 import type { SendId } from "../email/Email.ts";
+import type { FailedEmails } from "../email/FailedEmails.ts";
 import type { DirectoryCommand, DirectoryRejection, FollowUp, Viewed } from "./Directory.ts";
 import type { PersonId } from "./Identity.ts";
 import type { OrganizationId } from "./Organization.ts";
@@ -50,6 +51,11 @@ export interface OrganizationDirectoryShape {
     organizationId: OrganizationId,
     actorId: PersonId,
   ) => Effect.Effect<Viewed<OrganizationSettings>>;
+  /** The most recent failed sends of the Organization, for its admins (ADR 0006). */
+  readonly failedEmails: (
+    organizationId: OrganizationId,
+    actorId: PersonId,
+  ) => Effect.Effect<Viewed<FailedEmails>>;
 }
 
 export class OrganizationDirectory extends Context.Service<
@@ -157,4 +163,9 @@ export const viewTeam = (member: Member, teamId: TeamId) =>
 export const viewSettings = (member: Member) =>
   Effect.flatMap(OrganizationDirectory, (directory) =>
     Effect.flatMap(directory.settings(member.organization.id, member.personId), viewed),
+  );
+
+export const viewFailedEmails = (member: Member) =>
+  Effect.flatMap(OrganizationDirectory, (directory) =>
+    Effect.flatMap(directory.failedEmails(member.organization.id, member.personId), viewed),
   );

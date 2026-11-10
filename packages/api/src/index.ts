@@ -40,9 +40,11 @@ import {
   ActionList,
   ActionNotFound,
   CreateAction,
+  FailedEmails,
   OwnerNotInTeam,
   RoundNoteView,
   SaveNote,
+  SendId,
   UpdateAction,
   SessionState,
   TeamDetail,
@@ -54,6 +56,8 @@ import {
   TeamSummary,
   TestInvitationSent,
   TestSendLimitReached,
+  TestSendNotFound,
+  TestSendStatus,
   TimeZone,
   Unauthenticated,
 } from "@surveybeat/domain";
@@ -176,6 +180,11 @@ export class DirectoryApiGroup extends HttpApiGroup.make("directory")
       success: OrganizationSettings,
       error: directoryErrors,
     }),
+    // Organization admins only. Never a body, a token, or a Submission: the kind, the recipient, and the reason.
+    HttpApiEndpoint.get("listFailedEmails", "/organization/failed-emails", {
+      success: FailedEmails,
+      error: directoryErrors,
+    }),
     HttpApiEndpoint.patch("updateSettings", "/organization", {
       payload: Schema.Struct({
         minimumGroupSize: Schema.optionalKey(MinimumGroupSize),
@@ -219,8 +228,10 @@ const pulseErrors = [
   PulseFull,
   OrderMismatch,
   TestSendLimitReached,
+  TestSendNotFound,
 ] as const;
 const pulseParams = { teamId: TeamId, pulseId: PulseId };
+const testSendParams = { teamId: TeamId, pulseId: PulseId, sendId: SendId };
 const questionParams = { teamId: TeamId, pulseId: PulseId, questionId: QuestionId };
 
 /**
@@ -277,6 +288,12 @@ export class PulsesApiGroup extends HttpApiGroup.make("pulses")
     HttpApiEndpoint.post("sendTestInvitation", "/teams/:teamId/pulses/:pulseId/test-invitation", {
       params: pulseParams,
       success: TestInvitationSent,
+      error: pulseErrors,
+    }),
+    // The sender's own test send, polled by the editor until it settles (ADR 0021). Only that Person may read it.
+    HttpApiEndpoint.get("getTestInvitation", "/teams/:teamId/pulses/:pulseId/test-invitations/:sendId", {
+      params: testSendParams,
+      success: TestSendStatus,
       error: pulseErrors,
     }),
   )
