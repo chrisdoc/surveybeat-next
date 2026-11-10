@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@effect/vitest";
-import { WEEKLY_TEAM_HEALTH } from "@surveybeat/domain";
+import { weeklyTeamHealth } from "@surveybeat/domain";
 import { Browser, SignInWorld } from "./auth/testing.ts";
 
 /**
@@ -82,7 +82,7 @@ describe("a Lead", () => {
           anonymityMode: "anonymous",
           distribution: "invitation",
         },
-        questions: WEEKLY_TEAM_HEALTH.questions.map(({ key, text }) => ({
+        questions: weeklyTeamHealth("en").questions.map(({ key, text }) => ({
           templateKey: key,
           text,
           hasAnswers: false,
@@ -137,7 +137,7 @@ describe("a Lead", () => {
     // A new library Question, copied from the Template again.
     expect((fromTemplate.body as Detail).questions.at(-1)).toMatchObject({
       templateKey: "workload-manageable",
-      text: WEEKLY_TEAM_HEALTH.questions[0]?.text,
+      text: weeklyTeamHealth("en").questions[0]?.text,
     });
     expect((fromTemplate.body as Detail).questions.at(-1)?.questionId).not.toBe(first);
     expect(

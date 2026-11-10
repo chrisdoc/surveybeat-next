@@ -18,9 +18,55 @@ const URL_PATTERN = /(?:https?:\/\/|www\.)[^\s<>"'()[\]{},]+(?<![.,!?:;])/gi;
 const EMAIL_PATTERN = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/gi;
 const HANDLE_PATTERN = /(?:^|(?<=[^\w@]))@[A-Za-z0-9_]+(?=[^\w]|$)/g;
 
+// German numbers: +49 / 0049 / national 0, optional "(0)" trunk after +49, mobile 015x-017x or
+// landline area code, then 1-6 digit groups with optional separators (space, -, /, " / ", " - ").
+// Dots are not separators, so dates such as 12.11.2026 never match.
+// Not preceded by a word character, "+" or digit; not followed by a word character or [.,]\d.
+const GERMAN_PHONE_PATTERN =
+  /(?<![\w+])(?:(?:\+|00)49[ /-]?(?:\(0\) ?)?|\(?0)(?:1[5-7]\d|[2-9]\d{1,4})\)?(?:(?: [-/] |[ /-])?\d{1,6}){1,6}(?!\w|[.,]\d)/g;
+
 // 7+ digits with common separators (+, -, ., space, parentheses, slash)
 const PHONE_PATTERN =
-  /(?:^|(?<=[^\w+]))((?:\+\d{1,4}[-.\s]?)?(?:\(?\d{2,5}\)?[-.\s]?)(?:\d{2,5}[-.\s]?){1,4}\d{2,5})(?=[^\w]|$)/g;
+  /(?:^|(?<=[^\w+]))(?<!\d[./-])((?:\+\d{1,4}[-.\s]?)?(?:\(?\d{2,5}\)?[-.\s]?)(?:\d{2,5}[-.\s]?){1,4}\d{2,5})(?=[^\w]|$)/g;
+
+// A date or year range at the start of a generic phone match: kept, and only the rest is checked
+const DATE_OR_YEAR_RANGE_PREFIX =
+  /^(?:\d{1,2}\.\d{1,2}\.(?:\d{4}|\d{2})|\d{4}-\d{1,2}-\d{1,2}|\d{1,2}\/\d{1,2}\/\d{2,4}|\d{4} ?[-–] ?\d{4})(?!\d)/;
+
+const PHONE_SEPARATOR = /[-.\s()+]/;
+
+/**
+ * Generic phone numbers: 7+ digits with separators. A match that starts with a date or a year
+ * range keeps it, and the scan resumes right after it, so a number written after a date is still
+ * caught. Never starts inside a number such as 1.2.2024.
+ */
+const redactGenericPhones = (text: string): string => {
+  const pattern = new RegExp(PHONE_PATTERN.source, "g");
+  let result = "";
+  let kept = 0;
+  for (let match = pattern.exec(text); match !== null; match = pattern.exec(text)) {
+    const candidate = match[1] ?? "";
+    const start = match.index + match[0].indexOf(candidate);
+    const date = DATE_OR_YEAR_RANGE_PREFIX.exec(candidate)?.[0];
+    if (date !== undefined) {
+      pattern.lastIndex = start + date.length;
+    } else if ((candidate.match(/\d/g) ?? []).length >= 7 && PHONE_SEPARATOR.test(candidate)) {
+      result += text.slice(kept, start) + "[phone]";
+      kept = start + candidate.length;
+    }
+  }
+  return result + text.slice(kept);
+};
+
+const INTERNATIONAL_GERMAN_PREFIX = /^(?:\+|00)49/;
+
+// Significant national digits: without the +49/0049 prefix, the "(0)" trunk, or the national leading 0
+const germanSignificantDigits = (match: string): number => {
+  const international = INTERNATIONAL_GERMAN_PREFIX.test(match);
+  const body = match.replace(INTERNATIONAL_GERMAN_PREFIX, "").replace("(0)", "");
+  const digits = (body.match(/\d/g) ?? []).length;
+  return international ? digits : digits - 1;
+};
 
 const stripDiacritics = (text: string): string =>
   text
@@ -198,17 +244,16 @@ export const redact = (text: string, roster: Roster): string => {
   // 3. Redact @handles
   result = result.replace(HANDLE_PATTERN, "[handle]");
 
-  // 4. Redact Phone numbers (7+ digits with separators, keeping plain numbers)
-  result = result.replace(PHONE_PATTERN, (match, p1: string) => {
-    const digits = (p1.match(/\d/g) ?? []).length;
-    const hasSeparators = /[-.\s()+]/.test(p1);
-    if (digits >= 7 && hasSeparators) {
-      return match.replace(p1, "[phone]");
-    }
-    return match;
+  // 4. Redact German phone numbers (7-12 significant national digits, unseparated numbers included)
+  result = result.replace(GERMAN_PHONE_PATTERN, (match: string) => {
+    const digits = germanSignificantDigits(match);
+    return digits >= 7 && digits <= 12 ? "[phone]" : match;
   });
 
-  // 5. Redact roster names
+  // 5. Redact Phone numbers (7+ digits with separators, keeping plain numbers and dates)
+  result = redactGenericPhones(result);
+
+  // 6. Redact roster names
   const candidates = extractCandidateNames(roster);
   result = redactNames(result, candidates);
 

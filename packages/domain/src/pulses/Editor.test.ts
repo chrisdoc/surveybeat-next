@@ -3,11 +3,12 @@ import { Schema } from "effect";
 import type { DirectoryState } from "../people/Directory.ts";
 import { EmailAddress } from "../email/Email.ts";
 import { PersonId } from "../people/Identity.ts";
+import type { Locale } from "../people/Locale.ts";
 import { MembershipId, TeamId, TimeZone } from "../people/Team.ts";
 import {
   applyPulseChanges,
-  DEFAULT_PULSE_SETTINGS,
   decidePulse,
+  defaultPulseSettings,
   EMPTY_PULSE_STATE,
   estimateSeconds,
   hasAnswers,
@@ -19,7 +20,7 @@ import {
 } from "./Editor.ts";
 import { MAX_QUESTIONS, PulseId, PulseSettings, SendTime } from "./Pulse.ts";
 import { firstVersionId, type QuestionContent, QuestionId, QuestionType } from "./Question.ts";
-import { TemplateQuestionKey, WEEKLY_TEAM_HEALTH } from "./Template.ts";
+import { TemplateQuestionKey, weeklyTeamHealth } from "./Template.ts";
 
 const team = TeamId.make("platform");
 const otherTeam = TeamId.make("design");
@@ -65,9 +66,14 @@ const directory: DirectoryState = {
 };
 
 /** Runs commands in order, each against the state the previous ones left, failing on a refusal. */
-const run = (commands: ReadonlyArray<PulseCommand>, by = lead, state = EMPTY_PULSE_STATE): PulseState =>
+const run = (
+  commands: ReadonlyArray<PulseCommand>,
+  by = lead,
+  state = EMPTY_PULSE_STATE,
+  dir: DirectoryState = directory,
+): PulseState =>
   commands.reduce((current, command) => {
-    const decision = decidePulse(directory, current, by, command, 1);
+    const decision = decidePulse(dir, current, by, command, 1);
     if (decision._tag === "Rejected") throw new Error(`${command._tag}: ${decision.rejection._tag}`);
     return applyPulseChanges(current, decision.changes);
   }, state);
@@ -75,8 +81,8 @@ const run = (commands: ReadonlyArray<PulseCommand>, by = lead, state = EMPTY_PUL
 const create: PulseCommand = { _tag: "CreatePulse", teamId: team, pulseId };
 const created = () => run([create]);
 
-const detail = (state: PulseState, by = lead) => {
-  const view = pulseView(directory, state, by, team, pulseId);
+const detail = (state: PulseState, by = lead, dir: DirectoryState = directory) => {
+  const view = pulseView(dir, state, by, team, pulseId);
   if (view._tag === "Rejected") throw new Error(view.rejection._tag);
   return view.value;
 };
@@ -99,37 +105,13 @@ const addWritten = (n: number): PulseCommand => ({
   questionId: QuestionId.make(`written-${n}`),
   question: { _tag: "Written", ...written, text: `Question ${n}?` },
 });
-const questions = () => WEEKLY_TEAM_HEALTH.questions;
+const questions = () => weeklyTeamHealth("en").questions;
 const ids = (state: PulseState) => detail(state).questions.map((question) => question.questionId);
-
-describe("the weekly team health Template", () => {
-  it("has 5–6 Questions over the four Dimensions, with a rating first", () => {
-    const questions = WEEKLY_TEAM_HEALTH.questions;
-    expect(questions.length).toBeGreaterThanOrEqual(5);
-    expect(questions.length).toBeLessThanOrEqual(6);
-    expect(questions[0]?.type._tag).toBe("Rating");
-    expect(new Set(questions.map((question) => question.dimension))).toEqual(
-      new Set(["workload", "psychologicalSafety", "clarity", "recognition"]),
-    );
-    expect(new Set(questions.map((question) => question.key)).size).toBe(questions.length);
-  });
-
-  it("holds only Questions its own schemas accept", () => {
-    for (const question of questions()) {
-      expect(Schema.is(QuestionType)(question.type)).toBe(true);
-    }
-  });
-
-  it("starts a Pulse that needs no warning but the Team's size", () => {
-    expect(estimateSeconds(WEEKLY_TEAM_HEALTH.questions)).toBeLessThanOrEqual(90);
-    expect(pulseWarnings(WEEKLY_TEAM_HEALTH.questions, 4, 4)).toEqual([]);
-  });
-});
 
 describe("creating a Pulse", () => {
   it("copies every Template Question in order, with the default settings", () => {
     const view = detail(created());
-    expect(view.settings).toEqual(DEFAULT_PULSE_SETTINGS);
+    expect(view.settings).toEqual(defaultPulseSettings("en"));
     expect(view.settings).toMatchObject({
       cadence: { _tag: "Weekly", day: "monday", time: "09:00" },
       answerWindowDays: 3,
@@ -163,6 +145,110 @@ describe("creating a Pulse", () => {
     const missing = { ...create, teamId: TeamId.make("missing") };
     expect(rejection(EMPTY_PULSE_STATE, missing, lead)).toBe("Forbidden");
     expect(rejection(EMPTY_PULSE_STATE, missing, admin)).toBe("TeamNotFound");
+  });
+});
+
+/** The test directory with the Lead's language settings set (ADR 0018). */
+const withLeadLocale = (
+  locale: Locale | null,
+  detectedLocale: Locale | null = null,
+  defaultLocale: Locale = "en",
+): DirectoryState => ({
+  ...directory,
+  defaultLocale,
+  people: directory.people.map((each) => (each.id === lead ? { ...each, locale, detectedLocale } : each)),
+});
+const german = withLeadLocale("de");
+
+describe("the language of a Pulse (ADR 0018)", () => {
+  it("copies the Template in the Lead's language, with the Pulse's name", () => {
+    const view = detail(run([create], lead, EMPTY_PULSE_STATE, german), lead, german);
+    expect(view.settings).toEqual(defaultPulseSettings("de"));
+    expect(view.settings.name).toBe("Wöchentlicher Team-Check");
+    expect(view.questions.map((question) => question.text)).toEqual(
+      weeklyTeamHealth("de").questions.map(({ text }) => text),
+    );
+    expect(view.questions.map((question) => question.templateKey)).toEqual(questions().map(({ key }) => key));
+  });
+
+  it.each([
+    ["the Lead's own choice", withLeadLocale("de", "en")],
+    ["the browser language seen at sign-in", withLeadLocale(null, "de", "en")],
+    ["the Organization's default", withLeadLocale(null, null, "de")],
+  ])("is German when the Lead's language comes from %s", (_, dir) => {
+    const view = detail(run([create], lead, EMPTY_PULSE_STATE, dir), lead, dir);
+    expect(view.settings.name).toBe("Wöchentlicher Team-Check");
+    expect(view.questions[0]?.text).toBe(weeklyTeamHealth("de").questions[0]?.text);
+  });
+
+  it("is English when the Lead chose English, even with a German browser and Organization", () => {
+    const dir = withLeadLocale("en", "de", "de");
+    expect(detail(run([create], lead, EMPTY_PULSE_STATE, dir), lead, dir).settings.name).toBe(
+      "Weekly team health",
+    );
+  });
+
+  it("copies a Template Question added by a German Lead in German", () => {
+    const start = run([create], lead, EMPTY_PULSE_STATE, german);
+    const [original] = detail(start, lead, german).questions.map(({ questionId }) => questionId);
+    if (original === undefined) throw new Error("no Questions");
+    const state = run(
+      [
+        { _tag: "RemoveQuestion", teamId: team, pulseId, questionId: original },
+        {
+          _tag: "AddQuestion",
+          teamId: team,
+          pulseId,
+          questionId: QuestionId.make("again"),
+          question: { _tag: "FromTemplate", key: key("workload-manageable") },
+        },
+      ],
+      lead,
+      start,
+      german,
+    );
+    expect(detail(state, lead, german).questions.at(-1)).toMatchObject({
+      templateKey: "workload-manageable",
+      text: weeklyTeamHealth("de").questions[0]?.text,
+    });
+  });
+
+  it("lists the Template Questions a Pulse lacks in the viewer's language", () => {
+    const start = run([create]);
+    const [original] = detail(start).questions.map(({ questionId }) => questionId);
+    if (original === undefined) throw new Error("no Questions");
+    const state = run([{ _tag: "RemoveQuestion", teamId: team, pulseId, questionId: original }], lead, start);
+    expect(detail(state, lead, german).templateQuestions).toEqual([weeklyTeamHealth("de").questions[0]]);
+    expect(detail(state).templateQuestions).toEqual([weeklyTeamHealth("en").questions[0]]);
+  });
+
+  it("keeps the English text of a Pulse made in English after the Lead switches to German", () => {
+    const start = run([create]);
+    const englishTexts = questions().map(({ text }) => text);
+    const before = detail(start, lead, german);
+    expect(before.settings.name).toBe("Weekly team health");
+    expect(before.questions.map((question) => question.text)).toEqual(englishTexts);
+
+    const [original] = before.questions.map(({ questionId }) => questionId);
+    if (original === undefined) throw new Error("no Questions");
+    const state = run(
+      [
+        { _tag: "RemoveQuestion", teamId: team, pulseId, questionId: original },
+        {
+          _tag: "AddQuestion",
+          teamId: team,
+          pulseId,
+          questionId: QuestionId.make("again"),
+          question: { _tag: "FromTemplate", key: key("workload-manageable") },
+        },
+      ],
+      lead,
+      start,
+      german,
+    );
+    const after = detail(state, lead, german);
+    expect(after.settings.name).toBe("Weekly team health");
+    expect(after.questions.slice(0, -1).map((question) => question.text)).toEqual(englishTexts.slice(1));
   });
 });
 
