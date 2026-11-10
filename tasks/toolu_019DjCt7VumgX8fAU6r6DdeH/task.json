@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_019DjCt7VumgX8fAU6r6DdeH",
+  "agent_id": "ab11a8f2f7493676c",
+  "subagent_type": "reviewer",
+  "task_description": "Review backend slice #147",
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 39092,
+    "cache_read_tokens": 131151,
+    "output_tokens": 2878,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-10T21:30:55.884414931Z",
+  "completed_at": "2026-11-10T21:31:23.430140858Z"
+}

@@ -1,0 +1,43 @@
+{
+  "tool_use_id": "toolu_01VM565rh4wnZi2HiWUZzMdZ",
+  "agent_id": "a73a499fcf4bd7109",
+  "subagent_type": "implementer",
+  "task_description": "Web: test-send status + failed emails",
+  "files": [
+    "apps/web/src/app/App.scene.test.ts",
+    "apps/web/src/app/App.story.test.ts",
+    "apps/web/src/app/App.ts",
+    "apps/web/src/app/directory.ts",
+    "apps/web/src/app/pulses.test.ts",
+    "apps/web/src/app/pulses.ts",
+    "apps/web/src/messages/catalog.ts",
+    "apps/web/src/messages/de.ts",
+    "packages/api/src/PrivacyRegistry.ts",
+    "packages/api/src/index.ts",
+    "packages/cloudflare/src/DirectoryApi.test.ts",
+    "packages/cloudflare/src/DirectoryHandlers.ts",
+    "packages/cloudflare/src/Organization.test.ts",
+    "packages/cloudflare/src/Organization.ts",
+    "packages/cloudflare/src/PulseHandlers.ts",
+    "packages/cloudflare/src/PulsesApi.test.ts",
+    "packages/cloudflare/src/TestInvitationTestRoutes.ts",
+    "packages/cloudflare/src/auth/DurableObjectPeople.ts",
+    "packages/cloudflare/src/auth/testing.ts",
+    "packages/domain/src/email/index.ts",
+    "packages/domain/src/people/Directory.ts",
+    "packages/domain/src/people/DirectoryFlow.ts",
+    "packages/domain/src/pulses/Editor.test.ts",
+    "packages/domain/src/pulses/Editor.ts",
+    "packages/domain/src/pulses/Pulse.ts",
+    "packages/domain/src/pulses/PulseFlow.ts"
+  ],
+  "token_usage": {
+    "input_tokens": 128,
+    "cache_creation_tokens": 181312,
+    "cache_read_tokens": 7421254,
+    "output_tokens": 83846,
+    "api_call_count": 64
+  },
+  "started_at": "2026-11-10T21:42:30.197347614Z",
+  "completed_at": "2026-11-10T21:42:30.197882538Z"
+}

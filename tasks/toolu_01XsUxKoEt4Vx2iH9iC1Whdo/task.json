@@ -1,0 +1,36 @@
+{
+  "tool_use_id": "toolu_01XsUxKoEt4Vx2iH9iC1Whdo",
+  "agent_id": "a9bf5be129134e399",
+  "subagent_type": "implementer",
+  "task_description": "Backend: email send outcome endpoints",
+  "files": [
+    "packages/api/src/PrivacyRegistry.ts",
+    "packages/api/src/index.ts",
+    "packages/cloudflare/src/DirectoryApi.test.ts",
+    "packages/cloudflare/src/DirectoryHandlers.ts",
+    "packages/cloudflare/src/Organization.test.ts",
+    "packages/cloudflare/src/Organization.ts",
+    "packages/cloudflare/src/PulseHandlers.ts",
+    "packages/cloudflare/src/PulsesApi.test.ts",
+    "packages/cloudflare/src/TestInvitationTestRoutes.ts",
+    "packages/cloudflare/src/auth/DurableObjectPeople.ts",
+    "packages/cloudflare/src/auth/testing.ts",
+    "packages/domain/src/email/FailedEmails.ts",
+    "packages/domain/src/email/index.ts",
+    "packages/domain/src/people/Directory.ts",
+    "packages/domain/src/people/DirectoryFlow.ts",
+    "packages/domain/src/pulses/Editor.test.ts",
+    "packages/domain/src/pulses/Editor.ts",
+    "packages/domain/src/pulses/Pulse.ts",
+    "packages/domain/src/pulses/PulseFlow.ts"
+  ],
+  "token_usage": {
+    "input_tokens": 144,
+    "cache_creation_tokens": 221831,
+    "cache_read_tokens": 10835100,
+    "output_tokens": 86670,
+    "api_call_count": 72
+  },
+  "started_at": "2026-11-10T21:30:30.075306577Z",
+  "completed_at": "2026-11-10T21:30:30.07567314Z"
+}

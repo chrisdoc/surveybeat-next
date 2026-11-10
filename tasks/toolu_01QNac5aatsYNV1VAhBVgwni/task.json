@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01QNac5aatsYNV1VAhBVgwni",
+  "agent_id": "a6596d2deb0938bd5",
+  "subagent_type": "reviewer",
+  "task_description": "Review web slice #147",
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 32151,
+    "cache_read_tokens": 94725,
+    "output_tokens": 2725,
+    "api_call_count": 5
+  },
+  "started_at": "2026-11-10T21:43:15.572293221Z",
+  "completed_at": "2026-11-10T21:43:55.01078178Z"
+}

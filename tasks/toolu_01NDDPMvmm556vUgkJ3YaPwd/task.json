@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01NDDPMvmm556vUgkJ3YaPwd",
+  "agent_id": "a5f94bd838b4b064f",
+  "subagent_type": "scoper",
+  "task_description": "Scope #147 visibility UI/API",
+  "token_usage": {
+    "input_tokens": 30,
+    "cache_creation_tokens": 60165,
+    "cache_read_tokens": 517130,
+    "output_tokens": 14766,
+    "api_call_count": 14
+  },
+  "started_at": "2026-11-10T21:11:24.812296982Z",
+  "completed_at": "2026-11-10T21:17:36.799063836Z"
+}
