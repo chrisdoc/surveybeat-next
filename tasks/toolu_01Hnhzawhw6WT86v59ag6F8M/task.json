@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01Hnhzawhw6WT86v59ag6F8M",
+  "agent_id": "a7869be373338f2b5",
+  "subagent_type": "reviewer",
+  "task_description": "Review S2a diff",
+  "token_usage": {
+    "input_tokens": 16,
+    "cache_creation_tokens": 42706,
+    "cache_read_tokens": 224265,
+    "output_tokens": 3725,
+    "api_call_count": 8
+  },
+  "started_at": "2026-11-10T18:08:21.793186055Z",
+  "completed_at": "2026-11-10T18:08:57.272837906Z"
+}

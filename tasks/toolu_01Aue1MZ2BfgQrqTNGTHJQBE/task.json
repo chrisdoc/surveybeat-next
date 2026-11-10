@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01Aue1MZ2BfgQrqTNGTHJQBE",
+  "agent_id": "af7cc37bfc38e2eb1",
+  "subagent_type": "scoper",
+  "task_description": "Scope send-test Invitation",
+  "token_usage": {
+    "input_tokens": 28,
+    "cache_creation_tokens": 81750,
+    "cache_read_tokens": 613518,
+    "output_tokens": 18177,
+    "api_call_count": 13
+  },
+  "started_at": "2026-11-10T17:43:15.686379493Z",
+  "completed_at": "2026-11-10T17:45:08.528003913Z"
+}

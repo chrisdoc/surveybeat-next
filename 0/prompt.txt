@@ -1,0 +1,275 @@
+Act as the implementation sub-agent for this task.
+
+You orchestrate issue #136 ("Send me a test: a Pulse's Invitation to the person who clicked, answers never saved") in chrisdoc/surveybeat-next. THIS TASK EXPLICITLY ASKS YOU TO USE SUBAGENTS: `scoper` (model "haiku"), `implementer` (model "haiku") writes code, `reviewer` (model "sonnet") reviews each diff. Follow ~/.claude/CLAUDE.md: you write the ADR, the plan and small, exact, file-owned briefs; implementer executes; reviewer reviews; you check diffs and run suites. This touches the anonymous answer flow: design the token kind and the discard path yourself. One implementer at a time; do git/GitHub steps yourself (the account hits API rate limits).
+
+Read first: `gh issue view 136` (decisions are agreed — don't relitigate), ADR 0005 (A1–A10), 0007 (one-tap saved on confirm), 0008 (answer page budget; per-locale pages since PR #125), 0018 (German), AGENTS.md. Recent context: Submission routes take credentials only from POST bodies (PR #133, `packages/cloudflare/src/SubmissionRoutes.ts`, `SubmissionRoutes.privacy.test.ts`); Invitation tokens are derived from INVITATION_TOKEN_KEY in the Organization DO; emails are rendered per recipient locale; the app is served at dashboard.surveybeat.app.
+
+Write the new ADR first (next free number after 0020 on origin/main), then implement: Pulse editor button (Lead + Organization admin), server endpoint with a 5-per-Person-per-hour limit, test token kind that the exchange marks as test and that first-answer/answer accept but never store, "Test" marking in the email subject and on the answer page, English and German copy, privacy tests that a test token cannot create or change a Submission or Participation and nothing reaches Results/themes/history.
+
+Workflow: branch `r2-136-send-test` from origin/main. Validation: pnpm typecheck, pnpm typecheck:effect, pnpm lint, pnpm format:check, pnpm test, pnpm test:privacy, web build + per-page answer budget test, and the relevant workerd adapter test files singly. Commit subject "R2: Send me a test Invitation for a Pulse", message ending "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"; PR "Closes #136.", body ending "🤖 Generated with [Claude Code](https://claude.com/claude-code)". Push (retry once if rejected without reason). If you can wait on checks (`gh pr checks <n> --watch`), squash-merge your own PR when green (user-authorized): `gh pr merge <n> --squash --delete-branch`; otherwise report it pending. Rebase on origin/main before pushing; never revert others' merged work.
+
+Final report (≤ 10 lines): ADR number and gist, what was built, deviations, reviewer findings, tests, PR URL, merge SHA or pending.
+
+---
+
+<task-notification>
+<task-id>af7cc37bfc38e2eb1</task-id>
+<tool-use-id>toolu_01Aue1MZ2BfgQrqTNGTHJQBE</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-5a3531d3-1662d020f235d90f/029fe270-1d53-401d-af57-6381027307d6/tasks/af7cc37bfc38e2eb1.output</output-file>
+<status>completed</status>
+<summary>Agent "Scope send-test Invitation" stopped at its 12-turn limit (partial result; SendMessage to task-id to continue)</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>NOTE: this agent stopped at its 12-turn limit before finishing. It was still calling tools and had produced no report. Send the agent a message (SendMessage) to let it continue from where it stopped.
+</result>
+<usage><subagent_tokens>78151</subagent_tokens><tool_uses>23</tool_uses><duration_ms>42169</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>af7cc37bfc38e2eb1</task-id>
+<tool-use-id>toolu_014zXXpcmjbDXvdJpnedzZA6</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-5a3531d3-1662d020f235d90f/029fe270-1d53-401d-af57-6381027307d6/tasks/af7cc37bfc38e2eb1.output</output-file>
+<status>completed</status>
+<summary>Agent "Scope send-test Invitation" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>The coordinator asked me to stop exploring and report now. Items 1 to 4 and most of 5 are covered below. Items 6 to 8 are only partly covered, and the gaps are marked. Line numbers come from `rg` or the reads above. Where I cite a symbol without a line, I did not get the number.
+
+## Goal
+Add "Send me a test" to the Pulse editor (issue #136). A Lead or Organization admin gets a real Invitation email with rating links and an answer-page link, sent only to themselves, in their locale, with "Test" in the subject. A test token is a separate kind. Exchange returns a round-context flagged as test. First-answer and answer with a test token succeed without writing a Submission or Participation. The answer page shows "This is a test. Your answers aren't saved." Rate limit: 5 sends per Person per hour. A new ADR is required, and the endpoint must be classified in PrivacyRegistry.
+
+No files, branches or GitHub state were changed.
+
+## Goal-level flags for the parent
+This is a complex task. Conditions met:
+- **Several subsystems:** domain, api, cloudflare (Organization DO, SqlRounds, Submission Worker, D1), emails, apps/web editor, apps/web answer page.
+- **Published schema:** `SubmissionRoundContext` (`packages/domain/src/rounds/Submission.ts:42-55`) is the exchange response. Adding a test flag changes it.
+- **Privacy and security:** Submission and Participation invariants, A5, and the rate limit.
+- **Criteria that conflict with the code:**
+  - "answer with a test token returns success" conflicts with `/answer` in `SubmissionRoutes.ts`. That route accepts only `editKey`, rejects `token` (about line 197), and has no edit key for a test. The parent must decide what a test "answer" means.
+  - "works any time, with or without a scheduled Round" conflicts with `getSubmissionRoundContext(roundId, …)` (`SqlRounds.ts:770`). The exchange needs a round, and a test token may have none. This is an architectural decision.
+- **Location unclear:** I did not locate the web editor component (item 5 below).
+
+## 1. Invitation tokens and exchange
+- **Key:** `INVITATION_TOKEN_KEY` is generated in `packages/cloudflare/src/auth/AuthConfig.ts:21` with `Alchemy.makeRandom(…, { bytes: 32 })`.
+- **Derivation:** `deriveInvitationToken(key, ref)` and `importInvitationTokenKey` live in `packages/domain`. The ref is `InvitationTokenRef` (`{ roundId, personId, generation }`, see `packages/domain/src/email/Email.ts` `InvitationRef`). I did not read the function body. Format is an assumption: the research note `docs/research/durable-objects-workflows-limits.md:145` mentions a "43-char" token, which suggests base64url of 32 bytes.
+- **Use in the Organization DO:** `packages/cloudflare/src/Organization.ts:159-165` imports the key and defines `tokenOf`. Only `hashToken(token)` is stored, in `invitation.token_hash`.
+- **Generation:** generation 0 is created at Round open (`Organization.ts` ~line 1620-1650). A resend uses `resendCount + 1` (~line 1600-1640), which invalidates the old link.
+- **Lookup index:** D1 `invitation_index (token_hash, organization_id, round_id, person_id, pulse_id)`. It is written in `packages/cloudflare/src/EmailDelivery.ts:135` inside `handleSendMessage`, after the send has an Invitation row. Migration: `packages/cloudflare/d1-migrations/0005_invitations.sql`.
+- **Exchange:** `POST /exchange` in `packages/cloudflare/src/SubmissionRoutes.ts`. It takes `token` from the body, computes `hashToken`, reads `invitation_index`, then calls `organizations.getByName(org).getSubmissionRoundContext(round_id, person_id)` (line ~138). It returns the context JSON, or 404 "Invitation not found" or "Round not found".
+- **Response schema:** `SubmissionRoundContext` in `packages/domain/src/rounds/Submission.ts:42-55`. Fields: roundId, pulseName, minimumGroupSize, questions, actions, closeTime, state, hasAnswered, aiProcessing. There is no test flag. The web-side copy is `apps/web/src/answer/schema-validate.ts:3`, and `apps/web/src/answer/round-context.ts:33` has `RoundContextData`. Both must change with the domain schema.
+- **Gate:** `SubmissionRoutes.ts` rejects credentials in query or headers (`credentialQueryParams`, `credentialHeaders` near lines 60-65), and rejects token plus editKey together (line ~109, invariant A5).
+
+## 2. First-answer and answer write paths
+- **First-answer:** `POST /first-answer` (SubmissionRoutes.ts). It requires `token` and `editKeyHash` (64-hex), resolves the Invitation through `invitation_index`, then calls `recordFirstAnswer`. Then it inserts `submission_index` (edit_key_hash, org, round). It returns `{ saved: true, shownToLead }`, or 409 "already answered", or 400 "round not open".
+- **DO write:** `packages/cloudflare/src/SqlRounds.ts:677`, `recordFirstAnswer`. In one transaction it checks the round is open, checks `hasAnswered`, then inserts into `participation` (line ~704), `submission`, and `answer` rows. Redaction runs through `redact(comment, roster)`. Wrapper: `Organization.ts:2300-2322`.
+- **Answer:** `POST /answer` takes `editKey`, derives the hash, and looks up `submission_index`. It calls `saveAnswer` (`SqlRounds.ts:728`), which updates `answer` rows only and does not write Participation. It returns `{ saved, shownToLead }`, or 404 "Submission not found", or 400 "round not open". It rejects `token` (about line 197).
+- **Implication:** a test token has no `submission_index` row, so `/answer` would 404 unless a separate branch is added. Test handling belongs before `recordFirstAnswer` in `/first-answer`, and the parent must decide the `/answer` behaviour.
+- **Hashing:** `hashToken` is imported from `@surveybeat/domain`. I assume it is SHA-256. `EditKeyHash` is documented as SHA-256 in `packages/domain/src/rounds/Submission.ts`.
+
+## 3. Invitation email path
+- **Trigger:** Round open in `Organization.ts` (~lines 480-530). For each frozen member it calls `rounds.insertInvitations` (SqlRounds.ts:526, inserts the `invitation` row with token_hash, send_id, status, resend_count 0). It then builds `InvitationEmail` with `locale: emailLocaleOf(dirState, person.id)`, `minimumGroupSize`, `invitation` ref, `baseUrl: appOrigin`, `ratingQuestion`, `actions` (max 3), `aiProcessing`. If `sendAt &lt;= now` it calls `sends.create(sendId, email, invitationEmail)`. Otherwise it inserts a job.
+- **Job path:** `Organization.ts` ~lines 700-716 renders the same shape from a scheduled job. Legacy jobs carry a token. Resend is ~line 1638.
+- **Queue:** `queueEmail` in `EmailDelivery.ts` calls `createEmailSend` on the DO, then enqueues `EmailSendRequested`. `MainWorker.ts` (~lines 180-200) consumes the queue with `handleSendMessage`, which provides `EmailTemplatesLive`, which needs `InvitationTokensLive` (`EmailDelivery.ts:50`).
+- **Safe for test sends:** `handleSendMessage` only touches `invitation_index` and failInvitation `if (inv !== null)`. A send with no Invitation row, such as a test send, skips those steps. This is a code reading, not a test.
+- **Domain types:** `packages/domain/src/email/Email.ts`:
+  - `InvitationEmail` (stored, no token), around line 62.
+  - `InvitationEmailWithToken` (render shape), around line 92.
+  - `TransactionalEmail` union, line 135. It is what a send stores.
+  - `StoredEmail`, line ~143.
+- **Token at render:** `packages/domain/src/email/EmailTemplates.ts`, `withToken` derives the token from `InvitationTokens`. `EmailTemplates` and `InvitationTokens` are services.
+- **Template:** `packages/emails/src/InvitationEmail.tsx`.
+  - `subject(email)` returns `messagesFor(locale).message("invitation.subject", { pulse })`.
+  - `InvitationEmailComponent` renders `RatingRow` and `ActionRow`.
+  - `text(email)` builds the links `…/answer…#t=&lt;token&gt;&amp;v=&lt;n&gt;`.
+- **Dispatcher:** `packages/emails/src/render.tsx:27-31`, with `oneLine` on the subject.
+- **Subject and copy:** `packages/emails/src/messages/catalog.ts:19` has `"invitation.subject": "{pulse}"`. `de.ts:18` mirrors it. Preview is at line 20, anonymity line 21, reason line 26. A "Test" subject needs new keys in both catalogs (`messages.test.ts` checks parity).
+- **Locale:** `packages/domain/src/people/Directory.ts:260` `emailLocaleOf(state, personId)` returns the Person's locale, then the browser default (null for email), then the Organization default. Resolution is in `packages/domain/src/people/Locale.ts` `resolveLocale`. Emails have no browser, so they use the locale stored at sign-in.
+- **Non-prod capture:** `packages/cloudflare/src/CapturingEmailSender.ts` inserts into D1 `captured_email` (migration `d1-migrations/0002_email.sql`, headers added in 0005). `sendsRealEmail(stage)` in `MainWorker.ts` decides between capture and send.
+- **Test-token render:** the test email needs a token ref that is not `InvitationRef`. Either a new variant in `InvitationTokenRef` and the derivation (`Lifecycle.ts`), or a separate `TransactionalEmail` variant. The parent decides. Either way the variant must be added to `TransactionalEmail`, `StoredEmail`, `render.tsx` (the switch must be exhaustive), and `EmailTemplates.withToken`.
+
+## 4. Rate limits and migrations
+- **Existing per-Person rate limit:** none. A search for `rate.?limit` found only email error codes (`E_RATE_LIMIT_EXCEEDED`), Workers Logs limits, and research notes. A Cloudflare Rate Limiting binding is in alchemy coverage (`docs/research/alchemy-cloudflare-coverage.md:41`) but unused in this repo.
+- **Options (decision for the parent):**
+  - A counter table in the Organization DO. AGENTS.md says the DO is the system of record and D1 holds only the index and auth/email bookkeeping. This is the more natural fit.
+  - A D1 table (`packages/cloudflare/d1-migrations/0007_*`). This conflicts with the "D1 holds no survey content" rule if counters are tied to Persons, though a count is not survey content.
+- **DO migrations** (`packages/cloudflare/migrations`), 0001 to 0015: organization, email_send, person, teams, pulses, rounds, invitations, submissions, results, actions, ai_processing, locale, round_themes, round_notes, review_window. Next is `0016`.
+- **D1 migrations** (`packages/cloudflare/d1-migrations`), 0001 to 0006: init, email, people_index, organization_claim_completed, invitations, submission_index. Next is `0007`. A test-token index row needs one.
+
+## 5. Pulse editor UI and authorization
+- **API:** `packages/api/src/index.ts`, `PulsesApiGroup` (line 228). Endpoints: `listPulses`, `createPulse`, `getPulse`, `updatePulseSettings` (PUT `/teams/:teamId/pulses/:pulseId/settings`, line ~245), `addQuestion`, `editQuestion`, `removeQuestion`, `reorderQuestions`. Everything is `.prefix("/api")`. Add the new endpoint here, plus a `RoundsApiGroup` or `PulsesApiGroup` entry, plus a `PrivacyRegistry.ts` entry (`pulses.*` at ~163-191; `NoResultData` with a `why`).
+- **Server handler:** `packages/cloudflare/src/PulseHandlers.ts`. The `change()` helper runs `requireSameOrigin`, then `currentMember`, then `runPulseCommand(member, command)`, then returns `viewPulse`. Pattern for a new handler: a non-command send action, not a `PulseCommand`. Choose between a new handler and a new command.
+- **Domain check:** `packages/domain/src/pulses/Editor.ts` `decidePulse` (~line 320) calls `authorize(directory, actorId, action, teamId)`, where the action is `team.createPulse` or `team.editPulse` (line 325).
+- **Permission table:** `packages/domain/src/people/Permissions.ts`. `team.createPulse` and `team.editPulse` are `["admin", "lead"]` (~lines 80-81). `PERMISSIONS` is typed exhaustively, so a new action must be added. `can(actor, action, resource)` is at the end of the file. Actor roles: `actorOf` in `Directory.ts`; the Person's Membership role (lead, member, viewer, from `Team.ts`) plus `organizationAdmin`.
+- **UI editor:** not read. I did not find the editor component in `apps/web/src/app`. The coordinator said to stop exploring, so the parent must locate it with `rg -l "updatePulseSettings|editQuestion" apps/web/src`. The editor's `may` flags come from `Directory.ts:629` (`managePulses`), and the typed client is the one generated from `SurveyBeatApi`.
+- **Test routes:** `packages/cloudflare/src/PulseTestRoutes.ts` runs the editor against a real DO on test stages (`isTestStage`, `MainWorker.ts:137-145`). That is the pattern for an adapter test.
+
+## 6. Answer page (partly read)
+- **Files:** `apps/web/src/answer/`: `main.ts`, `round-context.ts`, `round-context.test.ts`, `schema-validate.ts`, `kept-answers.ts`, `kept-answers.test.ts`, `answer-messages.ts`, `en.ts`, `de.ts`, `style.css`, `budget.test.ts`.
+- **Context parse:** `main.ts:188` `parseRoundContext(rawContext)`. `main.ts:203` lazily imports `validateRoundContext` from `schema-validate.ts`. `round-context.ts:54` `parseRoundContext`, `:49` `anonymityStatement`.
+- **Not read:** how `kept-answers.ts` uses localStorage history, the copy files (`en.ts`, `de.ts`, `answer-messages.ts`), and the body of `budget.test.ts`. The "This is a test" line needs a new key in these per-locale files, and the test flag must reach `main.ts`.
+- **Constraints:** `apps/web/src/answer/**` may not import React, Base UI, Foldkit, or the HttpApi client (lint). Budget: JS ≤ 10 KB gzip, CSS ≤ 2 KB, HTML ≤ 8 KB (AGENTS.md).
+- **Issue:** a test flow must not write localStorage "kept answers" as if they were saved. Confirm in `kept-answers.ts`.
+
+## 7. Tests to extend
+- **Submission path:**
+  - `packages/cloudflare/src/SubmissionRoutes.privacy.test.ts`. Seeds `invitation_index` (line ~137), has the `TOKEN` constant (line 16), and a header matrix (~240).
+  - `packages/cloudflare/src/SubmissionWorker.test.ts` (lines 83-135, seeds `invitation_index`).
+  - `packages/cloudflare/src/SubmissionWorker.privacy.test.ts`, `Submissions.privacy.test.ts`.
+  - `packages/cloudflare/src/SubmissionRoundContext.test.ts` (calls `rounds.getSubmissionRoundContext`).
+- **DO:** `packages/cloudflare/src/Organization.test.ts` (token-hash test around line 224), plus `SqlRounds` coverage through it.
+- **Email:**
+  - `packages/cloudflare/src/EmailDelivery.test.ts`, `Email.test.ts`.
+  - `packages/emails/src/render.test.ts` and `__snapshots__/render.test.ts.snap`.
+  - `packages/emails/src/messages/messages.test.ts`.
+  - `packages/domain/src/email/EmailTemplates.test.ts`, `deliver.test.ts`.
+- **Domain:** `packages/domain/src/pulses/Editor.test.ts`, `packages/domain/src/people/Permissions.test.ts`, `packages/domain/src/rounds/Lifecycle.test.ts` (token derivation, line ~325).
+- **API:** `packages/cloudflare/src/PulsesApi.test.ts`, `packages/api/src/registry.privacy.test.ts`, `packages/api/src/index.test.ts`.
+- **Answer page:** `apps/web/src/answer/round-context.test.ts`, `kept-answers.test.ts`, `budget.test.ts`, and `apps/web/src/messages/messages.test.ts`.
+- **Web editor tests:** not located.
+
+## 8. Facts for a split (no order implied)
+- **Domain and API:**
+  - `Email.ts` (new variant or ref), `Lifecycle.ts` (derivation, if a new token kind), `Submission.ts` (test flag on the context), `Permissions.ts` (new action), `Editor.ts` or a new command.
+  - `packages/api/src/index.ts` and `PrivacyRegistry.ts`.
+  - Depends on nothing else.
+- **Cloudflare server:**
+  - `SubmissionRoutes.ts`, `EmailDelivery.ts` (sends for a test), `PulseHandlers.ts`, `SqlRounds.ts`, `Organization.ts`, `MainWorker.ts`.
+  - D1 migration `0007` for test index rows, and/or DO migration `0016` for the rate counter.
+  - Depends on the domain slice (types) and the decision on round-less test context.
+- **Emails:** `InvitationEmail.tsx` (test subject and marker), `render.tsx`, `messages/catalog.ts` and `de.ts`, snapshots.
+  - Depends on the domain email type.
+- **Web editor:** Pulse editor component (location unknown), the typed client call, and the new message keys in `apps/web/src/messages/catalog.ts`.
+  - Depends on the API slice.
+- **Answer page:** `apps/web/src/answer/main.ts`, `schema-validate.ts`, `round-context.ts`, copy files, `kept-answers.ts`, `budget.test.ts`.
+  - Depends on the `SubmissionRoundContext` change.
+- **Tests:** the privacy tests named in section 7 depend on the server slice. The ADR under `docs/adr/` (next free number not checked) is a separate doc item and depends on the decisions above.</result>
+<usage><subagent_tokens>93959</subagent_tokens><tool_uses>23</tool_uses><duration_ms>113180</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>aa97f7504173b77e8</task-id>
+<tool-use-id>toolu_014vEuwXwNjVRci2CCroDU7V</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-5a3531d3-1662d020f235d90f/029fe270-1d53-401d-af57-6381027307d6/tasks/aa97f7504173b77e8.output</output-file>
+<status>completed</status>
+<summary>Agent "Review S1 diff" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>PASS — no blocking or major issues found. I found two minor items.
+
+I ran `pnpm typecheck`, `pnpm lint`, and the unit tests for `packages/domain/src/email`, `packages/emails`, and `Lifecycle.test.ts`. All passed (112 tests).
+
+**Checked and fine**
+- **Token separation.** The HMAC messages are `test-invitation:v1:…` and `invitation:v1:…`. They differ in their first characters, so no choice of ids can make one equal the other. The test in `packages/domain/src/rounds/Lifecycle.test.ts` covers the same-identifiers case, key, Person, Pulse and `testId` variants.
+- **No tokens stored.** `TestInvitationEmail` carries only `test` (pulse, person and test id). `packages/domain/src/email/EmailTemplates.test.ts` asserts the encoded stored form has no "token".
+- **Switches and consumers.**
+  - `withToken` in `packages/domain/src/email/EmailTemplates.ts` is the only `_tag` switch over stored emails. It handles the new tag, and the returned object is typed as `InvitationEmailWithToken` with no `as`.
+  - `packages/emails/src/render.tsx` switches on the post-`withToken` `RenderableEmail`, so the new tag never reaches it.
+  - `handleSendMessage` in `packages/cloudflare/src/EmailDelivery.ts:~134` calls `getInvitationBySendId`, which queries only the `invitation` table. A test send returns `null`, so nothing is indexed or failed. That matches S1, and the later slice needs its own `test_send` indexing branch there.
+  - `InvitationTokensLive` is the only `InvitationTokens` implementation outside tests, and it now provides `deriveTest`.
+- **German copy.** "Dies ist ein Test. Deine Antworten werden nicht gespeichert." uses du-tone and matches the existing copy. The subject "Test: {pulse}" is fine in both languages.
+- **Template.** The test email has no delivery link and no personal notice in HTML or text. Test coverage is adequate for en and de, and it includes a regression check on a normal Invitation.
+
+**Findings**
+1. MINOR — `packages/emails/src/InvitationEmail.tsx` (the `Notices` conditional, and `textLayout(..., m.message("invitation.reason"))` near the end of `text`). A test email still ends with the footer "You received this email because you are a member of the team." / "…weil du Mitglied des Teams bist." That is slightly off for a test sent to the Lead or an admin who may not be a Team member. Either leave it, or add an `invitation.reasonTest` message such as "You sent yourself this test." and switch the footer on `isTest`.
+2. MINOR — `packages/emails/src/render.test.ts`. The new test-email cases check the subject, notice, links and absent items, but they don't check the `test` marker's effect on `preview`/`Notices` beyond `/delivery`. They also run only on the `examples.InvitationEmail` fixture. Optional: add one assertion that the preview text is still sensible for a test send.</result>
+<usage><subagent_tokens>37691</subagent_tokens><tool_uses>8</tool_uses><duration_ms>57794</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>a7869be373338f2b5</task-id>
+<tool-use-id>toolu_01Hnhzawhw6WT86v59ag6F8M</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-5a3531d3-1662d020f235d90f/029fe270-1d53-401d-af57-6381027307d6/tasks/a7869be373338f2b5.output</output-file>
+<status>completed</status>
+<summary>Agent "Review S2a diff" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>Verdict: no BLOCKER or MAJOR findings in S2a. I ran `pnpm test packages/cloudflare/src/PulsesApi.test.ts packages/domain/src/pulses`: 103 tests passed. I did not run the workerd test in `Organization.test.ts`.
+
+**What I checked and found sound**
+- **Recipient:** the address comes from `person.email` for the session's `actorId` (Editor.ts `decideTestSend`, Organization.ts around lines 1357-1420). The request carries no address, so a test cannot go to another address.
+- **Team scoping:** `decideTestSend` calls `authorize(... "team.editPulse", teamId)` and then `findPulse(state, teamId, pulseId)`. A Lead of another Team gets Forbidden, and a Pulse reached through the wrong Team gets 404. `PulsesApi.test.ts` covers both cases.
+- **Rate limit:** the count, the insert, `sends.create` and the cleanup all run inside one `sql.withTransaction`, in a single-threaded Durable Object. The limit check is therefore atomic, with no race.
+- **Token:** `test_send` and `getTestSendBySendId` hold only the hash. The raw token is derived at render time and never returned or logged; the API returns only `{ email }`.
+- **Index isolation:** the EmailDelivery.ts `else` branch writes only to `test_invitation_index`, never to `invitation_index`.
+- **Test route exposure:** it is registered inside the `isTestStage(stage)` block and in the test-only route list.
+- **Other items:** the same-origin check is in place, `PrivacyRegistry` is classified, and `RemovePerson` deletes the Person's `test_send` rows.
+- **Lint rules:** `tools/oxlint-plugin-surveybeat` has no rule that references the new tables.
+
+**Findings**
+
+1. MINOR: `packages/cloudflare/src/EmailDelivery.ts`, the new `else` branch. It indexes the test token whenever the state is not `Failed`, so `Pending` and `Sending` also pass. ADR 0021 says "once the email is sent". A retry-pending send would have its token indexed before delivery. This is harmless, because the email never arrives and the token is unguessable. Narrow it to `result.state._tag === "Sent"` to match the ADR, unless you intentionally mirror the Invitation behaviour.
+
+2. MINOR: same branch. Every non-Invitation send (sign-in, welcome and so on) now makes an extra Durable Object RPC, `getTestSendBySendId`. Consider branching on the stored email's `_tag === "TestInvitationEmail"`, or accept the cost knowingly.
+
+3. MINOR: `sendTestInvitation` in `packages/domain/src/pulses/PulseFlow.ts` records the send, and the `test_send` row counts towards the limit, before `EmailOutbox.queue` runs. If queueing fails, the Person loses a slot and no email goes out. This is the same pattern as the other sends, so it is acceptable. It is worth a comment at most.
+
+4. MINOR: after `RemovePerson`, a still-valid `test_invitation_index` row remains in D1 for up to 7 days. It holds only the hash, the Pulse and the Organization, and no Person. This is consistent with the ADR, but the ADR should state it as intended.
+
+5. MINOR: test coverage gaps.
+   - The in-memory `sendTest` in `packages/cloudflare/src/auth/testing.ts` uses `actions: []`, so it does not cover the eligible-Actions path.
+   - Nothing tests the 7-day `test_send` cleanup, or `RemovePerson` deleting `test_send` rows.
+   - The workerd test also fixes `now` at 1_700_000_000_000 and passes `now` into the Durable Object, so the window logic is exercised only through that explicit argument.
+
+   Optional to add.</result>
+<usage><subagent_tokens>44150</subagent_tokens><tool_uses>7</tool_uses><duration_ms>35678</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>a19d39499ba9663b6</task-id>
+<tool-use-id>toolu_01K9onnDCsQanpkUsK9xhYov</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-5a3531d3-1662d020f235d90f/029fe270-1d53-401d-af57-6381027307d6/tasks/a19d39499ba9663b6.output</output-file>
+<status>completed</status>
+<summary>Agent "Review S2b diff" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>Verdict: no BLOCKER and no MAJOR findings. The privacy suite passes (`SubmissionRoutes.privacy.test.ts`, 101 tests). I reviewed the diff and did not mutate the code to confirm the privacy tests fail when the test branch calls `recordFirstAnswer`.
+
+**Test tokens and keys can't reach the real write path.**
+- The test branches sit only inside `if (row === null)` after the `invitation_index` and `submission_index` lookups. They call only `getTestSubmissionContext` and `previewTestAnswers`, which are read-only (`Organization.ts` ~2379–2409).
+- The test `/first-answer` writes only to `test_submission_index`. `recordFirstAnswer`, `saveAnswer`, `submission_index` and `invitation_index` are untouched on that path.
+- A real token or edit key whose index row is missing only gets a lookup in the `test_*` tables. Test hashes are derived under their own label, and `test_submission_index` is client-seeded but only reachable after a hit in `test_invitation_index`. That lookup misses and returns 404, so there is no misrouting into a real write. A caller can register an arbitrary `editKeyHash` for a test token, but the real lookup runs first, so it can't shadow a real key.
+
+**Existing checks are unchanged.** The credential-in-URL and header refusals, the A5 check, the missing-credential and hash-format checks and the real lookups all run in the same order as before. The only extra work is one D1 read on a real-token miss, which is a negligible timing signal given token entropy.
+
+**Expiry, `now` and logging.** `expires_at &gt; ?` is compared against `Clock.currentTimeMillis`. Expired test tokens and keys return 404 and reach no Organization, and the tests cover both. No logging was added.
+
+**Test adequacy.** The tests assert the exact `calls` sequence, for example `["getByName","previewTestAnswers"]`. A `recordFirstAnswer` call from the test branch would fail them. They also count `submission_index` and `invitation_index` rows after a test `/first-answer` and a test `/answer`, and cover expired rows, A5 on all three paths, and real-token regression.
+
+**MINOR findings**
+1. `SubmissionRoutes.ts` (test `/first-answer`, ~213–221): each call inserts a client-chosen `editKeyHash` into `test_submission_index`. A test token can therefore add unbounded rows for up to 7 days, and nothing seems to purge expired rows in `test_invitation_index` or `test_submission_index` (the only references are the inserts and the `Lifecycle.ts` doc comment). This is low impact because the holder is the Lead sending a test to themselves. Still, add a cleanup of expired rows, for example in the same consumer that indexes tokens, or at least note it.
+2. `SubmissionRoutes.privacy.test.ts`: there is no test that a real edit key with no `submission_index` row gets 404 without reaching the test path. This is cheap to add, since `/answer` with `EDIT_KEY` and no seeded real row should return 404 with `calls` empty. There is also no assertion that `/exchange` with a real token never queries the test tables.
+3. `SubmissionRoutes.ts` (test `/first-answer` and `/answer`): `previewTestAnswers` does not check that `questionVersionId` belongs to the Pulse. The real path may do so inside `rounds`. This is harmless because nothing is stored, and the preview comment matches the real path, which also uses the directory's `people` as the roster (`recordFirstAnswer` and `saveAnswer`, `Organization.ts` ~2417–2437).
+4. `SubmissionRoutes.ts` (test `/exchange` 404 branch): the message "Round not found" for a deleted Pulse is slightly misleading for a test. It is harmless and consistent with the real path.</result>
+<usage><subagent_tokens>41056</subagent_tokens><tool_uses>6</tool_uses><duration_ms>29514</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>a79db860d96c7adcb</task-id>
+<tool-use-id>toolu_016S5538C9kiDAhWajQDx7NR</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-5a3531d3-1662d020f235d90f/029fe270-1d53-401d-af57-6381027307d6/tasks/a79db860d96c7adcb.output</output-file>
+<status>completed</status>
+<summary>Agent "Review S3 diff" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>Slice S3 has no blocking or major issues; I found three minor ones. The web and email unit tests pass (229), the answer-page budget test passes, and the web build succeeds.
+
+**Checked and correct**
+- **Storage in test mode (`apps/web/src/answer/main.ts`):** The page never reads or writes `sb_edit_*` in test mode (lines 225 and 266). It skips `keepAnswer` on the first save and on later saves (lines 276 and 567). `kept-answers` has no other localStorage use.
+- **Token:** The existing `sessionStorage` token removal after the first save still runs unchanged (lines 280-282). Later requests carry only the in-memory edit key.
+- **Banner and thanks copy:** The banner is set before the question shows, and both thanks branches use the test copy.
+- **Real behaviour:** The real path is unchanged. Every changed line is guarded by `context.test`, and `parseRoundContext` defaults it to false, including for a non-boolean `test` value.
+- **HTML shell:** The new `&lt;p id="test-banner" hidden&gt;` is empty, so the shell still has no visible text.
+- **Foldkit model:** `UrlChanged` resets `testSendBusy` and `testSendResult`. The Unauthenticated case clears busy and reloads the session, like the other handlers. A click while busy is ignored.
+- **German copy:** It uses du-tone and the terms Pulse, Einladung and Teamleitung consistently. The email subject "Test: {pulse}" and the "Pulse-Editor" reason read fine.
+
+**Findings**
+1. MINOR, `apps/web/src/app/App.ts:2196-2215`: a `SentTestInvitation` result from Pulse A that arrives after navigating to Pulse B shows "Test sent to …" under B. The busy flag has already been reset, so a second click is also possible. Guard by storing the `pulseId` in the model and ignoring results for another Pulse, or by adding `pulseId` to the message. The impact is low because the email really was sent.
+2. MINOR, `apps/web/src/app/App.scene.test.ts:959-1040`: there is no scene test for the `Unauthenticated` failure, or for a click while busy being ignored. The `main.ts` test-mode branches (no localStorage writes, no `keepAnswer`, thanks copy) have no automated test. Only the `parseRoundContext` flag is tested. Extract the storage decisions into a small helper, or add a jsdom test of `run()` that asserts `localStorage` stays empty and the banner shows.
+3. MINOR, `apps/web/src/app/pulses.ts:611-637`: the test section sits above Settings and is always rendered once the Pulse has loaded. If the API refuses a Pulse with no Questions, the user sees only a generic failure. This is acceptable as is, so only check that the server error maps to something sensible.</result>
+<usage><subagent_tokens>42633</subagent_tokens><tool_uses>8</tool_uses><duration_ms>70565</duration_ms></usage>
+</task-notification>
