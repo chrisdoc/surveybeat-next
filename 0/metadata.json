@@ -1,0 +1,114 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "01M72SCJJP85KQ4JVJF6ZPJ8M0",
+  "session_id": "d9e689f2-0e65-4ba4-8e46-49687be509b6",
+  "strategy": "manual-commit",
+  "created_at": "2026-11-10T13:12:05.812911843Z",
+  "branch": "t3/redesign-landing-page",
+  "checkpoints_count": 4,
+  "save_step_count": 2,
+  "files_touched": [
+    "packages/cloudflare/src/Hostnames.test.ts",
+    "packages/cloudflare/src/Hostnames.ts"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-5-5",
+  "turn_id": "93067da929e2",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 166,
+    "cache_creation_tokens": 183955,
+    "cache_read_tokens": 10367108,
+    "output_tokens": 55350,
+    "api_call_count": 77,
+    "subagent_tokens": {
+      "input_tokens": 92,
+      "cache_creation_tokens": 201942,
+      "cache_read_tokens": 2283166,
+      "output_tokens": 52482,
+      "api_call_count": 45
+    }
+  },
+  "redaction": {
+    "replacements": 8,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 2,
+      "credentialed_uri": 0,
+      "entropy": 4,
+      "key_context": 2,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "claude-skill-toolu_012VNPwAcXs7qwwDEDaUEMFM",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "design-taste-frontend"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "93067da929e2",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 199,
+        "end": 200,
+        "entry_ids": [
+          "1c4cb6cf-2af2-4be8-bee8-5f884ad7a88b"
+        ],
+        "tool_use_id": "toolu_012VNPwAcXs7qwwDEDaUEMFM"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_012VNPwAcXs7qwwDEDaUEMFM"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: design-taste-frontend",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_01Vh96oQcfqoAFozKtU1zpyC",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "gitbutler"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "93067da929e2",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 528,
+        "end": 529,
+        "entry_ids": [
+          "3c9b478f-2927-494a-8a87-6d2451da7357"
+        ],
+        "tool_use_id": "toolu_01Vh96oQcfqoAFozKtU1zpyC"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01Vh96oQcfqoAFozKtU1zpyC"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: gitbutler",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 4
+  }
+}

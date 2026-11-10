@@ -1,0 +1,134 @@
+i wanna redesign the landing page for surveybeat.app in the same theme as
+the app
+
+---
+
+<task-notification>
+<task-id>a113afc5595eb7b85</task-id>
+<tool-use-id>toolu_01AdiwXMykZ8jv5SvjH41eua</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-e1a06baa-2e302a3b0a85e9b4/d9e689f2-0e65-4ba4-8e46-49687be509b6/tasks/a113afc5595eb7b85.output</output-file>
+<status>completed</status>
+<summary>Agent "Scope landing page in surveybeat-next" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>This report is partial. Items 1 to 6 are covered from what I read, and the unverified points are marked. I edited nothing. `node_modules` is absent in this worktree, so I could not read Alchemy's source or run any build or test.
+
+**Complexity flags:** the task touches more than one subsystem (web build, MainWorker routing, Hostnames, infra stack, i18n lint and tests), and it has no acceptance criteria. The Cloudflare routing question for the apex and www hostnames is also unresolved, so the parent should read the key files itself before planning.
+
+## 1. Build and serving
+
+- **Entries:** `apps/web/vite.config.ts` declares two inputs, `app: "index.html"` and `answer: "answer.html"` (rollupOptions.input, around line 96). `index.html` mounts the Foldkit app at `/src/app/main.ts` (`apps/web/index.html`). `answer.html` is prerendered by the `prerenderAnswer` plugin (vite.config.ts lines 7–95), which fills `&lt;!--PRERENDER_*--&gt;` placeholders from `answer/style.css` and the catalog. Its `closeBundle` copies the output to `a/index.html` and `a.html` (lines 84–93). No `/de/a` copy exists, although ADR 0018 calls for one.
+- **MainWorker serving:** `packages/cloudflare/src/MainWorker.ts:85` sets `assetsDirectory` to `apps/web/dist`. Lines 116–127 set `assets: { directory, runWorkerFirst: ["/auth/*", "/api/*", "/delivery", "/delivery/*", ...test routes] }`. No `notFoundHandling` or `htmlHandling` is set. Alchemy's default for SPA fallback is unverified because `node_modules` is missing. The e2e server in `infra/tests/e2e/playwright.config.ts:30–45` falls back to `index.html`, but that is test-only.
+- **Hostnames:** `packages/cloudflare/src/Hostnames.ts:1–16` exports `ZONE` and `hostnameFor(stage, host: "app" | "submit")`. Production gives `app.surveybeat.app`, staging gives `staging.&lt;host&gt;`, and PR stages give `pr-&lt;n&gt;.&lt;host&gt;`. Other stages return `undefined`, which means workers.dev. The MainWorker sets `domain: hostname` (around line 137) and `APP_ORIGIN` (line 132). `infra/alchemy.run.ts` adds no routes. The Worker carries one `domain`, and a second apex or www binding is unverified.
+- **Security headers:** I found no CSP, `_headers` file, or `X-Frame-Options` set in `packages/cloudflare/src` or `apps/web` (rg, no hits). The delivery HTML pages at MainWorker lines 71–177 set no headers either. The answer page's inline bootstrap script therefore has no CSP. Assets served from the Worker's `assets` binding are unverified for headers.
+
+## 2. Options
+
+- **(a) Third entry `landing.html` on MainWorker.** This is easy to build: add an input in vite.config.ts and a prerender step like the answer page's. Serving is hard. The assets binding is path-based, and `runWorkerFirst` cannot match on host, so `/` on the apex has to be dispatched by host in the MainWorker fetch (around line 407, not read in detail). The app's `/` on `app.surveybeat.app` must keep the sign-in view. `hostnameFor` also has a single `domain`, so the apex would need a second custom domain or a change to that type. This option shares the Worker's auth and env bindings and its deploy.
+- **(b) Separate static-assets Worker in `infra/alchemy.run.ts`.** The `Worker` plus `assets` pattern already exists in `MainWorker.ts:116`, so this is the cleaner routing fit, with its own `domain`. Cost: a new Worker class in `packages/cloudflare`, a new entry in the alchemy stack, and a new privacy and observability check. `docs/research/alchemy-cloudflare-coverage.md:21` says plain `Worker` plus `assets` is supported.
+- **Shared decisions for either option:** PR-stage hostnames for the apex (`pr-&lt;n&gt;.surveybeat.app` does not fit the `&lt;host&gt;.surveybeat.app` pattern). The DNS cutover stays out of scope, as you said.
+
+## 3. i18n
+
+- **Catalogs:** `apps/web/src/messages/catalog.ts` is the English source. `de.ts` is typed as `Translation`, so it must have the same keys. `index.ts` has `message()`, `pluralMessage()` and `formatDate()` for `en`. `locale.ts` has `messagesFor(locale)`, which Workers use, and a live `setLocale` for the browser. `vite.config.ts` calls `message()` from `./src/messages/index.ts` for the answer prerender.
+- **Language choice (ADR 0018):** a Person's stored setting, then the browser's languages (`App.ts:882–893`, `detectBrowserLocale`), then the Organization default. A marketing page has no Person, so it would use `navigator.languages` or a `/de` path. Path choice is an open decision.
+- **Lint:** `.oxlintrc.json:21–29` applies `surveybeat/no-literal-ui-text` to `apps/web/src/**/*.{ts,tsx}`, excluding tests and `messages/**`. HTML files are not linted.
+- **HTML shell test:** `apps/web/src/messages/messages.test.ts` (the "HTML entries" describe, about lines 112–133) checks two things for `index.html` and `answer.html`. It asserts the visible text outside scripts, styles, title and comments is empty, and that the title is `&lt;title&gt;&lt;/title&gt;`. A static `landing.html` would need to be added to `it.each` and follow the same rule, with its title and copy from the catalog at build time.
+- **Budgets:** `apps/web/src/answer/budget.test.ts` covers only the answer page. A landing page would need its own budget, or none if the parent decides.
+
+## 4. Existing references and the signed-out flow
+
+- **Existing marketing or apex references:** none in code. `SPEC.md:185` and `SPEC.md:~190` mention the landing page and the Vercel and Cloudflare setup. `docs/infra.md:99` says the apex's mail records are not managed by Alchemy. `SPEC.md:270+` lists "surveybeat.com" as an open question, which is separate.
+- **Signed-out `/` on `app.surveybeat.app`:** `apps/web/src/app/App.ts:2504–2508` shows the title "Sign in to SurveyBeat" and `signInView`. `apps/web/src/app/session.ts:90–101` renders a GET form to `/auth/login`. `packages/cloudflare/src/auth/AuthHandlers.ts:124–135` builds the WorkOS URL and redirects. The sign-in entry for a landing page link is therefore `https://app.surveybeat.app/auth/login` in production.
+- **Routes:** `apps/web/src/app/routes.ts:4–60` has no marketing route. Unknown paths map to `NotFound`.
+- **Cookies:** `AuthHandlers.ts:29–41` uses `__Host-` with no Domain, so the app cookie is host-only.
+
+## 5. Product facts for the copy (SPEC unless noted)
+
+- **What a Pulse and Round are:** a recurring check-in for one Team, and one occurrence of it (SPEC §1, §4 "Pulse", "Round"; GLOSSARY "Pulse", "Round").
+- **Ask, Answer, Understand, Act:** the four loop steps (SPEC §1).
+- **Short beats complete:** 3 to 7 questions per Pulse (SPEC §3.2, §5.1).
+- **One tap:** in email, each rating value is a link that opens the answer page preselected. It is saved only on confirmation (SPEC §5.1; ADR 0007).
+- **Anonymity:** an anonymous Submission has no Person and no exact time, only the Round and a coarse day (SPEC §4 "Submission", §5.3 "Timing").
+- **Minimum group size:** N defaults to 4 and the floor is 3 (SPEC §5.3, §10.2).
+- **Comments:** redacted before the Lead sees them, with a rule-based check after the AI pass. Lead can choose themes only (SPEC §5.3; GLOSSARY "Redaction").
+- **Themes:** members see the label and one neutral sentence, never a quote. Only the Lead sees the count (GLOSSARY "Comment theme", ADR 0016).
+- **Trends and sample sizes:** every number shows its sample size, and the trend covers the last 12 Rounds (SPEC §5.4).
+- **Discussion guide:** only the Lead sees it (GLOSSARY "Discussion guide", ADR 0019). SPEC §5.4 says the Lead can edit it before sharing. The glossary wins for copy.
+- **Review window:** 0 to 7 days, default 3, after which the Result is shared automatically (GLOSSARY "Review window").
+- **Actions:** an owner, a due date, a status, and they show in the next Round (SPEC §5.5).
+- **Lead's Note:** a free-text summary visible to the Team (GLOSSARY "Note").
+- **German:** English and German at launch (SPEC §5.2, §8 Release 2; ADR 0018). Informal "du" (ADR 0018).
+- **Pricing:** none. Billing is out of the first release (SPEC §5.6), and the pricing page "can be a placeholder" (SPEC §5.8).
+- **Sign-in:** email code, Google, Microsoft, and enterprise SSO through WorkOS AuthKit (SPEC §5.6).
+
+## 6. Tests and validation
+
+- **Likely to change:** `apps/web/src/messages/messages.test.ts` (HTML entries, and the German key-parity checks, which apply to any new catalog keys). `apps/web/src/designTokens.test.ts` if the landing page repeats tokens in a standalone stylesheet. `apps/web/src/answer/budget.test.ts` only if the page follows the answer budget.
+- **New tests needed:** a host-dispatch test in MainWorker or the new Worker if option (a) or (b) is chosen, and a `Hostnames` test for any new host value.
+- **Commands:** `pnpm test apps/web/src/messages/messages.test.ts`, `pnpm test apps/web/src/designTokens.test.ts`, `pnpm typecheck`, `pnpm typecheck:effect`, `pnpm lint`, `pnpm format:check`, `pnpm --filter @surveybeat/web build`, and for the Worker option `pnpm test packages/cloudflare/src/&lt;file&gt;.test.ts` (one file, since adapter tests are slow). A real-surface check needs a deployed PR stage, `E2E_BASE_URL=https://pr-&lt;n&gt;.app.surveybeat.app pnpm test:e2e`.</result>
+<usage><subagent_tokens>78086</subagent_tokens><tool_uses>0</tool_uses><duration_ms>21527</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>a549319c776f5d36f</task-id>
+<tool-use-id>toolu_01KDXbSvsrjT7eXak55Nf7Ai</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-e1a06baa-2e302a3b0a85e9b4/d9e689f2-0e65-4ba4-8e46-49687be509b6/tasks/a549319c776f5d36f.output</output-file>
+<status>completed</status>
+<summary>Agent "Site build and Site Worker plumbing" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>## Changes
+
+Build, Worker, hostnames, tests, ADR, and docs are in place. I did not touch `site.html`, `apps/web/src/site/`, or the message catalogs, apart from the formatter issue below.
+
+- `apps/web/vite.site.config.ts` (new): separate Vite build, root `apps/web`, `tailwindcss()` only, `outDir: "dist-site"`, `emptyOutDir: true`. A `closeBundle` hook reads the built `site.html`, writes `index.html` (en) and `de/index.html` (de) through `renderSitePage`, then deletes `site.html`. Errors are not caught.
+- `apps/web/package.json`: `build` is now `vite build &amp;&amp; vite build -c vite.site.config.ts`.
+- `apps/web/tsconfig.json`: includes `vite.site.config.ts`.
+- `.gitignore`: added `dist-site`.
+- `packages/cloudflare/src/SiteWorker.ts` (new): `SiteWorker` with `main: import.meta.url`, assets from `apps/web/dist-site`, `htmlHandling: "auto-trailing-slash"`, `runWorkerFirst: ["/app", "/app/"]`, and `APP_ORIGIN` set from the app hostname when the stage has one. The fetch handler 302-redirects `GET /app` and `/app/` to `APP_ORIGIN` (falls back to `/` when unset) and returns 404 otherwise.
+- `packages/cloudflare/src/index.ts`: exports `SiteWorker`.
+- `infra/alchemy.run.ts`: yields `SiteWorker` and adds the `siteUrl` output.
+- `packages/cloudflare/src/Hostnames.ts`: adds `APEX_SERVED_BY_SITE = false` and `siteDomainFor(stage, apexServedBySite = APEX_SERVED_BY_SITE)`. `staging` gives `staging.surveybeat.app`, PR stages give `pr-&lt;n&gt;.surveybeat.app`, and `production` gives `undefined` until the flag is on, then `{ name: "surveybeat.app", redirects: ["www.surveybeat.app"] }`. Other stages give `undefined`.
+- `packages/cloudflare/src/Hostnames.test.ts` (new): 6 tests covering `hostnameFor` and `siteDomainFor`, including the post-cutover value.
+- `apps/web/src/messages/messages.test.ts`: `site.html` added to both "HTML entries" tables.
+- `docs/adr/0020-landing-page-is-a-static-site-worker.md` (new): the ADR.
+- `docs/infra.md`: landing page hostnames paragraph and an "Apex cutover (landing page)" section with the three ordered steps.
+
+## Validation
+
+- `pnpm --filter @surveybeat/web build`: exit 0. `dist-site/index.html`, `dist-site/de/index.html`, and `dist-site/assets/site-*.css` exist. `site.html` is removed. `dist/` still has `index.html`, `answer.html`, and `a/index.html`. The built `index.html` has `&lt;link rel="stylesheet" crossorigin href="/assets/site-DcdNcw09.css"&gt;`.
+- `pnpm test apps/web/src/messages/messages.test.ts packages/cloudflare/src/Hostnames.test.ts`: 2 files, 24 tests passed.
+- `pnpm test` (full unit project): 53 files, 783 tests passed.
+- `pnpm typecheck:effect`: exit 0. Only pre-existing suggestions, none in changed files.
+- `pnpm typecheck`: exit 0.
+- `pnpm lint`: exit 0.
+- `pnpm format`: ran. `pnpm format:check`: fails on one file, `apps/web/src/site/render.ts`. That is your file, so I left it for you to run `pnpm format` on.
+
+## Notes
+
+- **Your in-progress files were reformatted.** `catalog.ts` and `de.ts` gained `site.*` keys during my session. My repo-wide `pnpm format` may have reformatted them. I did not revert anything. Please check that the content is what you intended.
+- **Alchemy facts.**
+  - An assets-only Worker is possible when `main` is omitted. I kept `main` because `/app` needs a Worker-handled route.
+  - `WorkerDomainConfig` is exported from `@alchemy.run/cloudflare`, with `redirects?: string[]`.
+  - `HttpServerResponse.redirect(location, { status })` is the redirect helper.
+- **Deviations.**
+  - `siteDomainFor` takes an optional second parameter so the test can cover the post-cutover value without editing the constant. The brief asked for one constant, and this keeps it.
+  - `/app/` is handled alongside `/app`.
+  - Site Worker observability is left at Alchemy defaults. The page has no personal data, and the privacy-sensitive Submission Worker is unchanged.
+  - The `production` apex cutover step 1 (deleting the Vercel apex and `www` records) is a manual DNS change. I documented it as owner-performed, since `AGENTS.md` says no dashboard edits.
+- **AGENTS.md is now out of date.** It says "Two Workers", and there are now three. I did not edit it.
+- **Untested.** I did not deploy, run Alchemy, or exercise the `/app` redirect or asset serving on workerd. Stage behaviour is unverified until a PR stage is deployed.
+- **Render stub.** The `de` page still says `lang="en"` because `render.ts` is still the stub.</result>
+<usage><subagent_tokens>93774</subagent_tokens><tool_uses>25</tool_uses><duration_ms>565007</duration_ms></usage>
+</task-notification>
+
+---
+
+Supervisor: your report says nothing is committed yet, but your own last step before it said you were about to save a local checkpoint commit. The worktree at `/home/ubuntu/.t3/worktrees/surveybeat-next/t3-e1a06baa-2e302a3b0a85e9b4` (branch `t3/redesign-landing-page`) is sitting on 17 dirty paths (+215/−5) including the new `apps/web/site.html`, `apps/web/src/site/` and `apps/web/vite.site.config.ts`, plus `infra/alchemy.run.ts` and `packages/cloudflare/src/Hostnames.ts`. That is a lot of uncommitted work to leave in a worktree where a cleanup or reset would lose it.
+
+Please just checkpoint it: commit to `t3/redesign-landing-page`, nothing pushed or deployed. Then state plainly to the user how to look at the page locally (exact command) and that `surveybeat.app` still serves the old Vercel site until they say otherwise. No deploy, no PR unless asked.
+
+---
+
+publish it

@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01KDXbSvsrjT7eXak55Nf7Ai",
+  "agent_id": "a549319c776f5d36f",
+  "subagent_type": "implementer",
+  "task_description": "Site build and Site Worker plumbing",
+  "files": [
+    "apps/web/vite.site.config.ts"
+  ],
+  "token_usage": {
+    "input_tokens": 46,
+    "cache_creation_tokens": 87510,
+    "cache_read_tokens": 1471184,
+    "output_tokens": 32050,
+    "api_call_count": 23
+  },
+  "started_at": "2026-11-10T11:57:30.308553372Z",
+  "completed_at": "2026-11-10T12:06:54.082384481Z"
+}
