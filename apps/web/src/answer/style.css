@@ -5,12 +5,14 @@
   --ink: #0e2a24;
   --muted: #3d554f;
   --primary: #0b5d55;
+  --on-primary: #ffffff;
   --primary-soft: #d3e7e2;
   --evergreen: #0e2a24;
   --mint: #9fd6cb;
   --danger: #b42318;
   --radius-panel: 20px;
   --radius-control: 12px;
+  color-scheme: light dark;
 }
 * {
   box-sizing: border-box;
@@ -83,13 +85,13 @@ legend {
   flex-shrink: 0;
 }
 .scale label:has(input:checked) {
-  color: var(--surface);
+  color: var(--on-primary);
   background: var(--primary);
   border-color: var(--primary);
   box-shadow: 0 0 0 4px var(--primary-soft);
 }
 .scale label:has(input:checked) input {
-  accent-color: var(--surface);
+  accent-color: var(--on-primary);
 }
 .scale label:has(input:focus-visible) {
   outline: 2px solid var(--primary);
@@ -115,7 +117,7 @@ button {
   width: 100%;
   font: inherit;
   font-weight: 600;
-  color: var(--surface);
+  color: #fff;
   background: var(--evergreen);
   border: 0;
   border-radius: var(--radius-control);
@@ -221,5 +223,27 @@ ul.actions li {
 @media (max-width: 639px) {
   .desktop-finish-btn {
     display: none !important;
+  }
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --stone: #0b1f1b;
+    --surface: #12302a;
+    --line: #2a4f46;
+    --ink: #e8f0ed;
+    --muted: #a9c2ba;
+    --primary: #7fcdbe;
+    --on-primary: #06221d;
+    --primary-soft: #1f4a42;
+    --evergreen: #081814;
+    --mint: #9fd6cb;
+    --danger: #ff8a7a;
+  }
+  .anon {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%237fcdbe' stroke-width='2'%3E%3Crect x='5' y='11' width='14' height='9' rx='2'/%3E%3Cpath d='M8 11V8a4 4 0 018 0v3'/%3E%3C/svg%3E");
+  }
+  button {
+    color: var(--on-primary);
+    background: var(--primary);
   }
 }

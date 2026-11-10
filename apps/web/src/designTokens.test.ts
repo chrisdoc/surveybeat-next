@@ -16,8 +16,16 @@ const declarations = (css: string, prefix: string): Map<string, string> =>
     ]),
   );
 
+const darkBlock = (css: string): string => {
+  const start = css.indexOf("@media (prefers-color-scheme: dark)");
+  assert.isAbove(start, -1, "dark block present");
+  const open = css.indexOf("{", css.indexOf(":root", start));
+  return css.slice(open, css.indexOf("}", open));
+};
+
 const theme = read("./app/app.css");
-const themeColors = declarations(theme, "color-");
+const lightTheme = theme.slice(0, theme.indexOf("@media (prefers-color-scheme: dark)"));
+const themeColors = declarations(lightTheme, "color-");
 const themeRadii = declarations(theme, "radius-");
 
 describe("design tokens", () => {
@@ -29,6 +37,20 @@ describe("design tokens", () => {
         ? themeRadii.get(name.slice("radius-".length))
         : themeColors.get(name);
       assert.strictEqual(value, expected, `--${name} in answer/style.css`);
+    }
+  });
+
+  it("on-primary exists in both schemes", () => {
+    assert.isTrue(themeColors.has("on-primary"));
+    assert.isTrue(declarations(darkBlock(theme), "color-").has("on-primary"));
+  });
+
+  it("the answer page's dark block matches the app's dark block", () => {
+    const answer = declarations(darkBlock(read("./answer/style.css")), "");
+    const app = declarations(darkBlock(theme), "color-");
+    assert.isAbove(answer.size, 0);
+    for (const [name, value] of answer) {
+      assert.strictEqual(value, app.get(name), `--${name} dark in answer/style.css`);
     }
   });
 

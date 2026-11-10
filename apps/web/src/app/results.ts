@@ -57,15 +57,6 @@ export const LoadedActions = defineTaggedUnion({
 });
 export type LoadedActions = typeof LoadedActions.Type;
 
-// Chart marks are SVG attributes, so they use the token hex values directly.
-const CHART = {
-  primary: "#0B5D55",
-  line: "#E1E5E1",
-  ink: "#0E2A24",
-  muted: "#3D554F",
-  brass: "#6A4F12",
-} as const;
-
 const smallHeading = "text-[13px] font-semibold text-muted";
 
 /** Hand-built SVG 12-round trend line chart. `unusual` marks the latest point in brass. */
@@ -110,7 +101,7 @@ export const trendChart = <Message>(
         h.Y1(String(y)),
         h.X2(String(width - padRight)),
         h.Y2(String(y)),
-        h.Stroke(CHART.line),
+        h.Class("stroke-line"),
       ]),
     );
   }
@@ -126,7 +117,7 @@ export const trendChart = <Message>(
           h.Y1(String(getY(p1.score))),
           h.X2(String(getX(i + 1))),
           h.Y2(String(getY(p2.score))),
-          h.Stroke(CHART.primary),
+          h.Class("stroke-primary"),
           h.StrokeWidth("2"),
         ]),
       );
@@ -142,7 +133,7 @@ export const trendChart = <Message>(
           h.Cx(String(getX(i))),
           h.Cy(String(getY(p.score))),
           h.R("4"),
-          h.Fill(unusual && i === points.length - 1 ? CHART.brass : CHART.primary),
+          h.Class(unusual && i === points.length - 1 ? "fill-brass" : "fill-primary"),
         ]),
       );
     }
@@ -201,14 +192,11 @@ export const distributionChart = <Message>(
           h.Width(String(barW)),
           h.Height(String(barHeight)),
           h.Rx("4"),
-          h.Fill(CHART.primary),
+          h.Class("fill-primary"),
         ]),
+        h.text([h.X("10"), h.Y(String(y + barHeight - 4)), h.Class("fill-ink text-xs")], [String(d.option)]),
         h.text(
-          [h.X("10"), h.Y(String(y + barHeight - 4)), h.Fill(CHART.ink), h.Class("text-xs")],
-          [String(d.option)],
-        ),
-        h.text(
-          [h.X(String(45 + barW)), h.Y(String(y + barHeight - 4)), h.Fill(CHART.muted), h.Class("text-xs")],
+          [h.X(String(45 + barW)), h.Y(String(y + barHeight - 4)), h.Class("fill-muted text-xs")],
           [String(d.count)],
         ),
       ],
@@ -283,7 +271,7 @@ const highlightBadge = <Message>(highlight: Highlight | null, h: HtmlBuilder<Mes
               h.path([
                 h.D("M6 1v7M3 5l3 3 3-3"),
                 h.Fill("none"),
-                h.Stroke(CHART.brass),
+                h.Class("stroke-brass"),
                 h.StrokeWidth("1.6"),
                 h.StrokeLinecap("round"),
                 h.StrokeLinejoin("round"),
