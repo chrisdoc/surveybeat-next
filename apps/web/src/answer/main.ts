@@ -191,6 +191,15 @@ async function run(message: AnswerMessage): Promise<void> {
     return;
   }
 
+  // A test Invitation (ADR 0021) says so before the Question shows. Nothing it sends is saved.
+  if (context.test) {
+    const testBanner = document.getElementById("test-banner");
+    if (testBanner instanceof HTMLElement) {
+      testBanner.textContent = message("answer.test.banner");
+      testBanner.hidden = false;
+    }
+  }
+
   // What the lead will and will not see needs the Team's N, so it waits for the context.
   const anonEl = document.getElementById("anon");
   if (anonEl instanceof HTMLElement) {
@@ -212,7 +221,8 @@ async function run(message: AnswerMessage): Promise<void> {
   }
 
   const roundStorageKey = `sb_edit_${context.roundId}`;
-  let editKey = window.localStorage.getItem(roundStorageKey) ?? "";
+  // A test keeps its Edit key in memory only, and the browser stores nothing for it (ADR 0021).
+  let editKey = context.test ? "" : (window.localStorage.getItem(roundStorageKey) ?? "");
 
   if (context.hasAnswered) {
     if (editKey.length === 0) {
@@ -253,7 +263,7 @@ async function run(message: AnswerMessage): Promise<void> {
     try {
       editKey = generateEditKey();
       const editKeyHash = await sha256Hex(editKey);
-      window.localStorage.setItem(roundStorageKey, editKey);
+      if (!context.test) window.localStorage.setItem(roundStorageKey, editKey);
 
       await postJson(`${submitOrigin}/first-answer`, {
         token,
@@ -262,7 +272,8 @@ async function run(message: AnswerMessage): Promise<void> {
         value: ratingVal,
       });
 
-      if (q1) {
+      // A test's answers stay out of the browser's kept answers, so member history never shows them (ADR 0017).
+      if (q1 && !context.test) {
         keepAnswer(() => window.localStorage, context.roundId, q1.id, { value: ratingVal }, Date.now());
       }
       firstSaved = true;
@@ -345,7 +356,7 @@ async function run(message: AnswerMessage): Promise<void> {
     const actionsUl = document.getElementById("actions");
     if (context.actions.length > 0) {
       if (bodyEl instanceof HTMLElement) {
-        bodyEl.textContent = message("answer.thanks.body");
+        bodyEl.textContent = context.test ? message("answer.test.thanks") : message("answer.thanks.body");
       }
       if (actionsUl instanceof HTMLUListElement) {
         actionsUl.replaceChildren(
@@ -358,7 +369,9 @@ async function run(message: AnswerMessage): Promise<void> {
       }
     } else {
       if (bodyEl instanceof HTMLElement) {
-        bodyEl.textContent = message("answer.thanks.bodyNoActions");
+        bodyEl.textContent = context.test
+          ? message("answer.test.thanks")
+          : message("answer.thanks.bodyNoActions");
       }
       if (actionsUl instanceof HTMLElement) {
         actionsUl.replaceChildren();
@@ -551,7 +564,9 @@ async function run(message: AnswerMessage): Promise<void> {
       questionVersionId,
       ...body,
     });
-    keepAnswer(() => window.localStorage, context.roundId, questionVersionId, body, Date.now());
+    if (!context.test) {
+      keepAnswer(() => window.localStorage, context.roundId, questionVersionId, body, Date.now());
+    }
     mark("answer-save-end");
     return result;
   };

@@ -52,6 +52,8 @@ import {
   TeamNotFound,
   TeamOverview,
   TeamSummary,
+  TestInvitationSent,
+  TestSendLimitReached,
   TimeZone,
   Unauthenticated,
 } from "@surveybeat/domain";
@@ -216,6 +218,7 @@ const pulseErrors = [
   PulseNeedsAQuestion,
   PulseFull,
   OrderMismatch,
+  TestSendLimitReached,
 ] as const;
 const pulseParams = { teamId: TeamId, pulseId: PulseId };
 const questionParams = { teamId: TeamId, pulseId: PulseId, questionId: QuestionId };
@@ -269,6 +272,11 @@ export class PulsesApiGroup extends HttpApiGroup.make("pulses")
       params: pulseParams,
       payload: Schema.Struct({ order: Schema.Array(QuestionId) }),
       success: PulseDetail,
+      error: pulseErrors,
+    }),
+    HttpApiEndpoint.post("sendTestInvitation", "/teams/:teamId/pulses/:pulseId/test-invitation", {
+      params: pulseParams,
+      success: TestInvitationSent,
       error: pulseErrors,
     }),
   )

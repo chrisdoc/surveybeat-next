@@ -61,6 +61,7 @@ import {
   SkipWeekCmd,
   update,
   UpdateActionCmd,
+  SendTestInvitationCmd,
   UpdatePulseSettingsCmd,
   UpdateAiProcessing,
   UpdateDefaultLanguage,
@@ -954,6 +955,85 @@ describe("App Scenes", () => {
           UpdatePulseSettingsCmd,
           Message.UpdatedPulse({ outcome: { _tag: "Success", detail } }),
         ),
+      );
+    });
+  });
+
+  describe("Send me a test", () => {
+    const teamId = decodeTeamId("team-1");
+    const pulseId = decodePulseId("pulse-1");
+    const detail = {
+      id: pulseId,
+      team: { id: teamId, name: "Engineering", timeZone: decodeTimeZone("UTC"), yourRole: "lead" as const },
+      settings: {
+        name: "Sprint Pulse",
+        cadence: { _tag: "Weekly" as const, day: "monday" as const, time: decodeSendTime("09:00") },
+        answerWindowDays: 3,
+        reviewWindowDays: 3,
+        reminders: 1,
+        anonymityMode: "anonymous" as const,
+        distribution: "invitation" as const,
+      },
+      questions: [
+        {
+          questionId: decodeQuestionId("q-1"),
+          versionId: decodeVersionId("v-1"),
+          templateKey: decodeTemplateKey("workload"),
+          text: "How was your workload this week?",
+          type: { _tag: "Rating" as const, lowLabel: "Light", highLabel: "Heavy", comment: true },
+          dimension: "workload" as const,
+          hasAnswers: false,
+          estimatedSeconds: 15,
+        },
+      ],
+      estimatedSeconds: 15,
+      warnings: [],
+      templateQuestions: [],
+    };
+    const editorModel = () => ({
+      ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}/pulses/${pulseId}`)),
+      session: signedInAdmin,
+      pulseDetail: { _tag: "Loaded" as const, detail },
+      settingsName: detail.settings.name,
+      settingsDay: detail.settings.cadence.day,
+      settingsTime: detail.settings.cadence.time,
+      settingsWindow: detail.settings.answerWindowDays,
+      settingsReviewWindow: detail.settings.reviewWindowDays,
+      settingsReminders: detail.settings.reminders,
+    });
+
+    it("sends the test to the sender and shows the address it went to", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given(editorModel()),
+        Scene.click(Scene.role("button", { name: "Send me a test" })),
+        Scene.Command.expectHas(SendTestInvitationCmd({ teamId, pulseId })),
+        Scene.expect(Scene.role("button", { name: "Send me a test" })).toBeDisabled(),
+        Scene.Command.resolve(
+          SendTestInvitationCmd,
+          Message.SentTestInvitation({
+            outcome: { _tag: "Success", email: decodeEmail("ada@acme.com") },
+          }),
+        ),
+        Scene.expect(Scene.text("Test sent to ada@acme.com. Answers to a test are never saved.")).toExist(),
+        Scene.expect(Scene.role("button", { name: "Send me a test" })).toBeEnabled(),
+      );
+    });
+
+    it("shows why a test was refused when the hourly limit is reached", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given(editorModel()),
+        Scene.click(Scene.role("button", { name: "Send me a test" })),
+        Scene.Command.expectHas(SendTestInvitationCmd({ teamId, pulseId })),
+        Scene.Command.resolve(
+          SendTestInvitationCmd,
+          Message.SentTestInvitation({
+            outcome: { _tag: "Failure", failure: "TestSendLimitReached" },
+          }),
+        ),
+        Scene.expect(Scene.text("You've sent 5 tests in the last hour. Try again later.")).toExist(),
+        Scene.expect(Scene.role("button", { name: "Send me a test" })).toBeEnabled(),
       );
     });
   });

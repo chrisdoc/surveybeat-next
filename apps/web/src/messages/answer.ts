@@ -30,6 +30,8 @@ export const answerCatalog = {
   "answer.thanks.title": "Thank you!",
   "answer.thanks.body": "Your answer is saved. Here is what you can do next:",
   "answer.thanks.bodyNoActions": "Your answer is saved.",
+  "answer.test.banner": "This is a test. Your answers aren't saved.",
+  "answer.test.thanks": "This was a test. Your answers weren't saved.",
   "answer.error": "Something went wrong. Please try again.",
   "answer.state.closed": "This check-in is closed.",
   "answer.state.alreadyAnswered": "You've already answered this check-in.",

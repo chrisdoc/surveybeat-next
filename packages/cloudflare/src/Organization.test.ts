@@ -185,6 +185,106 @@ test(
 );
 
 test(
+  "sends a test of a Pulse to its sender only, at most five an hour, and indexes its token apart from Invitations",
+  Effect.gen(function* () {
+    const { url } = yield* stack;
+    const run = crypto.randomUUID();
+    const response = yield* Effect.promise(() => fetch(`${url}/__test/test-invitations?run=${run}`));
+    assert.strictEqual(response.status, 200);
+    const body = (yield* Effect.promise(() => response.json())) as {
+      burst: Array<string>;
+      afterAnHour: string;
+      member: string;
+      sentAt: number;
+      record: { tokenHash: string; pulseId: string; sentAt: number } | null;
+      invitation: unknown;
+      indexed: Array<{ organization_id: string; pulse_id: string; expires_at: number }>;
+      asInvitation: Array<unknown>;
+      captured: Array<{ recipient: string; subject: string }>;
+    };
+    // Six sends in the same hour: the sixth is refused. An hour later the window has moved on.
+    assert.deepStrictEqual(body.burst, [
+      "Accepted",
+      "Accepted",
+      "Accepted",
+      "Accepted",
+      "Accepted",
+      "TestSendLimitReached",
+    ]);
+    assert.strictEqual(body.afterAnHour, "Accepted");
+    // A plain member may not send a test of a Pulse they cannot edit.
+    assert.strictEqual(body.member, "Forbidden");
+    // Only the token's hash is kept, and the test is never an Invitation: no Round, no invitation_index row.
+    assert.match(body.record?.tokenHash ?? "", /^[0-9a-f]{64}$/);
+    assert.strictEqual(body.record?.pulseId, `pulse-${run}`);
+    assert.strictEqual(body.record?.sentAt, body.sentAt);
+    assert.strictEqual(body.invitation, null);
+    assert.deepStrictEqual(body.asInvitation, []);
+    assert.deepStrictEqual(body.indexed, [
+      {
+        organization_id: `test-invitations-${run}`,
+        pulse_id: `pulse-${run}`,
+        expires_at: body.sentAt + 7 * 24 * 60 * 60 * 1000,
+      },
+    ]);
+    // The email goes to the sender's own address, marked as a test in its subject.
+    assert.deepStrictEqual(body.captured, [
+      { recipient: "admin@example.com", subject: "Test: Weekly team health" },
+    ]);
+  }),
+);
+
+test(
+  "answers a test Invitation from its Pulse with no Round, and shows the Lead a redacted comment (ADR 0021)",
+  Effect.gen(function* () {
+    const { url } = yield* stack;
+    const run = crypto.randomUUID();
+    const response = yield* Effect.promise(() => fetch(`${url}/__test/test-invitations?run=${run}`));
+    assert.strictEqual(response.status, 200);
+    const body = (yield* Effect.promise(() => response.json())) as {
+      expiresAt: number;
+      testContext: {
+        roundId: string;
+        pulseName: string;
+        minimumGroupSize: number;
+        questions: Array<{ id: string; position: number; text: string; type: unknown }>;
+        actions: Array<unknown>;
+        closeTime: number;
+        state: string;
+        hasAnswered: boolean;
+        test?: boolean;
+      } | null;
+      view: { _tag: string; value: { questions: Array<{ versionId: string; text: string; type: unknown }> } };
+      preview: { shownToLead: string | null };
+      noComment: { shownToLead: string | null };
+    };
+    // The context is the Pulse's own: no Round, nothing answered, closing when the test expires.
+    assert.strictEqual(body.testContext?.test, true);
+    assert.strictEqual(body.testContext?.roundId, `test-pulse-${run}`);
+    assert.strictEqual(body.testContext?.state, "open");
+    assert.strictEqual(body.testContext?.hasAnswered, false);
+    assert.strictEqual(body.testContext?.closeTime, body.expiresAt);
+    assert.strictEqual(body.testContext?.pulseName, "Weekly team health");
+    assert.strictEqual(body.testContext?.minimumGroupSize, 4);
+    assert.strictEqual(body.view._tag, "Viewed");
+    assert.isAbove(body.view.value.questions.length, 0);
+    assert.deepStrictEqual(
+      body.testContext?.questions,
+      body.view.value.questions.map((question, position) => ({
+        id: question.versionId,
+        position,
+        text: question.text,
+        type: question.type,
+      })),
+    );
+    // The Lead sees the comment with the Lead's own name redacted, and nothing without a comment.
+    assert.match(body.preview.shownToLead ?? "", /\[name\]/);
+    assert.notMatch(body.preview.shownToLead ?? "", /grace/i);
+    assert.deepStrictEqual(body.noComment, { shownToLead: null });
+  }),
+);
+
+test(
   "Round lifecycle engine: alarm points at earliest due job, next Round is never duplicated, and jobs are idempotent",
   Effect.gen(function* () {
     const { url } = yield* stack;

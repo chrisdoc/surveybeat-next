@@ -17,13 +17,16 @@ export const catalog = {
   "addedToTeam.reason": "You received this email because {lead} added you to {team}.",
 
   "invitation.subject": "{pulse}",
+  "invitation.subjectTest": "Test: {pulse}",
   "invitation.preview": "Your check-in for {pulse} is open.",
+  "invitation.testNotice": "This is a test. Your answers aren't saved.",
   "invitation.anonymity":
     "Your lead only sees combined answers from at least {n} people, never who answered what. Your name is never stored with your answers.",
   "invitation.openCheckIn": "Open check-in",
   "invitation.changeWhen": "Change when I get this",
   "invitation.personalNotice": "This link is personal. Don't forward it.",
   "invitation.reason": "You received this email because you are a member of the team.",
+  "invitation.reasonTest": "You sent yourself this test from the Pulse editor.",
   "privacy.aiNotice":
     "Comments are summarised by an AI service in the EU after names, emails, phone numbers, handles and links are removed. It keeps nothing.",
   "invitation.actionsHeading": "Team actions in progress",

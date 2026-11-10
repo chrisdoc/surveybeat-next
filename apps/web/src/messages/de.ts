@@ -100,6 +100,10 @@ export const de = {
   "pulse.template.add": "Hinzufügen",
   "pulse.write.title": "Eine Frage schreiben",
   "pulse.write.action": "Frage hinzufügen",
+  "pulse.test.send": "Test an mich senden",
+  "pulse.test.help":
+    "Erhalte die Einladung zu diesem Pulse per E-Mail, genau so wie die Mitglieder sie bekommen. Antworten auf einen Test werden nie gespeichert.",
+  "pulse.test.sent": "Test an {email} gesendet. Antworten auf einen Test werden nie gespeichert.",
   "pulse.settings.title": "Einstellungen",
   "pulse.settings.name": "Name",
   "pulse.settings.day": "Tag",
@@ -324,6 +328,8 @@ export const de = {
   "error.QuestionHasAnswers": "Diese Frage hat Antworten, deshalb kann sie nicht bearbeitet werden.",
   "error.PulseNeedsAQuestion": "Ein Pulse braucht mindestens eine Frage.",
   "error.PulseFull": "Dieser Pulse hat schon die Höchstzahl an Fragen.",
+  "error.TestSendLimitReached":
+    "Du hast in der letzten Stunde schon 5 Tests verschickt. Versuch es später erneut.",
   "error.OrderMismatch":
     "Jemand anderes hat diesen Pulse geändert. Lade die Seite neu und versuch es erneut.",
   "error.Invalid": "Prüfe deine Eingabe und versuch es erneut.",

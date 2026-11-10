@@ -445,6 +445,30 @@ export const deriveInvitationToken = (key: InvitationTokenKey, ref: InvitationTo
     )
     .then((mac: ArrayBuffer) => base64url(new Uint8Array(mac).slice(0, 16)));
 
+/** Which test Invitation a token belongs to. `testId` is random per send (ADR 0021). */
+export interface TestInvitationTokenRef {
+  readonly pulseId: string;
+  readonly personId: string;
+  readonly testId: string;
+}
+
+/**
+ * The 128-bit base64url token of a test Invitation (ADR 0021, issue 136). It has its own label, so it
+ * can never equal an Invitation token, and it is derived with the same key, never stored. Only its hash
+ * is persisted, in `test_invitation_index`.
+ */
+export const deriveTestInvitationToken = (
+  key: InvitationTokenKey,
+  ref: TestInvitationTokenRef,
+): Promise<string> =>
+  crypto.subtle
+    .sign(
+      "HMAC",
+      key,
+      new TextEncoder().encode(`test-invitation:v1:${ref.pulseId}:${ref.personId}:${ref.testId}`),
+    )
+    .then((mac: ArrayBuffer) => base64url(new Uint8Array(mac).slice(0, 16)));
+
 /** Computes the hex-encoded SHA-256 hash of a token for storage and lookup. */
 export const hashToken = (token: string): Promise<string> =>
   crypto.subtle

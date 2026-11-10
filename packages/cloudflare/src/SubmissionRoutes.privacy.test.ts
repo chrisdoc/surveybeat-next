@@ -16,6 +16,9 @@ const EDIT_KEY = "CANARY-EDIT-KEY-raw-value";
 const TOKEN = "CANARY-INVITATION-TOKEN-raw-value";
 const FRESH_EDIT_KEY = "fresh-edit-key-for-first-answer";
 const CANARY_ANSWER = "CANARY-ANSWER";
+const TEST_TOKEN = "CANARY-TEST-INVITATION-TOKEN-raw-value";
+const TEST_EDIT_KEY = "CANARY-TEST-EDIT-KEY-raw-value";
+const TEST_PREVIEW = "preview the Lead would see";
 
 const setupD1 = (): { readonly d1: DatabaseSync; readonly queryDb: Cloudflare.D1.QueryDatabaseClient } => {
   const d1 = new DatabaseSync(":memory:");
@@ -60,6 +63,22 @@ const recordingOrganizations = () => {
     answers: [{ questionVersionId: "qv-1", value: 5, comment: CANARY_ANSWER }],
     shownToLead: false,
   };
+  // What the test methods return: a test context, and the preview of a test answer.
+  const testResults: Record<string, unknown> = {
+    getTestSubmissionContext: {
+      roundId: "test-pulse-1",
+      pulseName: "Pulse",
+      minimumGroupSize: 4,
+      questions: [],
+      actions: [],
+      closeTime: 0,
+      state: "open",
+      hasAnswered: false,
+      aiProcessing: false,
+      test: true,
+    },
+    previewTestAnswers: { shownToLead: TEST_PREVIEW },
+  };
   const organizationFor = (): unknown =>
     new Proxy(
       {},
@@ -67,7 +86,7 @@ const recordingOrganizations = () => {
         get: (_target, method) => {
           if (typeof method !== "string") return undefined;
           calls.push(method);
-          return () => Effect.succeed(result);
+          return () => Effect.succeed(method in testResults ? testResults[method] : result);
         },
       },
     );
@@ -120,11 +139,14 @@ const bodyText = (response: HttpServerResponse.HttpServerResponse): string => {
 
 type Hashes = { readonly editKeyHash: string; readonly freshHash: string };
 
+/** Test rows to seed on top of the real ones: an unexpired (or expired) test token and test Edit key. */
+type TestSeed = { readonly testInvitationExpiresAt?: number; readonly testSubmissionExpiresAt?: number };
+
 /**
  * Seeds D1 with a Submission for EDIT_KEY and an Invitation for TOKEN, runs the request built from
  * the seeded hashes through the routes, and returns what came back.
  */
-const runWith = (build: (hashes: Hashes) => HttpServerRequest) =>
+const runWith = (build: (hashes: Hashes) => HttpServerRequest, testSeed: TestSeed = {}) =>
   Effect.gen(function* () {
     const { d1, queryDb } = setupD1();
     const editKeyHash = yield* Effect.promise(() => hashToken(EDIT_KEY));
@@ -136,6 +158,18 @@ const runWith = (build: (hashes: Hashes) => HttpServerRequest) =>
     d1.prepare(
       "INSERT INTO invitation_index (token_hash, organization_id, round_id, person_id, pulse_id) VALUES (?, ?, ?, ?, ?)",
     ).run(tokenHash, "org-1", "round-1", "person-1", "pulse-1");
+    if (testSeed.testInvitationExpiresAt !== undefined) {
+      const testTokenHash = yield* Effect.promise(() => hashToken(TEST_TOKEN));
+      d1.prepare(
+        "INSERT INTO test_invitation_index (token_hash, organization_id, pulse_id, expires_at) VALUES (?, ?, ?, ?)",
+      ).run(testTokenHash, "org-1", "pulse-1", testSeed.testInvitationExpiresAt);
+    }
+    if (testSeed.testSubmissionExpiresAt !== undefined) {
+      const testEditKeyHash = yield* Effect.promise(() => hashToken(TEST_EDIT_KEY));
+      d1.prepare(
+        "INSERT INTO test_submission_index (edit_key_hash, organization_id, pulse_id, expires_at) VALUES (?, ?, ?, ?)",
+      ).run(testEditKeyHash, "org-1", "pulse-1", testSeed.testSubmissionExpiresAt);
+    }
     const { organizations, calls } = recordingOrganizations();
     const response = yield* submissionRoutes(organizations, queryDb).pipe(
       Effect.provideService(HttpServerRequest, build({ editKeyHash, freshHash })),
@@ -234,11 +268,14 @@ const queryRefusals: ReadonlyArray<{ readonly name: string; readonly query: (has
   { name: "query edit_key", query: () => `edit_key=${EDIT_KEY}` },
   { name: "query editKeyHash", query: (hashes) => `editKeyHash=${hashes.editKeyHash}` },
   { name: "query edit_key_hash", query: (hashes) => `edit_key_hash=${hashes.editKeyHash}` },
+  { name: "query token with a test token", query: () => `token=${TEST_TOKEN}` },
+  { name: "query t with a test token", query: () => `t=${TEST_TOKEN}` },
 ];
 
 const headerRefusals: ReadonlyArray<{ readonly name: string; readonly headers: Record<string, string> }> = [
   { name: "header x-invitation-token", headers: { "x-invitation-token": TOKEN } },
   { name: "header x-edit-key", headers: { "x-edit-key": EDIT_KEY } },
+  { name: "header x-invitation-token with a test token", headers: { "x-invitation-token": TEST_TOKEN } },
 ];
 
 const bodyRefusals: ReadonlyArray<{
@@ -301,6 +338,21 @@ const bodyRefusals: ReadonlyArray<{
     path: "/answer",
     name: "body token",
     body: () => ({ token: TOKEN, questionVersionId: "qv-1", value: 4 }),
+  },
+  {
+    path: "/answer",
+    name: "body test token",
+    body: () => ({ token: TEST_TOKEN, questionVersionId: "qv-1", value: 4 }),
+  },
+  {
+    path: "/exchange",
+    name: "body test token with editKeyHash",
+    body: (hashes) => ({ token: TEST_TOKEN, editKeyHash: hashes.freshHash }),
+  },
+  {
+    path: "/first-answer",
+    name: "body test token with a malformed editKeyHash",
+    body: () => ({ token: TEST_TOKEN, editKeyHash: "not-a-hash", questionVersionId: "qv-1", value: 4 }),
   },
 ];
 
@@ -376,6 +428,150 @@ describe("Submission Worker takes credentials only from the POST body (ADR 0005,
       );
       assert.strictEqual(response.status, 200);
       assert.include(calls, "saveAnswer");
+    }),
+  );
+});
+
+const countRows = (d1: DatabaseSync, table: string, where = "1 = 1", ...binds: Array<string>): number =>
+  (d1.prepare(`SELECT COUNT(*) AS n FROM ${table} WHERE ${where}`).get(...binds) as { n: number }).n;
+
+// Fixed expiries hold under Effect's TestClock (which starts at 0), which `it.effect` runs under, and
+// under the real clock: the largest JavaScript time is always in the future, and 0 is always past.
+const NEVER_EXPIRES = 8_640_000_000_000_000;
+const ALREADY_EXPIRED = 0;
+
+describe("A test Invitation never saves an answer (ADR 0021, issue #136)", () => {
+  it.effect("POST /exchange with a test token resolves the test context through the Pulse only", () =>
+    Effect.gen(function* () {
+      const { response, text, calls } = yield* runWith(
+        () => makeRequest("POST", "/exchange", { token: TEST_TOKEN }),
+        { testInvitationExpiresAt: NEVER_EXPIRES },
+      );
+      assert.strictEqual(response.status, 200);
+      assert.deepStrictEqual(calls, ["getByName", "getTestSubmissionContext"]);
+      assert.include(text, '"test":true');
+    }),
+  );
+
+  it.effect(
+    "POST /first-answer with a test token saves nothing and indexes only the test Edit key hash",
+    () =>
+      Effect.gen(function* () {
+        const { response, text, calls, d1, freshHash } = yield* runWith(
+          (hashes) =>
+            makeRequest("POST", "/first-answer", {
+              token: TEST_TOKEN,
+              editKeyHash: hashes.freshHash,
+              questionVersionId: "qv-1",
+              value: 4,
+              comment: "Grace, it was fine",
+            }),
+          { testInvitationExpiresAt: NEVER_EXPIRES },
+        );
+        assert.strictEqual(response.status, 200);
+        assert.deepStrictEqual(calls, ["getByName", "previewTestAnswers"]);
+        assert.include(text, `"shownToLead":"${TEST_PREVIEW}"`);
+        assert.include(text, '"saved":true');
+        // Only the seeded real rows exist in the real indexes.
+        assert.strictEqual(countRows(d1, "submission_index"), 1);
+        assert.strictEqual(countRows(d1, "invitation_index"), 1);
+        assert.strictEqual(countRows(d1, "test_submission_index", "edit_key_hash = ?", freshHash), 1);
+      }),
+  );
+
+  it.effect("POST /answer with a test Edit key returns the preview and writes no Submission", () =>
+    Effect.gen(function* () {
+      const { response, text, calls, d1 } = yield* runWith(
+        () =>
+          makeRequest("POST", "/answer", {
+            editKey: TEST_EDIT_KEY,
+            questionVersionId: "qv-1",
+            value: 4,
+            comment: "Grace, still fine",
+          }),
+        { testSubmissionExpiresAt: NEVER_EXPIRES },
+      );
+      assert.strictEqual(response.status, 200);
+      assert.deepStrictEqual(calls, ["getByName", "previewTestAnswers"]);
+      assert.include(text, `"shownToLead":"${TEST_PREVIEW}"`);
+      assert.strictEqual(countRows(d1, "submission_index"), 1);
+    }),
+  );
+
+  it.effect(
+    "an expired test token is not found: /exchange and /first-answer answer 404 and reach no Organization",
+    () =>
+      Effect.gen(function* () {
+        const exchange = yield* runWith(() => makeRequest("POST", "/exchange", { token: TEST_TOKEN }), {
+          testInvitationExpiresAt: ALREADY_EXPIRED,
+        });
+        assert.strictEqual(exchange.response.status, 404);
+        assert.deepStrictEqual(exchange.calls, []);
+
+        const firstAnswer = yield* runWith(
+          (hashes) =>
+            makeRequest("POST", "/first-answer", {
+              token: TEST_TOKEN,
+              editKeyHash: hashes.freshHash,
+              questionVersionId: "qv-1",
+              value: 4,
+            }),
+          { testInvitationExpiresAt: ALREADY_EXPIRED },
+        );
+        assert.strictEqual(firstAnswer.response.status, 404);
+        assert.deepStrictEqual(firstAnswer.calls, []);
+        assert.strictEqual(countRows(firstAnswer.d1, "test_submission_index"), 0);
+      }),
+  );
+
+  it.effect("an expired test Edit key is not found: /answer answers 404 and reaches no Organization", () =>
+    Effect.gen(function* () {
+      const { response, calls } = yield* runWith(
+        () => makeRequest("POST", "/answer", { editKey: TEST_EDIT_KEY, questionVersionId: "qv-1", value: 4 }),
+        { testSubmissionExpiresAt: ALREADY_EXPIRED },
+      );
+      assert.strictEqual(response.status, 404);
+      assert.deepStrictEqual(calls, []);
+    }),
+  );
+
+  for (const path of ["/exchange", "/first-answer", "/answer"]) {
+    it.effect(`POST ${path} with a test token and an Edit key together is refused (A5)`, () =>
+      Effect.gen(function* () {
+        const { response, calls } = yield* runWith(
+          (hashes) =>
+            makeRequest("POST", path, {
+              token: TEST_TOKEN,
+              editKey: TEST_EDIT_KEY,
+              editKeyHash: hashes.freshHash,
+              questionVersionId: "qv-1",
+              value: 4,
+            }),
+          { testInvitationExpiresAt: NEVER_EXPIRES, testSubmissionExpiresAt: NEVER_EXPIRES },
+        );
+        assert.strictEqual(response.status, 400);
+        assert.deepStrictEqual(calls, [], "no Organization method may be called");
+      }),
+    );
+  }
+
+  it.effect("a real token still records the first Answer, and never previews a test", () =>
+    Effect.gen(function* () {
+      const { response, calls } = yield* runWith((hashes) =>
+        makeRequest("POST", "/first-answer", validBody("/first-answer", hashes)),
+      );
+      assert.strictEqual(response.status, 200);
+      assert.deepStrictEqual(calls, ["getByName", "recordFirstAnswer"]);
+    }),
+  );
+
+  it.effect("a real token still resolves the real Round context, and never the test one", () =>
+    Effect.gen(function* () {
+      const { response, calls } = yield* runWith((hashes) =>
+        makeRequest("POST", "/exchange", validBody("/exchange", hashes)),
+      );
+      assert.strictEqual(response.status, 200);
+      assert.deepStrictEqual(calls, ["getByName", "getSubmissionRoundContext"]);
     }),
   );
 });

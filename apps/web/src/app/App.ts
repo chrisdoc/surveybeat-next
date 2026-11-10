@@ -67,6 +67,7 @@ import {
   LoadedPulses,
   pulseEditorView,
   pulsesScreenView,
+  TestSendResult,
 } from "./pulses.ts";
 import { GuideCopy, LoadedActions, LoadedNote, LoadedResults, resultsScreenView } from "./results.ts";
 import { isLead, LoadedRounds, RoundConfirm, roundsScreenView } from "./rounds.ts";
@@ -158,6 +159,8 @@ export const Model = Schema.Struct({
   settingsSaved: Schema.Boolean,
   settingsBusy: Schema.Boolean,
   settingsFailure: Schema.Option(Failure),
+  testSendBusy: Schema.Boolean,
+  testSendResult: Schema.Option(TestSendResult),
   // Rounds screen
   rounds: LoadedRounds,
   roundDetails: Schema.Record(Schema.String, RoundDetail),
@@ -249,6 +252,10 @@ export const OutcomePulseDetail = Schema.Union([
   Schema.TaggedStruct("Success", { detail: PulseDetail }),
   Schema.TaggedStruct("Failure", { failure: Failure }),
 ]);
+export const OutcomeTestSent = Schema.Union([
+  Schema.TaggedStruct("Success", { email: Schema.String }),
+  Schema.TaggedStruct("Failure", { failure: Failure }),
+]);
 export const OutcomeVoid = Schema.Union([
   Schema.TaggedStruct("Success", {}),
   Schema.TaggedStruct("Failure", { failure: Failure }),
@@ -333,6 +340,8 @@ export const Message = defineMessageUnion({
   SettingsReviewWindowChanged: { days: Schema.String },
   SettingsRemindersChanged: { reminders: Schema.String },
   SubmitSettings: {},
+  SendTestInvitationClicked: {},
+  SentTestInvitation: { outcome: OutcomeTestSent },
   // Rounds screen
   GotRounds: { outcome: OutcomeRounds },
   GotRoundDetail: { roundId: RoundId, outcome: OutcomeRoundDetail },
@@ -643,6 +652,17 @@ export const UpdatePulseSettingsCmd = Command.define("UpdatePulseSettingsCmd", {
       (api) => api.pulses.updatePulseSettings({ params: { teamId, pulseId }, payload: settings }),
       (detail) => Message.UpdatedPulse({ outcome: { _tag: "Success", detail } }),
       (failure) => Message.UpdatedPulse({ outcome: { _tag: "Failure", failure } }),
+    ),
+});
+
+export const SendTestInvitationCmd = Command.define("SendTestInvitationCmd", {
+  args: { teamId: TeamId, pulseId: PulseId },
+  messages: [Message.SentTestInvitation],
+  execute: ({ teamId, pulseId }) =>
+    runApi(
+      (api) => api.pulses.sendTestInvitation({ params: { teamId, pulseId } }),
+      (sent) => Message.SentTestInvitation({ outcome: { _tag: "Success", email: sent.email } }),
+      (failure) => Message.SentTestInvitation({ outcome: { _tag: "Failure", failure } }),
     ),
 });
 
@@ -1040,6 +1060,8 @@ export const initialModel = (url: Url): Model => {
     settingsSaved: false,
     settingsBusy: false,
     settingsFailure: Option.none(),
+    testSendBusy: false,
+    testSendResult: Option.none(),
     rounds: { _tag: "Loading" },
     roundDetails: {},
     roundRates: {},
@@ -1158,6 +1180,8 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         history: { _tag: "Loading" },
         pulses: { _tag: "Loading" },
         pulseDetail: { _tag: "Loading" },
+        testSendBusy: false,
+        testSendResult: Option.none(),
         settings: { _tag: "Loading" },
         teams: { _tag: "Loading" },
         results: { _tag: "Loading" },
@@ -2169,6 +2193,38 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       };
     }
 
+    case "SendTestInvitationClicked": {
+      if (model.pulseDetail._tag !== "Loaded" || model.testSendBusy) return { model };
+      const { detail } = model.pulseDetail;
+      return {
+        model: { ...model, testSendBusy: true, testSendResult: Option.none() },
+        commands: [SendTestInvitationCmd({ teamId: detail.team.id, pulseId: detail.id })],
+      };
+    }
+
+    case "SentTestInvitation": {
+      const { outcome } = message;
+      if (outcome._tag === "Success") {
+        return {
+          model: {
+            ...model,
+            testSendBusy: false,
+            testSendResult: Option.some({ _tag: "Sent", email: outcome.email }),
+          },
+        };
+      }
+      if (outcome.failure === "Unauthenticated") {
+        return { model: { ...model, testSendBusy: false }, commands: [LoadSession()] };
+      }
+      return {
+        model: {
+          ...model,
+          testSendBusy: false,
+          testSendResult: Option.some({ _tag: "Failed", failure: outcome.failure }),
+        },
+      };
+    }
+
     // ----------------------------------------
     // Rounds screen
     // ----------------------------------------
@@ -2906,6 +2962,8 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
           settingsSaved: model.settingsSaved,
           settingsBusy: model.settingsBusy,
           settingsFailure: Option.getOrUndefined(model.settingsFailure),
+          testSendBusy: model.testSendBusy,
+          testSendResult: Option.getOrUndefined(model.testSendResult),
         },
         {
           onMoveQuestion: (index, by) => Message.MoveQuestionClicked({ index, by }),
@@ -2937,6 +2995,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
           onSettingsReviewWindowChange: (days) => Message.SettingsReviewWindowChanged({ days }),
           onSettingsRemindersChange: (reminders) => Message.SettingsRemindersChanged({ reminders }),
           onSubmitSettings: Message.SubmitSettings(),
+          onSendTest: Message.SendTestInvitationClicked(),
         },
         h,
       );

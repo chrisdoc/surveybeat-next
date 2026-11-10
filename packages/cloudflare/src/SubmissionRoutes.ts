@@ -1,5 +1,6 @@
 import type * as Cloudflare from "@alchemy.run/cloudflare";
 import { QuestionVersionId, type SubmissionAnswer, hashToken } from "@surveybeat/domain";
+import * as Clock from "effect/Clock";
 import * as Effect from "effect/Effect";
 import { HttpServerRequest } from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
@@ -66,6 +67,31 @@ const credentialHeaders = ["x-invitation-token", "x-edit-key"] as const;
 
 const EDIT_KEY_HASH = /^[0-9a-f]{64}$/;
 
+/** A test Invitation's token or a test Edit key, unexpired (ADR 0021): where it belongs. */
+type TestIndexRow = {
+  readonly organization_id: string;
+  readonly pulse_id: string;
+  readonly expires_at: number;
+};
+
+const findTestInvitation = (database: Cloudflare.D1.QueryDatabaseClient, tokenHash: string, now: number) =>
+  database
+    .prepare(
+      "SELECT organization_id, pulse_id, expires_at FROM test_invitation_index WHERE token_hash = ? AND expires_at > ?",
+    )
+    .bind(tokenHash, now)
+    .first<TestIndexRow>()
+    .pipe(Effect.orDie);
+
+const findTestSubmission = (database: Cloudflare.D1.QueryDatabaseClient, editKeyHash: string, now: number) =>
+  database
+    .prepare(
+      "SELECT organization_id, pulse_id, expires_at FROM test_submission_index WHERE edit_key_hash = ? AND expires_at > ?",
+    )
+    .bind(editKeyHash, now)
+    .first<TestIndexRow>()
+    .pipe(Effect.orDie);
+
 const corsHeaders = {
   "access-control-allow-origin": "*",
   "access-control-allow-methods": "POST, OPTIONS",
@@ -131,7 +157,20 @@ export const submissionRoutes = (organizations: Organizations, database: Cloudfl
         .first<{ organization_id: string; round_id: string; person_id: string }>()
         .pipe(Effect.orDie);
       if (row === null) {
-        return yield* HttpServerResponse.json({ error: "Invitation not found" }, { status: 404 });
+        // A test Invitation has no Round: its context is built from the Pulse (ADR 0021).
+        const now = yield* Clock.currentTimeMillis;
+        const testRow = yield* findTestInvitation(database, tokenHash, now);
+        if (testRow === null) {
+          return yield* HttpServerResponse.json({ error: "Invitation not found" }, { status: 404 });
+        }
+        const testContext = yield* organizations
+          .getByName(testRow.organization_id)
+          .getTestSubmissionContext(testRow.pulse_id, testRow.expires_at)
+          .pipe(Effect.orDie);
+        if (testContext === null) {
+          return yield* HttpServerResponse.json({ error: "Round not found" }, { status: 404 });
+        }
+        return yield* HttpServerResponse.json(testContext);
       }
       const context = yield* organizations
         .getByName(row.organization_id)
@@ -163,7 +202,24 @@ export const submissionRoutes = (organizations: Organizations, database: Cloudfl
         .first<{ organization_id: string; round_id: string; person_id: string }>()
         .pipe(Effect.orDie);
       if (row === null) {
-        return yield* HttpServerResponse.json({ error: "Invitation not found" }, { status: 404 });
+        // A test saves nothing: the comment is only redacted for the preview; the Edit key hash is indexed (ADR 0021).
+        const now = yield* Clock.currentTimeMillis;
+        const testRow = yield* findTestInvitation(database, tokenHash, now);
+        if (testRow === null) {
+          return yield* HttpServerResponse.json({ error: "Invitation not found" }, { status: 404 });
+        }
+        const preview = yield* organizations
+          .getByName(testRow.organization_id)
+          .previewTestAnswers(extractAnswers(body))
+          .pipe(Effect.orDie);
+        yield* database
+          .prepare(
+            "INSERT INTO test_submission_index (edit_key_hash, organization_id, pulse_id, expires_at) VALUES (?, ?, ?, ?) ON CONFLICT (edit_key_hash) DO NOTHING",
+          )
+          .bind(editKeyHash, testRow.organization_id, testRow.pulse_id, testRow.expires_at)
+          .run()
+          .pipe(Effect.orDie);
+        return yield* HttpServerResponse.json({ saved: true, shownToLead: preview.shownToLead });
       }
 
       const answers = extractAnswers(body);
@@ -215,7 +271,17 @@ export const submissionRoutes = (organizations: Organizations, database: Cloudfl
         .first<{ organization_id: string; round_id: string }>()
         .pipe(Effect.orDie);
       if (row === null) {
-        return yield* HttpServerResponse.json({ error: "Submission not found" }, { status: 404 });
+        // A test answer is redacted and discarded, as its first answer was (ADR 0021).
+        const now = yield* Clock.currentTimeMillis;
+        const testRow = yield* findTestSubmission(database, editKeyHash, now);
+        if (testRow === null) {
+          return yield* HttpServerResponse.json({ error: "Submission not found" }, { status: 404 });
+        }
+        const preview = yield* organizations
+          .getByName(testRow.organization_id)
+          .previewTestAnswers(extractAnswers(body))
+          .pipe(Effect.orDie);
+        return yield* HttpServerResponse.json({ saved: true, shownToLead: preview.shownToLead });
       }
 
       const answers = extractAnswers(body);

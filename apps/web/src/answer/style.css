@@ -97,6 +97,14 @@ legend {
   outline: 2px solid var(--primary);
   outline-offset: 6px;
 }
+.test-banner {
+  margin: 0 0 1rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--primary-soft);
+  border-radius: var(--radius-control);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
 .anon {
   min-height: 44px;
   margin: 1.5rem 0 1rem;

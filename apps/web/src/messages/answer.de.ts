@@ -31,6 +31,8 @@ export const answerDe = {
   "answer.thanks.title": "Danke!",
   "answer.thanks.body": "Deine Antwort ist gespeichert. Das kannst du als Nächstes tun:",
   "answer.thanks.bodyNoActions": "Deine Antwort ist gespeichert.",
+  "answer.test.banner": "Dies ist ein Test. Deine Antworten werden nicht gespeichert.",
+  "answer.test.thanks": "Das war ein Test. Deine Antworten wurden nicht gespeichert.",
   "answer.error": "Etwas ist schiefgelaufen. Versuch es bitte noch einmal.",
   "answer.state.closed": "Dieser Check-in ist geschlossen.",
   "answer.state.alreadyAnswered": "Du hast diesen Check-in bereits beantwortet.",

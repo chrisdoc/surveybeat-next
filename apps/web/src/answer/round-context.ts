@@ -40,6 +40,8 @@ export interface RoundContextData {
   readonly state: string;
   readonly hasAnswered: boolean;
   readonly aiProcessing: boolean;
+  /** A test Invitation (ADR 0021): nothing the page sends is saved, and the page says so. */
+  readonly test: boolean;
 }
 
 /**
@@ -61,6 +63,8 @@ export function parseRoundContext(data: unknown): RoundContextData | null {
   if (!("hasAnswered" in data) || typeof data.hasAnswered !== "boolean") return null;
   // Absent means off: the flag is new, and a context without it is a context for an Organization without AI processing.
   const aiProcessing = "aiProcessing" in data && data.aiProcessing === true;
+  // Absent means a real Invitation: only a test token's context carries the flag.
+  const test = "test" in data && data.test === true;
   if (!("questions" in data) || !Array.isArray(data.questions)) return null;
 
   const questions: Array<QuestionData> = [];
@@ -135,5 +139,6 @@ export function parseRoundContext(data: unknown): RoundContextData | null {
     state: data.state,
     hasAnswered: data.hasAnswered,
     aiProcessing,
+    test,
   };
 }

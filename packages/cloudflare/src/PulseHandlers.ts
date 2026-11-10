@@ -1,10 +1,12 @@
 import { SurveyBeatApi } from "@surveybeat/api";
 import {
+  EmailOutbox,
   NewIds,
   type OrganizationPulses,
   type PulseCommand,
   type PulseId,
   runPulseCommand,
+  sendTestInvitation,
   type TeamId,
   viewPulse,
   viewPulses,
@@ -14,8 +16,8 @@ import * as Effect from "effect/Effect";
 import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
 import { type AuthServices, currentMember, requireSameOrigin } from "./auth/AuthHandlers.ts";
 
-/** Everything the Pulse editor endpoints need: sign-in's services and the Organization objects. */
-export type PulseServices = AuthServices | OrganizationPulses;
+/** Everything the Pulse editor endpoints need: sign-in's services, the Organization objects, and the email queue. */
+export type PulseServices = AuthServices | OrganizationPulses | EmailOutbox;
 
 /** A change to one Pulse: same origin only, as the signed-in Person, then the Pulse as it is now. */
 const change = <R>(teamId: TeamId, pulseId: PulseId, command: Effect.Effect<PulseCommand, never, R>) =>
@@ -90,6 +92,15 @@ export const pulseHandlers = <R>(services: Effect.Effect<Context.Context<PulseSe
             params.pulseId,
             Effect.succeed({ _tag: "ReorderQuestions", ...params, order: payload.order }),
           ),
+        ),
+      )
+      .handle("sendTestInvitation", ({ params }) =>
+        provide(
+          Effect.gen(function* () {
+            yield* requireSameOrigin;
+            const member = yield* currentMember;
+            return yield* sendTestInvitation(member, params.teamId, params.pulseId);
+          }),
         ),
       ),
   );

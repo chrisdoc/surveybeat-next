@@ -349,6 +349,38 @@ describe("Lifecycle scheduling and time engine", () => {
     }),
   );
 
+  it.effect(
+    "derives test Invitation tokens per key, Person, and test id, never equal to an Invitation token",
+    () =>
+      Effect.gen(function* () {
+        const { deriveInvitationToken, deriveTestInvitationToken, importInvitationTokenKey } =
+          yield* Effect.promise(() => import("./Lifecycle.ts"));
+        const key = yield* Effect.promise(() => importInvitationTokenKey("k".repeat(32)));
+        const otherKey = yield* Effect.promise(() => importInvitationTokenKey("o".repeat(32)));
+        const ref = { pulseId: "pulse-1", personId: "person-1", testId: "test-1" };
+        const token = yield* Effect.promise(() => deriveTestInvitationToken(key, ref));
+        assert.match(token, /^[A-Za-z0-9_-]{22}$/); // 16 bytes base64url = 22 characters unpadded
+        assert.strictEqual(yield* Effect.promise(() => deriveTestInvitationToken(key, ref)), token);
+
+        const variants = [
+          { ...ref, testId: "test-2" }, // each send gets a fresh token
+          { ...ref, personId: "person-2" },
+          { ...ref, pulseId: "pulse-2" },
+        ];
+        for (const variant of variants) {
+          assert.notStrictEqual(yield* Effect.promise(() => deriveTestInvitationToken(key, variant)), token);
+        }
+        assert.notStrictEqual(yield* Effect.promise(() => deriveTestInvitationToken(otherKey, ref)), token);
+
+        // The same identifiers as an Invitation (roundId = pulseId, generation 0) give another token.
+        const invitation = yield* Effect.promise(() =>
+          deriveInvitationToken(key, { roundId: ref.pulseId, personId: ref.personId, generation: 0 }),
+        );
+        assert.notStrictEqual(token, invitation);
+        assert.strictEqual(token.length, invitation.length);
+      }),
+  );
+
   it("skips reminders when close is less than 2 hours away or conditions match", () => {
     const send = 1000000;
     // W=1: 6 hours after send

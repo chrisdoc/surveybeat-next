@@ -1,5 +1,11 @@
 import { Option } from "effect";
-import { actorOf, type DirectoryState, emailLocaleOf, teamSummaryOf } from "../people/Directory.ts";
+import {
+  actorOf,
+  type DirectoryState,
+  emailLocaleOf,
+  type PersonRecord,
+  teamSummaryOf,
+} from "../people/Directory.ts";
 import type { PersonId } from "../people/Identity.ts";
 import type { Locale } from "../people/Locale.ts";
 import { type Actor, can, type TeamAction } from "../people/Permissions.ts";
@@ -146,7 +152,8 @@ export type PulseRejection =
   | { readonly _tag: "QuestionHasAnswers" }
   | { readonly _tag: "PulseNeedsAQuestion" }
   | { readonly _tag: "PulseFull"; readonly maximum: number }
-  | { readonly _tag: "OrderMismatch" };
+  | { readonly _tag: "OrderMismatch" }
+  | { readonly _tag: "TestSendLimitReached"; readonly perHour: number };
 
 export type PulseDecision =
   | { readonly _tag: "Rejected"; readonly rejection: PulseRejection }
@@ -408,6 +415,36 @@ export const decidePulse = (
       return accept([{ _tag: "PulseQuestionsSet", pulseId: pulse.id, questions: order }]);
     }
   }
+};
+
+export type TestSendDecision =
+  | { readonly _tag: "Rejected"; readonly rejection: PulseRejection }
+  | {
+      readonly _tag: "Allowed";
+      /** The sender's own Person: the test goes to this address and no other. */
+      readonly person: PersonRecord;
+      readonly pulse: PulseRecord;
+    };
+
+/**
+ * Whether the actor may send themselves a test of a Pulse (ADR 0021): whoever may edit it, and the
+ * Pulse must have a Question to test. The rate limit is the Durable Object's, since it counts sends.
+ */
+export const decideTestSend = (
+  directory: DirectoryState,
+  state: PulseState,
+  actorId: PersonId,
+  teamId: TeamId,
+  pulseId: PulseId,
+): TestSendDecision => {
+  const allowed = authorize(directory, actorId, "team.editPulse", teamId);
+  if (allowed._tag === "Rejected") return allowed;
+  const pulse = findPulse(state, teamId, pulseId);
+  if (pulse === undefined) return reject({ _tag: "PulseNotFound" });
+  if (pulse.questions.length < MIN_QUESTIONS) return reject({ _tag: "PulseNeedsAQuestion" });
+  const person = directory.people.find((each) => each.id === actorId);
+  if (person === undefined) return reject({ _tag: "Forbidden" });
+  return { _tag: "Allowed", person, pulse };
 };
 
 /** Applies a decision's changes to an in-memory state: what the Durable Object does in SQL. */

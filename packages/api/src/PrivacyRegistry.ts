@@ -192,6 +192,10 @@ export const privacyRegistry: { readonly [K in EndpointKey<typeof SurveyBeatApi>
     _tag: "NoResultData",
     why: "reorders a Pulse's Questions; returns the Pulse as the editor shows it",
   },
+  "pulses.sendTestInvitation": {
+    _tag: "NoResultData",
+    why: "emails the signed-in Person a test Invitation of the Pulse (ADR 0021); stores no Submission or Participation; returns the address",
+  },
   "rounds.listRounds": {
     _tag: "NoResultData",
     why: "returns Round lifecycle status and timestamps; no Results",

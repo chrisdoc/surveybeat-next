@@ -8,6 +8,7 @@ import { MembershipId, TeamId, TimeZone } from "../people/Team.ts";
 import {
   applyPulseChanges,
   decidePulse,
+  decideTestSend,
   defaultPulseSettings,
   EMPTY_PULSE_STATE,
   estimateSeconds,
@@ -613,5 +614,46 @@ describe("the Question type schema", () => {
     ["a type not in Release 1", { _tag: "Enps" }],
   ])("refuses %s", (_, type) => {
     expect(decode(type)._tag).toBe("None");
+  });
+});
+
+describe("a test of a Pulse (ADR 0021)", () => {
+  const outcome = (state: PulseState, by: PersonId, teamId = team) => {
+    const decision = decideTestSend(directory, state, by, teamId, pulseId);
+    return decision._tag === "Allowed" ? decision.person.email : decision.rejection._tag;
+  };
+  const withPulse = created();
+
+  it("is open to Organization admins and the Team's Leads, to their own address", () => {
+    expect(outcome(withPulse, admin)).toBe("admin@example.com");
+    expect(outcome(withPulse, lead)).toBe("lead@example.com");
+  });
+
+  it("is refused to a plain member of the Team", () => {
+    expect(outcome(withPulse, member)).toBe("Forbidden");
+  });
+
+  it("is refused to a Lead of another Team", () => {
+    const otherLead = PersonId.make("other-lead");
+    const dir: DirectoryState = {
+      ...directory,
+      people: [...directory.people, { ...person(otherLead), email: EmailAddress.make("other@example.com") }],
+      memberships: [...directory.memberships, membership(otherLead, "lead", otherTeam)],
+    };
+    const decision = decideTestSend(dir, withPulse, otherLead, team, pulseId);
+    expect(decision).toMatchObject({ _tag: "Rejected", rejection: { _tag: "Forbidden" } });
+  });
+
+  it("finds the Pulse only through its own Team", () => {
+    expect(outcome(withPulse, admin, otherTeam)).toBe("PulseNotFound");
+    expect(outcome(EMPTY_PULSE_STATE, admin)).toBe("PulseNotFound");
+  });
+
+  it("refuses a Pulse with no Questions", () => {
+    const empty: PulseState = {
+      ...withPulse,
+      pulses: withPulse.pulses.map((pulse) => ({ ...pulse, questions: [] })),
+    };
+    expect(outcome(empty, admin)).toBe("PulseNeedsAQuestion");
   });
 });

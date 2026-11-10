@@ -51,6 +51,8 @@ export const SubmissionRoundContext = Schema.Struct({
   hasAnswered: Schema.Boolean,
   /** Whether the Organization processes redacted comments with AI (ADR 0015); the answer page says so. */
   aiProcessing: Schema.Boolean,
+  /** Present only for a test Invitation (ADR 0021): nothing the page sends is saved. */
+  test: Schema.optionalKey(Schema.Literal(true)),
 });
 export type SubmissionRoundContext = typeof SubmissionRoundContext.Type;
 
