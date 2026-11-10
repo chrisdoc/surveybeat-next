@@ -222,6 +222,59 @@ describe("redact German phone numbers", () => {
     expect(redact(text, [])).toBe(expected);
   });
 
+  it.each(["0 30 12 34 56", "0 30 1234567", "1 800 555 1234", "612 345 678", "10 000 000"])(
+    "redacts a spaced number of 7+ digits, including a stray leading digit: %s",
+    (number) => {
+      expect(redact(sentence(number), [])).toBe(redacted);
+    },
+  );
+
+  it.each([
+    ["Call 0 30 1234567 today.", "Call [phone] today."],
+    ["Call 0 30 12 34 56 today.", "Call [phone] today."],
+  ])("redacts a phone number with a stray leading digit inside a sentence: %s", (text, expected) => {
+    expect(redact(text, [])).toBe(expected);
+  });
+
+  it("redacts a thousands-grouped number without a currency marker (accepted false positive)", () => {
+    // Accepted false positive: without a currency marker, 10 000 000 may be a phone number.
+    // Privacy beats false positives.
+    expect(redact("10 000 000 Menschen", [])).toBe("[phone] Menschen");
+  });
+
+  it.each([
+    "10 000 000 Euro",
+    "Budget 10.000.000 €",
+    "€ 10.000.000,50",
+    "€10 000 000",
+    "$ 25,000,000",
+    "1.500.000 EUR",
+    "2 500 000 CHF",
+    "Kosten: 12.500.000,00 Euro",
+  ])("keeps a currency amount unchanged: %s", (text) => {
+    expect(redact(text, [])).toBe(text);
+  });
+
+  it.each([
+    ["Tel 612 345 678 Euro", "Tel [phone] Euro"],
+    ["Ruf 612 345 678 an, kostet 10 Euro", "Ruf [phone] an, kostet 10 Euro"],
+    ["Telefon: 123 456 789 €", "Telefon: [phone] €"],
+    ["12.11.2026 0 30 12 34 56", "12.11.2026 [phone]"],
+    ["0 30 12 34 56 0 40 98 76 54", "[phone] [phone]"],
+  ])("redacts a phone number next to a phone cue, a date or another number: %s", (text, expected) => {
+    expect(redact(text, [])).toBe(expected);
+  });
+
+  it("keeps a currency amount with a phone-shaped 3-3-3 grouping (accepted false negative)", () => {
+    // Accepted risk: a 9-digit 3-3-3 phone number written directly next to a currency marker and
+    // without a phone cue reads as an amount and is kept.
+    expect(redact("612 345 678 Euro", [])).toBe("612 345 678 Euro");
+  });
+
+  it("still redacts a phone number that follows a currency amount", () => {
+    expect(redact("10 000 000 Euro, ruf 0170 1234567 an", [])).toBe("10 000 000 Euro, ruf [phone] an");
+  });
+
   it("property test: generated German numbers are redacted and dates are kept", () => {
     // Seeded-style pseudo random generator
     let seed = 7;

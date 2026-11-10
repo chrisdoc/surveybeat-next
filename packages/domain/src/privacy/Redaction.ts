@@ -35,10 +35,34 @@ const DATE_OR_YEAR_RANGE_PREFIX =
 
 const PHONE_SEPARATOR = /[-.\s()+]/;
 
+// A lone digit and one space right before a phone match, e.g. the "0 " in "0 30 12 34 56"
+const LONE_DIGIT_BEFORE = /(?:^|(?<=[^\w+.,]))\d $/;
+
+// Thousands-grouped amount: 1-3 leading digits, then groups of exactly 3 with one separator throughout
+const THOUSANDS_GROUPED = /^[1-9]\d{0,2}([ \u00a0\u202f.,])\d{3}(?:\1\d{3})*$/;
+
+// Currency marker directly before an amount, with at most one space in between
+const CURRENCY_BEFORE = /(?:[€$£]|(?<!\w)(?:EUR|USD|CHF|GBP)) ?$/i;
+
+// Optional decimal part, at most one space, then a currency marker as a symbol or a whole word
+const CURRENCY_AFTER = /^(?:[.,]\d{1,2})? ?(?:[€$£]|Euros?|EUR|USD|Dollars?|CHF|Franken|GBP)(?!\w)/;
+
+// A phone cue right before a number ("Tel 612 345 678 Euro"): the number is never kept as an amount
+const PHONE_CUE_BEFORE =
+  /(?<!\w)(?:tel|telefon|phone|ruf|anrufen|call|fax|mobil|mobile|handy|nr|nummer|number)\.?:? ?(?:[€$£]|EUR|USD|CHF|GBP)? ?$/i;
+
+const isCurrencyAmount = (candidate: string, before: string, after: string): boolean =>
+  THOUSANDS_GROUPED.test(candidate) &&
+  !PHONE_CUE_BEFORE.test(before) &&
+  (CURRENCY_BEFORE.test(before) || CURRENCY_AFTER.test(after));
+
 /**
  * Generic phone numbers: 7+ digits with separators. A match that starts with a date or a year
  * range keeps it, and the scan resumes right after it, so a number written after a date is still
  * caught. Never starts inside a number such as 1.2.2024.
+ * A thousands-grouped amount next to a currency marker (€, $, EUR, Euro, ...) is kept. Without a
+ * currency marker it is redacted: privacy beats false positives. A lone digit and a space right
+ * before a redacted match is redacted with it.
  */
 const redactGenericPhones = (text: string): string => {
   const pattern = new RegExp(PHONE_PATTERN.source, "g");
@@ -47,12 +71,20 @@ const redactGenericPhones = (text: string): string => {
   for (let match = pattern.exec(text); match !== null; match = pattern.exec(text)) {
     const candidate = match[1] ?? "";
     const start = match.index + match[0].indexOf(candidate);
+    const end = start + candidate.length;
     const date = DATE_OR_YEAR_RANGE_PREFIX.exec(candidate)?.[0];
     if (date !== undefined) {
       pattern.lastIndex = start + date.length;
-    } else if ((candidate.match(/\d/g) ?? []).length >= 7 && PHONE_SEPARATOR.test(candidate)) {
-      result += text.slice(kept, start) + "[phone]";
-      kept = start + candidate.length;
+    } else if (
+      (candidate.match(/\d/g) ?? []).length >= 7 &&
+      PHONE_SEPARATOR.test(candidate) &&
+      !isCurrencyAmount(candidate, text.slice(0, start), text.slice(end))
+    ) {
+      // Absorb the lone digit only when it is not already part of kept text
+      const lone = LONE_DIGIT_BEFORE.exec(text.slice(0, start));
+      const from = lone !== null && start - 2 >= kept ? start - 2 : start;
+      result += text.slice(kept, from) + "[phone]";
+      kept = end;
     }
   }
   return result + text.slice(kept);
