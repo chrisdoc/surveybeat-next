@@ -126,6 +126,10 @@ _Avoid_: Embargo, approval, moderation
 A commitment the Team makes in response to a Result, with an owner, a due date, and a status.
 _Avoid_: Action item, task, todo
 
+**Discussion guide**:
+An AI-written agenda for the Lead's conversation with the Team about one Round: what stood out, what people raised, Actions to check on, and up to three questions. Only the Lead sees it (ADR 0019).
+_Avoid_: Report, summary, briefing
+
 **Note**:
 The Lead's free-text summary of a team discussion, visible to the Team.
 _Avoid_: Comment (that is free text in an Answer)
