@@ -16,8 +16,11 @@ function getSubmitOrigin(): string {
     return window.__sb_submitOrigin;
   }
   const host = window.location.hostname;
-  if (host === "app.surveybeat.app") {
+  if (host === "dashboard.surveybeat.app" || host === "app.surveybeat.app") {
     return "https://submit.surveybeat.app";
+  }
+  if (host.endsWith(".dashboard.surveybeat.app")) {
+    return `https://${host.replace(".dashboard.surveybeat.app", ".submit.surveybeat.app")}`;
   }
   if (host.endsWith(".app.surveybeat.app")) {
     return `https://${host.replace(".app.surveybeat.app", ".submit.surveybeat.app")}`;

@@ -71,7 +71,7 @@ import {
   InvitationTokensLive,
 } from "./EmailDelivery.ts";
 import { emailTestRoutes, isTestStage, TEST_ROUTES } from "./EmailTestRoutes.ts";
-import { hostnameFor } from "./Hostnames.ts";
+import { hostnameFor, mainWorkerDomainFor } from "./Hostnames.ts";
 import { noteHandlers } from "./NoteHandlers.ts";
 import { pulseHandlers } from "./PulseHandlers.ts";
 import { roundHandlers } from "./RoundHandlers.ts";
@@ -122,6 +122,7 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
   Effect.gen(function* () {
     const stack = yield* Stack;
     const hostname = hostnameFor(stack.stage, "app");
+    const domain = mainWorkerDomainFor(stack.stage);
     return {
       main: import.meta.url,
       // The API routes always reach the Worker. Any other path is a static asset.
@@ -150,7 +151,7 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
         OPENROUTER_API_KEY: Config.Redacted("OPENROUTER_API_KEY").pipe(Config.withDefault(Redacted.make(""))),
         ...(hostname === undefined ? {} : { APP_ORIGIN: `https://${hostname}` }),
       },
-      ...(hostname === undefined ? {} : { domain: hostname }),
+      ...(domain === undefined ? {} : { domain }),
     };
   }),
   Effect.gen(function* () {

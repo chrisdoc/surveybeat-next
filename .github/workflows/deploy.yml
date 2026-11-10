@@ -31,7 +31,7 @@ jobs:
     timeout-minutes: 20
     environment:
       name: staging
-      url: https://staging.app.surveybeat.app
+      url: https://staging.dashboard.surveybeat.app
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -51,7 +51,7 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           WORKOS_CLIENT_ID: ${{ secrets.WORKOS_CLIENT_ID }}
       - name: Smoke test
-        run: node infra/scripts/smoke.ts "https://staging.app.surveybeat.app" "https://staging.submit.surveybeat.app"
+        run: node infra/scripts/smoke.ts "https://staging.dashboard.surveybeat.app" "https://staging.submit.surveybeat.app"
         env:
           WORKOS_API_KEY: ${{ secrets.WORKOS_API_KEY }}
           WORKOS_CLIENT_ID: ${{ secrets.WORKOS_CLIENT_ID }}
@@ -74,7 +74,7 @@ jobs:
       - name: Read back the Submission Worker's deployed settings
         run: pnpm check:observability --stage staging
       - name: Canary sweep with a positive control
-        run: pnpm test:preview-privacy --stage staging "https://staging.app.surveybeat.app" "https://staging.submit.surveybeat.app"
+        run: pnpm test:preview-privacy --stage staging "https://staging.dashboard.surveybeat.app" "https://staging.submit.surveybeat.app"
 
   staging-e2e:
     needs: deploy-staging
@@ -97,7 +97,7 @@ jobs:
       - name: End-to-end tests
         run: pnpm test:e2e
         env:
-          E2E_BASE_URL: https://staging.app.surveybeat.app
+          E2E_BASE_URL: https://staging.dashboard.surveybeat.app
       - if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -111,7 +111,7 @@ jobs:
     timeout-minutes: 20
     environment:
       name: production
-      url: https://app.surveybeat.app
+      url: https://dashboard.surveybeat.app
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -131,7 +131,7 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           WORKOS_CLIENT_ID: ${{ secrets.WORKOS_CLIENT_ID }}
       - name: Smoke test
-        run: node infra/scripts/smoke.ts "https://app.surveybeat.app" "https://submit.surveybeat.app"
+        run: node infra/scripts/smoke.ts "https://dashboard.surveybeat.app" "https://submit.surveybeat.app"
         env:
           WORKOS_API_KEY: ${{ secrets.WORKOS_API_KEY }}
           WORKOS_CLIENT_ID: ${{ secrets.WORKOS_CLIENT_ID }}
