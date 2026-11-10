@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01UgH5H8GWB9wZS1Dk6YHmHK",
+  "agent_id": "a66856c2737058b4d",
+  "subagent_type": "reviewer",
+  "task_description": "Review backend locale slice",
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 33518,
+    "cache_read_tokens": 131360,
+    "output_tokens": 3651,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-10T08:47:29.634892411Z",
+  "completed_at": "2026-11-10T08:49:22.54811077Z"
+}

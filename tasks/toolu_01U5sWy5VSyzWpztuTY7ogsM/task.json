@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01U5sWy5VSyzWpztuTY7ogsM",
+  "agent_id": "aa30da6791079a66a",
+  "subagent_type": "reviewer",
+  "task_description": "Review web messages slice",
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 42189,
+    "cache_read_tokens": 113046,
+    "output_tokens": 6353,
+    "api_call_count": 5
+  },
+  "started_at": "2026-11-10T08:42:26.650223223Z",
+  "completed_at": "2026-11-10T08:43:37.633371484Z"
+}

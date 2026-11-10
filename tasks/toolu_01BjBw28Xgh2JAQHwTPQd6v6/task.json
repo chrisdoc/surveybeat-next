@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01BjBw28Xgh2JAQHwTPQd6v6",
+  "agent_id": "acf087b6cd21f039b",
+  "subagent_type": "reviewer",
+  "task_description": "Review emails locale slice",
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 36913,
+    "cache_read_tokens": 144038,
+    "output_tokens": 4408,
+    "api_call_count": 6
+  },
+  "started_at": "2026-11-10T08:41:19.047088938Z",
+  "completed_at": "2026-11-10T08:42:08.590852746Z"
+}

@@ -1,0 +1,428 @@
+Act as the implementation sub-agent for this task.
+
+You orchestrate Release 2 slice #109 ("R2 08: German catalogs and language choice") in chrisdoc/surveybeat-next. You are the Opus orchestrator for this slice; THIS TASK EXPLICITLY ASKS YOU TO USE SUBAGENTS: the `scoper` agent (pass model "haiku"), the `implementer` agent (pass model "haiku") to write all code, and the `reviewer` agent (pass model "sonnet") to review each implementer diff. Follow ~/.claude/CLAUDE.md (scope → you write the plan and briefs → implementer → reviewer → you verify the diff and run the full suite). Give the Haiku implementer small, exact, file-owned briefs; split into pieces if large (e.g. catalog/message plumbing, Person/Organization locale fields + settings UI, email locale).
+
+Read first: `gh issue view 109`, map #85, docs/adr/0018-german-localization.md, docs/research/german-localization.md (catalog shape `de.ts` typed `as const satisfies Translation`; locale fields person.locale/detected_locale and organization.default_locale in the Organization DO; email language stored with the send), AGENTS.md, GLOSSARY.md.
+
+Decisions already made (don't relitigate): typed `de.ts` beside each catalog (apps/web/src/messages and packages/emails/src/messages) so missing/extra keys and wrong placeholders fail typecheck; message/plural/date functions take a locale; resolution Person setting → browser → Organization default; the app renders in it and sets `lang`; emails render in the language stored with the send at creation and set `<Html lang>` (stored sends without it read as "en"); informal "du"; Pulse and Team stay English; Round → Runde, Lead → Teamleitung, Organization → Organisation, Submission → Einsendung; German drafts for ALL app and email copy (you draft; the product owner reviews in the PR — say so in the PR body); language is NEVER stored with a Submission or Answer (add a privacy test asserting no locale column on submission/answer). The answer page is NOT in this slice (#110), so keep the answer page's critical JS budget untouched (apps/web/src/answer/budget.test.ts must pass; don't pull de.ts into the answer chunk). The Template's Question texts are #111, not this slice.
+
+Workflow: branch `r2-109-german` from origin/main in your worktree. Validation: pnpm typecheck, pnpm typecheck:effect, pnpm lint, pnpm format:check, pnpm test, pnpm test:privacy, pnpm --filter @surveybeat/web build + budget test. Commit (subject "R2 08: German catalogs and language choice", end with "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"), push (retry once if rejected with no reason), open a PR against main with "Closes #109. Part of #101.", summary, verification, a note that German wording awaits the product owner's review, ending the body with "🤖 Generated with [Claude Code](https://claude.com/claude-code)". Wait for checks with `gh pr checks <n> --watch`; fix failures. The user authorized squash-merging your own PR once all checks are green: `gh pr merge <n> --squash --delete-branch`. Others work in parallel on #103 (themes, Organization.ts lifecycle) and #107 (Team overview); on conflicts rebase on origin/main keeping both sides, re-run tests, force-push only your branch.
+
+Final report (≤ 12 lines): what was built, deviations, reviewer findings and handling, test counts, PR URL, merge SHA, notes for #110/#111.
+
+---
+
+<task-notification>
+<task-id>a490d7c5235178147</task-id>
+<tool-use-id>toolu_01QCD1ZPQw9MWLqKN8tEitVV</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-763448b7-1472c8de1efda79d/7a51e7cf-1e5e-47a6-acd8-dc332c2e3d16/tasks/a490d7c5235178147.output</output-file>
+<status>completed</status>
+<summary>Agent "Scope German localization slice" stopped at its 12-turn limit (partial result; SendMessage to task-id to continue)</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>NOTE: this agent stopped at its 12-turn limit before finishing. The text below is PARTIAL output; treat it as incomplete. Send the agent a message (SendMessage) to let it continue from where it stopped.
+
+Session data reaches the client through `GET /auth/session` and carries only `personId`, not a locale. Next I'll read the Settings screen, its update command, the privacy schema check, and how migrations are applied.</result>
+<usage><subagent_tokens>72516</subagent_tokens><tool_uses>22</tool_uses><duration_ms>53522</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>aa439beb532a05e56</task-id>
+<tool-use-id>toolu_016Uspks3nkXQa3LXgUDDiww</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-763448b7-1472c8de1efda79d/7a51e7cf-1e5e-47a6-acd8-dc332c2e3d16/tasks/aa439beb532a05e56.output</output-file>
+<status>completed</status>
+<summary>Agent "Emails: German catalog + locale render" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>Emails now render in the locale stored on each send, and `&lt;html lang&gt;` follows it. All 43 emails tests pass, and the English snapshots are unchanged.
+
+## Changes
+
+All edits are under `packages/emails/`. Nothing was committed.
+
+- **`src/messages/index.ts`**: the module-level `message` export is gone. It now exports `Translation`, `Mismatched` (the placeholder check, as specified), the `Messages` interface, and `messagesFor(locale)`. `messagesFor` caches one `Messages` per locale in a Map. The `Messages` interface uses method overloads.
+- **`src/messages/de.ts`** (new): the full German catalog in catalog order, following `german-style.md`. It ends with the `Mismatched` compile-time check, and `void placeholdersMatch` is lint-clean.
+- **`src/messages/catalog.ts`**: the doc comment now says English is the source and German is in `de.ts`.
+- **`src/Layout.tsx`**: takes a `messages` prop and renders `&lt;Html lang&gt;` and `&lt;Body lang&gt;` from `messages.locale`. `textLayout(messages, body, reason)` takes the Messages as its first argument.
+- **`src/Parts.tsx`**: `ActionRow`, `ActionsCard` and `Notices` take a `messages` prop.
+- **`src/AddedToTeam.tsx`, `InvitationEmail.tsx`, `ReminderEmail.tsx`, `ResultsReadyEmail.tsx`**: each uses `messagesFor(email.locale)` for subject, HTML and text.
+- **`src/render.tsx`**: no change needed, since it never called `message`.
+- **`src/render.test.ts`**: fixtures gain `locale: "en"`. New tests cover German snapshots for all four templates, `lang="en"` and `lang="de"` on the document, and a legacy `StoredEmail` without `locale` decoding to English.
+- **`src/messages/messages.test.ts`** (new): key parity and order, placeholder-name parity, plural-category coverage (vacuous today, since there are no plural keys), a `@ts-expect-error` proving `Mismatched` catches `{puls}`, and `messagesFor` behaviour.
+- **`src/__snapshots__/render.test.ts.snap`**: 151 lines added, 0 removed. These are the German snapshots only.
+
+## Validation
+
+- `pnpm test packages/emails`: 2 files, 43 of 43 pass.
+- `pnpm exec oxfmt packages/emails`: applied.
+- `pnpm typecheck 2&gt;&amp;1 | grep packages/emails`: prints nothing. I also ran `tsc -b packages/emails --verbose`, which reports the emails project as up to date with its dependencies.
+- `pnpm lint 2&gt;&amp;1 | grep -A3 packages/emails`: prints nothing. The lint run does fail in `apps/web/src/messages/locale.ts` (unbound-method), which is outside my scope.
+- `pnpm format:check | grep packages/emails`: prints nothing. The remaining format issues are in `apps/web/src/messages/de.ts`, `apps/web/src/messages/messages.test.ts` and `packages/domain/src/people/Directory.test.ts`.
+
+## Notes
+
+- **Decision: `Body` also needs the locale.** react-email's `Body` defaults its own `lang` to `"en"` and copies it onto the inner `&lt;td&gt;`. Setting `Html lang` alone left `lang="en"` in the German output. I added `dir="ltr"` and `lang={messages.locale}` to `Body`. Keeping the explicit `dir` preserves the English attribute order, so the English snapshots stay byte-identical.
+- **Typecheck errors outside my scope**: `pnpm typecheck` exits 2 with 31 errors in `apps/web`, `packages/cloudflare` and `packages/domain` (for example `packages/domain/src/email/deliver.test.ts` lacks `locale`). None are in packages/emails.
+- **The `void` line in `de.ts`**: I kept `void placeholdersMatch` as the spec allowed. Lint accepts it.
+- **Vacuous plural test**: the plural-category test loops over zero bases today, so it passes without checking anything. It becomes meaningful once a `&lt;base&gt;.other` key is added.</result>
+<usage><subagent_tokens>96308</subagent_tokens><tool_uses>26</tool_uses><duration_ms>251112</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>a0423ac7a7f2019c1</task-id>
+<tool-use-id>toolu_012axZeUkK3TLqeeYmAPaZML</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-763448b7-1472c8de1efda79d/7a51e7cf-1e5e-47a6-acd8-dc332c2e3d16/tasks/a0423ac7a7f2019c1.output</output-file>
+<status>completed</status>
+<summary>Agent "Web: German catalog + locale module" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>## Changes
+
+All edits are inside `apps/web/src/messages/`. Nothing outside it was touched, and nothing was committed.
+
+- **`index.ts`**: added type exports only (`Translation`, `Mismatched`, `Params`, `KeysWithoutParams`, `KeysWithParams`, `PluralParams`, `Value`). `fill` is now exported. The runtime code is unchanged, so the answer chunk gains no runtime code.
+- **`catalog.ts`**: updated the doc comment and added the seven language keys after `nav.privacy`, with the English values from the brief.
+- **`de.ts`** (new): the full German catalog, same keys and order as English, `as const satisfies Translation`. It ends with `const placeholdersMatch: [Mismatched&lt;typeof de&gt;] extends [never] ? true : Mismatched&lt;typeof de&gt; = true; void placeholdersMatch;`.
+- **`locale.ts`** (new): `Messages` interface, `messagesFor(locale)` (cached per locale, one `Intl.PluralRules` and `Intl.NumberFormat` each), live bindings `message`, `pluralMessage`, `formatDate`, `currentLocale`, and `setLocale`, which also sets `document.documentElement.lang` when `document` exists.
+- **`messages.test.ts`**: existing tests kept. Added German catalog parity (keys and placeholder names), plural-category coverage for both locales, German plural/number/date formatting, `messagesFor` caching, `setLocale` switching with reset, and a `@ts-expect-error` case where `answer.closes` uses `{datum}`.
+
+## Validation
+
+- `pnpm test apps/web/src/messages`: 16 passed (the 16 include the original tests).
+- `pnpm typecheck 2&gt;&amp;1 | grep apps/web/src/messages`: no output.
+- `pnpm lint`: no messages errors. The first pass failed with `unbound-method` on the interface's method signatures. Fixed by declaring `message`, `pluralMessage` and `formatDate` as call-signature properties. `export let` was accepted by oxlint.
+- `pnpm exec oxfmt apps/web/src/messages` run; `pnpm format:check` shows no `apps/web` lines.
+- `pnpm --filter @surveybeat/web build` succeeded, and `pnpm test apps/web/src/answer/budget.test.ts` passed.
+- Gzip sizes (level 9):
+  - `answer-*.js`: 4,194 B
+  - `messages-*.js`: 5,683 B (baseline 5,564 B, so +119 B)
+  - Answer critical path: about 9,877 B of the 10,240 B budget.
+- `grep Teamleitung` across all built JS: no match, so no German reaches the answer page.
+
+## Notes
+
+- **Budget target missed:** the messages chunk grew by about 118 B, not the ~20 B you asked for. I measured it: the seven required language keys account for the whole increase, and no runtime code was added. The budget test still passes, but the ~20 B target cannot be met while those seven keys are in `catalog.ts`. Please decide whether to accept the growth or trim the keys.
+- **Member shape:** `Messages.message`, `pluralMessage` and `formatDate` are call-signature properties rather than methods. This is because of the `unbound-method` lint rule. Callers see the same API.
+- **Translation choices:** "Lead" is Teamleitung, and "role.viewer" is "Betrachter" (my choice; the style guide does not cover it). Redaction is rendered as "unkenntlich gemacht", and the privacy keys keep their exact meaning. The `settings.aiProcessing.help` text keeps the EU/AI/no-retention claims unchanged.
+- **Plural keys:** German has the same `.one`/`.other` pair as English, so the plural tests pass for both locales.
+- **Typecheck:** I checked only for messages errors, as instructed. Other packages were being edited concurrently and were not verified.
+- **Not touched:** `apps/web/src/app/**`, `apps/web/src/answer/**`, and `packages/*`.</result>
+<usage><subagent_tokens>79989</subagent_tokens><tool_uses>15</tool_uses><duration_ms>250232</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>acf087b6cd21f039b</task-id>
+<tool-use-id>toolu_01BjBw28Xgh2JAQHwTPQd6v6</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-763448b7-1472c8de1efda79d/7a51e7cf-1e5e-47a6-acd8-dc332c2e3d16/tasks/acf087b6cd21f039b.output</output-file>
+<status>completed</status>
+<summary>Agent "Review emails locale slice" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>PASS — no blocking or major issues found.
+
+`pnpm test packages/emails` passes (2 files, 43 tests). `oxlint` and `oxfmt --check` are clean on `packages/emails`. `pnpm typecheck` reports no errors under `packages/emails`. The only errors are `defaultLocale` missing in `apps/web/src/app/App.scene.test.ts` and `App.story.test.ts`, which are another agent's area.
+
+**Checked, no issues**
+- **English-only paths:** none left. All six `.tsx` files call `messagesFor(email.locale)`. That covers subjects, previews, HTML bodies, plain-text parts (via `textLayout(m, …)`), `Layout`, `ActionRow`, `ActionsCard` and `Notices`. A grep finds no bare `message(` calls and no `catalog` import outside `messages/`.
+- **No module state:** `messagesFor` only memoises per locale in an immutable `Map`. Nothing carries a recipient's locale across renders.
+- **`lang`:** `&lt;Html lang={messages.locale}&gt;` is set, and `Body` carries it too. The German test asserts `&lt;html dir="ltr" lang="de"&gt;` and `not.toContain('lang="en"')`.
+- **Snapshots:** the diff has 151 added lines and 0 removed (`git diff` count of `-` lines is 0), so the English snapshots are byte-identical.
+- **Legacy sends:** a stored send without a locale decodes as "en" and renders English, covered by a test.
+- **Type safety of `de.ts`:** `as const satisfies Translation` catches missing or extra keys. The `Mismatched` assertion at the bottom of `de.ts` catches placeholder drift, and a runtime key-order and placeholder-name test backs it up.
+- **`@ts-expect-error` test:** it is genuine. `"{puls}"` yields a non-`never` `Mismatched`, so assigning `true` to `false` errors. If `Mismatched` were always `never`, the directive would be unused and `tsc` would fail.
+- **Privacy strings:** both keep their meaning.
+  - `invitation.anonymity`: "Deine Teamleitung sieht nur gesammelte Antworten von mindestens {n} Personen, aber nie, wer was geantwortet hat. Dein Name wird nie zusammen mit deinen Antworten gespeichert." This matches the English on the minimum group size, "never who answered what" and "name never stored".
+  - `privacy.aiNotice`: the German matches the English on the EU service, the removed identifiers (names, emails, phone numbers, handles, links) and "keeps nothing". "Er" refers back to "KI-Dienst", so it reads correctly.
+- **German style:** informal du, and Pulse, Team and Check-in stay English. "Teamleitung" is used for the lead.
+
+**MINOR**
+1. `packages/emails/src/Layout.tsx` (the `Body` props): `dir="ltr"` and `lang` on `&lt;Body&gt;` look redundant, because HEAD's English snapshot already rendered `&lt;body … dir="ltr" lang="en"&gt;`. The explicit props are harmless and the snapshots are unchanged. You could drop them to keep the diff smaller.
+2. `packages/emails/src/InvitationEmail.tsx:15-17`: the legacy `anonymityStatement` fallback renders stored English text verbatim in a German email. That only happens for old rows where `minimumGroupSize` is undefined, and stored sends decode as "en", so a German email never hits it. Fine as is; a one-line comment would make that explicit.
+3. `packages/emails/src/messages/de.ts` `layout.signature`: "mit wenigen Fragen auf einmal zu erfahren, wie es allen geht" is a loose rendering of "check in on how they are doing, a few questions at a time". It's acceptable. "in kurzen Check-ins, mit jeweils nur wenigen Fragen" would be closer.
+
+"Einsendung" and "Runde" don't appear in the email strings, which is fine because the email catalog never uses those terms.</result>
+<usage><subagent_tokens>38557</subagent_tokens><tool_uses>8</tool_uses><duration_ms>50080</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>aa30da6791079a66a</task-id>
+<tool-use-id>toolu_01U5sWy5VSyzWpztuTY7ogsM</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-763448b7-1472c8de1efda79d/7a51e7cf-1e5e-47a6-acd8-dc332c2e3d16/tasks/aa30da6791079a66a.output</output-file>
+<status>completed</status>
+<summary>Agent "Review web messages slice" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>No blockers and no majors. `pnpm test apps/web/src/messages` passes (16 tests). `oxlint` and `oxfmt --check` are clean for `apps/web/src/messages`, and `tsc` reports no errors inside that directory.
+
+The `pnpm typecheck` errors I saw are all `defaultLocale` missing in `App.scene.test.ts` and `App.story.test.ts`. They sit in other agents' areas and I ignored them.
+
+**Structure and mechanics (all OK)**
+- `index.ts` adds no runtime code. The diff is the `export` keyword on existing items plus type-only exports (`Translation`, `Mismatched`, `Params` and so on). `Same` is a type, and `fill` was already a function.
+- Neither `index.ts` nor `answer/*` imports `de.ts` or `locale.ts`. `de.ts` imports only types from `index.ts`, so the answer page budget is unaffected.
+- `satisfies Translation` catches missing and extra keys. The `Mismatched` check at `de.ts:327-329` catches placeholder drift.
+- The `@ts-expect-error` in `messages.test.ts` is genuine. It would fail with "unused directive" if `Mismatched&lt;MisspelledDe&gt;` collapsed to `never`. The companion test `is never for the shipped German catalog` shows the check does not fire falsely.
+- `locale.ts` live bindings are sound as ES `export let` reassigned in `setLocale`. They are only live if call sites import `message` directly. Anyone who does `const m = message` at module scope, or passes `message` as a callback captured before `setLocale`, will keep the stale English function. A one-line comment in `locale.ts` would help. The test `switches message() with setLocale` does cover the rebinding.
+- `setLocale` is not exercised for `document.documentElement.lang`, and no jsdom test covers it.
+
+**Glossary and tone**
+- No "Sie" forms anywhere. "Lead" maps to Teamleitung everywhere, matching the style guide. Pulse, Team and Check-in stay English. Runde, Einsendung, Organisation and Bearbeitungsschlüssel are used consistently.
+
+**Privacy texts (all preserved)**
+I compared each one against English and found no meaning change in these keys:
+- `answer.anonymity`
+- `answer.comment.disclosure` (keeps "4", the "don't remove other details" caveat, and the "leave out anything that identifies you" advice)
+- `answer.state.otherBrowser`
+- `results.protects.*`
+- `settings.aiProcessing.help` (EU, Google Cloud or AWS via OpenRouter, "keeps nothing", off by default)
+- `pulse.settings.anonymous`
+- `privacy.anonymity.body`
+- `privacy.editKey.body`
+
+**Findings, ranked (all MINOR)**
+1. `privacy.comments.body` and `privacy.comments.title` (`de.ts`). English is "Comments are redacted before storage" and the title is "Comment redaction". German says "Vor dem Speichern werden persönliche Angaben aus Kommentaren entfernt" with the title "Persönliche Angaben in Kommentaren". That reads as if all personal details are removed, while only the listed kinds are. The next sentences do qualify it, but the lead sentence overpromises, which is the kind of drift ADR 0009 cares about.
+   - Fix body: "Kommentare werden vor dem Speichern bereinigt. Namen von Personen in deiner Organisation, E-Mail-Adressen, Telefonnummern, Handles und URLs werden automatisch entfernt. …".
+   - Fix title: "Bereinigung von Kommentaren".
+2. `privacy.restore.body`. "im Ruhezustand verschlüsselt" is a literal "at rest" and reads as device sleep. Use "Backups sind verschlüsselt gespeichert" or "ruhende Daten sind verschlüsselt".
+3. `privacy.restoreTrigger.body`. "keine rohen Backups einsehen" is awkward. Use "keine Backups im Rohformat einsehen" or "nicht auf Backups zugreifen".
+4. `role.viewer`. "Betrachter" is masculine-only, and `teams.yourRole` renders "Du bist Betrachter". Pick a neutral form, for example "Du bist Lesezugriff", or reword the key to "Rolle: {role}".
+5. `actions.intro`. "Zusagen, die aus den Ergebnissen dieser Runde getroffen wurden" is stilted. Use "Maßnahmen, die auf Grundlage der Ergebnisse dieser Runde zugesagt wurden. Bis zu drei erscheinen im nächsten Check-in."
+6. `answer.comment.disclosure`. "wortwörtlich" is colloquial. "wörtlich" is cleaner.
+7. `results.buildingBaseline`. "brauchbaren Runden" should be "nutzbaren Runden".
+8. `rounds.skipDate.label`. "JJJJ-MM-TT" is fine as a hint, but the input is ISO. If the field is parsed strictly, keep "YYYY-MM-DD" so users type the right pattern.
+9. `results.subNQuestion`. The structure is inherited from English and is awkward in both languages. Consider "Weniger als {n} Antworten – zum Schutz der Anonymität nicht angezeigt." This one is optional.
+
+The rest of the catalog is natural and faithful. Placeholders are intact, the plural pairs are correct ("Noch 1 Frage" and "Noch 3 Fragen"), and the number and date formats are right (`{rate} %` and `07.11.2026`).
+
+Files reviewed:
+- `/home/ubuntu/.t3/worktrees/surveybeat-next/t3-763448b7-1472c8de1efda79d/apps/web/src/messages/de.ts`
+- `/home/ubuntu/.t3/worktrees/surveybeat-next/t3-763448b7-1472c8de1efda79d/apps/web/src/messages/locale.ts`
+- `/home/ubuntu/.t3/worktrees/surveybeat-next/t3-763448b7-1472c8de1efda79d/apps/web/src/messages/index.ts`
+- `/home/ubuntu/.t3/worktrees/surveybeat-next/t3-763448b7-1472c8de1efda79d/apps/web/src/messages/messages.test.ts`</result>
+<usage><subagent_tokens>47666</subagent_tokens><tool_uses>6</tool_uses><duration_ms>71214</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>af5cf8619222addaa</task-id>
+<tool-use-id>toolu_01WJLQke6fXpiH38Rm6GEwfW</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-763448b7-1472c8de1efda79d/7a51e7cf-1e5e-47a6-acd8-dc332c2e3d16/tasks/af5cf8619222addaa.output</output-file>
+<status>completed</status>
+<summary>Agent "Backend: Person/Org locale + email locale" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>## Changes
+
+Languages (ADR 0018) are wired through the Organization Durable Object, sign-in, the directory API and the email builders. I did not commit.
+
+- **Migration**: `packages/cloudflare/migrations/0012_locale.sql` adds `person.locale`, `person.detected_locale` and `organization.default_locale`. The Organization DO applies the migrations directory as a whole, so no registration was needed.
+- **Domain `people/Directory.ts`**:
+  - `PersonRecord` gains `locale` and `detectedLocale`. `DirectoryState` gains `defaultLocale`.
+  - `emailLocaleOf(state, personId)` is exported.
+  - `AddedToTeam` sets `locale` from `emailLocaleOf`.
+  - `UpdateSettings` takes `defaultLocale`, and `SettingsUpdated` carries it.
+  - New `UpdateOwnLanguage` command and `PersonLanguageSet` change.
+  - `settingsView` returns `defaultLocale`.
+- **Domain sign-in**: `SessionState.SignedIn`, `ActivePerson`, `Member` and `OrganizationSettings` (`people/Team.ts`) carry the new locale fields.
+- **Cloudflare**:
+  - `SqlDirectory.ts` loads and writes the new columns and handles `PersonLanguageSet`.
+  - `Organization.ts`: the `activePerson` query reads `locale`, `detected_locale` and `default_locale`. Each Invitation, Reminder, ResultsReady and resend email sets `locale: emailLocaleOf(...)`. The helpers `localeOr`/`localeOrNull` use `Schema.is(Locale)`, with no casts.
+  - `auth/DurableObjectPeople.ts`, `auth/testing.ts`, `auth/PeopleTestRoutes.ts` and `EmailTestRoutes.ts` are updated for the new fields.
+- **API**:
+  - `updateSettings` payload gains `defaultLocale`.
+  - New `PATCH /api/me/language` endpoint (`updateOwnLanguage`).
+  - Both are classified in `PrivacyRegistry.ts` as `NoResultData`.
+  - Handlers are in `DirectoryHandlers.ts`.
+- **Tests**:
+  - Directory tests cover own-language set/clear, a plain member, a removed Person (Forbidden), the admin-only default with the kept value on omission, the settings view, and the AddedToTeam locale cases.
+  - `emailLocaleOf` unit cases.
+  - Stored emails without `locale` decode as `"en"`.
+  - Session test in `auth/SignIn.test.ts`.
+  - Two new cases in `DirectoryApi.test.ts`.
+  - New `packages/cloudflare/src/SqlDirectory.test.ts` runs load/apply against the real migrations.
+  - Existing fixtures and expectations updated in `Organization.test.ts`, `Editor.test.ts`, `Results.privacy.test.ts`, `deliver.test.ts` and `EmailTemplates.test.ts`.
+
+## Validation
+
+- `pnpm typecheck`: no errors in domain, api or cloudflare. The only remaining errors are in `apps/web/src/app/App.scene.test.ts` (2) and `App.story.test.ts` (5). These are `SignedIn` and settings fixtures missing the new fields, left for the web agent.
+- `pnpm typecheck:effect`: no errors. The output lists only suggestions, which are in untouched code or pre-existing lines.
+- `pnpm test packages/domain packages/api packages/cloudflare/src/auth packages/cloudflare/src/SqlDirectory.test.ts`: 17 files, 384 tests passed.
+- `pnpm test packages/cloudflare/src/DirectoryApi.test.ts`: 36 passed.
+- `pnpm test packages/cloudflare/src/Organization.test.ts`: 5 passed (workerd, real DO SQL).
+- `pnpm test packages/cloudflare/src/EmailDelivery.test.ts`: 5 passed.
+- `pnpm test:privacy`: 35 passed.
+- `pnpm lint`: clean.
+- `pnpm exec oxfmt packages/domain packages/api packages/cloudflare` was applied, and `oxfmt --check` on the same paths is clean.
+
+## Notes
+
+- **Permissions**: I did not add a `Permissions.ts` entry for `UpdateOwnLanguage`. `decide` already refuses any non-active actor, so an active Person can set their own language and nobody else's. The `Permissions` table is unchanged.
+- **New Person**: a Person being added is not yet in the state, so `emailLocaleOf` falls back to the Organization default.
+- **Invalid stored values**: a stored language outside `en`/`de` is read as unset, which the CHECK constraints should prevent.
+- **Not touched**: `packages/cloudflare/src/Submissions.privacy.test.ts` shows as modified in git status, but I did not edit it. It belongs to another agent.
+- **Fixtures outside my scope**: `infra/scripts/lighthouse-gate.ts` and `infra/tests/e2e/answer.spec.ts` have `aiProcessing` fixtures. Typecheck did not flag them, but they may need `defaultLocale` once the web side is done.
+- **Not run**: the web build and the e2e tests.</result>
+<usage><subagent_tokens>177497</subagent_tokens><tool_uses>65</tool_uses><duration_ms>549456</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>a66856c2737058b4d</task-id>
+<tool-use-id>toolu_01UgH5H8GWB9wZS1Dk6YHmHK</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-763448b7-1472c8de1efda79d/7a51e7cf-1e5e-47a6-acd8-dc332c2e3d16/tasks/a66856c2737058b4d.output</output-file>
+<status>completed</status>
+<summary>Agent "Review backend locale slice" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>PASS — no blocking or major issues found in packages/domain, packages/api and packages/cloudflare.
+
+**Validation**
+- `pnpm test packages/domain packages/api packages/cloudflare/src/SqlDirectory.test.ts packages/cloudflare/src/auth`: 17 files and 384 tests pass.
+- `pnpm test:privacy`: 6 files and 35 tests pass.
+- `pnpm lint` and `pnpm format:check` are clean.
+- `pnpm typecheck` shows no errors in the three packages. It fails only in `apps/web` (see Minor 1).
+
+**Brief checks**
+- **Recipient locale:** every email construction site uses `emailLocaleOf(dirState, &lt;recipient id&gt;)`. The sites are invitation dispatch (`Organization.ts` ~470), the resend/regenerate invitation (~1298), reminder (~660), results-ready (~618), and AddedToTeam in `putInTeam` (`Directory.ts` ~334). In each, `person` is the Person being emailed, not the actor or Lead. `EmailTestRoutes.ts` hard-codes "en", which is fine for a test route.
+- **Re-added Person:** AddedToTeam for an existing Person is found in `state.people`, so their own locale is used. A brand-new Person is not in state yet, so they get the Organization default. That matches the brief.
+- **UpdateOwnLanguage:** the target is always `actorId`, and the payload has no person field. A non-actor or removed actor is rejected by the `Option.isNone(actor)` and `adder === undefined` checks (`Directory.ts` 359-360). Omitted fields keep the current value. `locale: null` clears the choice. `detectedLocale` cannot be cleared, which is acceptable.
+- **SettingsUpdated:** it now writes `minimumGroupSize`, `aiProcessing` and `defaultLocale`, each falling back to current state via `??`. The SQL UPDATE sets all three, so it no longer clobbers other settings.
+- **Session:** `activePerson` reads `locale` and `detected_locale` from the person row and `default_locale` from the organization row. A value outside `en`/`de` reads as unset and `organizationLocale` falls back to "en". The new fields flow through `DurableObjectPeople`, `SignInFlow` and `SessionState`.
+- **Stored sends:** `EmailLocale` uses `withDecodingDefaultKey`, so older stored sends decode as "en". Retries render the stored locale.
+- **Privacy:** no locale appears in Submission, Answer, Participation or `SubmissionWorker` code. The new A10 test checks every submission/answer/participation table for `lang|locale` columns and asserts that all three tables exist, so it can't pass vacuously. The privacy registry classifies `directory.updateOwnLanguage`.
+- **Style:** there are no `as` casts outside tests and the Effect 4 idioms are consistent. Migration 0012 is correct: nullable CHECKed columns, and `default_locale NOT NULL DEFAULT 'en'`.
+
+**Minor**
+1. `pnpm typecheck` currently fails in `apps/web` (`App.scene.test.ts` lines 368 and 414, `App.story.test.ts` lines 443, 461, 473, 484 and 497). The `OrganizationSettings` fixtures lack the new required `defaultLocale`. This is the other slice's job, but it blocks CI until that slice adds `defaultLocale` to those fixtures.
+2. `packages/api/src/index.ts` ~line 4: `Locale` is out of alphabetical order in the import list. This is cosmetic, and oxfmt doesn't flag it.
+3. `Organization.ts` `activePerson` reads `default_locale` through a scalar subquery on `organization LIMIT 1`. That is fine for the one-row-per-DO model, but an `Organization.test.ts` case for `activePerson` returning the three locale fields would be useful. The DO-level SQL path is only covered indirectly through `SqlDirectory.test.ts` and the in-memory `testing.ts`.</result>
+<usage><subagent_tokens>38447</subagent_tokens><tool_uses>6</tool_uses><duration_ms>113261</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>a613e449053051856</task-id>
+<tool-use-id>toolu_018948K24Z93fWZKJPAdnZLT</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-763448b7-1472c8de1efda79d/7a51e7cf-1e5e-47a6-acd8-dc332c2e3d16/tasks/a613e449053051856.output</output-file>
+<status>completed</status>
+<summary>Agent "Web app: locale wiring + settings UI" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>Everything is in place, so I'll write the report.
+
+## Changes
+
+All edits are in `apps/web/src/app/`. Nothing in `messages/`, `answer/` or `packages/` was touched, and `infra/` needed no fixture changes because typecheck passes without them.
+
+- **`App.ts`**
+  - Adds `browserLocale`, `languageBusy`, `languageFailure`, `defaultLanguageBusy` and `defaultLanguageFailure` to the model. `initialModel` reads `navigator.languages` through `browserLocale`, guarded for `navigator` being undefined.
+  - Adds `UpdateOwnLanguage` (optional `locale` / `detectedLocale`, result `UpdatedOwnLanguage { chosen, outcome }`) and `UpdateDefaultLanguage`.
+  - `GotSession` SignedIn records the locale fields. It issues `UpdateOwnLanguage({ detectedLocale })` only when the Person has no choice, the browser language is known and differs from the stored detection.
+  - `LanguageChanged` applies the change optimistically and sets busy. `""` means null (follow browser), and invalid values are ignored.
+  - `DefaultLanguageChanged` and `UpdatedDefaultLanguage` handle the Organization default.
+  - Exports `localeOf(model)`. `view` calls `setLocale(localeOf(model))` first, and passes the language and the default-language props to the shell and settings views.
+- **`session.ts`**: `SessionModel` and `SessionResult` SignedIn carry `locale`, `detectedLocale` and `organizationLocale`. `runSessionCall` maps them. Imports switched to `locale.ts`.
+- **`directory.ts`**: `shellView` takes a `language` argument before `h` and renders a `language` select with `problemView` above sign-out. `settingsScreenView` adds the `default-language` select, its help text, and `problemView`.
+- **`api.ts`, `components.ts`, `pulses.ts`, `results.ts`, `resultsSummary.ts`, `rounds.ts`**: imports switched to `../messages/locale.ts`.
+- **`App.scene.test.ts`, `App.story.test.ts`**: fixtures updated for the new required fields. Both files stub `navigator` to `languages: []` so default flows are deterministic and issue no detection command. `afterEach` resets with `setLocale("en")`. 14 new tests:
+  - Scene: German rendering for a Person's choice, the Organization default fallback, the picker flow via `Scene.change`, the settings default-language select, and `localeOf` precedence (person &gt; browser &gt; organization; signed-out browser then `en`).
+  - Story: save and null choice, invalid and busy ignored, failed save, detection issued and not issued, default-language save and failure.
+
+## Validation
+
+- `pnpm typecheck`: exit 0.
+- `pnpm typecheck:effect`: exit 0. No diagnostics in `apps/web`.
+- `pnpm lint`: exit 0.
+- `pnpm exec oxfmt apps/web infra` then `pnpm format:check`: exit 0.
+- `pnpm test apps/web`: 7 files, 83 tests passed (69 existing plus 14 new).
+- `pnpm --filter @surveybeat/web build`: exit 0.
+- `pnpm test apps/web/src/answer/budget.test.ts`: passed.
+- `grep -l Teamleitung apps/web/dist/assets/*.js`: only `app-BE93fpT4.js`. The answer and messages chunks contain no German.
+
+Nothing was committed or pushed.
+
+## Notes
+
+- **Decisions beyond the plan:**
+  - Detection and choice share one command, `UpdateOwnLanguage`. The result message carries `chosen` so a failed detection is silent and only a failed choice shows `languageFailure`. The spec left the form of this open.
+  - On a failed language save, the app runs `LoadSession()` to resync the select with the stored value. The spec made restoring optional.
+- **Double fetch:** `UpdatedDefaultLanguage` success issues `GetSettings()` and `LoadSession()` as the spec says. `LoadSession` on the Settings route also re-runs `GetSettings`, so the settings are fetched twice. Dropping the explicit `GetSettings` would fix this, but I followed the spec.
+- **Unused key:** `language.saved` exists in the catalogs but no screen uses it.
+- **Duplicate label:** the default-language panel shows "Default language" as both the subsection title and the select label. This follows the spec's `subSectionTitle` requirement.
+- **Teams route:** the Teams screen is at `/`. `/teams` is the `NotFound` route, which issues no commands.
+- **Not run:** the unit suite beyond `apps/web`, and any deployed-stage or e2e checks.</result>
+<usage><subagent_tokens>198734</subagent_tokens><tool_uses>53</tool_uses><duration_ms>582740</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>a686546fe1aec7edd</task-id>
+<tool-use-id>toolu_01V6Sb2ERTmbzqEqcr3Q5TFU</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-763448b7-1472c8de1efda79d/7a51e7cf-1e5e-47a6-acd8-dc332c2e3d16/tasks/a686546fe1aec7edd.output</output-file>
+<status>completed</status>
+<summary>Agent "Review web app locale wiring" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>PASS — no blocking or major issues found. `pnpm test apps/web` passes (7 files, 83 tests). I did not run typecheck, lint or the privacy suite.
+
+Your specific checks:
+- **Stale English imports:** nothing under `apps/web/src` outside `answer/**` imports `../messages/index.ts` any more.
+- **Module-scope text:** I found no module-level `const x = message(...)`. `WEEKDAYS` in `pulses.ts:69` is a function, and `typeName` at `pulses.ts:54` and `dateText` at `rounds.ts:49` are functions that call `message`/`formatDate` when invoked. No `message()` calls in `update` produce visible text, and `failureMessage` is only called from views. My grep for module-scope calls was crude, so I did not fully rule out a pattern it missed.
+- **`LanguageChanged` / `UpdatedOwnLanguage`:**
+  - The handling is sound. `chosen` separates the select from the detect call.
+  - The optimistic `session.locale` update is guarded by `languageBusy`, an unknown value is ignored, and the select is disabled while busy.
+  - A failed save sets `languageFailure` and `LoadSession` restores the stored value. A failed detect is silent, as intended.
+- **Detection condition** (`App.ts` ~1081): it fires only when `locale === null`, the browser locale is non-null, and it differs from `detectedLocale`. A successful choice reloads the session with a non-null locale, so there is no loop.
+- **`title`:** `setLocale` runs first in `view`, so the Privacy title and `shellTitle` use the current locale.
+- **Double-click / label double-toggle:** the language and default-language selects are plain `&lt;select&gt;`s, not checkboxes, so there is no label double-toggle. Both are disabled while busy and the reducers also guard on busy.
+- **Test isolation:** both test files stub `navigator` in `beforeEach` and call `unstubAllGlobals()` and `setLocale("en")` in `afterEach`.
+
+Findings, ranked:
+
+1. MINOR, `App.scene.test.ts:~1210` and `App.story.test.ts`: the German tests assert real German strings ("Du bist noch in keinem Team.", "Abmelden", "Sprache"), so they are meaningful. Two gaps remain:
+   - No test checks that `document.documentElement.lang` becomes `de`, or that `Document.title` is German. Add one `expect` on `document.documentElement.lang` and one on the `view(...)` title.
+   - The "falls back to the Organization's default" test sets `browserLocale: null` but never covers browser-over-Organization precedence in a rendered scene. `localeOf` unit tests cover it, so this is low risk.
+
+2. MINOR, `App.ts:1139-1150` (`LanguageChanged`): picking the value that is already selected still sends a PATCH and then reloads the session. Short-circuit when `choice === model.session.locale`.
+
+3. MINOR, `App.ts:1158` and `:1551`: every successful language or default-language save does a full `LoadSession`, which also reloads the active route's data through `GotSession`. It works. Because the optimistic `session.locale` is overwritten by the next `GotSession`, an unrelated in-flight `LoadSession` can briefly revert the select. That is cosmetic and unlikely.
+
+4. MINOR, `App.ts:1140` (`LanguageChanged`): `languageFailure` is cleared only on the next change, so a stale error survives an organization switch. Negligible.
+
+5. NIT, `directory.ts` default-language select: it shows `settings.defaultLocale` with no optimistic update, so it keeps the old value until the reload. This is acceptable because the select is disabled meanwhile. A scene test of the success path would pin it down. The current scene test covers only the failure path.
+
+Nothing in the diff touches `answer/**`, and no locale goes near submissions.</result>
+<usage><subagent_tokens>37616</subagent_tokens><tool_uses>7</tool_uses><duration_ms>58854</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>a4a2e62440180cfa4</task-id>
+<tool-use-id>toolu_01X6waoWfgsVq8Gpdx4TkCwn</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-763448b7-1472c8de1efda79d/7a51e7cf-1e5e-47a6-acd8-dc332c2e3d16/tasks/a4a2e62440180cfa4.output</output-file>
+<status>completed</status>
+<summary>Agent "Commit, push, open PR #109" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>I stopped before staging or committing. Two things in the handoff need your decision first.
+
+**1. The PR body claims checks you did not report.** The body's Verification section says the workerd adapter tests pass: `DirectoryApi.test.ts` (36), `Organization.test.ts` (5), and `EmailDelivery.test.ts` (5). Your handoff listed only typecheck, typecheck:effect, lint, format:check, `pnpm test` (641), `pnpm test:privacy` (35), and the web build with the budget test. My instructions say not to invent checks, so I did not use the body as written. Either confirm those adapter runs, or remove that line from `/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-763448b7-1472c8de1efda79d/7a51e7cf-1e5e-47a6-acd8-dc332c2e3d16/scratchpad/pr-body.md`. The body's "Not run: e2e" line is accurate and can stay.
+
+**2. The commit trailer names the wrong model.** The commit message you gave ends with `Co-Authored-By: Claude Opus 5.5`. The attribution guidance in this session says to use `Claude Haiku 5.5` for commits and PRs. I can't tell which one you want, so tell me which line to use. The PR body also needs its `🤖 Generated with [Claude Code]` line, which the body currently has.
+
+**Pre-flight results (all passed):**
+- Branch is `r2-109-german`, not `main`.
+- No unresolved conflicts.
+- `apps/web/dist` is gitignored (`.gitignore:2`), and nothing under it is in the status output.
+- The 8 untracked files and 49 modified files match your list.
+- The only email addresses in the diff are `example.com` test fixtures.
+- No secrets were found.
+- `.github/pull_request_template.md` does not exist, so the PR uses the global template.
+
+**Not done:** nothing is staged, committed, pushed, or opened as a PR. No commit hash, push, or PR URL exists yet.
+
+Once you confirm the trailer and the body, I can commit, push `origin r2-109-german`, and open the PR against `main`, then report the hash, branch, and URL.</result>
+<usage><subagent_tokens>22534</subagent_tokens><tool_uses>2</tool_uses><duration_ms>19445</duration_ms></usage>
+</task-notification>

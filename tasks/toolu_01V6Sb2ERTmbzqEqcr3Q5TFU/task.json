@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01V6Sb2ERTmbzqEqcr3Q5TFU",
+  "agent_id": "a686546fe1aec7edd",
+  "subagent_type": "reviewer",
+  "task_description": "Review web app locale wiring",
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 32519,
+    "cache_read_tokens": 155175,
+    "output_tokens": 4539,
+    "api_call_count": 7
+  },
+  "started_at": "2026-11-10T08:58:35.86422212Z",
+  "completed_at": "2026-11-10T08:59:34.469258369Z"
+}
