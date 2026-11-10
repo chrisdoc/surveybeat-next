@@ -1,0 +1,736 @@
+continue with all, also you are free to merge your own work so that i don't become the blocker
+
+---
+
+Delegated task node:delegated-task:command%3Amcp%3A3334ea9b-f5ff-4cf7-9ced-be6959bf84f1%3Adelegate-task%3Accc9adbb-0ae2-4d27-a77d-8a51067c2e1d (R2 08 orchestrator (#109)) [completed]:
+German fixes are applied and the 16 message tests pass. Still waiting on the backend slice.
+
+---
+
+Delegated task node:delegated-task:provider-continuation%3Amessage%3Athread%3Athread%253Adelegated-task%253Acommand%25253Amcp%25253A3334ea9b-f5ff-4cf7-9ced-be6959bf84f1%25253Adelegate-task%25253Accc9adbb-0ae2-4d27-a77d-8a51067c2e1d%3Aordinal%3A1%3A8160dcf6-3a34-4298-bafb-90c2e105056c (R2 08 orchestrator (#109)) [completed]:
+The backend diff checks out on the spot check: all five send sites use the recipient's locale. Waiting for the backend review and the app-wiring slice.
+
+---
+
+Delegated task node:delegated-task:provider-continuation%3Amessage%3Athread%3Athread%253Adelegated-task%253Acommand%25253Amcp%25253A3334ea9b-f5ff-4cf7-9ced-be6959bf84f1%25253Adelegate-task%25253Accc9adbb-0ae2-4d27-a77d-8a51067c2e1d%3Aordinal%3A1%3Aaf45e149-1052-4ebd-9c4c-19bd8323d072 (R2 08 orchestrator (#109)) [completed]:
+The backend review passed. Its one gap (the web fixtures) is covered by the app-wiring slice, which is still running.
+
+---
+
+Delegated task node:delegated-task:command%3Amcp%3A3334ea9b-f5ff-4cf7-9ced-be6959bf84f1%3Adelegate-task%3A46e0db5e-60b9-41f5-81c4-dc42fbba940e (R2 06 orchestrator (#107)) [completed]:
+I fixed the slice 2 review's minor findings myself: added a sort tiebreaker, put comments back in the perf seed, and made the test name and notes say what the tests actually cover. Still waiting on the web slice.
+
+---
+
+Delegated task node:delegated-task:provider-continuation%3Amessage%3Athread%3Athread%253Adelegated-task%253Acommand%25253Amcp%25253A3334ea9b-f5ff-4cf7-9ced-be6959bf84f1%25253Adelegate-task%25253A46e0db5e-60b9-41f5-81c4-dc42fbba940e%3Aordinal%3A1%3Af1cb9c8c-318a-4739-8b45-f678b7dc7320 (R2 06 orchestrator (#107)) [completed]:
+Full suite is green before these fixes: typechecks, lint and format pass; `pnpm test` 599/599; privacy 35/35. The web implementer is now fixing the slice 3 review findings: stronger chart tests, a guard against a late response landing on the wrong Team, the perf-test naming, and tooltip clipping at the edges.
+
+---
+
+Delegated task node:delegated-task:command%3Amcp%3A3334ea9b-f5ff-4cf7-9ced-be6959bf84f1%3Adelegate-task%3A31b744d7-3d22-4c07-861e-1de59b345dfe (R2 02 orchestrator (#103)) [completed]:
+Slice C (Organization object) is still running; I'll review it when it reports back.
+
+---
+
+Delegated task node:delegated-task:provider-continuation%3Amessage%3Athread%3Athread%253Adelegated-task%253Acommand%25253Amcp%25253A3334ea9b-f5ff-4cf7-9ced-be6959bf84f1%25253Adelegate-task%25253A31b744d7-3d22-4c07-861e-1de59b345dfe%3Aordinal%3A1%3Af07d5bea-1d10-426f-8d92-c5258d2851ea (R2 02 orchestrator (#103)) [completed]:
+Fixed the N-at-attempt-time issue myself. The implementer is adding storage round-trip and upgrade tests, re-arming the alarm after the lease, a fixed-message decode defect, and a no-key guard on the test route. I'll review when it reports.
+
+---
+
+Delegated task node:delegated-task:provider-continuation%3Amessage%3Athread%3Athread%253Adelegated-task%253Acommand%25253Amcp%25253A3334ea9b-f5ff-4cf7-9ced-be6959bf84f1%25253Adelegate-task%25253Accc9adbb-0ae2-4d27-a77d-8a51067c2e1d%3Aordinal%3A1%3Aa293b4ba-918f-4058-bd26-808af53fb59d (R2 08 orchestrator (#109)) [completed]:
+The shipper is committing, pushing, and opening the PR.
+
+---
+
+Delegated task node:delegated-task:provider-continuation%3Amessage%3Athread%3Athread%253Adelegated-task%253Acommand%25253Amcp%25253A3334ea9b-f5ff-4cf7-9ced-be6959bf84f1%25253Adelegate-task%25253Accc9adbb-0ae2-4d27-a77d-8a51067c2e1d%3Aordinal%3A1%3A6dec2bfc-ad48-4ab2-804a-bfc6e4e5a74f (R2 08 orchestrator (#109)) [completed]:
+I confirmed the adapter tests myself and told the shipper to go ahead.
+
+---
+
+Delegated task node:delegated-task:provider-continuation%3Amessage%3Athread%3Athread%253Adelegated-task%253Acommand%25253Amcp%25253A3334ea9b-f5ff-4cf7-9ced-be6959bf84f1%25253Adelegate-task%25253Accc9adbb-0ae2-4d27-a77d-8a51067c2e1d%3Aordinal%3A1%3A50102c03-5584-421a-87d9-6f36013349ba (R2 08 orchestrator (#109)) [completed]:
+The PR is open and its checks are running. I'll merge once they're green.
+
+PR https://github.com/chrisdoc/surveybeat-next/pull/113, head bbdf75f6b1ac7745828aad87882f66e3d976599c, checks and reviews pending.
+
+---
+
+Delegated task node:delegated-task:provider-continuation%3Amessage%3Athread%3Athread%253Adelegated-task%253Acommand%25253Amcp%25253A3334ea9b-f5ff-4cf7-9ced-be6959bf84f1%25253Adelegate-task%25253A46e0db5e-60b9-41f5-81c4-dc42fbba940e%3Aordinal%3A1%3Ae94b9487-3ee4-4591-ab1a-cf2c5d3c57a0 (R2 06 orchestrator (#107)) [completed]:
+PR #114 is open and CI is running. I'm waiting on the checks, then I'll squash-merge.
+
+PR https://github.com/chrisdoc/surveybeat-next/pull/114, head 08e678e2, checks pending, no reviews.
+
+---
+
+Delegated task node:delegated-task:provider-continuation%3Amessage%3Athread%3Athread%253Adelegated-task%253Acommand%25253Amcp%25253A3334ea9b-f5ff-4cf7-9ced-be6959bf84f1%25253Adelegate-task%25253A46e0db5e-60b9-41f5-81c4-dc42fbba940e%3Aordinal%3A1%3Aa270dc06-48e1-4c05-9ffc-8294e0737b1d (R2 06 orchestrator (#107)) [completed]:
+The Team page now shows the Team health overview. PR #114 is merged with all checks green; merge SHA `43424c31`.
+
+- **What was built:** a new endpoint, `GET /api/teams/:teamId/overview`, gives one line per Dimension across all shared Rounds, with no 12-Round limit. It reuses the existing effective-N code (`enforceEffectiveNOnResult`), so a Round below the stricter of its stored N and today's N shows as a gap, and lowering N never reveals a Round. Committed and done Actions appear as markers on their dates. The Team page has one chart per Dimension, a row of marker buttons that show the Action title on hover and keyboard focus, and a table view. Lead and members see the same page; Organization admins outside the Team get 403 and see nothing. The Results page chart now runs on the same shared chart code, with identical output.
+- **Deviations:**
+  - A Dimension counts as asked only if a Rating Question in that Round has it, because every stored Result lists all four Dimensions.
+  - Dropped and proposed Actions get no marker.
+  - The fast route test runs against the test fake, so it checks authorization and routing, not the database.
+- **Reviewer findings:**
+  - Slice 1 (domain and API): no findings.
+  - Slice 2 (Cloudflare): I fixed three minor points myself: a sort tiebreaker, comments back in the test data, and a clearer test name.
+  - Slice 3 (web): the tests were too weak to catch real chart bugs, and a late response could show the previous Team's overview. Both went back to the implementer and are fixed, along with two minor points (test naming, tooltips clipping at the edges).
+  - The shipper dropped the attribution lines; I restored them and force-pushed my branch.
+- **Tests:** `pnpm test` 614 passed, `pnpm test:privacy` 35 passed. Both typechecks, lint, format check and the web build pass. The privacy property test now covers the new endpoint.
+- **Performance, 104 weekly Rounds:** database query, decode and build take 13 ms; the page view builds in about 100 ms in tests, against the 1.5 s budget. This hasn't been checked in a real browser on a deployed stage yet.
+- **Not fixed:** the query behind the existing 12-Round trend on the Results page fetches the oldest 12 Rounds rather than the latest. It sorts ascending before applying the limit (`SqlRounds.ts`, `getPastRoundsResultsForPulse`). I left it for a separate issue.
+
+The local branch wasn't deleted because this worktree still has it checked out.
+
+PR https://github.com/chrisdoc/surveybeat-next/pull/114, head 08e678e2, checks and reviews: all passing, merged.
+
+---
+
+Delegated task node:delegated-task:provider-continuation%3Amessage%3Athread%3Athread%253Adelegated-task%253Acommand%25253Amcp%25253A3334ea9b-f5ff-4cf7-9ced-be6959bf84f1%25253Adelegate-task%25253Accc9adbb-0ae2-4d27-a77d-8a51067c2e1d%3Aordinal%3A1%3Af012ad64-0796-468c-9890-7c5e821dfa0f (R2 08 orchestrator (#109)) [completed]:
+The rebased branch is pushed and CI is running again. GitHub's `CONFLICTING` flag was read straight after the push and is probably stale; I'll check it again when the checks finish.
+
+PR https://github.com/chrisdoc/surveybeat-next/pull/113, head 2be708d7f72772469bd6277b36ade00f4516a04e, checks and reviews pending.
+
+---
+
+Delegated task node:delegated-task:provider-continuation%3Amessage%3Athread%3Athread%253Adelegated-task%253Acommand%25253Amcp%25253A3334ea9b-f5ff-4cf7-9ced-be6959bf84f1%25253Adelegate-task%25253A31b744d7-3d22-4c07-861e-1de59b345dfe%3Aordinal%3A1%3A9aeda5da-4a9b-464c-a0a5-8197b032bd77 (R2 02 orchestrator (#103)) [completed]:
+The PR checks for #115 are still running (check, privacy, deploy, e2e, preview-privacy). I'll merge once they're all green.
+
+PR https://github.com/chrisdoc/surveybeat-next/pull/115, head (amended) on `r2-103-themes`, checks and reviews pending.
+
+---
+
+Delegated task node:delegated-task:provider-continuation%3Amessage%3Athread%3Athread%253Adelegated-task%253Acommand%25253Amcp%25253A3334ea9b-f5ff-4cf7-9ced-be6959bf84f1%25253Adelegate-task%25253A31b744d7-3d22-4c07-861e-1de59b345dfe%3Aordinal%3A1%3Af6bffe92-9773-4053-a8a0-cfe98176df04 (R2 02 orchestrator (#103)) [completed]:
+I rebased on main (it picked up the Team overview from #114), all checks pass locally, and the branch is pushed. The PR is mergeable now and CI is running. I'll merge when all checks are green.
+
+PR https://github.com/chrisdoc/surveybeat-next/pull/115, head 76cdbc3b, checks running, no reviews yet.
+
+---
+
+Delegated task node:delegated-task:provider-continuation%3Amessage%3Athread%3Athread%253Adelegated-task%253Acommand%25253Amcp%25253A3334ea9b-f5ff-4cf7-9ced-be6959bf84f1%25253Adelegate-task%25253Accc9adbb-0ae2-4d27-a77d-8a51067c2e1d%3Aordinal%3A1%3A61260c5f-2ae3-485e-ae8d-a647d3406e5f (R2 08 orchestrator (#109)) [completed]:
+The e2e job is re-running. The other checks pass and the PR is mergeable.
+
+PR https://github.com/chrisdoc/surveybeat-next/pull/113, head 2be708d7f72772469bd6277b36ade00f4516a04e, checks pending (e2e re-run), reviews none.
+
+---
+
+Delegated task node:delegated-task:provider-continuation%3Amessage%3Athread%3Athread%253Adelegated-task%253Acommand%25253Amcp%25253A3334ea9b-f5ff-4cf7-9ced-be6959bf84f1%25253Adelegate-task%25253Accc9adbb-0ae2-4d27-a77d-8a51067c2e1d%3Aordinal%3A1%3Aaf3c19d4-b00d-4c0d-a339-6a5544a0db95 (R2 08 orchestrator (#109)) [completed]:
+Slice #109 is merged: the app and emails can now render in German, chosen per Person.
+- **What was built:**
+  - A `de.ts` beside each catalog. A missing key, an extra key or a wrong `{placeholder}` fails typecheck.
+  - `messagesFor(locale)`, which formats plurals and dates for that language.
+  - Person and Organization language settings, stored in the Organization DO (migration 0012). A new `PATCH /me/language` sets a Person's own language. There is a language picker above Sign out and a default-language setting in Organization settings.
+  - The app picks the language in the order Person → browser → Organization and sets `lang`.
+  - Each email stores the recipient's language when the send is created and sets `<Html lang>`. Older sends read as English.
+  - Privacy test A10: no Submission, Answer or Participation table has a language column.
+- **Deviations:**
+  - The browser app keeps one active language in module state, switched by `setLocale`, so call sites didn't change. Emails pass the locale explicitly, with no shared state.
+  - The browser language is recorded at sign-in (`detected_locale`), so emails follow it when a Person hasn't chosen one.
+  - "viewer" became "Nur lesen", shown as "Deine Rolle: {role}", to avoid a gendered noun.
+- **Reviews:** all four slices passed with no blockers. I applied about 15 German wording fixes. I also removed a double settings fetch, made picking the already-selected language do nothing, and dropped an unused key.
+- **Tests:** after rebasing onto #114, 675 unit and 36 privacy tests pass, plus 46 workerd adapter tests (run before the rebase). Typecheck, lint, format, the web build and the budget test are clean. The answer page's critical JS is 9,673 B of 10,240 B, and no German reaches it.
+- **CI:** the rebase needed German for #114's 18 new overview keys and one test fixture fix. The e2e Lighthouse gate failed once (first paint 835 ms against an 800 ms budget) and passed on re-run.
+- **PR:** https://github.com/chrisdoc/surveybeat-next/pull/113, squash-merged as `5ee8c98f7f89fbcec082adb4c859667f0ea6da62`. The PR body asks the product owner to review the German.
+- **For #110:** answer-page entries per locale (`/de/a`), email links to `/de/a`, and the hard-coded English delivery-time and unsubscribe pages in `MainWorker.ts`. The budget has only about 570 B of headroom.
+- **For #111:** a German Template, copied in the Lead's language (`session.locale` is available).
+
+PR https://github.com/chrisdoc/surveybeat-next/pull/113, head 2be708d7f72772469bd6277b36ade00f4516a04e, checks and reviews: all checks green, merged.
+
+---
+
+Delegated task node:delegated-task:provider-continuation%3Amessage%3Athread%3Athread%253Adelegated-task%253Acommand%25253Amcp%25253A3334ea9b-f5ff-4cf7-9ced-be6959bf84f1%25253Adelegate-task%25253A31b744d7-3d22-4c07-861e-1de59b345dfe%3Aordinal%3A1%3A5ec858dc-002e-4038-859a-686a8a12b4a9 (R2 02 orchestrator (#103)) [failed]:
+Claude API rate limit reached. Try again later.
+
+---
+
+Delegated task node:delegated-task:command%3Amcp%3A3334ea9b-f5ff-4cf7-9ced-be6959bf84f1%3Adelegate-task%3A58ce1aef-1282-4acf-ae49-0b04e106dafa (R2 10 orchestrator (#111)) [failed]:
+Claude API rate limit reached. Try again later.
+
+---
+
+Delegated task node:delegated-task:command%3Amcp%3A3334ea9b-f5ff-4cf7-9ced-be6959bf84f1%3Adelegate-task%3A11b90b40-a458-48f2-b7a2-6a6cc6c84ca4 (R2 07 orchestrator (#108)) [failed]:
+Claude API rate limit reached. Try again later.
+
+---
+
+Delegated task node:delegated-task:command%3Amcp%3A3334ea9b-f5ff-4cf7-9ced-be6959bf84f1%3Adelegate-task%3Aab86ae76-bd78-44a8-99ee-6dba89941815 (R2 04 orchestrator (#105)) [failed]:
+Claude API rate limit reached. Try again later.
+
+---
+
+Continue where you left off.
+
+---
+
+Delegated task node:delegated-task:provider-continuation%3Amessage%3Athread%3Athread%253Adelegated-task%253Acommand%25253Amcp%25253A3334ea9b-f5ff-4cf7-9ced-be6959bf84f1%25253Adelegate-task%25253A11b90b40-a458-48f2-b7a2-6a6cc6c84ca4%3Aordinal%3A1%3Ae557bdd6-ca1f-4761-83a3-410df52790d5 (R2 07 orchestrator (#108)) [completed]:
+Child task completed without an assistant result.
+
+---
+
+Delegated task node:delegated-task:limit-resume%3Athread%3Adelegated-task%3Acommand%253Amcp%253A3334ea9b-f5ff-4cf7-9ced-be6959bf84f1%253Adelegate-task%253Aab86ae76-bd78-44a8-99ee-6dba89941815%3Arun%3Athread%3Athread%253Adelegated-task%253Acommand%25253Amcp%25253A3334ea9b-f5ff-4cf7-9ced-be6959bf84f1%25253Adelegate-task%25253Aab86ae76-bd78-44a8-99ee-6dba89941815%3Aordinal%3A1%3A1794309000000%3Alimit-arm%3Athread%3Adelegated-task%3Acommand%253Amcp%253A3334ea9b-f5ff-4cf7-9ced-be6959bf84f1%253Adelegate-task%253Aab86ae76-bd78-44a8-99ee-6dba89941815%3Arun%3Athread%3Athread%253Adelegated-task%253Acommand%25253Amcp%25253A3334ea9b-f5ff-4cf7-9ced-be6959bf84f1%25253Adelegate-task%25253Aab86ae76-bd78-44a8-99ee-6dba89941815%3Aordinal%3A1%3A1794309000000 (R2 04 orchestrator (#105)) [completed]:
+The backend implementer is running again after the rate-limit cutoff. When it reports back, I'll review its diff and then send the frontend slice: the Note on the Results page, an editor for the Lead, and catalog strings.
+
+---
+
+Delegated task node:delegated-task:limit-resume%3Athread%3Adelegated-task%3Acommand%253Amcp%253A3334ea9b-f5ff-4cf7-9ced-be6959bf84f1%253Adelegate-task%253A58ce1aef-1282-4acf-ae49-0b04e106dafa%3Arun%3Athread%3Athread%253Adelegated-task%253Acommand%25253Amcp%25253A3334ea9b-f5ff-4cf7-9ced-be6959bf84f1%25253Adelegate-task%25253A58ce1aef-1282-4acf-ae49-0b04e106dafa%3Aordinal%3A1%3A1794309000000%3Alimit-arm%3Athread%3Adelegated-task%3Acommand%253Amcp%253A3334ea9b-f5ff-4cf7-9ced-be6959bf84f1%253Adelegate-task%253A58ce1aef-1282-4acf-ae49-0b04e106dafa%3Arun%3Athread%3Athread%253Adelegated-task%253Acommand%25253Amcp%25253A3334ea9b-f5ff-4cf7-9ced-be6959bf84f1%25253Adelegate-task%25253A58ce1aef-1282-4acf-ae49-0b04e106dafa%3Aordinal%3A1%3A1794309000000 (R2 10 orchestrator (#111)) [completed]:
+Both implementers are running: slice A builds the bilingual Template and its use in the Editor, slice B adds German phone redaction. I'll review each diff when they report back.
+
+---
+
+Delegated task node:delegated-task:command%3Amcp%3Acc70b3be-a02c-46db-ba98-6b33b23e3882%3Athread-send%3Adf2dccb0-b18b-4974-9d3b-67789a94c7d7 (R2 07 orchestrator (#108)) [completed]:
+Slice B is still running; I'll continue when it reports back.
+
+---
+
+Delegated task node:delegated-task:provider-continuation%3Amessage%3Athread%3Athread%253Adelegated-task%253Acommand%25253Amcp%25253A3334ea9b-f5ff-4cf7-9ced-be6959bf84f1%25253Adelegate-task%25253Aab86ae76-bd78-44a8-99ee-6dba89941815%3Aordinal%3A1%3Ac394e0a9-7a63-401c-80ec-23707a1f4780 (R2 04 orchestrator (#105)) [completed]:
+Two implementers are now running. The backend one is adding the cross-Team and SQL tests. The frontend one is building the Note section on the Results page. I'll review each diff when it reports back.
+
+---
+
+Delegated task node:delegated-task:provider-continuation%3Amessage%3Athread%3Athread%253Adelegated-task%253Acommand%25253Amcp%25253A3334ea9b-f5ff-4cf7-9ced-be6959bf84f1%25253Adelegate-task%25253A58ce1aef-1282-4acf-ae49-0b04e106dafa%3Aordinal%3A1%3A5b0d55de-768a-41d1-821d-06664efa721c (R2 10 orchestrator (#111)) [completed]:
+Slice A's diff matches the plan, and the reviewer is checking it. Slice B is still running.
+
+---
+
+Delegated task node:delegated-task:limit-resume%3Athread%3Adelegated-task%3Acommand%253Amcp%253A3334ea9b-f5ff-4cf7-9ced-be6959bf84f1%253Adelegate-task%253A31b744d7-3d22-4c07-861e-1de59b345dfe%3Arun%3Athread%3Athread%253Adelegated-task%253Acommand%25253Amcp%25253A3334ea9b-f5ff-4cf7-9ced-be6959bf84f1%25253Adelegate-task%25253A31b744d7-3d22-4c07-861e-1de59b345dfe%3Aordinal%3A6%3A1794309000000%3Alimit-arm%3Athread%3Adelegated-task%3Acommand%253Amcp%253A3334ea9b-f5ff-4cf7-9ced-be6959bf84f1%253Adelegate-task%253A31b744d7-3d22-4c07-861e-1de59b345dfe%3Arun%3Athread%3Athread%253Adelegated-task%253Acommand%25253Amcp%25253A3334ea9b-f5ff-4cf7-9ced-be6959bf84f1%25253Adelegate-task%25253A31b744d7-3d22-4c07-861e-1de59b345dfe%3Aordinal%3A6%3A1794309000000 (R2 02 orchestrator (#103)) [completed]:
+The rebase is pushed (head 89c6f9ac, mergeable) and CI is running. I'll merge as soon as it's green.
+
+PR https://github.com/chrisdoc/surveybeat-next/pull/115, head 89c6f9ac, checks running, no reviews yet.
+
+---
+
+Delegated task node:delegated-task:provider-continuation%3Amessage%3Athread%3Athread%253Adelegated-task%253Acommand%25253Amcp%25253A3334ea9b-f5ff-4cf7-9ced-be6959bf84f1%25253Adelegate-task%25253Aab86ae76-bd78-44a8-99ee-6dba89941815%3Aordinal%3A1%3Aedb38e33-0360-4d80-89ee-4dfd60184041 (R2 04 orchestrator (#105)) [completed]:
+The backend is done: 12 tests pass across the API and SQL files, and lint and typecheck are clean. I'm waiting for the frontend implementer.
+
+---
+
+Delegated task node:delegated-task:provider-continuation%3Amessage%3Athread%3Athread%253Adelegated-task%253Acommand%25253Amcp%25253A3334ea9b-f5ff-4cf7-9ced-be6959bf84f1%25253Adelegate-task%25253A58ce1aef-1282-4acf-ae49-0b04e106dafa%3Aordinal%3A1%3A3fbc34d8-4ce1-4356-ae62-85e0e4ad37e1 (R2 10 orchestrator (#111)) [completed]:
+Waiting on the redaction reviewer.
+
+---
+
+Delegated task node:delegated-task:provider-continuation%3Amessage%3Athread%3Athread%253Adelegated-task%253Acommand%25253Amcp%25253A3334ea9b-f5ff-4cf7-9ced-be6959bf84f1%25253Adelegate-task%25253A31b744d7-3d22-4c07-861e-1de59b345dfe%3Aordinal%3A1%3Aac4577d8-6457-41ea-98a0-d17162b278ff (R2 02 orchestrator (#103)) [completed]:
+Slice #103 is merged: when a Round closes at or above the minimum group size with AI processing on, the Organization object now makes one model call and stores the Comment themes and discussion guide once with the Result. PR https://github.com/chrisdoc/surveybeat-next/pull/115 was squash-merged as `ad2e887f` after check, privacy, deploy, e2e and preview-privacy all passed.
+
+- **What was built:** the logic lives in a new `packages/domain/src/rounds/Themes.ts`. It builds the model input, holds the prompt and strict JSON schema, and runs your checks: at most 5 themes, at least 2 supporting comments, no 6-word run from a comment, and the guide dropped whole if any part fails. Retries wait 5 min, doubling up to 4 h, and stop after 24 h. One view function now decides what each viewer gets: members see only theme label and sentence; support counts and the guide go to the Lead only; nothing shows below N or on a Round that isn't closed. On the Organization object side there is a new migration, the call runs between two transactions with a 10-minute lease, and it is never recomputed. `PrivacyRegistry.ts` lists the Lead-only fields and the property test checks them.
+- **Deviations:**
+  - The model input gained a `dimensions` list, since ADR 0019 sends Dimension scores.
+  - The new `RoundResult` fields are optional, so stored Results and web fixtures stay valid.
+  - If an admin turns AI processing off before an attempt, nothing is sent and the Round gets no themes.
+  - A missing API key gives up straight away instead of retrying for 24 h.
+  - The migration became `0013_round_themes.sql` because #113 took `0012`.
+  - A test-only route `/__test/themes` refuses to run if an OpenRouter key is set.
+- **Reviewer findings and fixes:**
+  - **Fixed:** the model input used the N stored at close instead of today's N. It now uses the Result under the current N.
+  - **Fixed:** the view didn't check Round status. Open Rounds now show no themes, and the property test covers this.
+  - **Fixed:** a quote split between a theme's label and its sentence is now caught.
+  - **Fixed:** stored theme text can no longer appear in error messages.
+  - **Fixed:** the alarm is re-armed after the lease, so a crash mid-call still retries.
+  - **Fixed:** there are now storage round-trip and upgrade tests.
+  - **Not fixed (minor):** the quote check works on words, so it can't catch quotes in scripts written without spaces. That's fine for English and German.
+- **Tests:** 717 unit (48 files), 45 privacy (7 files) and 6 adapter tests pass. The privacy rows from ADR 0016 and 0019 are T1–T4 and G1–G4.
+- **Not tested end to end:** a real successful model call through the Organization object. The adapter test runs with no key, so it only covers giving up. Storing and retrying are covered by the domain and storage tests.
+- **Conflicts:** I rebased twice, over #114 (Team overview) and #113 (German), keeping both sides. This slice adds no catalog keys, so no German strings were needed.
+- **Left for #104:** the UI.
+  - Show "being prepared", ready, or "not available" from `themesStatus`.
+  - `notRequested` with N met should show the line that an admin can turn AI on.
+  - The guide needs "Copy as text", and the catalog strings in English and German.
+
+The shipper also left out the attribution lines you asked for; I put them back before merging. The local branch and this worktree are still here for you to remove.
+
+PR https://github.com/chrisdoc/surveybeat-next/pull/115, head 89c6f9ac, checks green, merged.
+
+---
+
+Delegated task node:delegated-task:provider-continuation%3Amessage%3Athread%3Athread%253Adelegated-task%253Acommand%25253Amcp%25253A3334ea9b-f5ff-4cf7-9ced-be6959bf84f1%25253Adelegate-task%25253Aab86ae76-bd78-44a8-99ee-6dba89941815%3Aordinal%3A1%3A40011aa8-985a-45ff-b94b-2d6f38d6d003 (R2 04 orchestrator (#105)) [completed]:
+The frontend implementer is adding the stale-response guard and the two tests. After that I'll run the full validation suite and ship.
+
+---
+
+Delegated task node:delegated-task:provider-continuation%3Amessage%3Athread%3Athread%253Adelegated-task%253Acommand%25253Amcp%25253A3334ea9b-f5ff-4cf7-9ced-be6959bf84f1%25253Adelegate-task%25253A11b90b40-a458-48f2-b7a2-6a6cc6c84ca4%3Aordinal%3A1%3Ab718277d-6dbc-4c01-a27d-62696616e163 (R2 07 orchestrator (#108)) [completed]:
+The privacy tests are solid and not vacuous. One asserts the stored Result does hold the comment before checking the history response leaves it out. Waiting on slice C.
+
+---
+
+Delegated task node:delegated-task:provider-continuation%3Amessage%3Athread%3Athread%253Adelegated-task%253Acommand%25253Amcp%25253A3334ea9b-f5ff-4cf7-9ced-be6959bf84f1%25253Adelegate-task%25253A58ce1aef-1282-4acf-ae49-0b04e106dafa%3Aordinal%3A1%3A02ee5625-d2b7-4dc1-bde9-b5abcc3325f9 (R2 10 orchestrator (#111)) [completed]:
+PR #117 is squash-merged as `06991793`, which closes #111: the weekly team health Template is now bilingual and redaction catches German phone numbers.
+
+- **Built:** a new Pulse, and any Template Question added to it later, copies the Questions, labels and options in English or German. The language follows the acting Lead: their own choice, then the browser language, then the Organization's default. The Pulse name is localized too ("Wöchentlicher Team-Check"). Existing Pulses keep their Questions, and the Template keys are unchanged.
+- **Redaction:** German numbers with `+49`, `0049` or a leading 0 are caught, including `(0)`, spaces, slashes, dashes, parentheses, 015x–017x mobiles and landline area codes. Dates, years and year ranges like `12.11.2026` and `2025-2026` were wrongly redacted before and are now kept.
+- **Deviation:** I changed the German "Very much" label from "Sehr stark" to "Voll und ganz". The German wording is drafted by me and still needs the product owner's review, which the PR says.
+- **Reviewer, Template:** three minor points, no blockers. I made the label change above.
+- **Reviewer, redaction:** one major leak: a phone number written right after a date was not redacted. I fixed it myself and added table tests. Not fixed: some plain-number over-matches in the generic step, such as "10 000 000 Euro", which I did not compare against main, and a stray leading "0" left in "0 30 12 34 56".
+- **Tests:** unit 696/696 and privacy 87/87 pass. Typecheck, effect typecheck, lint, format and the web build are clean, and every CI check passed, including e2e and preview-privacy.
+- **Cleanup:** the local branch wasn't deleted because this worktree has it checked out.
+
+PR https://github.com/chrisdoc/surveybeat-next/pull/117, head 5451dc2c, checks all passing, merged as 06991793c86a3ba617fc6f8da85cc23b518a827f.
+
+---
+
+Delegated task node:delegated-task:provider-continuation%3Amessage%3Athread%3Athread%253Adelegated-task%253Acommand%25253Amcp%25253A3334ea9b-f5ff-4cf7-9ced-be6959bf84f1%25253Adelegate-task%25253A11b90b40-a458-48f2-b7a2-6a6cc6c84ca4%3Aordinal%3A1%3Aa2c5416a-2839-4a3d-81bb-a30d35ca1056 (R2 07 orchestrator (#108)) [completed]:
+Child task completed without an assistant result.
+
+---
+
+Delegated task node:delegated-task:provider-continuation%3Amessage%3Athread%3Athread%253Adelegated-task%253Acommand%25253Amcp%25253A3334ea9b-f5ff-4cf7-9ced-be6959bf84f1%25253Adelegate-task%25253Aab86ae76-bd78-44a8-99ee-6dba89941815%3Aordinal%3A1%3Afacce0d8-fa0e-45ae-bfb6-e5e0f71b8570 (R2 04 orchestrator (#105)) [completed]:
+The Lead's Note on a Round (#105) is built and merged. PR #119 was squash-merged as `6c3ff948` after every CI check passed, including e2e on the preview stage.
+
+- **What was built:** the Team's Lead writes and edits one Note per Round, up to 2,000 characters, stored in the Organization Durable Object. Members see it on the Results page with the date it last changed; admins outside the Team get 403 on read and write. The read and write endpoints are classified in `PrivacyRegistry.ts`. Copy is in English and German (du), and a code comment says why the Note isn't redacted.
+- **Deviations:**
+  - The migration is `0014`: the German and themes PRs took 0012 and 0013.
+  - Saving blank text deletes the Note.
+  - The Note is hidden on open Rounds, the same as Actions.
+  - Late Note responses for a Round you've already left are ignored.
+  - I rebased onto `main` once German had merged, resolving three import conflicts by keeping both sides.
+- **Reviewer findings:** nothing blocking. I acted on the minor ones: added a test for a Round from another Team, the late-response check, a test for the open-Round case and one for a failed save. I added a SQL and migration test against sqlite, because the API test runs on an in-memory fake. I didn't add screen-reader links for the character counter.
+- **Tests:** 775 unit and 96 privacy tests pass. Typecheck, the Effect typecheck, lint, format and the web build are clean.
+
+The local branch is still checked out here, so `gh` skipped deleting it; the remote branch is gone.
+
+PR https://github.com/chrisdoc/surveybeat-next/pull/119, head 8f696300, checks green, merged as 6c3ff948.
+
+---
+
+Delegated task node:delegated-task:provider-continuation%3Amessage%3Athread%3Athread%253Adelegated-task%253Acommand%25253Amcp%25253A3334ea9b-f5ff-4cf7-9ced-be6959bf84f1%25253Adelegate-task%25253A11b90b40-a458-48f2-b7a2-6a6cc6c84ca4%3Aordinal%3A1%3A52f185da-9cad-463e-9d94-c5c8a6691471 (R2 07 orchestrator (#108)) [completed]:
+I built #108 and it is merged: PR #121 is squash-merged as `bdb13672`, with all CI checks green, including e2e and preview-privacy.
+
+1. **What was built:**
+   - The answer page now keeps the member's answers in localStorage (`sb_answers_<roundId>`) for one year, only after a save succeeds.
+   - A new endpoint, `GET /api/me/history`, takes no input and lists the member's Rounds from their Participation records. It includes the Team's score per Question only when the Result is Shared, the member may view Results, and N is met. It is classified as Result data in `PrivacyRegistry.ts`.
+   - A new "My history" page shows the member's own answer beside the Team's score. It removes expired answers when it reads them, has a "Clear my answers on this device" button, and on a new device explains why answers are missing. Copy is in English and German (informal du).
+2. **Budget:** the answer page's critical-path JS is 5.45 KB gzip (4,252 + 1,330 B), down from 9.77 KB. The answer page had been shipping the whole app catalog, so every new app string ate into its budget. I moved its strings to `messages/answer.ts`, and the budget test now counts every chunk the answer page imports.
+3. **Deviations:**
+   - That catalog split and budget-test change were not in the brief.
+   - A Team whose Results the member can no longer view (for example after leaving it) shows as "not shared with you" instead of showing scores.
+   - I did the git and GitHub steps myself instead of using shipper, to stay under the rate limit.
+4. **My git mistake, now fixed:** main moved (#119) while I was combining my commits into one, and the first push would have reverted #119's Notes work. It was only on my branch, with no PR open yet; I rebuilt it on the new main, re-ran everything, and force-pushed my branch before opening the PR.
+5. **Reviewer findings:**
+   - The branch was behind main: rebased onto the new main (#115/#117, then #119).
+   - Blocked browser storage could throw after an answer had already been saved: fixed, with a test.
+   - The budget test's checks were weak: tightened.
+   - The "not shared" text was misleading: reworded.
+6. **Tests:** `pnpm test` 819 passed, `pnpm test:privacy` 100 passed. Typecheck, Effect typecheck, lint, format and the web build are clean.
+7. **Not yet tested:** nothing runs the Organization object's new history method with real data. The privacy test runs the same query and builder directly, and the API test covers only the empty case. Worth checking on a deployed stage.
+8. **Possible follow-up, not touched here:** an older route, `POST /my-answers`, returns a member's answers when given their Edit key, and nothing calls it.
+
+PR https://github.com/chrisdoc/surveybeat-next/pull/121, head 03394919, checks and reviews passed (merged).
+
+---
+
+Delegated task node:delegated-task:command%3Amcp%3Acc70b3be-a02c-46db-ba98-6b33b23e3882%3Adelegate-task%3A0eaf95af-be47-4792-8ded-989c5a80ad90 (Redaction follow-up orchestrator (#118)) [completed]:
+Issue #118 is fixed and merged.
+
+- **What I found:** on main, "10 000 000 Euro" became "[phone] Euro", and "0 30 12 34 56" became "0 [phone]" (likewise "1 800 555 1234" became "1 [phone]"). Both bugs were already there before #117: the old function at `06991793^` gives the same output.
+- **Fix** (only the general phone rule in `packages/domain/src/privacy/Redaction.ts` changed):
+  - A number grouped in thousands is kept only when a currency marker sits right next to it (€, $, EUR, Euro …) and no phone cue (Tel, Ruf …) comes before it. Without a currency marker it is still redacted.
+  - A lone digit and one space right before a redacted number now go into `[phone]` too.
+- **Two trade-offs**, each recorded in a test comment: "10 000 000 Menschen" is still redacted (a false positive, kept for privacy). "612 345 678 Euro" is kept, because a 3-3-3 number right next to a currency marker with no phone cue reads as an amount.
+- **Reviewer:** no blockers. One minor finding: a phone number with a "Tel"/"Ruf" cue next to a currency word got through; I added the phone-cue check for that. One older gap is not covered: "3 0301234567 4 0301234567" isn't redacted at all, before and after this change, and could be a follow-up issue.
+- **Tests:** typecheck, effect typecheck, lint and format are clean. `pnpm test` passed 775 and `pnpm test:privacy` passed 119. The #117 tests are unchanged, and all CI checks including e2e passed.
+- The local branch wasn't deleted because this worktree still has it checked out; the remote branch was deleted.
+
+PR https://github.com/chrisdoc/surveybeat-next/pull/123, head 0bde02da, checks passed, merged as 7d980d00d5b74468ed377a0064023c1d02c84ede.
+
+---
+
+Delegated task node:delegated-task:command%3Amcp%3Acc70b3be-a02c-46db-ba98-6b33b23e3882%3Adelegate-task%3A8c988d6c-9ed6-4e01-b02b-2bb4bbb9598f (R2 05 orchestrator (#106)) [completed]:
+Fixed. When a Round is shared, results-ready is now scheduled for every Lead and member. The job ids are deterministic and the send only runs for pending jobs, so Leads who already got their email at close don't get a second one. Waiting on the web implementer.
+
+---
+
+Delegated task node:delegated-task:provider-continuation%3Amessage%3Athread%3Athread%253Adelegated-task%253Acommand%25253Amcp%25253Acc70b3be-a02c-46db-ba98-6b33b23e3882%25253Adelegate-task%25253A8c988d6c-9ed6-4e01-b02b-2bb4bbb9598f%3Aordinal%3A1%3A500b6e61-d05a-4d9c-9ef2-29ce61e0c058 (R2 05 orchestrator (#106)) [completed]:
+Two agents are running: the backend implementer adding the cascade and close-early tests, and the reviewer on the web diff. I'll continue when they report.
+
+---
+
+Delegated task node:delegated-task:provider-continuation%3Amessage%3Athread%3Athread%253Adelegated-task%253Acommand%25253Amcp%25253Acc70b3be-a02c-46db-ba98-6b33b23e3882%25253Adelegate-task%25253A8c988d6c-9ed6-4e01-b02b-2bb4bbb9598f%3Aordinal%3A1%3Aaa788efd-66e3-45c7-a653-ed3b6a017f7f (R2 05 orchestrator (#106)) [completed]:
+The web review found only minor items: a brief button flicker after a share, and some thin test spots. They're cosmetic or covered by the server-side gate, so I'm leaving them. Waiting on the backend test follow-up.
+
+---
+
+Delegated task node:delegated-task:command%3Amcp%3Acc70b3be-a02c-46db-ba98-6b33b23e3882%3Adelegate-task%3Affd01726-3115-4d76-9aad-fcc8057d47f2 (R2 03 orchestrator (#104)) [completed]:
+Themes and the discussion guide are on the Results page. PR #120 is squash-merged into main as `2503a270` after all CI checks passed.
+
+- **What's built:** members see "What people raised" with each theme's label and sentence. The Lead also sees support counts, the redacted comments, and a Lead-only "Discussion guide" panel with four sections and "Copy as text". Copying shows "Copied." or a failure line.
+- **States:** everyone sees "Themes are being prepared" while the call is pending. The Lead alone gets a short line when themes gave up, when no theme had two supporting comments, or when AI is off (an Organization admin can turn it on in Settings). Members see nothing in those cases, and nothing shows below N. All copy is in both catalogs.
+- **Privacy test:** a new registry test encodes a member's Results response in every themes state and checks it has no counts, no guide and no raw comments.
+- **Deviations:**
+  - When themes are ready but none had two supporting comments, the Lead sees "No theme came up in at least two comments." You hadn't specified this case.
+  - A Lead with a guide sees the heading "What people raised" twice: once for the themes section and once inside the guide. That follows the decided wording.
+- **Fix during CI:** the first run failed the answer page's 10 KB JS budget by 3 bytes, because that page bundled the whole catalog. #121 landed the same fix while I was rebasing, so I dropped my version of it.
+- **Rebases:** two, onto #119 (the Note, which you called #105) and #121. I kept both sides each time.
+- **Reviewer:** no blocking findings. Its main point was that the new privacy test could pass without any themes present. I made it assert that the ready case carries themes. The other points were minor and I left them.
+- **Tests:** 829 unit and 101 privacy tests pass, along with both typechecks, lint, format check, the web build, and CI (including e2e and the preview privacy job).
+
+PR https://github.com/chrisdoc/surveybeat-next/pull/120, head 9443d957, checks green, merged as 2503a27037157ad0307f494dbd5a43af598bd3f5.
+
+---
+
+Delegated task node:delegated-task:command%3Amcp%3Acc70b3be-a02c-46db-ba98-6b33b23e3882%3Adelegate-task%3Ab5f48ece-2107-46de-83c8-8b6a52831695 (R2 09 orchestrator (#110)) [completed]:
+I built issue #110 and opened PR #125. It is not merged yet: its CI checks were still running when I stopped. I'm running as a sub-agent, and this environment doesn't let sub-agents watch a PR, so I didn't run `gh pr checks 125 --watch`. Merging still needs `gh pr merge 125 --squash --delete-branch` once the checks are green.
+
+- **What was built:**
+  - Two prerendered answer pages, `/a` and `/de/a`, each loading only its own catalog (`answer.ts` or the new `answer.de.ts`, typed to match the English keys).
+  - Invitation and Reminder links go to `/de/a` when the send's stored locale is German. German delivery and unsubscribe links also carry `&lang=de`; English links are byte-identical.
+  - The delivery-time and unsubscribe pages moved into `packages/cloudflare/src/ServerPages.ts`. They use the emails catalog in English and German with the right `lang`.
+  - The budget test and the Lighthouse gate now run once per page.
+- **Budget per page (gzip):** English: HTML 2.70 KB, CSS 1.47 KB, critical JS 5.54 KB. German: HTML 2.73 KB, CSS 1.47 KB, JS 5.63 KB.
+- **Lighthouse:** each page passed the full gate at least once: English FCP 614 / LCP 1191 / TBT 45 ms, German 643 / 1193 / 37 ms. Other runs missed TBT and LCP together on a busy machine (load ~9), where `origin/main` also missed TBT. Budgets are unchanged; the preview workflow's gate decides.
+- **Deviations:**
+  - The message helper lives in `answer/answer-messages.ts`, not `answer.ts`. Otherwise Rollup put the English catalog into the German page's shared chunk.
+  - Splitting the pages added an extra round trip that pushed LCP to about 1600 ms against main's 1089 ms. I fixed it by adding `<link rel="modulepreload">` for each page's chunks, with no extra JS.
+  - Three fixes beyond the brief: the token echoed into the server pages is now HTML-escaped (it was a cross-site scripting hole); German plain-text replies are sent as UTF-8 so umlauts display correctly; and the `Organization.test.ts` assertion now expects the new English wording and also checks the German page.
+- **Reviewer:** nothing serious. A missing-`?` concern about old unsubscribe URLs needs no change, because every stored one already contains `?t=`. A hard-coded "4" in the comment disclosure text and the budget test not rebuilding a stale `dist` locally were already like that before this change, so I left them.
+- **Tests:** typecheck, Effect diagnostics, lint, format and the web build pass. Unit tests: 852 passed in 58 files. Privacy tests: 124 passed in 8 files, including A10. The new German e2e test only runs on the preview stage.
+- **For the product owner:** the new German `page.*` strings in `packages/emails/src/messages/de.ts` are drafts to review.
+
+PR https://github.com/chrisdoc/surveybeat-next/pull/125, head 0cfcdcafb06bbd3921718a049e11273c1775ca60, checks pending (check, deploy, privacy), reviews none; not merged, so no merge SHA.
+
+---
+
+Update on pull request #125 (https://github.com/chrisdoc/surveybeat-next/pull/125), which T3 Code is watching for you:
+- 1 new comment:
+  - coderabbitai: "<a href="https://app.coderabbit.ai/change-stack/chrisdoc/surveybeat-next/pull/125?REDACTED&amp;cs_source=review_comment"><picture><source media="(prefer..." https://github.com/chrisdoc/surveybeat-next/pull/125#issuecomment-6767316577
+
+Look into each item and act on it as your task requires. This PR stays linked and watched, so do not link, watch, or list it again. End your turn when you are done, and T3 Code wakes you on the next change. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.
+
+---
+
+Update on pull request #125 (https://github.com/chrisdoc/surveybeat-next/pull/125), which T3 Code is watching for you:
+- All 9 checks passed on 0cfcdca.
+
+Look into each item and act on it as your task requires. This PR stays linked and watched, so do not link, watch, or list it again. End your turn when you are done, and T3 Code wakes you on the next change. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.
+
+---
+
+Delegated task node:delegated-task:provider-continuation%3Amessage%3Athread%3Athread%253Adelegated-task%253Acommand%25253Amcp%25253Acc70b3be-a02c-46db-ba98-6b33b23e3882%25253Adelegate-task%25253A8c988d6c-9ed6-4e01-b02b-2bb4bbb9598f%3Aordinal%3A1%3Ad0a1bb95-ca34-4b91-b134-9aec439089e9 (R2 05 orchestrator (#106)) [completed]:
+I built and merged #106 (PR #127). Every CI check passed, including e2e and the preview privacy check. I did not try the flow by hand on the deployed stage.
+
+1. **States and transitions:** close moves the Round to Ready and fixes the window's end on the Round. Leads get the results-ready email at close. The Round becomes Shared when the Lead clicks "Share with the team" (Lead only, admins are refused) or when a new `share` job runs at the window's end. Members get their email at share. Window 0 shares straight away, as in R1. Both paths go through one share step that only changes a Ready Round, so a doubled click or alarm does nothing. Themes are never awaited.
+2. **Deviations, all for privacy:**
+   - Sharing a Round also shares any earlier Ready Round of the same Pulse, because the later Round's trends already contain its scores.
+   - The Note from #105 is hidden from members on the server until Shared.
+   - The migration is `0015` (`0014` was taken by Notes).
+   - Members still see Submission counts and response rate during the window, as they do while a Round is Open.
+   - Existing Pulses get the default of 3 days.
+3. **Rebase fixes:** a few test fixtures from #104/#105 assumed a member sees themes or the Note on a just-closed Round. I changed them to Shared Rounds.
+4. **Reviewer findings:** backend had no defects. I added the two missing tests it named (the earlier-Ready-Round case, close early with a window) and fixed one gap myself: a member made Lead during the window would have missed their email. On the web side I fixed a brief flash of the member notice for Leads. I left the cosmetic items, including a share button that re-enables for a moment before the page reloads.
+5. **Not fixed (existed before this change):** if computing a Round's Result fails three times, the Round stays Closed and its window never starts.
+6. **Tests:** 847 unit, 125 privacy, 14 workerd (Organization + Notes), covering window 0, manual share clicked twice, automatic share with the job run twice, and the Note.
+7. **Merge:** squash commit `c3637558f4b6da82b890cee3b71f557f86dd0676`. The remote branch is deleted; the local one stays because this worktree has it checked out.
+
+PR https://github.com/chrisdoc/surveybeat-next/pull/127, head bd99f0f8467c109b17ece9572149c7d1dd1f00d4, checks and reviews: all checks passed, merged.
+
+---
+
+Delegated task node:delegated-task:command%3Amcp%3Acc70b3be-a02c-46db-ba98-6b33b23e3882%3Adelegate-task%3A5d9a1c4e-d3f8-4385-90ea-29b1fd48bb23 (Privacy follow-ups orchestrator (#122, #124)) [completed]:
+Both PRs are merged. Each had green CI (check, privacy, preview-privacy, e2e) and passed all six validation commands locally.
+
+- **#122, found:** nothing used `POST /my-answers` or `getMyAnswers`: not the answer page, the e2e tests or the docs. `submission_index` is still needed by `/first-answer` and `/answer`.
+- **#122, changed:** I removed the route and `getMyAnswers` in Organization and SqlRounds. The worker's routing moved unchanged into `SubmissionRoutes.ts` so it can be tested. The new `SubmissionRoutes.privacy.test.ts` (42 cases) shows that a hash or raw Edit key, sent in the body, query string or header, gets a 404 and never reaches an Organization, and that no route returns answers. It fails when the old route is put back.
+- **#124, cause:** the German phone pattern matched `0301234567 4 0301234567` as one 20-digit number, and anything over 12 digits was left unredacted.
+- **#124, changed:** an overlong match is now cut before a separator once it has 7–12 digits, preferring a cut where another German number starts, and the rest is scanned again. A long run with no separators is redacted whole. 9 table tests sit next to the #117/#123 cases, and 8 of them fail on the old code. The amount, date and property tests are unchanged and still pass.
+- **#124 output:** the issue's example now comes out as `3 [phone] [phone]`. The lone `4` is redacted along with the second number.
+- **Reviewers:** #122 passed, with one minor note that the all-routes loop adds little. #124 had no correctness issues. Its finding that the first cut could leave a trailing digit group (`[phone] 78 [phone]`) is fixed by the preferred cut.
+- **Still open:** `/answer` and `/first-answer` still accept the Edit key hash from the body or query string. That was outside #122, but it may be worth its own issue.
+
+PR https://github.com/chrisdoc/surveybeat-next/pull/126, merge `e68cd944`. PR https://github.com/chrisdoc/surveybeat-next/pull/129, head `176e10d0`, merge `f56b054d`; checks green, merged, no reviews.
+
+---
+
+Delegated task node:delegated-task:command%3Amcp%3Acc70b3be-a02c-46db-ba98-6b33b23e3882%3Adelegate-task%3Ae7b6540d-825a-4bf1-b9df-198f3ea76026 (Submission credentials orchestrator (#130)) [failed]:
+Claude API rate limit reached. Try again later.
+
+---
+
+Delegated task node:delegated-task:command%3Amcp%3Acc70b3be-a02c-46db-ba98-6b33b23e3882%3Adelegate-task%3Ae44e3c9a-745b-4e5f-b00b-5abf31e1dbf9 (Result recovery orchestrator (#128)) [failed]:
+Claude API rate limit reached. Try again later.
+
+---
+
+Delegated task node:delegated-task:limit-resume%3Athread%3Adelegated-task%3Acommand%253Amcp%253Acc70b3be-a02c-46db-ba98-6b33b23e3882%253Adelegate-task%253Ae7b6540d-825a-4bf1-b9df-198f3ea76026%3Arun%3Athread%3Athread%253Adelegated-task%253Acommand%25253Amcp%25253Acc70b3be-a02c-46db-ba98-6b33b23e3882%25253Adelegate-task%25253Ae7b6540d-825a-4bf1-b9df-198f3ea76026%3Aordinal%3A1%3A1794327000000%3Alimit-arm%3Athread%3Adelegated-task%3Acommand%253Amcp%253Acc70b3be-a02c-46db-ba98-6b33b23e3882%253Adelegate-task%253Ae7b6540d-825a-4bf1-b9df-198f3ea76026%3Arun%3Athread%3Athread%253Adelegated-task%253Acommand%25253Amcp%25253Acc70b3be-a02c-46db-ba98-6b33b23e3882%25253Adelegate-task%25253Ae7b6540d-825a-4bf1-b9df-198f3ea76026%3Aordinal%3A1%3A1794327000000 (Submission credentials orchestrator (#130)) [completed]:
+The privacy suite, web build, budget test and format check all pass. The reviewer is still running, and I'll pick up its findings when it reports back.
+
+---
+
+Delegated task node:delegated-task:limit-resume%3Athread%3Adelegated-task%3Acommand%253Amcp%253Acc70b3be-a02c-46db-ba98-6b33b23e3882%253Adelegate-task%253Ae44e3c9a-745b-4e5f-b00b-5abf31e1dbf9%3Arun%3Athread%3Athread%253Adelegated-task%253Acommand%25253Amcp%25253Acc70b3be-a02c-46db-ba98-6b33b23e3882%25253Adelegate-task%25253Ae44e3c9a-745b-4e5f-b00b-5abf31e1dbf9%3Aordinal%3A1%3A1794327000000%3Alimit-arm%3Athread%3Adelegated-task%3Acommand%253Amcp%253Acc70b3be-a02c-46db-ba98-6b33b23e3882%253Adelegate-task%253Ae44e3c9a-745b-4e5f-b00b-5abf31e1dbf9%3Arun%3Athread%3Athread%253Adelegated-task%253Acommand%25253Amcp%25253Acc70b3be-a02c-46db-ba98-6b33b23e3882%25253Adelegate-task%25253Ae44e3c9a-745b-4e5f-b00b-5abf31e1dbf9%3Aordinal%3A1%3A1794327000000 (Result recovery orchestrator (#128)) [completed]:
+The implementer is working on the rest of the change in the background. Nothing is committed, pushed or opened as a PR yet.
+
+What's already in place:
+- **Automatic retry:** when computing a Result fails, the compute is retried after 5 minutes, then at doubling gaps up to 4 hours. It gives up 24 hours after the compute job was created. This replaces the old rule of three attempts in a row. The retry timing is now one shared helper that themes uses too.
+- **Doubled alarms:** a compute job that isn't due yet is skipped, so an alarm that fires twice changes nothing.
+- **Review window:** it now starts when the Result is computed. Its end moves forward by however long the compute took after close, so members lose no review time.
+- **While retrying:** the Results view no longer computes a Result on the spot. It shows a "Results delayed" stand-in with counts only and saves nothing.
+- **After giving up:** the operator alert is still logged, and a delayed stand-in is stored. Only the Lead's view carries a flag saying the Result couldn't be computed; members still see "Results delayed".
+- **Try again:** there's a new Lead-only endpoint, `POST /teams/:teamId/rounds/:roundId/retry-result`, classified in the privacy registry. Members and admins get Forbidden. A click on a Round that's already computed or still retrying does nothing. Otherwise it starts a new compute job with a fresh 24-hour budget and runs it at once.
+- **Testing hook:** the Organization object has an in-memory way to make the next few computes of a Round fail. Only the test routes, which run on test stages, use it.
+- No migration was needed.
+
+Still to do:
+- The web panel ("These Results couldn't be computed." with a "Try again" button) in English and German, and its scene test.
+- The glossary wording for the Review window.
+- The workerd lifecycle test covering fail-then-succeed, the 24-hour give-up, the Lead clicking twice, and the doubled alarm.
+
+After that come the reviewer's pass, the full test suites, a rebase on origin/main, the push, the PR, and the merge once checks are green. Two things slowed this down: the scoper stopped at its turn limit, so I read the files myself, and the implementer hit a rate limit and was resumed after it reset.
+
+---
+
+Delegated task node:delegated-task:provider-continuation%3Amessage%3Athread%3Athread%253Adelegated-task%253Acommand%25253Amcp%25253Acc70b3be-a02c-46db-ba98-6b33b23e3882%25253Adelegate-task%25253Ae7b6540d-825a-4bf1-b9df-198f3ea76026%3Aordinal%3A1%3A137c53a6-059b-4602-9c9a-c166b10ccaed (Submission credentials orchestrator (#130)) [completed]:
+PR #133 is open and its checks are still running, so it is not merged yet. One part of the brief wasn't followed: `/first-answer` still accepts the Edit key hash, because ADR 0005 requires it.
+
+- **What the answer page sends:** credentials only in POST bodies, never in the URL query or headers. `/exchange` gets `{token}`, `/first-answer` gets `{token, editKeyHash}` (hashed in the browser), and `/answer` gets `{editKey}`. So the page didn't need to change.
+- **Why the hash stays on `/first-answer`:** ADR 0005 says the browser sends only the hash with the first Answer, and that no request may carry the token and the Edit key together. Taking the raw key there would break that rule (invariant A5), which would need a new ADR. The issue's attack, editing answers with the hash stored in D1 alone, only worked on `/answer`, and that is closed. On `/first-answer` the hash now needs a valid token and must be 64 lowercase hex characters. If you still want the raw key there, it needs a new ADR that changes A5.
+- **What changed** (`packages/cloudflare/src/SubmissionRoutes.ts`):
+  - A token or Edit key (or hash) in the query string or in the `x-invitation-token`/`x-edit-key` headers gets a 400 before D1 or any Organization is touched.
+  - `/answer` takes only the raw Edit key and hashes it on the server; a hash or a token there gets a 400.
+  - `/exchange` refuses a hash.
+  - `edit_key` and `edit_key_hash` are gone from the body schema, and the two credential headers are gone from the CORS allow-list.
+- **Tests:** `SubmissionRoutes.privacy.test.ts` now checks every query, header, body-hash and A5 case on all three routes: each gets a 400 with no Organization call, and the valid body paths still work.
+- **Reviewer:** found no bypass. It flagged weak test cases, and I fixed three: two cases passed without the new checks, A5 wasn't tested on these routes, and uppercase hex wasn't tested. The `/my-answers` test now accepts any 4xx instead of exactly 404; I left that as is.
+- **Checks run:** typecheck, typecheck:effect, lint, format:check, `pnpm test` (881 passed), `pnpm test:privacy` (209 passed before the extra cases; that file then ran alone with 79 passing), and the web build plus budget test all pass. The Submission Worker has no workerd adapter test, so I ran `SubmissionWorker.test.ts` alone instead (passes). The e2e answer test wasn't run, since it needs a deployed stage; the page is unchanged.
+- **Not merged:** I didn't watch the checks with `--watch` because this environment doesn't allow it. The first push hit a GitHub 500, and the retry worked.
+
+PR https://github.com/chrisdoc/surveybeat-next/pull/133, head 1e85b21cc52c919bf657c609e7dab98461eb13ed, checks pending (CodeRabbit pending), no reviews yet.
+
+---
+
+Update on pull request #133 (https://github.com/chrisdoc/surveybeat-next/pull/133), which T3 Code is watching for you:
+- All 2 checks passed on 1e85b21.
+- 1 new comment:
+  - coderabbitai: "<a href="https://app.coderabbit.ai/change-stack/chrisdoc/surveybeat-next/pull/133?REDACTED&amp;cs_source=review_comment"><picture><source media="(prefer..." https://github.com/chrisdoc/surveybeat-next/pull/133#issuecomment-6772712839
+
+Look into each item and act on it as your task requires. This PR stays linked and watched, so do not link, watch, or list it again. End your turn when you are done, and T3 Code wakes you on the next change. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.
+
+---
+
+Update on pull request #133 (https://github.com/chrisdoc/surveybeat-next/pull/133), which T3 Code is watching for you:
+- All 9 checks passed on 1e85b21.
+
+Look into each item and act on it as your task requires. This PR stays linked and watched, so do not link, watch, or list it again. End your turn when you are done, and T3 Code wakes you on the next change. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.
+
+---
+
+Delegated task node:delegated-task:provider-continuation%3Amessage%3Athread%3Athread%253Adelegated-task%253Acommand%25253Amcp%25253Acc70b3be-a02c-46db-ba98-6b33b23e3882%25253Adelegate-task%25253Ae44e3c9a-745b-4e5f-b00b-5abf31e1dbf9%3Aordinal%3A1%3Ab0c19c84-8e64-4572-9e88-35db0139f419 (Result recovery orchestrator (#128)) [completed]:
+PR #134 is open but not merged, because CI is still running. The local suites all pass. In this environment I can't wait on checks, so the squash-merge is still to do once they're green.
+
+- **Design as built:**
+  - A failed compute retries after 5 min, doubling up to 4 h, for 24 h from when the compute job was created. The themes job now uses the same retry helper.
+  - A compute job that isn't due yet does nothing, so a doubled alarm changes nothing.
+  - The Review window ends a set number of days after the Result is computed, not after close.
+  - During retries nothing is stored, and everyone sees "Results delayed" (counts only).
+  - After 24 h the operator alert fires and the Lead sees "These Results couldn't be computed." with "Try again" (English and German). Members still see "Results delayed".
+  - "Try again" (`POST .../retry-result`, Lead only) starts a new compute with a fresh 24 h budget. Clicking it again, or clicking while a retry is pending, does nothing. Members and admins get Forbidden. The endpoint is classified in the privacy registry. No migration was needed.
+- **Deviations:**
+  - The Results page no longer computes a Result on the spot.
+  - The tests make computes fail through an in-memory switch on the Organization object, used only by test routes on test stages.
+  - The Lead's failed state is decided by "no Result stored and no compute pending".
+  - The glossary's Review window entry now says it starts when the Result is computed.
+- **Reviewer findings:** no blocking issues, three minor ones.
+  - I fixed two: a failure after the Result is stored now leaves that Result alone, and a Closed Round with no Result and no pending job now shows the Lead "Try again".
+  - Not fixed: missing tests for retrying on an Open or Cancelled Round and on another Team's Round.
+- **Tests:** typecheck, typecheck:effect, lint, format:check and the web build pass. `pnpm test` passed 892 and `pnpm test:privacy` passed 176, both after rebasing on origin/main. The workerd files `Organization.test.ts`, `ResultsStorage`, `RoundThemesStorage` and `NotesApi` pass. The new recovery test covers fail-then-succeed with a doubled alarm, the 24 h give-up, the Lead clicking twice, and a retry that fails again. Nothing was tried on a deployed stage.
+- **Agents:** the scoper stopped at its turn limit, so I read the code myself. The implementer was rate-limited partway and resumed after the reset.
+
+PR https://github.com/chrisdoc/surveybeat-next/pull/134, head 30370e15b13c49cde14acbfcfc59dff5e2da8b60, checks pending, no reviews yet.
+
+---
+
+Update on pull request #134 (https://github.com/chrisdoc/surveybeat-next/pull/134), which T3 Code is watching for you:
+- All 9 checks passed on 30370e1.
+
+Look into each item and act on it as your task requires. This PR stays linked and watched, so do not link, watch, or list it again. End your turn when you are done, and T3 Code wakes you on the next change. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.
+
+---
+
+lets merge all
+
+---
+
+Update on pull request #70 (https://github.com/chrisdoc/surveybeat-next/pull/70), which T3 Code is watching for you:
+- 1 new comment:
+  - coderabbitai: "> [!IMPORTANT] > ## Review skipped > > Bot user detected. > > To trigger a single review, invoke the `@coderabbitai review` command. > > <details> > <summary><strong><picture><source media="(prefer..." https://github.com/chrisdoc/surveybeat-next/pull/70#issuecomment-6747531105
+
+Look into each item and act on it as your task requires. This PR stays linked and watched, so do not link, watch, or list it again. End your turn when you are done, and T3 Code wakes you on the next change. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.
+
+---
+
+Update on pull request #70 (https://github.com/chrisdoc/surveybeat-next/pull/70), which T3 Code is watching for you:
+- Checks failed on 8b1d507:
+  - deploy https://github.com/chrisdoc/surveybeat-next/actions/runs/42862269893/job/129991242748
+
+Look into each item and act on it as your task requires. This PR stays linked and watched, so do not link, watch, or list it again. End your turn when you are done, and T3 Code wakes you on the next change. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.
+
+---
+
+how can i set the openrouter_api key
+
+---
+
+whats next
+
+---
+
+can you do the workos setup?
+
+---
+
+signed up with c.kieslich@gmail.com
+
+You're not part of an Organization yet
+Ask your team lead to add the email you signed in with, then sign in again.
+
+Sign out
+
+---
+
+Update on pull request #135 (https://github.com/chrisdoc/surveybeat-next/pull/135), which T3 Code is watching for you:
+- 2 new comments:
+  - assert-app: "_UI previews paused: this repository isn't linked to an Assert workspace. [Set one up](https://app.assert.dev/review/github/chrisdoc/surveybeat-next/135)._ <a href="https://app.assert.dev/review/gi..." https://github.com/chrisdoc/surveybeat-next/pull/135#issuecomment-6774235070
+  - coderabbitai: "<a href="https://app.coderabbit.ai/change-stack/chrisdoc/surveybeat-next/pull/135?REDACTED&amp;cs_source=review_comment"><picture><source media="(prefer..." https://github.com/chrisdoc/surveybeat-next/pull/135#issuecomment-6774238042
+
+Look into each item and act on it as your task requires. This PR stays linked and watched, so do not link, watch, or list it again. End your turn when you are done, and T3 Code wakes you on the next change. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.
+
+---
+
+Update on pull request #135 (https://github.com/chrisdoc/surveybeat-next/pull/135), which T3 Code is watching for you:
+- All 9 checks passed on 492ec31.
+
+Look into each item and act on it as your task requires. This PR stays linked and watched, so do not link, watch, or list it again. End your turn when you are done, and T3 Code wakes you on the next change. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.
+
+---
+
+I still see 
+
+You're not part of an Organization yet
+Ask your team lead to add the email you signed in with, then sign in again.
+
+---
+
+<task-notification>
+<task-id>bq39budi6</task-id>
+<tool-use-id>toolu_01B9qoaryaxBrXDXtEWh7EKY</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-95b51f6c/f1686b66-f60e-4681-b2b3-a71e0d9b7445/tasks/bq39budi6.output</output-file>
+<status>completed</status>
+<summary>Background command "cd /home/ubuntu/.t3/worktrees/surveybeat-next/t3-95b51f6c; SHA=535a4feb10e18d384932ec54ad8dea4e95f561be; for i in $(seq 1 60); do ID=$(gh run list --workflow deploy.yml --json databaseId,headSha -L 5 -q ".[]|select(.headSha==\"$SHA\")|.databaseId" | head -1); [ -n "$ID" ] &amp;&amp; break; sleep 20; done; echo deploy-run=$ID; gh run watch $ID --interval 30 &gt;/dev/null 2&gt;&amp;1; gh run view $ID --json conclusion,jobs --jq '.conclusion+" | "+([.jobs[]|"\(.name):\(.conclusion)"]|join(", "))'" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+Now it works and i was able to create a team, how can i now send out a survey or create a new beat?
+
+---
+
+Can we add functionality to send test pulse that only goes to the person who clicked the button? so that they can preview it etc
+
+---
+
+yes, lets also start planning more work and polish the dashboard screens
+
+---
+
+Delegated task node:delegated-task:command%3Amcp%3Ac18e7860-8d81-469e-b340-09f45144c03d%3Adelegate-task%3A229c349b-9dd9-4789-9eb5-c351bd1c6098 (Dashboard UI audit (#138)) [completed]:
+I finished the audit and opened PR #142, but it is **not merged yet**. The `check` job was still running when I stopped. As a delegated run I can't wait on CI, so someone needs to squash-merge #142 and delete the branch once `check` passes. I have no merge SHA to give you.
+
+- **Top 10 findings:**
+  1. In light mode the "Actions" heading on Results can't be seen: it is the same colour as its panel.
+  2. Members have no way to reach Results inside the app, and a Lead needs four clicks.
+  3. Scores and dates aren't formatted per language (German shows "3.6", "4" instead of "4.0", ISO dates like "2026-11-09").
+  4. The answer page and My history show the generic "Very poor … Very good" scale instead of the labels set on each Question.
+  5. The trend charts have no axes or values, so they can't be read.
+  6. On phones the header wraps to 135 px, and Language and Sign out sit inside every page's content.
+  7. The Team page scrolls sideways at 390 px.
+  8. Always-open admin forms outweigh the content, and destructive actions look like ordinary links.
+  9. The "Bigger change than usual" badge always shows a down arrow, and its explanation comes from the server in English only.
+  10. Empty states are dead ends.
+- **Bugs:** 13 in total (B1–B13 in the doc). Besides the visible ones above: a dangling "Owner:" on Actions without an owner, choice labels hidden by their bars, "1.How" with no space, and the answer page showing an error and the loading form together. Also: Pause and Resume shown together, the tab title is the Organization name on every screen, and the privacy page says nothing about minimum group size or AI processing.
+- **Proposed tickets:** 15 in four groups:
+  - Bugs before the first real Round: 4 tickets.
+  - Navigation and structure: 3 tickets.
+  - Screen polish: 5 tickets.
+  - Empty states, onboarding and copy: 3 tickets.
+- **How it was done:** Instead of mocking `/api/*`, the screenshot setup loads saved test states straight into the real app. That reaches every Results state without a server. The answer page came from the production build with `/exchange` stubbed. The setup was never committed; a copy is at `/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-bdda53ea-c233e43b82903a1a/eff34a81-b189-4bcb-94df-7726d3a81654/scratchpad/harness-audit`.
+- **Output:** `docs/research/dashboard-ui-audit.md` plus 160 compressed screenshots (about 6 MB), committed with plain git on `t3/wayfinder-issue-138`. GitButler's status here showed another agent's work in the main checkout, so I didn't use it. No production code changed, and #138 stays open.
+
+PR https://github.com/chrisdoc/surveybeat-next/pull/142, head 13f9bb2, checks: `check`, `deploy` and `privacy` pending, GitGuardian passed; no reviews yet.
+
+---
+
+Update on pull request #142 (https://github.com/chrisdoc/surveybeat-next/pull/142), which T3 Code is watching for you:
+- Checks failed on 9d805fd:
+  - deploy https://github.com/chrisdoc/surveybeat-next/actions/runs/42871753432/job/130024484436
+
+Look into each item and act on it as your task requires. This PR stays linked and watched, so do not link, watch, or list it again. End your turn when you are done, and T3 Code wakes you on the next change. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.
+
+---
+
+Update on pull request #142 (https://github.com/chrisdoc/surveybeat-next/pull/142), which T3 Code is watching for you:
+- All 9 checks passed on 9d805fd.
+
+Look into each item and act on it as your task requires. This PR stays linked and watched, so do not link, watch, or list it again. End your turn when you are done, and T3 Code wakes you on the next change. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.
+
+---
+
+Delegated task node:delegated-task:command%3Amcp%3Ac18e7860-8d81-469e-b340-09f45144c03d%3Adelegate-task%3A6231e344-d908-4172-a2f3-638dc41ece04 (Send-me-a-test orchestrator (#136)) [completed]:
+I built "Send me a test" for issue #136 and opened PR #144. It is not merged: CI checks had not finished when I stopped, and I didn't wait on them.
+
+- **ADR 0021:** a test Invitation is its own token kind. Its token is derived under a separate label (`test-invitation:v1:`). Only hashes are stored, in their own D1 tables (`test_invitation_index`, `test_submission_index`). So the code that writes Submissions and Participation records can't be reached with a test token. Test answers are redacted for the "Your Lead will see" preview and then thrown away. A1–A10 are unchanged.
+- **What was built:**
+  - A "Send me a test" button in the Pulse editor for the Team's Lead and Organization admins. It emails only the person who clicked, in their language.
+  - The new endpoint, classified in `PrivacyRegistry.ts`, with a server-side limit of 5 sends per Person per hour (the 6th gets a 429).
+  - The email has "Test:" in the subject, a test notice and no delivery-time link.
+  - The token exchange returns the Pulse's saved Questions with `test: true`. First-answer and answer return success but never write anything.
+  - The answer page shows the test banner and test thank-you text. It keeps no Edit key or answers in the browser, so member history never shows a test.
+  - English and German copy.
+- **Deviations:**
+  - The test email's footer says the sender sent it to themselves, not "you are a member of the team".
+  - Expired test rows in D1 are deleted whenever a new test goes out.
+  - The 429 error is listed on every Pulse endpoint, not just the new one, because they all share one error type.
+- **Reviewer findings:** no blocking or major issues in any slice. I fixed the cleanup of expired test rows. I left as minor:
+  - A send result can show briefly on another Pulse if you switch Pulses mid-send.
+  - The answer page's test mode has no automated test, because that page has no test harness.
+- **Tests:** all pass, including both typechecks, lint, format check, the web build, both locale pages within budget, and the workerd tests `Organization.test.ts`, `SubmissionWorker.test.ts` and `Email.test.ts` run singly.
+  - Unit: 934.
+  - Privacy: 235, including new cases proving a test token never creates or changes a Submission or Participation.
+- **Not done yet:** I have not tried the flow on a deployed stage.
+
+PR https://github.com/chrisdoc/surveybeat-next/pull/144, head 06b7b599, checks and reviews pending. Squash-merge with `gh pr merge 144 --squash --delete-branch` once checks are green.
+
+---
+
+Update on pull request #144 (https://github.com/chrisdoc/surveybeat-next/pull/144), which T3 Code is watching for you:
+- 1 new comment:
+  - coderabbitai: "<a href="https://app.coderabbit.ai/change-stack/chrisdoc/surveybeat-next/pull/144?REDACTED&amp;cs_source=review_comment"><picture><source media="(prefer..." https://github.com/chrisdoc/surveybeat-next/pull/144#issuecomment-6775835499
+
+Look into each item and act on it as your task requires. This PR stays linked and watched, so do not link, watch, or list it again. End your turn when you are done, and T3 Code wakes you on the next change. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.
+
+---
+
+Update on pull request #144 (https://github.com/chrisdoc/surveybeat-next/pull/144), which T3 Code is watching for you:
+- Checks failed on 06b7b59:
+  - e2e https://github.com/chrisdoc/surveybeat-next/actions/runs/42876167732/job/130040852718
+
+Look into each item and act on it as your task requires. This PR stays linked and watched, so do not link, watch, or list it again. End your turn when you are done, and T3 Code wakes you on the next change. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.
+
+---
+
+Delegated task node:delegated-task:command%3Amcp%3Ac18e7860-8d81-469e-b340-09f45144c03d%3Adelegate-task%3A7e3ded29-a65c-40b6-8923-84aac5161c09 (Polish A orchestrator (#143)) [completed]:
+I've fixed issue #143 (B1–B10 and B12) in one PR. It is not merged: CI was still running when I stopped, and I wasn't allowed to keep polling it.
+
+- **B1–B4 (Results):** the Actions heading is now readable on the dark panel in light mode (B1). The highlight arrow follows the change's direction (B2). The highlight explanation now comes from the catalog in English and German; the server's English `label`/`explanation` fields are removed and older stored Results still load (B3). New helpers format scores ("4,0", "3,6"), changes, percentages ("75 %") and dates for the locale, used on Results, My history, Overview and Rounds (B4).
+- **B5 (scale labels):** the answer page and My history show the Question's own label at 1 and 5, and plain numbers for 2–4. The generic "Very poor…Very good" labels are gone, and both language pages stay within the ADR 0008 size budget.
+- **B6–B10, B12 (small bugs):** the Team page tooltip and roster rows no longer push the page wider than 390 px (B6). There's no bare "Owner:" (B7), option labels no longer overlap their bars (B8), and the Pulse editor shows "1. How…" (B9). The answer page with no token or a failed load shows the error and hides the form (B10). The Rounds screen says whether the Pulse is running or paused and shows only the matching button, using a new `paused` field from the server (B12).
+- **Deviations:** the issue asked for an axe contrast check on Results, but there is no signed-in end-to-end test to run it in. A scene test checks the heading's on-dark colour instead. I couldn't test the empty-owner case (B7), because an empty email can't be built without a type cast; the fix is in but unverified. The B6 overflow fix is also unverified at 390 px, because the 390 px check only covers the answer page.
+- **Reviewer findings:** nothing blocking in any part. I fixed two minor points myself: a change that rounds to 0.0 now reads "No change" instead of "+0.0", and a successful save clears a stale error on the answer page.
+- **Tests:** typecheck, Effect typecheck, lint, format check, `pnpm test` (951 passed), `pnpm test:privacy` (235 passed), the web build and the answer budget test all pass after rebasing. New tests:
+  - scene tests for B1, both arrow directions, German formats, scale labels in My history, and Pause/Resume
+  - unit tests for the locale helpers and the scale-label rule
+  - answer page end-to-end: a 390 px overflow check in the axe pass, plus no-token and failed-load tests
+- **Rebase:** one conflict with #144 ("Send me a test") in the answer page; I kept its test-mode guard and added my error-clearing call next to it.
+
+PR https://github.com/chrisdoc/surveybeat-next/pull/145, head 91184c949420ac6086da0567e095f1c7533bdb7f, checks and reviews pending (check, privacy, deploy, gitStream).
+
+---
+
+what is next on our plan?
+
+---
+
+Hm i didn't not receive a test email
