@@ -18,7 +18,7 @@ import {
 import { Option, Predicate, Schema } from "effect";
 import type { Html, HtmlBuilder } from "foldkit/html";
 import { defineTaggedUnion } from "foldkit/schema";
-import { message, pluralMessage } from "../messages/index.ts";
+import { message, pluralMessage } from "../messages/locale.ts";
 import { Failure, failureMessage } from "./api.ts";
 import { lineChart } from "./charts.ts";
 import { resultsSummary } from "./resultsSummary.ts";

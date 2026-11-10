@@ -1,9 +1,11 @@
 import type { SqliteClient } from "@effect/sql-sqlite-do";
 import {
+  DEFAULT_LOCALE,
   DEFAULT_MINIMUM_GROUP_SIZE,
   type DirectoryChange,
   type DirectoryState,
   EmailAddress,
+  Locale,
   MembershipId,
   MembershipRole,
   PersonId,
@@ -19,6 +21,7 @@ const OrganizationRow = Schema.Struct({
   name: Schema.String,
   minimum_group_size: Schema.Int,
   ai_processing: Schema.Int,
+  default_locale: Locale,
 });
 const PersonRow = Schema.Struct({
   id: PersonId,
@@ -26,6 +29,8 @@ const PersonRow = Schema.Struct({
   workos_user_id: Schema.NullOr(WorkosUserId),
   organization_admin: Schema.Int,
   removed_at: Schema.NullOr(Schema.Int),
+  locale: Schema.NullOr(Locale),
+  detected_locale: Schema.NullOr(Locale),
 });
 const TeamRow = Schema.Struct({ id: TeamId, name: Schema.String, time_zone: TimeZone });
 const MembershipRow = Schema.Struct({
@@ -48,13 +53,12 @@ const rows = <S extends Schema.Top & { readonly DecodingServices: never }>(schem
 export const makeSqlDirectory = (sql: SqliteClient.SqliteClient, sends: SendStoreShape) => {
   const load: Effect.Effect<DirectoryState> = Effect.gen(function* () {
     const [organization] =
-      yield* sql`SELECT name, minimum_group_size, ai_processing FROM organization LIMIT 1`.pipe(
+      yield* sql`SELECT name, minimum_group_size, ai_processing, default_locale FROM organization LIMIT 1`.pipe(
         Effect.flatMap(rows(OrganizationRow)),
       );
     const people =
-      yield* sql`SELECT id, email, workos_user_id, organization_admin, removed_at FROM person`.pipe(
-        Effect.flatMap(rows(PersonRow)),
-      );
+      yield* sql`SELECT id, email, workos_user_id, organization_admin, removed_at, locale, detected_locale
+        FROM person`.pipe(Effect.flatMap(rows(PersonRow)));
     const teams = yield* sql`SELECT id, name, time_zone FROM team`.pipe(Effect.flatMap(rows(TeamRow)));
     const memberships = yield* sql`
       SELECT id, team_id, person_id, role, started_at, ended_at FROM membership ORDER BY started_at, id`.pipe(
@@ -64,12 +68,15 @@ export const makeSqlDirectory = (sql: SqliteClient.SqliteClient, sends: SendStor
       organizationName: organization?.name ?? "",
       minimumGroupSize: organization?.minimum_group_size ?? DEFAULT_MINIMUM_GROUP_SIZE,
       aiProcessing: organization?.ai_processing === 1,
+      defaultLocale: organization?.default_locale ?? DEFAULT_LOCALE,
       people: people.map((row) => ({
         id: row.id,
         email: row.email,
         workosUserId: row.workos_user_id,
         organizationAdmin: row.organization_admin === 1,
         removedAt: row.removed_at,
+        locale: row.locale,
+        detectedLocale: row.detected_locale,
       })),
       teams: teams.map((row) => ({ id: row.id, name: row.name, timeZone: row.time_zone })),
       memberships: memberships.map((row) => ({
@@ -114,7 +121,10 @@ export const makeSqlDirectory = (sql: SqliteClient.SqliteClient, sends: SendStor
         return sql`UPDATE membership SET ended_at = ${change.at} WHERE id = ${change.membershipId}`;
       case "SettingsUpdated":
         return sql`UPDATE organization SET minimum_group_size = ${change.minimumGroupSize},
-          ai_processing = ${change.aiProcessing ? 1 : 0}`;
+          ai_processing = ${change.aiProcessing ? 1 : 0}, default_locale = ${change.defaultLocale}`;
+      case "PersonLanguageSet":
+        return sql`UPDATE person SET locale = ${change.locale}, detected_locale = ${change.detectedLocale}
+          WHERE id = ${change.personId}`;
       case "EmailRequested":
         return sends.create(change.sendId, change.recipient, change.email);
     }

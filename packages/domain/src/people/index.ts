@@ -7,3 +7,4 @@ export * from "./Directory.ts";
 export * from "./Permissions.ts";
 export * from "./Team.ts";
 export * from "./DirectoryFlow.ts";
+export * from "./Locale.ts";

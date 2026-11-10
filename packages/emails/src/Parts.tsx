@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Button, Heading, Link, Section, Text } from "react-email";
-import { message } from "./messages/index.ts";
+import type { Messages } from "./messages/index.ts";
 import { colors, fonts, radius } from "./theme.ts";
 
 /** The serif main heading of every email. */
@@ -152,19 +152,19 @@ export function RatingRow({
 }
 
 /** The call to action under a divider. */
-export function ActionRow({ href }: { href: string }) {
+export function ActionRow({ href, messages }: { href: string; messages: Messages }) {
   return (
     <Section
       className="sb-rule"
       style={{ borderTop: `1px solid ${colors.rowBorder}`, margin: "32px 0 0", paddingTop: "24px" }}
     >
-      <PrimaryButton href={href}>{message("invitation.openCheckIn")}</PrimaryButton>
+      <PrimaryButton href={href}>{messages.message("invitation.openCheckIn")}</PrimaryButton>
     </Section>
   );
 }
 
 /** Team actions in progress: a separate bordered card, rows divided by a hairline. */
-export function ActionsCard({ actions }: { actions: ReadonlyArray<string> }) {
+export function ActionsCard({ actions, messages }: { actions: ReadonlyArray<string>; messages: Messages }) {
   if (actions.length === 0) return null;
   return (
     <Section
@@ -181,7 +181,7 @@ export function ActionsCard({ actions }: { actions: ReadonlyArray<string> }) {
         className="sb-text"
         style={{ color: colors.text, fontSize: "15px", fontWeight: 600, margin: "0 0 6px" }}
       >
-        {message("invitation.actionsHeading")}
+        {messages.message("invitation.actionsHeading")}
       </Text>
       <table role="presentation" width="100%" style={{ borderCollapse: "collapse" }}>
         <tbody>
@@ -242,20 +242,28 @@ export function FooterNote({ children }: { children: ReactNode }) {
 }
 
 /** Small muted notices under the cards: personal link, change-delivery link, optional extras. */
-export function Notices({ deliveryUrl, extra }: { deliveryUrl: string; extra?: ReactNode }) {
+export function Notices({
+  deliveryUrl,
+  extra,
+  messages,
+}: {
+  deliveryUrl: string;
+  extra?: ReactNode;
+  messages: Messages;
+}) {
   return (
     <Text
       className="sb-muted"
       style={{ color: colors.muted, fontSize: "12px", lineHeight: "19px", margin: "20px 8px 0" }}
     >
-      {message("invitation.personalNotice")}
+      {messages.message("invitation.personalNotice")}
       <br />
       <Link
         className="sb-link"
         href={deliveryUrl}
         style={{ color: colors.accent, textDecoration: "underline" }}
       >
-        {message("invitation.changeWhen")}
+        {messages.message("invitation.changeWhen")}
       </Link>
       {extra}
     </Text>

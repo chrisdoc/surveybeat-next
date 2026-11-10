@@ -1,7 +1,7 @@
 import { Button, Checkbox, Input, Select, Textarea } from "@foldkit/ui";
 import { Predicate } from "effect";
 import type { Html, HtmlBuilder } from "foldkit/html";
-import { message } from "../messages/index.ts";
+import { message } from "../messages/locale.ts";
 import { type Failure, failureMessage } from "./api.ts";
 import { teamsHref } from "./routes.ts";
 

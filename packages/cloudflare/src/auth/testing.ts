@@ -370,6 +370,7 @@ export class MemoryOrganizations {
         organizationName: "",
         minimumGroupSize: 4,
         aiProcessing: false,
+        defaultLocale: "en",
         people: [],
         teams: [],
         memberships: [],
@@ -389,6 +390,7 @@ export class MemoryOrganizations {
             organizationName: organization.name,
             minimumGroupSize: DEFAULT_MINIMUM_GROUP_SIZE,
             aiProcessing: false,
+            defaultLocale: "en",
             people: [
               {
                 id: admin.personId,
@@ -396,6 +398,8 @@ export class MemoryOrganizations {
                 workosUserId: admin.userId,
                 organizationAdmin: true,
                 removedAt: null,
+                locale: null,
+                detectedLocale: null,
               },
             ],
             teams: [],
@@ -423,9 +427,13 @@ export class MemoryOrganizations {
         const found = this.organization(organizationId).state.people.find(
           (person) => person.workosUserId === userId && person.removedAt === null,
         );
+        const organizationLocale = this.organization(organizationId).state.defaultLocale;
         return Option.map(Option.fromNullishOr(found), (person) => ({
           personId: person.id,
           organizationAdmin: person.organizationAdmin,
+          locale: person.locale,
+          detectedLocale: person.detectedLocale,
+          organizationLocale,
         }));
       }),
   });
@@ -696,6 +704,7 @@ export class SignInWorld {
         organizationName: name,
         minimumGroupSize: 4,
         aiProcessing: false,
+        defaultLocale: "en",
         people: [],
         teams: [],
         memberships: [],
@@ -717,7 +726,15 @@ export class SignInWorld {
       ...organization.state,
       people: [
         ...organization.state.people,
-        { id: personId, email: normalised, workosUserId: null, organizationAdmin, removedAt: null },
+        {
+          id: personId,
+          email: normalised,
+          workosUserId: null,
+          organizationAdmin,
+          removedAt: null,
+          locale: null,
+          detectedLocale: null,
+        },
       ],
     };
     this.index.persons.set(`${organizationId}/${personId}`, {

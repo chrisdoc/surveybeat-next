@@ -143,6 +143,18 @@ export const directoryHandlers = <R>(
               _tag: "UpdateSettings",
               minimumGroupSize: payload.minimumGroupSize,
               aiProcessing: payload.aiProcessing,
+              defaultLocale: payload.defaultLocale,
+            }),
+          ),
+        ),
+      )
+      .handle("updateOwnLanguage", ({ payload }) =>
+        provide(
+          change(() =>
+            Effect.succeed({
+              _tag: "UpdateOwnLanguage",
+              locale: payload.locale,
+              detectedLocale: payload.detectedLocale,
             }),
           ),
         ),

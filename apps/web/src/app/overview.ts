@@ -1,7 +1,7 @@
 import { type ActionMarker, type DimensionOverview, type RoundId, TeamOverview } from "@surveybeat/domain";
 import type { Html, HtmlBuilder } from "foldkit/html";
 import { defineTaggedUnion } from "foldkit/schema";
-import { formatDate, message } from "../messages/index.ts";
+import { formatDate, message } from "../messages/locale.ts";
 import { Failure } from "./api.ts";
 import { type ChartPoint, lineChart, plotPercent } from "./charts.ts";
 import { dataTable, emptyState, panel, problemView, sectionTitle, subSectionTitle } from "./components.ts";

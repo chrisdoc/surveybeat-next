@@ -3,8 +3,10 @@ import {
   ActionItem,
   ActionList,
   ActionStatus,
+  browserLocale,
   Dimension,
   EmailAddress,
+  Locale,
   MinimumGroupSize,
   NewPulseQuestion,
   OrganizationId,
@@ -17,6 +19,7 @@ import {
   QuestionContent,
   QuestionId,
   type QuestionType,
+  resolveLocale,
   RoundDetail,
   RoundId,
   RoundList,
@@ -35,7 +38,7 @@ import { Command, Navigation, type Update } from "foldkit";
 import type { Document, HtmlBuilder } from "foldkit/html";
 import { defineMessageUnion } from "foldkit/message";
 import { Url } from "foldkit/url";
-import { message } from "../messages/index.ts";
+import { message, setLocale } from "../messages/locale.ts";
 import { Failure, runApi } from "./api.ts";
 import { privacyView, screenView } from "./components.ts";
 import {
@@ -82,6 +85,10 @@ export const Model = Schema.Struct({
   url: Url,
   route: AppRoute,
   session: SessionModel,
+  // The browser's language, if SurveyBeat has one of its languages (ADR 0018)
+  browserLocale: Schema.NullOr(Locale),
+  languageBusy: Schema.Boolean,
+  languageFailure: Schema.Option(Failure),
   // Teams screen
   teams: LoadedTeams,
   createTeamName: Schema.String,
@@ -114,6 +121,8 @@ export const Model = Schema.Struct({
   sizeFailure: Schema.Option(Failure),
   aiBusy: Schema.Boolean,
   aiFailure: Schema.Option(Failure),
+  defaultLanguageBusy: Schema.Boolean,
+  defaultLanguageFailure: Schema.Option(Failure),
   peopleBusy: Schema.Boolean,
   peopleFailure: Schema.Option(Failure),
   // Pulses list screen
@@ -229,6 +238,8 @@ export const Message = defineMessageUnion({
   CreateOrgNameChanged: { name: Schema.String },
   SubmitCreateOrg: {},
   ChooseOrgClicked: { organizationId: OrganizationId },
+  LanguageChanged: { value: Schema.String },
+  UpdatedOwnLanguage: { chosen: Schema.Boolean, outcome: OutcomeVoid },
   // Teams screen
   GotTeams: { outcome: OutcomeTeams },
   CreateTeamNameChanged: { name: Schema.String },
@@ -260,6 +271,8 @@ export const Message = defineMessageUnion({
   UpdatedSettings: { outcome: OutcomeVoid },
   AiProcessingToggled: { isOn: Schema.Boolean },
   UpdatedAiProcessing: { outcome: OutcomeVoid },
+  DefaultLanguageChanged: { value: Schema.String },
+  UpdatedDefaultLanguage: { outcome: OutcomeVoid },
   GrantAdminClicked: { personId: PersonId },
   GrantedAdmin: { outcome: OutcomeVoid },
   RevokeAdminClicked: { personId: PersonId },
@@ -349,6 +362,23 @@ export const ChooseOrganization = Command.define("ChooseOrganization", {
     runSessionCall((api) => api.auth.chooseOrganization({ payload: { organizationId } })).pipe(
       Effect.map((result) => Message.GotSession({ result })),
     ),
+});
+
+/** Saves the Person's language (`locale`, `null` to follow the browser) or records the browser's language seen at sign-in (`detectedLocale`). */
+export const UpdateOwnLanguage = Command.define("UpdateOwnLanguage", {
+  args: {
+    locale: Schema.optionalKey(Schema.NullOr(Locale)),
+    detectedLocale: Schema.optionalKey(Locale),
+  },
+  messages: [Message.UpdatedOwnLanguage],
+  execute: (args) => {
+    const chosen = args.locale !== undefined;
+    return runApi(
+      (api) => api.directory.updateOwnLanguage({ payload: args }),
+      () => Message.UpdatedOwnLanguage({ chosen, outcome: { _tag: "Success" } }),
+      (failure) => Message.UpdatedOwnLanguage({ chosen, outcome: { _tag: "Failure", failure } }),
+    );
+  },
 });
 
 export const ListTeams = Command.define("ListTeams", {
@@ -480,6 +510,17 @@ export const UpdateAiProcessing = Command.define("UpdateAiProcessing", {
       (api) => api.directory.updateSettings({ payload: { aiProcessing } }),
       () => Message.UpdatedAiProcessing({ outcome: { _tag: "Success" } }),
       (failure) => Message.UpdatedAiProcessing({ outcome: { _tag: "Failure", failure } }),
+    ),
+});
+
+export const UpdateDefaultLanguage = Command.define("UpdateDefaultLanguage", {
+  args: { defaultLocale: Locale },
+  messages: [Message.UpdatedDefaultLanguage],
+  execute: ({ defaultLocale }) =>
+    runApi(
+      (api) => api.directory.updateSettings({ payload: { defaultLocale } }),
+      () => Message.UpdatedDefaultLanguage({ outcome: { _tag: "Success" } }),
+      (failure) => Message.UpdatedDefaultLanguage({ outcome: { _tag: "Failure", failure } }),
     ),
 });
 
@@ -797,6 +838,10 @@ export const LoadExternalUrl = Command.define("LoadExternalUrl", {
 // INIT
 // ==========================================
 
+/** The browser's language, read once at start-up. `null` when there is no browser or none of its languages is SurveyBeat's. */
+const detectBrowserLocale = (): Locale | null =>
+  typeof navigator === "undefined" ? null : (browserLocale(navigator.languages) ?? null);
+
 export const initialModel = (url: Url): Model => {
   const route = urlToAppRoute(url);
   const timeZone = typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC";
@@ -804,6 +849,9 @@ export const initialModel = (url: Url): Model => {
     url,
     route,
     session: { _tag: "Loading" },
+    browserLocale: detectBrowserLocale(),
+    languageBusy: false,
+    languageFailure: Option.none(),
     teams: { _tag: "Loading" },
     createTeamName: "",
     createTeamTimeZone: timeZone,
@@ -833,6 +881,8 @@ export const initialModel = (url: Url): Model => {
     sizeFailure: Option.none(),
     aiBusy: false,
     aiFailure: Option.none(),
+    defaultLanguageBusy: false,
+    defaultLanguageFailure: Option.none(),
     peopleBusy: false,
     peopleFailure: Option.none(),
     pulses: { _tag: "Loading" },
@@ -914,6 +964,12 @@ export const init = (url: Url): Update.Return<Model, Message> => ({
 // ==========================================
 // UPDATE
 // ==========================================
+
+/** A language `<select>` value: "" follows the browser (`null`); anything else that is not a Locale is ignored (`undefined`). */
+const languageChoice = (value: string): Locale | null | undefined => {
+  if (value === "") return null;
+  return Schema.is(Locale)(value) ? value : undefined;
+};
 
 export const update = (model: Model, message: Message): Update.Return<Model, Message> => {
   switch (message._tag) {
@@ -1037,11 +1093,22 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
               _tag: "SignedIn",
               organization: sessionResult.organization,
               organizationAdmin: sessionResult.organizationAdmin,
+              locale: sessionResult.locale,
+              detectedLocale: sessionResult.detectedLocale,
+              organizationLocale: sessionResult.organizationLocale,
             },
           };
+          // A Person who has not chosen a language gets the browser's language recorded once (ADR 0018).
+          const detect =
+            sessionResult.locale === null &&
+            model.browserLocale !== null &&
+            model.browserLocale !== sessionResult.detectedLocale;
           return {
             model: nextModel,
-            commands: loadActiveRouteCommand(model.route),
+            commands: [
+              ...loadActiveRouteCommand(model.route),
+              ...(detect ? [UpdateOwnLanguage({ detectedLocale: model.browserLocale })] : []),
+            ],
           };
         }
       }
@@ -1089,6 +1156,39 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         };
       }
       return { model };
+
+    case "LanguageChanged": {
+      const choice = languageChoice(message.value);
+      if (choice === undefined || model.languageBusy || model.session._tag !== "SignedIn") return { model };
+      if (choice === model.session.locale) return { model };
+      return {
+        model: {
+          ...model,
+          session: { ...model.session, locale: choice },
+          languageBusy: true,
+          languageFailure: Option.none(),
+        },
+        commands: [UpdateOwnLanguage({ locale: choice })],
+      };
+    }
+
+    case "UpdatedOwnLanguage": {
+      const { chosen, outcome } = message;
+      // Only a language the Person chose shows progress or a problem; a recorded browser language is best effort.
+      const settled: Model = chosen ? { ...model, languageBusy: false } : model;
+      if (outcome._tag === "Success") {
+        return chosen ? { model: settled, commands: [LoadSession()] } : { model };
+      }
+      if (outcome.failure === "Unauthenticated") {
+        return { model: settled, commands: [LoadSession()] };
+      }
+      if (!chosen) return { model };
+      // LoadSession brings back the stored language, so the select shows what the server holds again.
+      return {
+        model: { ...settled, languageFailure: Option.some(outcome.failure) },
+        commands: [LoadSession()],
+      };
+    }
 
     // ----------------------------------------
     // Teams screen
@@ -1452,6 +1552,36 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       }
       return {
         model: { ...model, aiBusy: false, aiFailure: Option.some(message.outcome.failure) },
+      };
+    }
+
+    case "DefaultLanguageChanged": {
+      const defaultLocale = Schema.is(Locale)(message.value) ? message.value : undefined;
+      if (defaultLocale === undefined || model.defaultLanguageBusy) return { model };
+      return {
+        model: { ...model, defaultLanguageBusy: true, defaultLanguageFailure: Option.none() },
+        commands: [UpdateDefaultLanguage({ defaultLocale })],
+      };
+    }
+
+    case "UpdatedDefaultLanguage": {
+      const { outcome } = message;
+      if (outcome._tag === "Success") {
+        // The default reaches every Person without a choice: reloading the session reloads the settings too.
+        return {
+          model: { ...model, defaultLanguageBusy: false },
+          commands: [LoadSession()],
+        };
+      }
+      if (outcome.failure === "Unauthenticated") {
+        return { model: { ...model, defaultLanguageBusy: false }, commands: [LoadSession()] };
+      }
+      return {
+        model: {
+          ...model,
+          defaultLanguageBusy: false,
+          defaultLanguageFailure: Option.some(outcome.failure),
+        },
       };
     }
 
@@ -2203,7 +2333,26 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
 // VIEW
 // ==========================================
 
+/**
+ * The language a Model is shown in (ADR 0018): a signed-in Person's own choice, then the browser's
+ * language, then the Organization's default. Other screens have no Person, so they use the browser's
+ * language or English.
+ */
+export const localeOf = (model: Model): Locale => {
+  if (model.session._tag === "SignedIn") {
+    return resolveLocale({
+      person: model.session.locale,
+      browser: model.browserLocale,
+      organization: model.session.organizationLocale,
+    });
+  }
+  return model.browserLocale ?? "en";
+};
+
 export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
+  // The browser app has one reader, so the language follows the model: every message below reads the live binding.
+  setLocale(localeOf(model));
+
   if (model.route._tag === "Privacy") {
     return {
       title: message("privacy.title"),
@@ -2266,7 +2415,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
   }
 
   // Signed In
-  const { organization, organizationAdmin } = model.session;
+  const { organization, organizationAdmin, locale } = model.session;
   const shellTitle = message("signedIn.title", { organization: organization.name });
 
   let screenContent = null;
@@ -2364,6 +2513,8 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
             sizeFailure: Option.getOrUndefined(model.sizeFailure),
             aiBusy: model.aiBusy,
             aiFailure: Option.getOrUndefined(model.aiFailure),
+            defaultLanguageBusy: model.defaultLanguageBusy,
+            defaultLanguageFailure: Option.getOrUndefined(model.defaultLanguageFailure),
             peopleBusy: model.peopleBusy,
             peopleFailure: Option.getOrUndefined(model.peopleFailure),
           },
@@ -2371,6 +2522,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
             onSizeChange: (size) => Message.SizeChanged({ size }),
             onSubmitSize: Message.SubmitSize(),
             onAiProcessingToggle: (isOn) => Message.AiProcessingToggled({ isOn }),
+            onDefaultLanguageChange: (value) => Message.DefaultLanguageChanged({ value }),
             onGrantAdmin: (personId) => Message.GrantAdminClicked({ personId }),
             onRevokeAdmin: (personId) => Message.RevokeAdminClicked({ personId }),
             onRemovePerson: (personId) => Message.RemovePersonClicked({ personId }),
@@ -2519,6 +2671,18 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
 
   return {
     title: shellTitle,
-    body: shellView(shellTitle, organizationAdmin, [screenContent], h, model.route._tag === "RoundResults"),
+    body: shellView(
+      shellTitle,
+      organizationAdmin,
+      [screenContent],
+      {
+        value: locale,
+        busy: model.languageBusy,
+        failure: Option.getOrUndefined(model.languageFailure),
+        onChange: (value) => Message.LanguageChanged({ value }),
+      },
+      h,
+      model.route._tag === "RoundResults",
+    ),
   };
 };

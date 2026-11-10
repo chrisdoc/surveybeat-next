@@ -1,6 +1,7 @@
 import {
   AuthUnavailable,
   EmailAddress,
+  Locale,
   Forbidden,
   LastAdmin,
   LastLead,
@@ -174,6 +175,14 @@ export class DirectoryApiGroup extends HttpApiGroup.make("directory")
       payload: Schema.Struct({
         minimumGroupSize: Schema.optionalKey(MinimumGroupSize),
         aiProcessing: Schema.optionalKey(Schema.Boolean),
+        defaultLocale: Schema.optionalKey(Locale),
+      }),
+      error: directoryErrors,
+    }),
+    HttpApiEndpoint.patch("updateOwnLanguage", "/me/language", {
+      payload: Schema.Struct({
+        locale: Schema.optionalKey(Schema.NullOr(Locale)),
+        detectedLocale: Schema.optionalKey(Locale),
       }),
       error: directoryErrors,
     }),

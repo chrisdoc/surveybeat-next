@@ -12,9 +12,12 @@ import {
   defaultSendPolicy,
   type DeliveryEventKind,
   type DirectoryCommand,
+  DEFAULT_LOCALE,
   type DirectoryState,
   type EmailAddress,
+  emailLocaleOf,
   type FollowUp,
+  Locale,
   makeSendStore,
   PersonId,
   SendId,
@@ -81,6 +84,11 @@ import { makeSqlSendRepository } from "./SqlSendRepository.ts";
  * It must be a literal: the same expression runs again inside the bundle, where `import.meta.url` differs.
  */
 const migrationsDirectory = "packages/cloudflare/migrations";
+
+/** A stored language the schema's CHECK constraints admit; anything else is read as unset. */
+const localeOrNull = (value: string | null): Locale | null => (Schema.is(Locale)(value) ? value : null);
+const localeOr = (value: string | null, fallback: Locale): Locale =>
+  Schema.is(Locale)(value) ? value : fallback;
 
 /** Origin used in email links when the stage has no custom hostname (never delivered for real). */
 const fallbackAppOrigin = "https://app.invalid";
@@ -464,6 +472,7 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
 
             const invitationEmail: TransactionalEmail = {
               _tag: "InvitationEmail",
+              locale: emailLocaleOf(dirState, person.id),
               pulseName: pulse.settings.name,
               minimumGroupSize: dirState.minimumGroupSize,
               invitation,
@@ -608,6 +617,7 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
 
             const resultsReadyEmail: TransactionalEmail = {
               _tag: "ResultsReadyEmail",
+              locale: emailLocaleOf(dirState, person.id),
               pulseName: pulse.settings.name,
               teamName: team?.name ?? pulse.settings.name,
               resultsUrl: `${appOrigin}/teams/${round.teamId}/rounds/${roundId}`,
@@ -649,6 +659,7 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
           );
 
           const common = {
+            locale: emailLocaleOf(dirState, person.id),
             pulseName: pulse.settings.name,
             minimumGroupSize: dirState.minimumGroupSize,
             baseUrl: appOrigin,
@@ -742,6 +753,7 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
           );
 
           const common = {
+            locale: emailLocaleOf(dirState, person.id),
             pulseName: pulse.settings.name,
             baseUrl: appOrigin,
             ratingQuestion,
@@ -1003,14 +1015,28 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
             .pipe(Effect.orDie),
 
         activePerson: (workosUserId: string) =>
-          sql<{ id: string; organization_admin: number }>`
-            SELECT id, organization_admin FROM person
-             WHERE workos_user_id = ${workosUserId} AND removed_at IS NULL`.pipe(
+          sql<{
+            id: string;
+            organization_admin: number;
+            locale: string | null;
+            detected_locale: string | null;
+            default_locale: string | null;
+          }>`
+            SELECT person.id, person.organization_admin, person.locale, person.detected_locale,
+                   (SELECT default_locale FROM organization LIMIT 1) AS default_locale
+              FROM person
+             WHERE person.workos_user_id = ${workosUserId} AND person.removed_at IS NULL`.pipe(
             Effect.map((rows) => {
               const row = rows[0];
-              return row === undefined
-                ? null
-                : { id: row.id, organizationAdmin: row.organization_admin === 1 };
+              if (row === undefined) return null;
+              return {
+                id: row.id,
+                organizationAdmin: row.organization_admin === 1,
+                // The schema's CHECKs keep these to the known languages; anything else is read as unset.
+                locale: localeOrNull(row.locale),
+                detectedLocale: localeOrNull(row.detected_locale),
+                organizationLocale: localeOr(row.default_locale, DEFAULT_LOCALE),
+              };
             }),
             Effect.orDie,
           ),
@@ -1274,6 +1300,7 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
 
                     const invitationEmail: TransactionalEmail = {
                       _tag: "InvitationEmail",
+                      locale: emailLocaleOf(dirState, person.id),
                       pulseName: pulse.settings.name,
                       minimumGroupSize: dirState.minimumGroupSize,
                       invitation,

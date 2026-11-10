@@ -2,7 +2,7 @@ import { SurveyBeatApi } from "@surveybeat/api";
 import { Effect, Predicate, Schema } from "effect";
 import { FetchHttpClient } from "effect/http";
 import { HttpApiClient } from "effect/http-api";
-import { message } from "../messages/index.ts";
+import { message } from "../messages/locale.ts";
 
 export const Failure = Schema.Literals([
   "Unauthenticated",

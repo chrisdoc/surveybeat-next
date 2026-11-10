@@ -1,6 +1,7 @@
 import { Context, type Effect, type Option, type Redacted } from "effect";
 import type { EmailAddress } from "../email/Email.ts";
 import type { Identity, PersonId, SessionId, WorkosOrganizationId, WorkosUserId } from "./Identity.ts";
+import type { Locale } from "./Locale.ts";
 import type { OrganizationId } from "./Organization.ts";
 import type { MembershipId, TeamId } from "./Team.ts";
 import type { AuthUnavailable, OrganizationSummary, PersonCandidate, Unauthenticated } from "./SignIn.ts";
@@ -193,6 +194,12 @@ export interface OrganizationPeopleShape {
 export interface ActivePerson {
   readonly personId: PersonId;
   readonly organizationAdmin: boolean;
+  /** The Person's own language, or `null` to follow the browser (ADR 0018). */
+  readonly locale: Locale | null;
+  /** The browser's language last seen at sign-in. */
+  readonly detectedLocale: Locale | null;
+  /** The Organization's default language. */
+  readonly organizationLocale: Locale;
 }
 
 export class OrganizationPeople extends Context.Service<OrganizationPeople, OrganizationPeopleShape>()(

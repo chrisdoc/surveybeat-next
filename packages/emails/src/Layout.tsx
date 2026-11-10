@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Body, Container, Head, Hr, Html, Preview, Section, Text } from "react-email";
-import { message } from "./messages/index.ts";
+import type { Messages } from "./messages/index.ts";
 import { colors, darkColors, fonts, radius } from "./theme.ts";
 
 const d = darkColors;
@@ -24,11 +24,13 @@ const darkMode = `
 
 /** The frame every SurveyBeat email shares: preview line, brand, card, and the reason it was sent. */
 export function Layout({
+  messages,
   preview,
   reason,
   children,
   outside,
 }: {
+  messages: Messages;
   preview: string;
   reason: string;
   children: ReactNode;
@@ -36,7 +38,7 @@ export function Layout({
   outside?: ReactNode;
 }) {
   return (
-    <Html lang="en">
+    <Html lang={messages.locale}>
       <Head>
         <meta name="color-scheme" content="light dark" />
         <meta name="supported-color-schemes" content="light dark" />
@@ -45,6 +47,8 @@ export function Layout({
       <Preview>{preview}</Preview>
       <Body
         className="sb-page"
+        dir="ltr"
+        lang={messages.locale}
         style={{ backgroundColor: colors.page, fontFamily: fonts.sans, margin: 0, padding: "40px 0" }}
       >
         <Container style={{ maxWidth: "560px", padding: "0 20px" }}>
@@ -52,7 +56,7 @@ export function Layout({
             className="sb-muted"
             style={{ color: colors.muted, fontSize: "15px", fontWeight: 600, margin: "0 0 16px 8px" }}
           >
-            {message("layout.brand")}
+            {messages.message("layout.brand")}
           </Text>
           <Section
             className="sb-card"
@@ -80,7 +84,7 @@ export function Layout({
             className="sb-muted"
             style={{ color: colors.muted, fontSize: "12px", lineHeight: "18px", margin: "4px 0 0" }}
           >
-            {message("layout.signature")}
+            {messages.message("layout.signature")}
           </Text>
         </Container>
       </Body>
@@ -89,5 +93,5 @@ export function Layout({
 }
 
 /** The plain-text part's frame, mirroring `Layout`. */
-export const textLayout = (body: ReadonlyArray<string>, reason: string): string =>
-  [...body, "", "--", reason, message("layout.signature"), ""].join("\n");
+export const textLayout = (messages: Messages, body: ReadonlyArray<string>, reason: string): string =>
+  [...body, "", "--", reason, messages.message("layout.signature"), ""].join("\n");

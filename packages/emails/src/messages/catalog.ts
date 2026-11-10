@@ -1,5 +1,6 @@
 /**
- * Every user-facing string of the emails. English only. Same conventions as `apps/web/src/messages`:
+ * Every user-facing string of the emails, in English: the source of the keys and placeholders. German
+ * lives in `de.ts`, checked against these keys at compile time. Same conventions as `apps/web/src/messages`:
  * flat keys, `{placeholder}` templates.
  */
 export const catalog = {

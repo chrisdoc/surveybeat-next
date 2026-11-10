@@ -14,7 +14,7 @@ import { setup } from "foldkit/test/vitest";
 import { fromString } from "foldkit/url";
 import { describe, expect, it } from "vitest";
 import { initialModel, update, view } from "./App.ts";
-import { formatDate } from "../messages/index.ts";
+import { formatDate } from "../messages/locale.ts";
 import { plotPercent } from "./charts.ts";
 import { overviewXs, type LoadedOverview, teamOverviewView } from "./overview.ts";
 import type { SessionModel } from "./session.ts";
@@ -37,6 +37,9 @@ const signedInAdmin: SessionModel = {
   _tag: "SignedIn",
   organization: { id: Schema.decodeSync(OrganizationId)("org-perf"), name: "Acme" },
   organizationAdmin: true,
+  locale: null,
+  detectedLocale: null,
+  organizationLocale: "en",
 };
 
 /** 104 weekly shared Rounds starting 2024-01-01, four Dimensions with every 9th point a gap, and 30 Action markers. */

@@ -118,6 +118,28 @@ describe("Submissions privacy invariants (SPEC §7, ADR 0005)", () => {
     assert.deepStrictEqual(participationCols.sort(), ["person_id", "round_id"]);
   });
 
+  it("A10: No Submission, Answer, or Participation table stores a language (ADR 0018)", () => {
+    const db = initDatabase();
+    const tables = (
+      db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as Array<{ name: string }>
+    )
+      .map((t) => t.name)
+      .filter((name) => /submission|answer|participation/i.test(name));
+    assert.includeMembers(tables, ["submission", "answer", "participation"]);
+
+    for (const table of tables) {
+      const columns = (db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>).map((c) =>
+        c.name.toLowerCase(),
+      );
+      for (const column of columns) {
+        assert.isFalse(
+          /lang|locale/.test(column),
+          `${table} column '${column}' must not hold a language: in a small Team it singles out a reader`,
+        );
+      }
+    }
+  });
+
   it.effect(
     "A4: After k Submissions through the real write path, dump gives no better than random guess",
     () => {

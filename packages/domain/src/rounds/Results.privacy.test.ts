@@ -243,6 +243,8 @@ describe("Results Privacy & Minimum Group Size Invariants (ADR 0004, Issue #3)",
       workosUserId: null,
       organizationAdmin,
       removedAt,
+      locale: null,
+      detectedLocale: null,
     });
     const membership = (
       id: string,
@@ -260,6 +262,7 @@ describe("Results Privacy & Minimum Group Size Invariants (ADR 0004, Issue #3)",
       organizationName: "Acme",
       minimumGroupSize: 4,
       aiProcessing: false,
+      defaultLocale: "en",
       people: [
         person("lead"),
         person("member"),

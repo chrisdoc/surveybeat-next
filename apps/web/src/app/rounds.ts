@@ -10,7 +10,7 @@ import type { RoundDetail } from "@surveybeat/domain";
 import { Predicate, Schema } from "effect";
 import type { Html, HtmlBuilder } from "foldkit/html";
 import { defineTaggedUnion } from "foldkit/schema";
-import { formatDate, message } from "../messages/index.ts";
+import { formatDate, message } from "../messages/locale.ts";
 import { Failure } from "./api.ts";
 import {
   appButton,

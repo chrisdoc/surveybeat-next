@@ -1,5 +1,6 @@
 import { describe, expect, it } from "@effect/vitest";
-import type { RenderableEmail } from "@surveybeat/domain";
+import { type RenderableEmail, StoredEmail } from "@surveybeat/domain";
+import { Schema } from "effect";
 import { renderEmail } from "./render.tsx";
 import { colors } from "./theme.ts";
 
@@ -7,12 +8,14 @@ import { colors } from "./theme.ts";
 const examples: { readonly [K in RenderableEmail["_tag"]]: Extract<RenderableEmail, { _tag: K }> } = {
   AddedToTeam: {
     _tag: "AddedToTeam",
+    locale: "en",
     teamName: "Platform",
     leadName: "Grace Hopper",
     signInUrl: "https://app.surveybeat.app/",
   },
   InvitationEmail: {
     _tag: "InvitationEmail",
+    locale: "en",
     pulseName: "Weekly Pulse",
     minimumGroupSize: 4,
     token: "test-token-123",
@@ -26,6 +29,7 @@ const examples: { readonly [K in RenderableEmail["_tag"]]: Extract<RenderableEma
   },
   ReminderEmail: {
     _tag: "ReminderEmail",
+    locale: "en",
     pulseName: "Weekly Pulse",
     token: "test-token-123",
     baseUrl: "https://app.surveybeat.app",
@@ -34,6 +38,7 @@ const examples: { readonly [K in RenderableEmail["_tag"]]: Extract<RenderableEma
   },
   ResultsReadyEmail: {
     _tag: "ResultsReadyEmail",
+    locale: "en",
     pulseName: "Weekly Pulse",
     teamName: "Platform",
     resultsUrl: "https://app.surveybeat.app/teams/team-1/rounds/round-1",
@@ -53,6 +58,44 @@ describe.each(Object.values(examples))("$_tag", (email) => {
     const { html } = await renderEmail(email);
     expect(html).toContain('<meta name="color-scheme" content="light dark"');
     expect(html).toContain("@media (prefers-color-scheme: dark)");
+  });
+
+  it("sets the document language to the email's locale", async () => {
+    const { html } = await renderEmail(email);
+    expect(html).toContain('<html dir="ltr" lang="en">');
+  });
+});
+
+describe.each(Object.values(examples))("$_tag in German", (example) => {
+  const email: typeof example = { ...example, locale: "de" };
+
+  it("renders the subject, HTML, and plain-text parts in German", async () => {
+    const rendered = await renderEmail(email);
+    expect(rendered.subject).toMatchSnapshot("subject");
+    expect(rendered.html).toMatchSnapshot("html");
+    expect(rendered.text).toMatchSnapshot("text");
+  });
+
+  it("sets the document language to German", async () => {
+    const { html } = await renderEmail(email);
+    expect(html).toContain('<html dir="ltr" lang="de">');
+    expect(html).not.toContain('lang="en"');
+  });
+});
+
+describe("a send stored before locales were recorded", () => {
+  it("decodes as English and renders English", async () => {
+    const stored = Schema.decodeUnknownSync(StoredEmail)({
+      _tag: "AddedToTeam",
+      teamName: "Platform",
+      leadName: "Grace Hopper",
+      signInUrl: "https://app.surveybeat.app/",
+    });
+    expect(stored.locale).toBe("en");
+    if (stored._tag !== "AddedToTeam") throw new Error("expected an AddedToTeam");
+    const { subject, html } = await renderEmail(stored);
+    expect(subject).toBe("You've been added to Platform");
+    expect(html).toContain('<html dir="ltr" lang="en">');
   });
 });
 

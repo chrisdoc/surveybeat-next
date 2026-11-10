@@ -1,5 +1,5 @@
 import type { RoundResult } from "@surveybeat/domain";
-import { message } from "../messages/index.ts";
+import { message } from "../messages/locale.ts";
 
 const list = new Intl.ListFormat("en", { style: "long", type: "conjunction" });
 

@@ -1,7 +1,7 @@
 import type { ReminderEmailWithToken as ReminderEmailData } from "@surveybeat/domain";
 import { Link } from "react-email";
 import { Layout, textLayout } from "./Layout.tsx";
-import { message } from "./messages/index.ts";
+import { messagesFor } from "./messages/index.ts";
 import {
   ActionRow,
   ActionsCard,
@@ -18,20 +18,23 @@ export const unsubscribeUrl = (email: ReminderEmailData): string =>
   email.unsubscribeUrl ?? `${email.baseUrl}/api/reminders/unsubscribe?t=${email.token}`;
 
 export const subject = (email: ReminderEmailData): string =>
-  message("reminder.subject", { pulse: email.pulseName });
+  messagesFor(email.locale).message("reminder.subject", { pulse: email.pulseName });
 
 export function ReminderEmailComponent({ email }: { email: ReminderEmailData }) {
+  const m = messagesFor(email.locale);
   const openUrl = `${email.baseUrl}/a#t=${email.token}`;
   const deliveryUrl = `${email.baseUrl}/delivery?token=${email.token}`;
 
   return (
     <Layout
-      preview={message("reminder.preview", { pulse: email.pulseName })}
-      reason={message("invitation.reason")}
+      messages={m}
+      preview={m.message("reminder.preview", { pulse: email.pulseName })}
+      reason={m.message("invitation.reason")}
       outside={
         <>
-          <ActionsCard actions={email.actions ?? []} />
+          <ActionsCard actions={email.actions ?? []} messages={m} />
           <Notices
+            messages={m}
             deliveryUrl={deliveryUrl}
             extra={
               <>
@@ -41,26 +44,27 @@ export function ReminderEmailComponent({ email }: { email: ReminderEmailData }) 
                   href={unsubscribeUrl(email)}
                   style={{ color: colors.accent, textDecoration: "underline" }}
                 >
-                  {message("reminder.unsubscribe")}
+                  {m.message("reminder.unsubscribe")}
                 </Link>
               </>
             }
           />
-          {email.aiProcessing === true && <FooterNote>{message("privacy.aiNotice")}</FooterNote>}
+          {email.aiProcessing === true && <FooterNote>{m.message("privacy.aiNotice")}</FooterNote>}
         </>
       }
     >
-      <DisplayHeading>{message("reminder.heading", { pulse: email.pulseName })}</DisplayHeading>
-      <BodyText>{message("reminder.body")}</BodyText>
+      <DisplayHeading>{m.message("reminder.heading", { pulse: email.pulseName })}</DisplayHeading>
+      <BodyText>{m.message("reminder.body")}</BodyText>
       {email.ratingQuestion && (
         <RatingRow question={email.ratingQuestion} baseUrl={email.baseUrl} token={email.token} />
       )}
-      <ActionRow href={openUrl} />
+      <ActionRow href={openUrl} messages={m} />
     </Layout>
   );
 }
 
 export const text = (email: ReminderEmailData): string => {
+  const m = messagesFor(email.locale);
   const openUrl = `${email.baseUrl}/a#t=${email.token}`;
   const deliveryUrl = `${email.baseUrl}/delivery?token=${email.token}`;
 
@@ -81,7 +85,7 @@ export const text = (email: ReminderEmailData): string => {
 
   const actionLines: Array<string> = [];
   if (email.actions.length > 0) {
-    actionLines.push(message("invitation.actionsHeading"));
+    actionLines.push(m.message("invitation.actionsHeading"));
     for (const act of email.actions.slice(0, 3)) {
       actionLines.push(`• ${act}`);
     }
@@ -89,20 +93,21 @@ export const text = (email: ReminderEmailData): string => {
   }
 
   return textLayout(
+    m,
     [
-      message("reminder.heading", { pulse: email.pulseName }),
+      m.message("reminder.heading", { pulse: email.pulseName }),
       "",
-      message("reminder.body"),
+      m.message("reminder.body"),
       "",
       ...ratingLines,
-      `${message("invitation.openCheckIn")}: ${openUrl}`,
+      `${m.message("invitation.openCheckIn")}: ${openUrl}`,
       "",
       ...actionLines,
-      `${message("invitation.changeWhen")}: ${deliveryUrl}`,
-      `${message("reminder.unsubscribe")}: ${unsubscribeUrl(email)}`,
-      ...(email.aiProcessing === true ? [message("privacy.aiNotice")] : []),
-      message("invitation.personalNotice"),
+      `${m.message("invitation.changeWhen")}: ${deliveryUrl}`,
+      `${m.message("reminder.unsubscribe")}: ${unsubscribeUrl(email)}`,
+      ...(email.aiProcessing === true ? [m.message("privacy.aiNotice")] : []),
+      m.message("invitation.personalNotice"),
     ],
-    message("invitation.reason"),
+    m.message("invitation.reason"),
   );
 };
