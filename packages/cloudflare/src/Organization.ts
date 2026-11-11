@@ -2644,10 +2644,10 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
               )
               .pipe(
                 Effect.map((res) => ({ _tag: "Success" as const, ...res })),
-                Effect.catchTag("AlreadyAnswered", () =>
-                  Effect.succeed({ _tag: "AlreadyAnswered" as const }),
-                ),
-                Effect.catchTag("RoundNotOpen", () => Effect.succeed({ _tag: "RoundNotOpen" as const })),
+                Effect.catchTags({
+                  AlreadyAnswered: () => Effect.succeed({ _tag: "AlreadyAnswered" as const }),
+                  RoundNotOpen: () => Effect.succeed({ _tag: "RoundNotOpen" as const }),
+                }),
               );
           }),
         saveAnswer: (editKeyHash: string, answers: ReadonlyArray<SubmissionAnswer>) =>
@@ -2655,10 +2655,10 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
             const dirState = yield* directory.load;
             return yield* rounds.saveAnswer(editKeyHash, answers, dirState.people).pipe(
               Effect.map((res) => ({ _tag: "Success" as const, ...res })),
-              Effect.catchTag("SubmissionNotFound", () =>
-                Effect.succeed({ _tag: "SubmissionNotFound" as const }),
-              ),
-              Effect.catchTag("RoundNotOpen", () => Effect.succeed({ _tag: "RoundNotOpen" as const })),
+              Effect.catchTags({
+                SubmissionNotFound: () => Effect.succeed({ _tag: "SubmissionNotFound" as const }),
+                RoundNotOpen: () => Effect.succeed({ _tag: "RoundNotOpen" as const }),
+              }),
             );
           }),
         deleteParticipationForPerson: (personId: string) =>
