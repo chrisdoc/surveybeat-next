@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01PqkLttjD8uUtjucUBXEcE4",
+  "agent_id": "adb0d00262a62bff4",
+  "subagent_type": "reviewer",
+  "task_description": "Review resend web UI diff",
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 34015,
+    "cache_read_tokens": 99812,
+    "output_tokens": 3784,
+    "api_call_count": 5
+  },
+  "started_at": "2026-11-11T06:11:53.268890229Z",
+  "completed_at": "2026-11-11T06:12:57.913889218Z"
+}

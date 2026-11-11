@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01CcXuUgrqbCUJjrWhFpywkj",
+  "agent_id": "a56c534b62324bf85",
+  "subagent_type": "reviewer",
+  "task_description": "Review resend backend diff",
+  "token_usage": {
+    "input_tokens": 26,
+    "cache_creation_tokens": 57240,
+    "cache_read_tokens": 517501,
+    "output_tokens": 7779,
+    "api_call_count": 13
+  },
+  "started_at": "2026-11-11T06:01:38.294566135Z",
+  "completed_at": "2026-11-11T06:03:05.234510416Z"
+}
