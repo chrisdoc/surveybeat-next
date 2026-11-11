@@ -2,7 +2,6 @@ import * as Cloudflare from "@alchemy.run/cloudflare";
 import {
   EmailOutbox,
   EmailSender,
-  hashToken,
   IdentityProvider,
   MembershipId,
   OrganizationDirectory,
@@ -19,21 +18,19 @@ import {
   QuestionId,
   TeamId,
 } from "@surveybeat/domain";
-import { SurveyBeatApi } from "@surveybeat/api";
-import { EmailTemplatesLive, messagesFor } from "@surveybeat/emails";
+import { DELIVERY_PAGE_PATH, SurveyBeatApi, UNSUBSCRIBE_PAGE_PATH } from "@surveybeat/api";
+import { EmailTemplatesLive } from "@surveybeat/emails";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import { Stack } from "alchemy/Stack";
 import * as Config from "effect/Config";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 import * as Redacted from "effect/Redacted";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 import { HttpServerRequest } from "effect/http/HttpServerRequest";
-import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as Etag from "effect/http/Etag";
 import * as HttpPlatform from "effect/http/HttpPlatform";
 import * as HttpRouter from "effect/http/HttpRouter";
@@ -83,13 +80,8 @@ import { TEST_INVITATION_TEST_ROUTE, testInvitationTestRoutes } from "./TestInvi
 import { RESULT_RECOVERY_TEST_ROUTE, resultRecoveryTestRoutes } from "./ResultRecoveryTestRoutes.ts";
 import { THEMES_TEST_ROUTE, themesTestRoutes } from "./ThemesTestRoutes.ts";
 import Organization from "./Organization.ts";
+import { pageRoutes } from "./PageRoutes.ts";
 import { Jobs, JobsDlq, type JobMessage } from "./Queues.ts";
-import {
-  pageLocale,
-  renderDeliveryPage,
-  renderDeliverySuccessPage,
-  renderUnsubscribePage,
-} from "./ServerPages.ts";
 
 /** `apps/web`'s build output. Absolute, so it does not depend on where Alchemy is started. */
 const assetsDirectory = new URL("../../../apps/web/dist", import.meta.url).pathname;
@@ -112,9 +104,6 @@ const randomId = () =>
   );
 
 const newOrganizationId = () => OrganizationId.make(randomId());
-
-/** Plain-text replies from the delivery and unsubscribe routes can be German, so they name their charset. */
-const PLAIN_TEXT = "text/plain; charset=utf-8";
 
 /**
  * The Main Worker: the API (domain schemas, `@surveybeat/api` declaration, handlers backed by the
@@ -291,32 +280,7 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
       ),
     );
 
-    const JsonRecord = Schema.Record(Schema.String, Schema.String);
-    const decodeJsonRecord = Schema.decodeUnknownOption(JsonRecord);
-
-    const parseRequestBody = (req: HttpServerRequest): Effect.Effect<Record<string, string>> =>
-      Effect.gen(function* () {
-        const text = yield* req.text.pipe(Effect.orDie);
-        const contentType = req.headers["content-type"] ?? "";
-        if (contentType.includes("application/json")) {
-          try {
-            const parsed = Option.getOrElse(
-              decodeJsonRecord(JSON.parse(text)),
-              (): Record<string, string> => ({}),
-            );
-            return { ...parsed };
-          } catch {
-            return {};
-          }
-        }
-        const params = new URLSearchParams(text);
-        const result: Record<string, string> = {};
-        for (const [k, v] of params.entries()) {
-          result[k] = v;
-        }
-        return result;
-      });
-
+    const pages = pageRoutes(organizations, database);
     const testRoutes = isTestStage(stage) ? emailTestRoutes(organizations, emailWrites, database) : undefined;
 
     return {
@@ -324,109 +288,7 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
         const request = yield* HttpServerRequest;
         const path = request.url.split("?")[0];
 
-        if (path === "/delivery") {
-          if (request.method === "HEAD") {
-            return HttpServerResponse.empty({ status: 200 });
-          }
-          if (request.method === "GET") {
-            const url = new URL(request.url, "https://app.surveybeat.app");
-            const token = url.searchParams.get("token") ?? "";
-            const locale = pageLocale(url.searchParams.get("lang"), request.headers["accept-language"]);
-            return HttpServerResponse.html(renderDeliveryPage(token, locale));
-          }
-          if (request.method === "POST") {
-            const body = yield* parseRequestBody(request);
-            const url = new URL(request.url, "https://app.surveybeat.app");
-            const locale = pageLocale(
-              url.searchParams.get("lang") ?? body["lang"],
-              request.headers["accept-language"],
-            );
-            const m = messagesFor(locale);
-            const token = body["token"] ?? "";
-            const timeZone = body["timeZone"] ?? "";
-            if (!token || !timeZone) {
-              return HttpServerResponse.text(m.message("page.error.missingTokenOrTimeZone"), {
-                status: 400,
-                contentType: PLAIN_TEXT,
-              });
-            }
-            const tokenHash = yield* Effect.promise(() => hashToken(token));
-            const row = yield* database
-              .prepare(
-                "SELECT organization_id, round_id, person_id, pulse_id FROM invitation_index WHERE token_hash = ?",
-              )
-              .bind(tokenHash)
-              .first<{ organization_id: string; round_id: string; person_id: string; pulse_id: string }>()
-              .pipe(Effect.orDie);
-            if (row === null) {
-              return HttpServerResponse.text(m.message("page.error.invalid"), {
-                status: 404,
-                contentType: PLAIN_TEXT,
-              });
-            }
-            yield* organizations
-              .getByName(row.organization_id)
-              .setPersonTimeZone(row.person_id, timeZone)
-              .pipe(Effect.orDie);
-            const acceptHeader = request.headers["accept"] ?? "";
-            if (acceptHeader.includes("application/json")) {
-              return yield* HttpServerResponse.json({ ok: true, timeZone }).pipe(Effect.orDie);
-            }
-            return HttpServerResponse.html(renderDeliverySuccessPage(timeZone, locale));
-          }
-          return HttpServerResponse.empty({ status: 405 });
-        }
-
-        if (path === "/api/reminders/unsubscribe") {
-          if (request.method === "HEAD") {
-            return HttpServerResponse.empty({ status: 200 });
-          }
-          if (request.method === "GET") {
-            const url = new URL(request.url, "https://app.surveybeat.app");
-            const token = url.searchParams.get("t") ?? "";
-            const locale = pageLocale(url.searchParams.get("lang"), request.headers["accept-language"]);
-            return HttpServerResponse.html(renderUnsubscribePage(token, locale));
-          }
-          if (request.method === "POST") {
-            const url = new URL(request.url, "https://app.surveybeat.app");
-            const body = yield* parseRequestBody(request);
-            const locale = pageLocale(
-              url.searchParams.get("lang") ?? body["lang"],
-              request.headers["accept-language"],
-            );
-            const m = messagesFor(locale);
-            let token = url.searchParams.get("t");
-            if (!token) {
-              token = body["t"] ?? body["token"] ?? null;
-            }
-            if (!token) {
-              return HttpServerResponse.text(m.message("page.error.missingToken"), {
-                status: 400,
-                contentType: PLAIN_TEXT,
-              });
-            }
-            const tokenHash = yield* Effect.promise(() => hashToken(token));
-            const row = yield* database
-              .prepare(
-                "SELECT organization_id, round_id, person_id, pulse_id FROM invitation_index WHERE token_hash = ?",
-              )
-              .bind(tokenHash)
-              .first<{ organization_id: string; round_id: string; person_id: string; pulse_id: string }>()
-              .pipe(Effect.orDie);
-            if (row === null) {
-              return HttpServerResponse.text(m.message("page.error.invalid"), {
-                status: 404,
-                contentType: PLAIN_TEXT,
-              });
-            }
-            yield* organizations
-              .getByName(row.organization_id)
-              .optOutReminders(row.pulse_id, row.person_id)
-              .pipe(Effect.orDie);
-            return HttpServerResponse.text(m.message("page.unsubscribed"), { contentType: PLAIN_TEXT });
-          }
-          return HttpServerResponse.empty({ status: 405 });
-        }
+        if (path === DELIVERY_PAGE_PATH || path === UNSUBSCRIBE_PAGE_PATH) return yield* pages;
 
         if (isTestStage(stage)) {
           if (path === TEST_ROUTES && testRoutes) return yield* testRoutes;

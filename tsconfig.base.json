@@ -19,8 +19,13 @@
       {
         "name": "@effect/language-service",
         "diagnosticSeverity": {
+          "floatingEffect": "error",
+          // Off while Effect is pinned to 4.1.2: every hit is a call site this app would have to rewrite on the next bump. Revisit when the pin moves.
           "unstableApiUsage": "off"
-        }
+        },
+        "ignoreEffectWarningsInTscExitCode": false,
+        "ignoreEffectErrorsInTscExitCode": false,
+        "ignoreEffectSuggestionsInTscExitCode": true
       }
     ]
   }
