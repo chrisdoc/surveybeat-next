@@ -1,0 +1,45 @@
+Act as the implementation sub-agent for this task.
+
+You orchestrate one slice of the SurveyBeat repo (chrisdoc/surveybeat-next) end to end: GitHub issue #152 "Polish B1: responsive header, account menu, per-screen titles". Read the issue first (`gh issue view 152`), then AGENTS.md, `docs/research/dashboard-ui-audit.md` (ticket 6, bug B11, "Shell and navigation" section and its screenshots), `apps/web/src/app/app.css` and `apps/web/src/app/components.ts` (B2 design system: polish refines it, no new visual direction).
+
+Decisions already made by the product owner (do not re-ask): on phones a compact one-row header with a menu button and active nav state; Language and Sign out move into an account menu; Privacy moves to a footer that stays when signed in; each screen gets its own document.title from the catalogs, e.g. "Results · Platform Engineering — SurveyBeat". Copy goes in both catalogs (`apps/web/src/messages/catalog.ts` and `de.ts`, informal "du"); German wording review is deferred (#151), so draft German yourself. Use glossary terms exactly.
+
+How to work: create a branch from origin/main. Follow the user's global CLAUDE.md agent setup: `scoper` (haiku) if useful, `implementer` (haiku) writes the code, `reviewer` (sonnet) reviews every implementer diff, `shipper` (haiku) commits/pushes/opens the PR. You own design decisions and must review the diff yourself. Validate with `pnpm typecheck:effect && pnpm typecheck && pnpm lint && pnpm format:check && pnpm test` and `pnpm --filter @surveybeat/web build`. Add scene tests for titles and the header/menus; keep the e2e axe pass green and assert no horizontal overflow at 390 px. Put light/dark, EN/DE, desktop/phone screenshots of the header in the PR body (capture them however the repo's scene/screenshot tooling allows; if not possible, say so).
+
+Commit subjects: `Polish B1: ...`. Commits end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`; PR bodies end with `🤖 Generated with [Claude Code](https://claude.com/claude-code)`. PR body says `Closes #152`.
+
+You may squash-merge your own PR (`gh pr merge <n> --squash --delete-branch`) once all checks (check, privacy, deploy, e2e, preview-privacy) are green and your review is done. If GitHub returns a push 500 or CI does not trigger, retry once / close and reopen the PR. A flaky Lighthouse or preview WorkerNotFound may be re-run once. After merge, confirm the production Deploy workflow for the merge SHA succeeded. Final line: PR <full URL>, head <SHA>, checks and reviews <state>, merged <yes/no>, deploy <state>.
+
+---
+
+<task-notification>
+<task-id>a6831d5335f578c74</task-id>
+<tool-use-id>toolu_01Kok6krC6kK6jgHeD8B9W3e</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-8f70e25d-9104a747308defc5/6cfe2b4b-8f90-4e20-8201-3415e313d920/tasks/a6831d5335f578c74.output</output-file>
+<status>completed</status>
+<summary>Agent "Review header/menu/title diff" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>No blocker found. Typecheck, lint, format and the `App.scene.test.ts` (105) and messages tests pass. There is one major finding, a tablet overflow risk, and four minor ones.
+
+**Checked and fine**
+- **Title context:** `titles.ts` uses a Team's name only when its id matches the route's `teamId`. For Pulse it also requires `detail.id === route.pulseId`. The `UrlChanged` handler resets `teamDetail` and the other loaded data, so a stale Team or Pulse cannot leak into a title. `RoundResults` and `Rounds` both fetch the Team, so "Results · Team" is reachable.
+- **Menus closing:** `closeHeaderMenus` runs on every `UrlChanged`.
+- **Sign-in footer:** `signInView` goes through `screenView`, then `pageShell`, so the sign-in screen does get the Privacy footer. The e2e test asserts it.
+- **Duplicate ids:** `nav-menu` and `account-menu` are the Popover ids. The language selects are `language` and `language-menu`, and only one panel renders at a time.
+- **Catalog parity:** EN and DE keys match. The German is informal du and reads fine.
+
+**MAJOR**
+- **Desktop header overflows between 640 and about 900 px.** `apps/web/src/app/directory.ts`, `shellView` header block (the `hidden … sm:flex` nav, the `hidden sm:block` account menu and the `ml-auto sm:hidden` phone menu).
+  - The inline nav and account trigger appear from `sm` (640 px). The content width is only viewport − 64 px.
+  - Rough sum for a German admin: brand ~150 px, nav ~450 px ("Teams", "Mein Verlauf", "Organisationseinstellungen" plus gaps), plus an account button of up to 256 px. That is about 850 px or more against 576 px at 640 px, and against 704 px at 768 px.
+  - The nav has `min-w-0` but its links don't wrap or shrink, so the page scrolls horizontally. English admins with a long Organization name are likely hit too.
+  - The brief's 390 px check passes, and nothing tests widths between 640 and 900 px.
+  - Fix: switch the breakpoint from `sm` to `md` or `lg` for the nav, account menu and phone menu together. Or cap the account trigger at about 10rem and make the nav links `whitespace-nowrap` with `overflow-hidden`. Add a 768 px German-admin overflow check.
+
+**MINOR**
+1. **Weak e2e coverage.** `infra/tests/e2e/pages.spec.ts`. The axe and overflow test covers only the signed-out `/` and `/privacy`, so the new Menu and account Popovers are never checked by axe. This is understandable, since signed-in e2e needs WorkOS. Say so in the PR, or add a signed-in axe pass with the menu open if `flow.spec.ts` can sign in. Keyboard behaviour (Escape closing, focus returning) rests entirely on Foldkit.
+2. **Signed-in Privacy page has no header controls.** `App.ts`, `view()` short-circuits `Privacy` to `privacyView`, so a signed-in Person sees only the brand: no nav, no account menu, no Sign out. Before this change Sign out was also missing there, so it isn't a regression. Now that Sign out lives only in the menu, consider rendering the signed-in shell on Privacy when `session` is `SignedIn`.
+3. **Account trigger has no accessible context.** `directory.ts`, `accountButton`. Its name is just the Organization name, so a screen reader hears no hint that it opens a menu holding Language and Sign out. Consider an `aria-label` or visually hidden text such as "Account menu: {org}", with a catalog entry in both languages.
+4. **Menus can both be open after a resize.** The account menu is `display:none` on phones but its Popover state can stay open, and the nav menu can then open too. This is rare and low impact. Optionally close both when the Menu button opens.</result>
+<usage><subagent_tokens>41272</subagent_tokens><tool_uses>7</tool_uses><duration_ms>69183</duration_ms></usage>
+</task-notification>

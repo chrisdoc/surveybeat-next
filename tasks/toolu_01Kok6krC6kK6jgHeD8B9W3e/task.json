@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01Kok6krC6kK6jgHeD8B9W3e",
+  "agent_id": "a6831d5335f578c74",
+  "subagent_type": "reviewer",
+  "task_description": "Review header/menu/title diff",
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 36301,
+    "cache_read_tokens": 169911,
+    "output_tokens": 5827,
+    "api_call_count": 7
+  },
+  "started_at": "2026-11-11T06:06:29.949388699Z",
+  "completed_at": "2026-11-11T06:07:38.957229923Z"
+}
