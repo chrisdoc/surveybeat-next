@@ -2,6 +2,8 @@ import {
   ActionId,
   type ActionItem,
   EmailAddress,
+  type EmailSendProgress,
+  type FailedEmailStatus,
   type HistoryRound,
   type Locale,
   MinimumGroupSize,
@@ -50,12 +52,14 @@ import {
   ListTeams,
   LoadSession,
   localeOf,
+  PollFailedEmailCmd,
   PollTestSendCmd,
   Message,
   Navigate,
   PausePulseCmd,
   RemoveMember,
   RemoveQuestionCmd,
+  ResendFailedEmailCmd,
   ResendInvitationCmd,
   ResumePulseCmd,
   RetryResultCmd,
@@ -74,6 +78,7 @@ import {
   view,
 } from "./App.ts";
 import { formatDate, message, setLocale } from "../messages/locale.ts";
+import type { FailedEmailResend } from "./directory.ts";
 import type { KeptAnswers } from "./keptAnswers.ts";
 import type { SessionModel } from "./session.ts";
 
@@ -804,6 +809,7 @@ describe("App Scenes", () => {
                   reason: "rejected",
                   code: "E_SENDER_NOT_VERIFIED",
                   failedAt,
+                  resendable: true,
                 },
                 {
                   sendId: decodeSendId("send-2"),
@@ -812,6 +818,7 @@ describe("App Scenes", () => {
                   reason: "unknown",
                   code: null,
                   failedAt,
+                  resendable: false,
                 },
               ],
             },
@@ -844,6 +851,178 @@ describe("App Scenes", () => {
         Scene.expect(Scene.role("heading", { name: "Failed emails" })).toExist(),
         Scene.expect(Scene.text("Something went wrong. Try again in a moment.")).toExist(),
       );
+    });
+
+    describe("resending a failed send", () => {
+      const sendId = decodeSendId("send-1");
+      const failedRow = (resendable: boolean) => ({
+        sendId,
+        kind: "ReminderEmail" as const,
+        recipient: decodeEmail("ada@acme.com"),
+        reason: "rejected" as const,
+        code: "E_SENDER_NOT_VERIFIED",
+        failedAt,
+        resendable,
+      });
+      const listedModel = (resendable = true, resends: Record<string, FailedEmailResend> = {}) => ({
+        ...initialModel(makeUrl("https://app.surveybeat.com/settings")),
+        session: signedInAdmin,
+        settings: { _tag: "Loaded" as const, settings },
+        size: "4",
+        failedEmails: { _tag: "Loaded" as const, list: { emails: [failedRow(resendable)] } },
+        failedEmailResends: resends,
+      });
+      const resendStatus = (state: EmailSendProgress): FailedEmailStatus => ({ sendId, state });
+      const resent = (state: EmailSendProgress) =>
+        Message.ResentFailedEmail({ sendId, outcome: { _tag: "Success", status: resendStatus(state) } });
+      const polled = (state: EmailSendProgress) =>
+        Message.PolledFailedEmail({ sendId, outcome: { _tag: "Success", status: resendStatus(state) } });
+      const resendClick = Scene.click(Scene.role("button", { name: "Resend" }));
+      const queued: EmailSendProgress = { _tag: "Queued", attempts: 0, lastCode: null };
+
+      it("offers Resend only on a row that can be resent", () => {
+        Scene.scene(
+          { update, view },
+          Scene.given(listedModel(false)),
+          Scene.expect(Scene.text("ada@acme.com")).toExist(),
+          Scene.expect(Scene.role("button", { name: "Resend" })).toBeAbsent(),
+        );
+      });
+
+      it("sends the Resend once, and shows it as busy while it is in flight", () => {
+        Scene.scene(
+          { update, view },
+          Scene.given(listedModel()),
+          resendClick,
+          Scene.Command.expectHas(ResendFailedEmailCmd({ sendId })),
+          Scene.expect(Scene.role("button", { name: "Resending…" })).toBeDisabled(),
+          Scene.Command.resolve(
+            ResendFailedEmailCmd({ sendId }),
+            Message.ResentFailedEmail({ sendId, outcome: { _tag: "Failure", failure: "Unavailable" } }),
+          ),
+        );
+      });
+
+      it("ignores a second Resend while the first is in flight or still queued", () => {
+        const first = update(listedModel(), Message.ResendFailedEmailClicked({ sendId }));
+        expect(first.commands?.map((command) => command.name)).toEqual(["ResendFailedEmailCmd"]);
+        const second = update(first.model, Message.ResendFailedEmailClicked({ sendId }));
+        expect(second.commands?.length ?? 0).toBe(0);
+        const queuedModel = update(first.model, resent(queued));
+        const third = update(queuedModel.model, Message.ResendFailedEmailClicked({ sendId }));
+        expect(third.commands?.length ?? 0).toBe(0);
+      });
+
+      it("shows a queued Resend, checks it again, and shows that it was sent", () => {
+        Scene.scene(
+          { update, view },
+          Scene.given(listedModel()),
+          resendClick,
+          Scene.Command.resolve(ResendFailedEmailCmd({ sendId }), resent(queued)),
+          Scene.expect(Scene.text("Queued…")).toExist(),
+          Scene.expect(Scene.role("button", { name: "Resend" })).toBeAbsent(),
+          Scene.Command.expectHas(PollFailedEmailCmd({ sendId })),
+          Scene.Command.resolve(PollFailedEmailCmd({ sendId }), polled({ _tag: "Sent", sentAt: failedAt })),
+          Scene.expect(Scene.text("Sent")).toExist(),
+          Scene.Command.expectNone(),
+        );
+      });
+
+      it("shows that a resent email is being sent", () => {
+        Scene.scene(
+          { update, view },
+          Scene.given(listedModel()),
+          resendClick,
+          Scene.Command.resolve(ResendFailedEmailCmd({ sendId }), resent(queued)),
+          Scene.Command.resolve(PollFailedEmailCmd({ sendId }), polled({ _tag: "Sending", attempt: 1 })),
+          Scene.expect(Scene.text("Sending…")).toExist(),
+          Scene.Command.expectHas(PollFailedEmailCmd({ sendId })),
+          Scene.Command.resolve(PollFailedEmailCmd({ sendId }), polled({ _tag: "Sent", sentAt: failedAt })),
+        );
+      });
+
+      it("shows why a resent email failed again, and offers Resend again", () => {
+        Scene.scene(
+          { update, view },
+          Scene.given(listedModel()),
+          resendClick,
+          Scene.Command.resolve(ResendFailedEmailCmd({ sendId }), resent(queued)),
+          Scene.Command.resolve(
+            PollFailedEmailCmd({ sendId }),
+            polled({ _tag: "Failed", reason: "rejected", code: "E_SENDER_NOT_VERIFIED", failedAt }),
+          ),
+          Scene.expect(
+            Scene.text("Not sent: the email service refused it (E_SENDER_NOT_VERIFIED)"),
+          ).toExist(),
+          Scene.expect(Scene.role("button", { name: "Resend" })).toBeEnabled(),
+          Scene.Command.expectNone(),
+        );
+      });
+
+      it("says the email can no longer be sent when the server refuses the Resend", () => {
+        Scene.scene(
+          { update, view },
+          Scene.given(listedModel()),
+          resendClick,
+          Scene.Command.resolve(
+            ResendFailedEmailCmd({ sendId }),
+            Message.ResentFailedEmail({
+              sendId,
+              outcome: { _tag: "Failure", failure: "EmailNotResendable" },
+            }),
+          ),
+          Scene.expect(Scene.text("This email can no longer be sent.")).toExist(),
+          Scene.expect(Scene.role("button", { name: "Resend" })).toBeAbsent(),
+          Scene.Command.expectNone(),
+        );
+      });
+
+      it("says the Resend failed and re-enables Resend when the request fails", () => {
+        Scene.scene(
+          { update, view },
+          Scene.given(listedModel()),
+          resendClick,
+          Scene.Command.resolve(
+            ResendFailedEmailCmd({ sendId }),
+            Message.ResentFailedEmail({ sendId, outcome: { _tag: "Failure", failure: "Unavailable" } }),
+          ),
+          Scene.expect(Scene.text("Couldn't resend. Try again.")).toExist(),
+          Scene.expect(Scene.role("button", { name: "Resend" })).toBeEnabled(),
+          Scene.Command.expectNone(),
+        );
+      });
+
+      it("says the status could not be read and stops checking when a read fails", () => {
+        Scene.scene(
+          { update, view },
+          Scene.given(listedModel()),
+          resendClick,
+          Scene.Command.resolve(ResendFailedEmailCmd({ sendId }), resent(queued)),
+          Scene.Command.resolve(
+            PollFailedEmailCmd({ sendId }),
+            Message.PolledFailedEmail({ sendId, outcome: { _tag: "Failure", failure: "NotFound" } }),
+          ),
+          Scene.expect(Scene.text("Couldn't check the status. Reload the page to check again.")).toExist(),
+          Scene.Command.expectNone(),
+        );
+      });
+
+      it("stops checking a resent email that is still queued after fifteen minutes", () => {
+        const waiting = listedModel(true, {
+          [sendId]: { _tag: "Resent", state: queued, polls: 299, statusUnavailable: false },
+        });
+        const last = update(waiting, polled(queued));
+        expect(last.commands?.length ?? 0).toBe(0);
+        // Still queued when it gives up: the row says to reload.
+        expect(last.model.failedEmailResends[sendId]).toMatchObject({ statusUnavailable: true });
+        const earlier = update(
+          listedModel(true, {
+            [sendId]: { _tag: "Resent", state: queued, polls: 298, statusUnavailable: false },
+          }),
+          polled(queued),
+        );
+        expect(earlier.commands?.map((command) => command.name)).toEqual(["PollFailedEmailCmd"]);
+      });
     });
 
     it("loads the failed emails when the settings screen opens", () => {

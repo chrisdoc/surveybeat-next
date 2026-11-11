@@ -2,9 +2,16 @@ import { SurveyBeatApi } from "@surveybeat/api";
 import {
   applyChanges,
   applyPulseChanges,
+  emailStatusView,
   failedEmailsView,
   type FailedEmail,
+  type FailureReason,
+  isEmailAdmin,
+  isResendable,
   pending,
+  progressOf,
+  type ResendFacts,
+  type ResendResult,
   type SendState,
   testSendView,
   type TestSendFound,
@@ -363,6 +370,23 @@ export class MemoryIndex {
   });
 }
 
+/**
+ * What the fake knows of a send's resend. The fake keeps no Invitations, so an Invitation's, a reminder's, and a
+ * legacy email's send is never resendable here; the other kinds follow the same rule as the Durable Object.
+ */
+const fakeResendFacts = (
+  organization: MemoryOrganization,
+  sendId: SendId,
+  email: TransactionalEmail,
+  reason: FailureReason,
+): ResendFacts => ({
+  kind: email._tag,
+  reason,
+  generation: null,
+  invitation: null,
+  testSend: organization.testSends.has(sendId),
+});
+
 /** One Organization's object: its directory state, its question library and Pulses, and its sends. */
 interface MemoryOrganization {
   state: DirectoryState;
@@ -524,12 +548,45 @@ export class MemoryOrganizations {
                 reason: send.state.reason,
                 code: send.state.code,
                 failedAt: send.state.failedAt,
+                resendable: isResendable(
+                  sendId,
+                  fakeResendFacts(organization, sendId, send.email, send.state.reason),
+                ),
               },
             ];
           })
           .sort((a, b) => b.failedAt - a.failedAt)
           .slice(0, 50);
         return failedEmailsView(organization.state, actorId, failed);
+      }),
+    resendFailedEmail: (organizationId, actorId, sendId, _now) =>
+      Effect.sync((): ResendResult => {
+        const organization = this.organization(organizationId);
+        if (!isEmailAdmin(organization.state, actorId))
+          return { _tag: "Rejected", rejection: { _tag: "Forbidden" } };
+        const send = organization.sends.get(sendId);
+        if (send === undefined) return { _tag: "Rejected", rejection: { _tag: "FailedEmailNotFound" } };
+        if (send.state._tag !== "Failed")
+          return {
+            _tag: "Accepted",
+            status: { sendId, state: progressOf(send.state) },
+            queue: send.state._tag === "Pending" && send.state.attempts === 0,
+          };
+        const facts = fakeResendFacts(organization, sendId, send.email, send.state.reason);
+        if (!isResendable(sendId, facts))
+          return { _tag: "Rejected", rejection: { _tag: "EmailNotResendable" } };
+        organization.sends.set(sendId, { ...send, state: pending });
+        return { _tag: "Accepted", status: { sendId, state: progressOf(pending) }, queue: true };
+      }),
+    emailStatus: (organizationId, actorId, sendId) =>
+      Effect.sync(() => {
+        const organization = this.organization(organizationId);
+        const send = organization.sends.get(sendId);
+        return emailStatusView(
+          organization.state,
+          actorId,
+          send === undefined ? null : { sendId, state: progressOf(send.state) },
+        );
       }),
   });
 

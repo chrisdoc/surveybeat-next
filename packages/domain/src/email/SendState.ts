@@ -54,6 +54,13 @@ export const defaultSendPolicy: SendPolicy = { leaseMillis: 2 * 60_000, maxAttem
 
 export const pending: SendState = { _tag: "Pending", attempts: 0, lastCode: null };
 
+/**
+ * An admin's explicit Resend of a failed send (ADR 0006): the send is pending again, with no attempts, and
+ * is delivered under the same id and content. Never automatic. Any other state is left alone.
+ */
+export const requeue = (state: SendState): Option.Option<SendState> =>
+  state._tag === "Failed" ? Option.some(pending) : Option.none();
+
 /** What a delivery that found the send in `state` must do. */
 export type ClaimDecision =
   /** Persist `state` (the lease), then send. */

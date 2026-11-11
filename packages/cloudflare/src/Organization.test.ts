@@ -333,6 +333,7 @@ test(
             reason: "rejected",
             code: "E_SENDER_NOT_VERIFIED",
             failedAt: sentAt + 2,
+            resendable: true,
           },
         ],
       },
@@ -348,6 +349,7 @@ test(
       reason: "abandoned",
       code: null,
       failedAt: sentAt + 150,
+      resendable: true,
     });
     assert.deepStrictEqual(after.value.emails[49], {
       sendId: `bulk-${run}-1`,
@@ -356,7 +358,89 @@ test(
       reason: "abandoned",
       code: null,
       failedAt: sentAt + 101,
+      resendable: true,
     });
+  }),
+);
+
+test(
+  "resends a failed email once for an admin, through the queue, and refuses the rest (issue 159)",
+  Effect.gen(function* () {
+    const { url } = yield* stack;
+    const run = crypto.randomUUID();
+    const response = yield* Effect.promise(() => fetch(`${url}/__test/resend-email?run=${run}`));
+    assert.strictEqual(response.status, 200);
+    const body = (yield* Effect.promise(() => response.json())) as {
+      failedBefore: { _tag: string; value: { emails: Array<{ recipient: string; resendable: boolean }> } };
+      revokedResend: unknown;
+      staleResend: unknown;
+      leadResend: unknown;
+      memberResend: unknown;
+      stillFailed: { _tag: string } | null;
+      otherResend: unknown;
+      first: { _tag: string; queue: boolean; status: { sendId: string; state: { _tag: string } } };
+      second: { _tag: string; queue: boolean; status: { sendId: string; state: { _tag: string } } };
+      adaResend: { _tag: string; queue: boolean; status: { sendId: string; state: { _tag: string } } };
+      failedInvitationsAfter: Array<string>;
+      sent: { _tag: string } | null;
+      captured: Array<{ recipient: string; subject: string }>;
+      listedAfter: { _tag: string; value: { emails: Array<{ recipient: string }> } };
+      statusAfter: { _tag: string; value: { state: { _tag: string } } };
+    };
+    const added = `added-${run}`;
+    const recipient = `resent-${run}@example.com`;
+
+    // Failed Invitations: the current one may be resent; a revoked one and one re-sent since may not.
+    assert.strictEqual(body.failedBefore._tag, "Viewed");
+    const resendableOf = (address: string) =>
+      body.failedBefore.value.emails.find((each) => each.recipient === address)?.resendable;
+    assert.strictEqual(resendableOf("ada@example.com"), true);
+    assert.strictEqual(resendableOf("bob@example.com"), false);
+    assert.strictEqual(resendableOf("grace@example.com"), false);
+    const refused = { _tag: "Rejected", rejection: { _tag: "EmailNotResendable" } };
+    assert.deepStrictEqual(body.revokedResend, refused);
+    assert.deepStrictEqual(body.staleResend, refused);
+
+    // A Lead and a member are not Organization admins, and another Organization's admin cannot see this send.
+    const forbidden = { _tag: "Rejected", rejection: { _tag: "Forbidden" } };
+    assert.deepStrictEqual(body.leadResend, forbidden);
+    assert.deepStrictEqual(body.memberResend, forbidden);
+    assert.strictEqual(body.stillFailed?._tag, "Failed");
+    assert.deepStrictEqual(body.otherResend, {
+      _tag: "Rejected",
+      rejection: { _tag: "FailedEmailNotFound" },
+    });
+
+    // The admin's double click: both queue the send (the second re-queues it while it waits); it is still sent once.
+    const queued = { _tag: "Queued", attempts: 0, lastCode: null };
+    assert.deepStrictEqual(body.first, {
+      _tag: "Accepted",
+      queue: true,
+      status: { sendId: added, state: queued },
+    });
+    assert.strictEqual(body.second._tag, "Accepted");
+    assert.strictEqual(body.second.queue, true);
+    assert.strictEqual(body.second.status.sendId, added);
+
+    // Ada's current Invitation goes out again, and the Lead's failed list stops showing it.
+    assert.strictEqual(body.adaResend._tag, "Accepted");
+    assert.strictEqual(body.adaResend.queue, true);
+    assert.notInclude(body.failedInvitationsAfter, `member-${run}`);
+
+    // The queue delivered the email once: one captured message to that address, and the send is sent.
+    assert.strictEqual(body.sent?._tag, "Sent");
+    assert.deepStrictEqual(
+      body.captured.map((each) => each.recipient),
+      [recipient],
+    );
+
+    // Once sent it is no longer a failed email, and its status reads as sent.
+    assert.notInclude(
+      body.listedAfter.value.emails.map((each) => each.recipient),
+      recipient,
+    );
+    assert.strictEqual(body.statusAfter._tag, "Viewed");
+    assert.strictEqual(body.statusAfter.value.state._tag, "Sent");
   }),
 );
 
