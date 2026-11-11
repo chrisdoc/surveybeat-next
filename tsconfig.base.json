@@ -25,7 +25,9 @@
         },
         "ignoreEffectWarningsInTscExitCode": false,
         "ignoreEffectErrorsInTscExitCode": false,
-        "ignoreEffectSuggestionsInTscExitCode": true
+        // Suggestions fail the build too (CI runs `typecheck:effect`): each one is either fixed or
+        // opted out inline with an `@effect-diagnostics-next-line` directive and a stated reason.
+        "ignoreEffectSuggestionsInTscExitCode": false
       }
     ]
   }

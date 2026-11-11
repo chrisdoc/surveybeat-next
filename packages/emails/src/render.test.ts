@@ -85,7 +85,7 @@ describe.each(Object.values(examples))("$_tag in German", (example) => {
 
 describe("a send stored before locales were recorded", () => {
   it("decodes as English and renders English", async () => {
-    const stored = Schema.decodeUnknownSync(StoredEmail)({
+    const stored = Schema.decodeSync(StoredEmail)({
       _tag: "AddedToTeam",
       teamName: "Platform",
       leadName: "Grace Hopper",
