@@ -702,6 +702,17 @@ test(
           couldNotComputeKey: false,
         },
       },
+      // e: nothing to retry. An Open or Cancelled Round is rejected with its status; another Team's Lead gets
+      // RoundNotFound; this Round's Lead naming a Team they have no role in is Forbidden; no compute job is created.
+      nothingToRetry: {
+        whileOpen: { outcome: "InvalidRoundState", status: "open" },
+        otherTeamLead: { outcome: "RoundNotFound", status: null },
+        ownLeadNamingOtherTeam: { outcome: "Forbidden", status: null },
+        cancelled: "Accepted",
+        afterCancel: { outcome: "InvalidRoundState", status: "cancelled" },
+        roundStatus: "cancelled",
+        computeJobs: 0,
+      },
     });
   }),
   { timeout: 240_000 },

@@ -1,4 +1,11 @@
-import type { RoundResult } from "@surveybeat/domain";
+import {
+  EmailAddress,
+  MembershipId,
+  type RoundCommandResult,
+  type RoundResult,
+  TeamId,
+  TimeZone,
+} from "@surveybeat/domain";
 import * as Clock from "effect/Clock";
 import * as Effect from "effect/Effect";
 import { HttpServerRequest } from "effect/http/HttpServerRequest";
@@ -34,6 +41,15 @@ const viewState = (view: RoundResult | null) => ({
   couldNotCompute: view?.couldNotCompute === true,
   couldNotComputeKey: view !== null && "couldNotCompute" in view,
 });
+
+/** "Accepted", or the rejection's tag with the Round status it names, if any. */
+const rejectionOf = (result: RoundCommandResult) =>
+  result._tag === "Accepted"
+    ? { outcome: "Accepted", status: null }
+    : {
+        outcome: result.rejection._tag,
+        status: "status" in result.rejection ? result.rejection.status : null,
+      };
 
 /** The Round's compute job the first one listed (the job the close created), with its payload. */
 const firstComputeJob = (cast: Cast) =>
@@ -83,6 +99,9 @@ const afterGiveUp = (cast: Cast, offsets: ReadonlyArray<number>) =>
  *   computes the Result; the second changes nothing.
  * - d: a Round that gives up again. The Lead's retry fails once, so the Lead is told it is still being retried, and
  *   the next attempt succeeds.
+ * - e: a retry of a Round that has nothing to retry. While the Round is Open, and after it is Cancelled, the Lead's
+ *   retry is rejected with the Round's status. A Lead of another Team, naming that Team, gets RoundNotFound; this
+ *   Round's own Lead naming a Team they have no role in is Forbidden. None of these creates a compute job.
  */
 export const resultRecoveryTestRoutes = (organizations: Organizations) =>
   Effect.gen(function* () {
@@ -237,10 +256,61 @@ export const resultRecoveryTestRoutes = (organizations: Organizations) =>
       leadAfterSuccess: viewState(yield* viewOf(again, again.lead)),
     };
 
+    // e: nothing to retry: an Open Round, another Team's Round, and a Cancelled Round.
+    const idle = yield* openedRound(organizations, `recovery-${run}-e`, 3, now);
+    const retryAs = (person: typeof idle.lead, teamId: TeamId) =>
+      Effect.map(
+        idle.organization.runRoundCommand(
+          person,
+          { _tag: "RetryResult", teamId, roundId: idle.roundId },
+          now,
+        ),
+        rejectionOf,
+      );
+    const whileOpen = yield* retryAs(idle.lead, idle.teamId);
+    // The member of this Team leads another Team.
+    const otherTeamId = TeamId.make(`team-recovery-${run}-e-design`);
+    yield* idle.organization.runDirectoryCommand(
+      idle.admin,
+      {
+        _tag: "CreateTeam",
+        teamId: otherTeamId,
+        name: "Design",
+        timeZone: TimeZone.make("Europe/Berlin"),
+        lead: {
+          email: EmailAddress.make(`member-recovery-${run}-e@example.com`),
+          personId: idle.member,
+          membershipId: MembershipId.make(`membership-design-lead-recovery-${run}-e`),
+          signInUrl: "https://app.surveybeat.app/",
+        },
+      },
+      now,
+    );
+    const otherTeamLead = yield* retryAs(idle.member, otherTeamId);
+    const ownLeadNamingOtherTeam = yield* retryAs(idle.lead, otherTeamId);
+    const cancelled = commandOutcome(
+      yield* idle.organization.runRoundCommand(
+        idle.admin,
+        { _tag: "CancelRound", teamId: idle.teamId, roundId: idle.roundId },
+        now,
+      ),
+    );
+    const afterCancel = yield* retryAs(idle.lead, idle.teamId);
+    const nothingToRetry = {
+      whileOpen,
+      otherTeamLead,
+      ownLeadNamingOtherTeam,
+      cancelled,
+      afterCancel,
+      roundStatus: yield* statusOf(idle),
+      computeJobs: (yield* jobsOfType(idle, "compute")).length,
+    };
+
     return yield* HttpServerResponse.json({
       failThenSucceed,
       giveUp: giveUpSummary,
       leadRetry: retrySummary,
       failedRetry: { ...failedRetrySummary, ...failedRetryDone },
+      nothingToRetry,
     });
   });

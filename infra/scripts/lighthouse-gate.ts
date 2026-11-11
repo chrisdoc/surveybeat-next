@@ -123,7 +123,9 @@ async function main() {
       const args = [
         targetUrl,
         "--output=json",
-        "--only-categories=performance",
+        // Only the gated audits: the full category runs gatherers that inject their own scripts into the page while
+        // it loads, and their long tasks land in TBT (seen as `_lighthouse-eval.js` tasks of 250-420 ms).
+        "--only-audits=first-contentful-paint,largest-contentful-paint,total-blocking-time",
         "--quiet",
         "--chrome-flags=--headless=new --no-sandbox --disable-gpu",
       ];
@@ -153,35 +155,44 @@ async function main() {
       });
     });
 
-  /** Audits one URL, retrying up to `maxRuns` times; returns the last run's numbers and any budget failures. */
+  const median = (values: ReadonlyArray<number>): number => {
+    const sorted = [...values].sort((a, b) => a - b);
+    return sorted[Math.floor(sorted.length / 2)] ?? 0;
+  };
+
+  /**
+   * Audits one URL: one warm-up run that is discarded (cold Chrome and disk caches), then `RUNS` measured runs. Each
+   * metric is gated on its median, as Lighthouse CI recommends: one noisy run on a shared runner neither fails nor
+   * passes the gate, and the budgets themselves stay the same.
+   */
+  const RUNS = 5;
   const auditUrl = async (targetUrl: string): Promise<AuditResult> => {
-    const maxRuns = 3;
-    let fcp = 0;
-    let lcp = 0;
-    let tbt = 0;
-    let failures: Array<string> = [];
-
-    console.log(`\nRunning Lighthouse audit on ${targetUrl}...`);
-    for (let run = 1; run <= maxRuns; run++) {
+    console.log(`\nRunning Lighthouse audit on ${targetUrl} (1 warm-up, ${RUNS} measured runs)...`);
+    await runLighthouse(targetUrl);
+    const runs: Array<{ fcp: number; lcp: number; tbt: number }> = [];
+    for (let run = 1; run <= RUNS; run++) {
       const report = await runLighthouse(targetUrl);
-      fcp = report.audits["first-contentful-paint"].numericValue;
-      lcp = report.audits["largest-contentful-paint"].numericValue;
-      tbt = report.audits["total-blocking-time"].numericValue;
-
-      failures = [];
-      if (fcp > FCP_BUDGET) failures.push(`FCP ${Math.round(fcp)} ms exceeds budget of ${FCP_BUDGET} ms`);
-      if (lcp > LCP_BUDGET) failures.push(`LCP ${Math.round(lcp)} ms exceeds budget of ${LCP_BUDGET} ms`);
-      if (tbt > TBT_BUDGET) failures.push(`TBT ${Math.round(tbt)} ms exceeds budget of ${TBT_BUDGET} ms`);
-
-      if (failures.length === 0) {
-        break;
-      }
-      if (run < maxRuns) {
-        console.warn(
-          `\nRun ${run} missed budget (TBT: ${Math.round(tbt)}ms). Retrying (${run + 1}/${maxRuns})...`,
-        );
-      }
+      const measured = {
+        fcp: report.audits["first-contentful-paint"].numericValue,
+        lcp: report.audits["largest-contentful-paint"].numericValue,
+        tbt: report.audits["total-blocking-time"].numericValue,
+      };
+      runs.push(measured);
+      console.log(
+        `  run ${run}: FCP ${Math.round(measured.fcp)} ms, LCP ${Math.round(measured.lcp)} ms, TBT ${Math.round(measured.tbt)} ms`,
+      );
     }
+    const fcp = median(runs.map((run) => run.fcp));
+    const lcp = median(runs.map((run) => run.lcp));
+    const tbt = median(runs.map((run) => run.tbt));
+
+    const failures: Array<string> = [];
+    if (fcp > FCP_BUDGET)
+      failures.push(`median FCP ${Math.round(fcp)} ms exceeds budget of ${FCP_BUDGET} ms`);
+    if (lcp > LCP_BUDGET)
+      failures.push(`median LCP ${Math.round(lcp)} ms exceeds budget of ${LCP_BUDGET} ms`);
+    if (tbt > TBT_BUDGET)
+      failures.push(`median TBT ${Math.round(tbt)} ms exceeds budget of ${TBT_BUDGET} ms`);
     return { url: targetUrl, fcp, lcp, tbt, failures };
   };
 
@@ -191,7 +202,7 @@ async function main() {
       results.push(await auditUrl(targetUrl));
     }
 
-    console.log(`\nLighthouse Performance Results:`);
+    console.log(`\nLighthouse Performance Results (median of ${RUNS} runs):`);
     for (const result of results) {
       console.log(`\n${result.url}`);
       console.log(`• FCP: ${Math.round(result.fcp)} ms (Budget: ≤ ${FCP_BUDGET} ms)`);
