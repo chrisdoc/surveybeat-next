@@ -170,10 +170,7 @@ export const makeSqlActions = (sql: SqliteClient.SqliteClient) => {
         WHERE pulse_id = ${pulseId}
           AND planned_open_at < ${plannedOpenAt}
         ORDER BY planned_open_at DESC
-        LIMIT 1`.pipe(
-        Effect.flatMap(Schema.decodeUnknownEffect(Schema.Array(PreviousRoundRow))),
-        Effect.orDie,
-      );
+        LIMIT 1`.pipe(Effect.flatMap(Schema.decodeUnknownEffect(Schema.Array(PreviousRoundRow))));
 
       const previousRound = prevRows[0]
         ? { openedAt: prevRows[0].opened_at, plannedOpenAt: prevRows[0].planned_open_at }
@@ -186,11 +183,10 @@ export const makeSqlActions = (sql: SqliteClient.SqliteClient) => {
         ORDER BY created_at ASC`.pipe(
         Effect.flatMap(Schema.decodeUnknownEffect(Schema.Array(ActionRow))),
         Effect.map((rows) => rows.map(decodeAction)),
-        Effect.orDie,
       );
 
       return selectActionsForRound(actionRows, previousRound);
-    });
+    }).pipe(Effect.orDie);
 
   return {
     getAction,
