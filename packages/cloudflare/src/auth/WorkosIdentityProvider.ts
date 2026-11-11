@@ -19,9 +19,11 @@ import {
   WorkOS,
 } from "@workos-inc/node/worker";
 import * as Data from "effect/Data";
+import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Redacted from "effect/Redacted";
+import { withProviderDeadline } from "./ProviderDeadline.ts";
 
 /** What the adapter needs per stage. All three come from Worker secrets (`AuthConfig.ts`). */
 export interface WorkosConfig {
@@ -29,6 +31,8 @@ export interface WorkosConfig {
   readonly clientId: string;
   /** Seals the session cookie (iron-webcrypto). At least 32 characters. */
   readonly cookiePassword: Redacted.Redacted<string>;
+  /** No WorkOS call may hold a request longer than this; a timeout becomes `AuthUnavailable`. */
+  readonly requestTimeout: Duration.Duration;
 }
 
 /** The HTTP status a WorkOS SDK error carries, if any. */
@@ -57,14 +61,22 @@ const isNetworkFailure = (error: unknown): boolean => {
 };
 
 /** Calls that only fail when WorkOS cannot be reached or misbehaves. */
-const call = <A>(f: () => Promise<A>) => Effect.tryPromise({ try: f, catch: () => new AuthUnavailable() });
+const callWith =
+  (timeout: Duration.Duration) =>
+  <A>(f: () => Promise<A>) =>
+    withProviderDeadline(Effect.tryPromise({ try: f, catch: () => new AuthUnavailable() }), timeout);
 
 /** Calls where a refusal means the user must sign in again. */
-const authCall = <A>(f: () => Promise<A>) =>
-  Effect.tryPromise({
-    try: f,
-    catch: (error) => (isRefusal(error) ? new Unauthenticated() : new AuthUnavailable()),
-  });
+const authCallWith =
+  (timeout: Duration.Duration) =>
+  <A>(f: () => Promise<A>) =>
+    withProviderDeadline(
+      Effect.tryPromise({
+        try: f,
+        catch: (error) => (isRefusal(error) ? new Unauthenticated() : new AuthUnavailable()),
+      }),
+      timeout,
+    );
 
 const toSession = (
   sealed: string,
@@ -93,6 +105,8 @@ export const workosIdentityProvider = (config: WorkosConfig) => {
   const workos = new WorkOS(Redacted.value(config.apiKey), { clientId: config.clientId });
   const users = workos.userManagement;
   const cookiePassword = Redacted.value(config.cookiePassword);
+  const call = callWith(config.requestTimeout);
+  const authCall = authCallWith(config.requestTimeout);
 
   const load = (sealed: string) => users.loadSealedSession({ sessionData: sealed, cookiePassword });
 
@@ -170,12 +184,15 @@ export const workosIdentityProvider = (config: WorkosConfig) => {
       ).pipe(Effect.flatMap(sealedResponse)),
 
     authenticate: (sealed) =>
-      Effect.tryPromise({
-        try: () => load(Redacted.value(sealed)).authenticate(),
-        // A throw is either the JWKS being unreachable (keep the session, answer 503) or a cookie
-        // too malformed to unseal (sign in again). Only recognisable network failures are the former.
-        catch: (error) => (isNetworkFailure(error) ? new AuthUnavailable() : new MalformedCookie()),
-      }).pipe(
+      withProviderDeadline(
+        Effect.tryPromise({
+          try: () => load(Redacted.value(sealed)).authenticate(),
+          // A throw is either the JWKS being unreachable (keep the session, answer 503) or a cookie
+          // too malformed to unseal (sign in again). Only recognisable network failures are the former.
+          catch: (error) => (isNetworkFailure(error) ? new AuthUnavailable() : new MalformedCookie()),
+        }),
+        config.requestTimeout,
+      ).pipe(
         Effect.map((result): SessionCheck => {
           if (result.authenticated)
             return { _tag: "Valid", session: toSession(Redacted.value(sealed), result) };
