@@ -1,4 +1,5 @@
 import { Dimension } from "@surveybeat/domain";
+import type { PageRouteKey } from "./PageRoutes.ts";
 import * as Arbitrary from "effect/Arbitrary";
 import * as Schema from "effect/Schema";
 import type { HttpApi, HttpApiGroup } from "effect/http-api";
@@ -282,5 +283,21 @@ export const privacyRegistry: { readonly [K in EndpointKey<typeof SurveyBeatApi>
   "notes.saveRoundNote": {
     _tag: "NoResultData",
     why: "writes the Lead's Note; no Result data",
+  },
+};
+
+/**
+ * The server-rendered pages, classified like the API endpoints but keyed by their own contract, so
+ * the endpoint registry keeps its rule that every key is a declared endpoint. A new page route does
+ * not typecheck until it is classified here.
+ */
+export const pageRoutePrivacy: { readonly [K in PageRouteKey]: EndpointPrivacy } = {
+  "pages.delivery": {
+    _tag: "NoResultData",
+    why: "server-rendered page that sets one Person's delivery time zone from an invitation token; returns no survey content",
+  },
+  "pages.unsubscribe": {
+    _tag: "NoResultData",
+    why: "server-rendered page that turns off one Person's reminders from an invitation token; returns no survey content",
   },
 };

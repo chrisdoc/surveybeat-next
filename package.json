@@ -5,6 +5,7 @@
   "scripts": {
     "typecheck": "tsc -b",
     "typecheck:effect": "effect-tsgo tsc -b",
+    "check": "pnpm typecheck:effect && pnpm typecheck && pnpm format:check && pnpm lint",
     "lint": "oxlint --type-aware",
     "format": "oxfmt .",
     "format:check": "oxfmt --check .",
@@ -15,7 +16,8 @@
     "test:preview-privacy": "node infra/tests/privacy/canary-sweep.ts",
     "infra:deploy": "alchemy deploy infra/alchemy.run.ts",
     "infra:destroy": "alchemy destroy infra/alchemy.run.ts",
-    "check:observability": "node infra/scripts/check-observability.ts"
+    "check:observability": "node infra/scripts/check-observability.ts",
+    "prepare": "node scripts/fence/install.mjs"
   },
   "devDependencies": {
     "@effect/platform-node": "catalog:",
