@@ -22,6 +22,7 @@ import { DELIVERY_PAGE_PATH, SurveyBeatApi, UNSUBSCRIBE_PAGE_PATH } from "@surve
 import { EmailTemplatesLive } from "@surveybeat/emails";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import { Stack } from "alchemy/Stack";
+import * as Clock from "effect/Clock";
 import * as Config from "effect/Config";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -52,6 +53,7 @@ import { workosIdentityProvider } from "./auth/WorkosIdentityProvider.ts";
 import { capturingEmailSender } from "./CapturingEmailSender.ts";
 import { cloudflareEmailSender } from "./CloudflareEmailSender.ts";
 import { Database } from "./Database.ts";
+import { REPAIR_PAGE_SIZE, repairWindow } from "./CronSweep.ts";
 import { directoryHandlers } from "./DirectoryHandlers.ts";
 import {
   EmailEvents,
@@ -218,11 +220,18 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
     const notes = durableObjectNotes(organizations);
     const emailWrites = yield* Cloudflare.Queues.WriteQueue(emailQueue);
 
-    // Daily Cron repairs missing alarms across all Organizations (ADR 0006)
+    // Daily Cron repairs missing alarms across all Organizations (ADR 0006). One page of the index
+    // per run: the read and the Durable Object calls stay bounded as Organizations are added.
     yield* Cloudflare.Workers.cron("0 0 * * *", () =>
       Effect.gen(function* () {
+        const day = Math.floor((yield* Clock.currentTimeMillis) / 86_400_000);
+        const counted = yield* database
+          .prepare("SELECT COUNT(*) AS total FROM organization_index")
+          .all<{ total: number }>();
+        const window = repairWindow(counted.results[0]?.total ?? 0, day, REPAIR_PAGE_SIZE);
         const orgs = yield* database
-          .prepare("SELECT organization_id FROM organization_index")
+          .prepare("SELECT organization_id FROM organization_index ORDER BY organization_id LIMIT ? OFFSET ?")
+          .bind(window.limit, window.offset)
           .all<{ organization_id: string }>();
         for (const row of orgs.results) {
           yield* organizations.getByName(row.organization_id).repairAlarm().pipe(Effect.orDie);
