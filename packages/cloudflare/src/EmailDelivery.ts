@@ -41,6 +41,7 @@ export const organizationSendStore = (organization: OrganizationStub) =>
     settle: (id, attempt, outcome, now) =>
       organization.settleEmailSend(id, attempt, outcome, now).pipe(Effect.map(Option.fromNullishOr)),
     abandon: (id, now) => organization.abandonEmailSend(id, now).pipe(Effect.map(Option.fromNullishOr)),
+    requeue: (id) => organization.requeueEmailSend(id),
     recordDeliveryEvent: (id, kind, code, now) =>
       organization.recordEmailDeliveryEvent(id, kind, code, now).pipe(Effect.map(Option.fromNullishOr)),
   });

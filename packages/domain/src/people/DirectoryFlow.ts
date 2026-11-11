@@ -1,7 +1,12 @@
 import { Clock, Context, Effect, Option } from "effect";
 import type { SendId } from "../email/Email.ts";
-import type { FailedEmails } from "../email/FailedEmails.ts";
-import type { DirectoryCommand, DirectoryRejection, FollowUp, Viewed } from "./Directory.ts";
+import {
+  EmailNotResendable,
+  type FailedEmailStatus,
+  FailedEmailNotFound,
+  type FailedEmails,
+} from "../email/FailedEmails.ts";
+import type { DirectoryCommand, DirectoryRejection, FollowUp, ResendResult, Viewed } from "./Directory.ts";
 import type { PersonId } from "./Identity.ts";
 import type { OrganizationId } from "./Organization.ts";
 import { Forbidden } from "./SignIn.ts";
@@ -56,6 +61,19 @@ export interface OrganizationDirectoryShape {
     organizationId: OrganizationId,
     actorId: PersonId,
   ) => Effect.Effect<Viewed<FailedEmails>>;
+  /** An admin's Resend of a failed send: a failed send becomes pending again, under the same id (ADR 0006). */
+  readonly resendFailedEmail: (
+    organizationId: OrganizationId,
+    actorId: PersonId,
+    sendId: SendId,
+    now: number,
+  ) => Effect.Effect<ResendResult>;
+  /** One send's status, for an admin polling after a Resend. */
+  readonly emailStatus: (
+    organizationId: OrganizationId,
+    actorId: PersonId,
+    sendId: SendId,
+  ) => Effect.Effect<Viewed<FailedEmailStatus>>;
 }
 
 export class OrganizationDirectory extends Context.Service<
@@ -76,7 +94,9 @@ export type DirectoryError =
   | PersonWasRemoved
   | LastLead
   | LastAdmin
-  | TeamNameTaken;
+  | TeamNameTaken
+  | FailedEmailNotFound
+  | EmailNotResendable;
 
 const fail = (rejection: DirectoryRejection): Effect.Effect<never, DirectoryError> => {
   switch (rejection._tag) {
@@ -94,6 +114,10 @@ const fail = (rejection: DirectoryRejection): Effect.Effect<never, DirectoryErro
       return Effect.fail(new LastAdmin());
     case "TeamNameTaken":
       return Effect.fail(new TeamNameTaken());
+    case "FailedEmailNotFound":
+      return Effect.fail(new FailedEmailNotFound());
+    case "EmailNotResendable":
+      return Effect.fail(new EmailNotResendable());
   }
 };
 
@@ -168,4 +192,27 @@ export const viewSettings = (member: Member) =>
 export const viewFailedEmails = (member: Member) =>
   Effect.flatMap(OrganizationDirectory, (directory) =>
     Effect.flatMap(directory.failedEmails(member.organization.id, member.personId), viewed),
+  );
+
+/**
+ * An admin's Resend. The directory decides and moves the send to pending; only then is it handed to the email
+ * queue, so a send is queued once per Resend.
+ */
+export const resendFailedEmail = (member: Member, sendId: SendId) =>
+  Effect.gen(function* () {
+    const directory = yield* OrganizationDirectory;
+    const result = yield* directory.resendFailedEmail(
+      member.organization.id,
+      member.personId,
+      sendId,
+      yield* Clock.currentTimeMillis,
+    );
+    if (result._tag === "Rejected") return yield* fail(result.rejection);
+    if (result.queue) yield* (yield* EmailOutbox).queue(member.organization.id, sendId);
+    return result.status;
+  });
+
+export const viewEmailStatus = (member: Member, sendId: SendId) =>
+  Effect.flatMap(OrganizationDirectory, (directory) =>
+    Effect.flatMap(directory.emailStatus(member.organization.id, member.personId, sendId), viewed),
   );

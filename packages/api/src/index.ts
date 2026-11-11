@@ -41,6 +41,9 @@ import {
   ActionNotFound,
   CreateAction,
   FailedEmails,
+  FailedEmailNotFound,
+  FailedEmailStatus,
+  EmailNotResendable,
   OwnerNotInTeam,
   RoundNoteView,
   SaveNote,
@@ -127,6 +130,8 @@ const directoryErrors = [
   LastAdmin,
   TeamNameTaken,
   PersonWasRemoved,
+  FailedEmailNotFound,
+  EmailNotResendable,
 ] as const;
 const teamParams = { teamId: TeamId };
 const memberParams = { teamId: TeamId, personId: PersonId };
@@ -183,6 +188,18 @@ export class DirectoryApiGroup extends HttpApiGroup.make("directory")
     // Organization admins only. Never a body, a token, or a Submission: the kind, the recipient, and the reason.
     HttpApiEndpoint.get("listFailedEmails", "/organization/failed-emails", {
       success: FailedEmails,
+      error: directoryErrors,
+    }),
+    // Organization admins only. An admin's Resend sends a failed send again, under the same id and content (ADR 0006).
+    HttpApiEndpoint.post("resendFailedEmail", "/organization/failed-emails/:sendId/resend", {
+      params: { sendId: SendId },
+      success: FailedEmailStatus,
+      error: directoryErrors,
+    }),
+    // The state of one send, for an admin polling after a Resend. Only the state: no recipient, body, or token.
+    HttpApiEndpoint.get("getEmailStatus", "/organization/failed-emails/:sendId", {
+      params: { sendId: SendId },
+      success: FailedEmailStatus,
       error: directoryErrors,
     }),
     HttpApiEndpoint.patch("updateSettings", "/organization", {

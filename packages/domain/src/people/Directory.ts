@@ -1,6 +1,6 @@
 import { Option } from "effect";
 import { EmailAddress, SendId, type TransactionalEmail } from "../email/Email.ts";
-import type { FailedEmail, FailedEmails } from "../email/FailedEmails.ts";
+import type { FailedEmail, FailedEmails, FailedEmailStatus } from "../email/FailedEmails.ts";
 import { normaliseEmail, type PersonId, type WorkosUserId } from "./Identity.ts";
 import { type Actor, can } from "./Permissions.ts";
 import { type Locale, resolveLocale } from "./Locale.ts";
@@ -185,7 +185,9 @@ export type DirectoryRejection =
   | { readonly _tag: "PersonWasRemoved" }
   | { readonly _tag: "LastLead"; readonly teamId: TeamId }
   | { readonly _tag: "LastAdmin" }
-  | { readonly _tag: "TeamNameTaken" };
+  | { readonly _tag: "TeamNameTaken" }
+  | { readonly _tag: "FailedEmailNotFound" }
+  | { readonly _tag: "EmailNotResendable" };
 
 export type Decision =
   | { readonly _tag: "Rejected"; readonly rejection: DirectoryRejection }
@@ -199,6 +201,14 @@ export type Decision =
 export type Viewed<A> =
   | { readonly _tag: "Viewed"; readonly value: A }
   | { readonly _tag: "Rejected"; readonly rejection: DirectoryRejection };
+
+/**
+ * An admin's Resend: refused, or accepted with the send's status. `queue` says whether the caller must hand the
+ * send to the email queue (only the Resend that moved it from failed to pending does).
+ */
+export type ResendResult =
+  | { readonly _tag: "Rejected"; readonly rejection: DirectoryRejection }
+  | { readonly _tag: "Accepted"; readonly status: FailedEmailStatus; readonly queue: boolean };
 
 const reject = (
   rejection: DirectoryRejection,
@@ -656,6 +666,26 @@ export const settingsView = (state: DirectoryState, actorId: PersonId): Viewed<O
         .sort((a, b) => a.email.localeCompare(b.email, "en")),
     },
   };
+};
+
+/**
+ * Who may Resend a failed send or read a send's status: the Organization's admins only (ADR 0006). Same rule as
+ * `failedEmailsView`, so no non-admin learns whether a send exists.
+ */
+export const isEmailAdmin = (state: DirectoryState, actorId: PersonId): boolean => {
+  const actor = actorOf(state, actorId);
+  return Option.isSome(actor) && can(actor.value, "organization.updateSettings", { _tag: "Organization" });
+};
+
+/** One send's status for an admin. `status` is null when the Organization has no such send. */
+export const emailStatusView = (
+  state: DirectoryState,
+  actorId: PersonId,
+  status: FailedEmailStatus | null,
+): Viewed<FailedEmailStatus> => {
+  if (!isEmailAdmin(state, actorId)) return forbidden;
+  if (status === null) return reject({ _tag: "FailedEmailNotFound" });
+  return { _tag: "Viewed", value: status };
 };
 
 /**

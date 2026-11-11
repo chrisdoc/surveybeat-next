@@ -183,6 +183,16 @@ export const de = {
   "settings.failedEmails.recipient": "Empfänger",
   "settings.failedEmails.reason": "Grund",
   "settings.failedEmails.time": "Zeit",
+  "settings.failedEmails.action": "Aktion",
+  "settings.failedEmails.resend": "Erneut senden",
+  "settings.failedEmails.resending": "Wird erneut gesendet…",
+  "settings.failedEmails.status.queued": "In der Warteschlange…",
+  "settings.failedEmails.status.sending": "Wird gesendet…",
+  "settings.failedEmails.status.sent": "Gesendet",
+  "settings.failedEmails.status.failed": "Nicht gesendet: {reason}",
+  "settings.failedEmails.statusUnavailable":
+    "Der Status konnte nicht abgefragt werden. Lade die Seite neu, um es erneut zu prüfen.",
+  "settings.failedEmails.resendFailed": "Erneutes Senden fehlgeschlagen. Versuch es erneut.",
   "email.kind.AddedToTeam": "Zum Team hinzugefügt",
   "email.kind.InvitationEmail": "Einladung",
   "email.kind.TestInvitationEmail": "Test-Einladung",
@@ -362,6 +372,7 @@ export const de = {
   "error.PulseFull": "Dieser Pulse hat schon die Höchstzahl an Fragen.",
   "error.TestSendLimitReached":
     "Du hast in der letzten Stunde schon 5 Tests verschickt. Versuch es später erneut.",
+  "error.EmailNotResendable": "Diese E-Mail kann nicht mehr gesendet werden.",
   "error.OrderMismatch":
     "Jemand anderes hat diesen Pulse geändert. Lade die Seite neu und versuch es erneut.",
   "error.Invalid": "Prüfe deine Eingabe und versuch es erneut.",

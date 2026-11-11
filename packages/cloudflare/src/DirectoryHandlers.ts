@@ -7,7 +7,9 @@ import {
   NewIds,
   type NewMember,
   type OrganizationDirectory,
+  resendFailedEmail,
   runDirectoryCommand,
+  viewEmailStatus,
   viewFailedEmails,
   viewSettings,
   viewTeam,
@@ -138,6 +140,18 @@ export const directoryHandlers = <R>(
       )
       .handle("getSettings", () => provide(Effect.flatMap(currentMember, viewSettings)))
       .handle("listFailedEmails", () => provide(Effect.flatMap(currentMember, viewFailedEmails)))
+      .handle("resendFailedEmail", ({ params }) =>
+        provide(
+          Effect.gen(function* () {
+            yield* requireSameOrigin;
+            const member = yield* currentMember;
+            return yield* resendFailedEmail(member, params.sendId);
+          }),
+        ),
+      )
+      .handle("getEmailStatus", ({ params }) =>
+        provide(Effect.flatMap(currentMember, (member) => viewEmailStatus(member, params.sendId))),
+      )
       .handle("updateSettings", ({ payload }) =>
         provide(
           change(() =>

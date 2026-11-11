@@ -147,6 +147,14 @@ export const privacyRegistry: { readonly [K in EndpointKey<typeof SurveyBeatApi>
     _tag: "NoResultData",
     why: "returns, for Organization admins, the kind, recipient address, reason code, and time of the last 50 failed sends; never a body, a token, or Result data",
   },
+  "directory.resendFailedEmail": {
+    _tag: "NoResultData",
+    why: "for Organization admins, sends a failed send again under the same id and content, and returns its state; never a body, a token, a recipient, or Result data",
+  },
+  "directory.getEmailStatus": {
+    _tag: "NoResultData",
+    why: "returns, for Organization admins, one send's state (queued, sending, sent, or failed with its reason and code); never a body, a token, a recipient, or Result data",
+  },
   "directory.updateSettings": {
     _tag: "NoResultData",
     why: "sets the minimum group size, AI processing, and the default language; no content",
