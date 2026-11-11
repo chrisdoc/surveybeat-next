@@ -1,9 +1,8 @@
 import { Button, Checkbox, Input, Select, Textarea } from "@foldkit/ui";
-import { Predicate } from "effect";
 import type { Html, HtmlBuilder } from "foldkit/html";
 import { message } from "../messages/locale.ts";
 import { type Failure, failureMessage } from "./api.ts";
-import { teamsHref } from "./routes.ts";
+import { privacyHref, teamsHref } from "./routes.ts";
 
 export type Child = Html | string;
 
@@ -38,61 +37,65 @@ export const brandMark = <Message>(h: HtmlBuilder<Message>): Html =>
     ],
   );
 
-export const navLink = <Message>(href: string, text: string, h: HtmlBuilder<Message>): Html =>
-  h.a(
-    [h.Href(href), h.Class("inline-flex min-h-11 items-center font-medium text-muted hover:text-ink")],
-    [text],
-  );
-
-/** Header bar plus the content column; `wide` makes room for a side column. */
+/** The page frame: the header (brand, then `header` content), the content column, and the footer with the Privacy link. `wide` makes room for a side column; `privacyCurrent` marks the Privacy link on the Privacy page. */
 export const pageShell = <Message>(
   config: {
-    readonly organizationName?: string | undefined;
-    readonly nav?: ReadonlyArray<Child> | undefined;
+    readonly header?: ReadonlyArray<Child> | undefined;
     readonly wide?: boolean | undefined;
+    readonly privacyCurrent?: boolean | undefined;
   },
   children: ReadonlyArray<Child>,
   h: HtmlBuilder<Message>,
-): Html =>
-  h.div(
-    [h.Class("min-h-screen bg-stone text-ink")],
+): Html => {
+  const width = config.wide === true ? "max-w-[1120px]" : "max-w-[720px]";
+  const privacyCurrent = config.privacyCurrent === true;
+  return h.div(
+    [h.Class("flex min-h-screen flex-col bg-stone text-ink")],
     [
       h.header(
         [h.Class("border-b border-line bg-surface")],
         [
           h.div(
-            [h.Class("mx-auto flex max-w-[1120px] flex-wrap items-center gap-x-5 gap-y-1 px-6 py-2 sm:px-8")],
+            [h.Class("mx-auto flex min-w-0 max-w-[1120px] items-center gap-x-5 px-6 py-2 sm:px-8")],
             [
               h.span(
-                [h.Class("flex items-center gap-2.5")],
+                [h.Class("flex shrink-0 items-center gap-2.5")],
                 [
                   brandMark(h),
                   h.span([h.Class("text-[17px] font-bold tracking-tight")], [message("app.title")]),
                 ],
               ),
-              config.organizationName !== undefined
-                ? h.span(
-                    [h.Class("border-l border-line pl-5 text-[15px] font-semibold")],
-                    [config.organizationName],
-                  )
-                : null,
-              config.nav !== undefined && config.nav.length > 0
-                ? h.nav([h.Class("ml-auto flex flex-wrap gap-x-6 text-[15px]")], config.nav)
-                : null,
-            ].filter(Predicate.isNotNull),
+              ...(config.header ?? []),
+            ],
           ),
         ],
       ),
-      h.main(
+      h.main([h.Class(`mx-auto w-full flex-1 px-6 pt-8 pb-20 sm:px-8 sm:pt-12 ${width}`)], children),
+      h.footer(
+        [h.Class("border-t border-line bg-surface")],
         [
-          h.Class(
-            `mx-auto px-6 pt-8 pb-20 sm:px-8 sm:pt-12 ${config.wide === true ? "max-w-[1120px]" : "max-w-[720px] sm:mx-auto"}`,
+          h.div(
+            [h.Class(`mx-auto flex w-full px-6 py-2 text-sm sm:px-8 ${width}`)],
+            [
+              h.a(
+                [
+                  h.Href(privacyHref()),
+                  h.Class(
+                    privacyCurrent
+                      ? "inline-flex min-h-11 items-center font-semibold text-ink underline underline-offset-4"
+                      : "inline-flex min-h-11 items-center font-medium text-muted hover:text-ink",
+                  ),
+                  ...(privacyCurrent ? [h.AriaCurrent("page")] : []),
+                ],
+                [message("nav.privacy")],
+              ),
+            ],
           ),
         ],
-        children,
       ),
     ],
   );
+};
 
 export const screenView = <Message>(
   title: string,
@@ -398,45 +401,51 @@ export const checkboxField = <Message>(
     h,
   );
 
-export const signOutView = <Message>(h: HtmlBuilder<Message>): Html =>
+/** The Sign out form. `inMenu` is the full-width button of the account menus; elsewhere it is the link-styled button under the content. */
+export const signOutView = <Message>(h: HtmlBuilder<Message>, inMenu = false): Html =>
   h.form(
-    [h.Method("post"), h.Action("/auth/logout"), h.Class("mt-10")],
+    [h.Method("post"), h.Action("/auth/logout"), ...(inMenu ? [] : [h.Class("mt-10")])],
     [
       Button.view(
         {
           type: "submit",
-          toView: ({ button }) => h.button([...button, h.Class(linkButton)], [message("signOut.action")]),
+          toView: ({ button }) =>
+            h.button(
+              [...button, h.Class(inMenu ? `${secondaryButtonClass} w-full` : linkButton)],
+              [message("signOut.action")],
+            ),
         },
         h,
       ),
     ],
   );
 
-export const privacyView = <Message>(h: HtmlBuilder<Message>): Html =>
-  screenView(
-    message("privacy.title"),
+/** The Privacy page's content; signed in it sits in the app shell, otherwise in `privacyView`. */
+export const privacyContent = <Message>(h: HtmlBuilder<Message>): ReadonlyArray<Child> => [
+  pageTitle(message("privacy.title"), h),
+  h.p([h.Class("mt-4")], [h.a([h.Href(teamsHref()), h.Class(linkClass)], [message("privacy.back")])]),
+  panel(
     [
-      h.p([h.Class("mt-4")], [h.a([h.Href(teamsHref()), h.Class(linkClass)], [message("privacy.back")])]),
-      panel(
-        [
-          h.div(
-            [h.Class("flex flex-col gap-6 leading-relaxed text-muted")],
-            (
-              [
-                ["privacy.anonymity.title", "privacy.anonymity.body"],
-                ["privacy.comments.title", "privacy.comments.body"],
-                ["privacy.restore.title", "privacy.restore.body"],
-                ["privacy.editKey.title", "privacy.editKey.body"],
-                ["privacy.restoreTrigger.title", "privacy.restoreTrigger.body"],
-              ] as const
-            ).map(([title, body]) =>
-              h.div([], [subSectionTitle(message(title), h, 2), h.p([h.Class("mt-1")], [message(body)])]),
-            ),
-          ),
-        ],
-        h,
-        "mt-6",
+      h.div(
+        [h.Class("flex flex-col gap-6 leading-relaxed text-muted")],
+        (
+          [
+            ["privacy.anonymity.title", "privacy.anonymity.body"],
+            ["privacy.comments.title", "privacy.comments.body"],
+            ["privacy.restore.title", "privacy.restore.body"],
+            ["privacy.editKey.title", "privacy.editKey.body"],
+            ["privacy.restoreTrigger.title", "privacy.restoreTrigger.body"],
+          ] as const
+        ).map(([title, body]) =>
+          h.div([], [subSectionTitle(message(title), h, 2), h.p([h.Class("mt-1")], [message(body)])]),
+        ),
       ),
     ],
     h,
-  );
+    "mt-6",
+  ),
+];
+
+/** The Privacy page for a visitor who is not signed in. */
+export const privacyView = <Message>(h: HtmlBuilder<Message>): Html =>
+  pageShell({ privacyCurrent: true }, privacyContent(h), h);

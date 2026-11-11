@@ -22,12 +22,14 @@ import {
   TemplateQuestionKey,
   TimeZone,
 } from "@surveybeat/domain";
+import { Popover } from "@foldkit/ui";
 import { Option, Schema } from "effect";
 import * as Scene from "foldkit/scene";
 import { setup } from "foldkit/test/vitest";
 import { fromString } from "foldkit/url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  type Model,
   AddMember,
   AddQuestionCmd,
   AssignLead,
@@ -103,6 +105,12 @@ afterEach(() => {
   vi.unstubAllGlobals();
   setLocale("en");
 });
+
+/** Opens the header's account menu, where the Language choice and Sign out are. */
+const openAccountMenu = (organization: string, menu = "Account menu") => [
+  Scene.click(Scene.role("button", { name: `${organization} ${menu}` })),
+  Scene.Mount.resolve(Popover.AnchorPopover, Popover.Message.CompletedAnchorPopover()),
+];
 
 const signedInAdmin: SessionModel = {
   _tag: "SignedIn",
@@ -2668,6 +2676,7 @@ describe("App Scenes", () => {
           teams: { _tag: "Loaded", teams: [] },
         }),
         Scene.expect(Scene.role("link", { name: "Organisationseinstellungen" })).toExist(),
+        ...openAccountMenu("Acme", "Kontomenü"),
         Scene.expect(Scene.role("button", { name: "Abmelden" })).toExist(),
         Scene.expect(Scene.text("Du bist noch in keinem Team.")).toExist(),
         Scene.expect(Scene.label("Sprache")).toExist(),
@@ -2683,6 +2692,7 @@ describe("App Scenes", () => {
           session: { ...signedInAdmin, organizationLocale: "de" as const },
           teams: { _tag: "Loaded", teams: [] },
         }),
+        ...openAccountMenu("Acme", "Kontomenü"),
         Scene.expect(Scene.text("Du bist noch in keinem Team.")).toExist(),
         Scene.expect(Scene.label("Sprache")).toExist(),
       );
@@ -2696,6 +2706,7 @@ describe("App Scenes", () => {
           session: signedInAdmin,
           teams: { _tag: "Loaded", teams: [] },
         }),
+        ...openAccountMenu("Acme"),
         Scene.change(Scene.label("Language"), "de"),
         Scene.Command.expectHas(UpdateOwnLanguage),
         Scene.expect(Scene.label("Sprache")).toExist(),
@@ -2769,6 +2780,359 @@ describe("App Scenes", () => {
         expect(localeOf(modelWith("de", { _tag: "SignedOut", failed: false }))).toBe("de");
         expect(localeOf(modelWith(null, { _tag: "SignedOut", failed: false }))).toBe("en");
       });
+    });
+  });
+
+  describe("Header and footer", () => {
+    const teamsUrl = makeUrl("https://app.surveybeat.com/teams");
+    const teamsModel = (session: SessionModel = signedInAdmin) => ({
+      ...initialModel(teamsUrl),
+      session,
+      teams: { _tag: "Loaded" as const, teams: [] },
+    });
+
+    it("marks the section on screen as the current navigation item", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(makeUrl("https://app.surveybeat.com/history")),
+          session: signedInAdmin,
+        }),
+        Scene.expect(Scene.role("link", { name: "My history", current: "page" })).toExist(),
+        Scene.expect(Scene.role("link", { name: "Teams", current: "page" })).toBeAbsent(),
+      );
+    });
+
+    it("marks Teams as the current section on Team screens", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(makeUrl("https://app.surveybeat.com/teams/team-1/pulses")),
+          session: signedInAdmin,
+        }),
+        Scene.expect(Scene.role("link", { name: "Teams", current: "page" })).toExist(),
+        Scene.expect(Scene.role("link", { name: "My history", current: "page" })).toBeAbsent(),
+      );
+    });
+
+    it("lists Organization settings only for admins", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given(teamsModel(signedInAdmin)),
+        Scene.expect(Scene.role("link", { name: "Organization settings" })).toExist(),
+      );
+      Scene.scene(
+        { update, view },
+        Scene.given(teamsModel({ ...signedInAdmin, organizationAdmin: false })),
+        Scene.expect(Scene.role("link", { name: "Organization settings" })).toBeAbsent(),
+      );
+    });
+
+    it("keeps Privacy out of the navigation and in the footer", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given(teamsModel()),
+        Scene.expect(Scene.role("contentinfo")).toExist(),
+        Scene.inside(
+          Scene.role("contentinfo"),
+          Scene.expect(Scene.role("link", { name: "Privacy" })).toExist(),
+        ),
+        Scene.inside(
+          Scene.role("navigation", { name: "Main navigation" }),
+          Scene.expect(Scene.role("link", { name: "Privacy" })).toBeAbsent(),
+        ),
+      );
+    });
+
+    it("marks the footer Privacy link as the current page on the Privacy page", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(makeUrl("https://app.surveybeat.com/privacy")),
+          session: { _tag: "SignedOut", failed: false },
+        }),
+        Scene.expect(Scene.role("link", { name: "Privacy", current: "page" })).toExist(),
+      );
+    });
+
+    it("keeps the signed-in header and its menus on the Privacy page", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(makeUrl("https://app.surveybeat.com/privacy")),
+          session: signedInAdmin,
+        }),
+        Scene.expect(Scene.role("heading", { name: "Privacy at SurveyBeat" })).toExist(),
+        Scene.expect(Scene.role("link", { name: "Privacy", current: "page" })).toExist(),
+        Scene.expect(Scene.role("link", { name: "Teams", current: "page" })).toBeAbsent(),
+        ...openAccountMenu("Acme"),
+        Scene.expect(Scene.role("button", { name: "Sign out" })).toExist(),
+      );
+    });
+
+    it("keeps the language choice and Sign out in the account menu until it opens", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given(teamsModel()),
+        Scene.expect(Scene.label("Language")).toBeAbsent(),
+        Scene.expect(Scene.role("button", { name: "Sign out" })).toBeAbsent(),
+        ...openAccountMenu("Acme"),
+        Scene.expect(Scene.label("Language")).toExist(),
+        Scene.expect(Scene.role("button", { name: "Sign out" })).toExist(),
+        Scene.keydown(Scene.selector("#account-menu-panel"), "Escape"),
+        // Escape returns focus to the account button and closes the panel.
+        Scene.Command.resolve(Popover.FocusButton, Popover.Message.CompletedFocusButton()),
+        Scene.Mount.expectEnded(Popover.AnchorPopover),
+        Scene.expect(Scene.label("Language")).toBeAbsent(),
+        Scene.expect(Scene.role("button", { name: "Acme Account menu" })).toHaveAttr(
+          "aria-expanded",
+          "false",
+        ),
+      );
+    });
+
+    it("opens the phone navigation from the Menu button", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given(teamsModel()),
+        Scene.click(Scene.role("button", { name: "Menu" })),
+        Scene.Mount.resolve(Popover.AnchorPopover, Popover.Message.CompletedAnchorPopover()),
+        Scene.inside(
+          Scene.selector("#nav-menu-panel"),
+          Scene.expect(Scene.role("link", { name: "My history" })).toExist(),
+          Scene.expect(Scene.role("link", { name: "Teams", current: "page" })).toExist(),
+          Scene.expect(Scene.role("link", { name: "Organization settings" })).toExist(),
+          Scene.expect(Scene.label("Language")).toExist(),
+        ),
+      );
+    });
+
+    it("closes both header menus when the URL changes", () => {
+      const open = {
+        ...teamsModel(),
+        navMenu: Popover.open(Popover.init({ id: "nav-menu" })).model,
+        accountMenu: Popover.open(Popover.init({ id: "account-menu" })).model,
+      };
+      expect(open.navMenu.isOpen).toBe(true);
+      expect(open.accountMenu.isOpen).toBe(true);
+
+      const next = update(open, Message.UrlChanged({ url: makeUrl("https://app.surveybeat.com/history") }));
+
+      expect(next.model.navMenu.isOpen).toBe(false);
+      expect(next.model.accountMenu.isOpen).toBe(false);
+    });
+  });
+
+  describe("Document title", () => {
+    const teamsUrl = makeUrl("https://app.surveybeat.com/teams");
+
+    /** The window title `view` gives `model`, read while a Scene runs the real view. */
+    const titleOf = (model: Model): string => {
+      let title = "";
+      Scene.scene(
+        {
+          update,
+          view: (current, h) => {
+            const document = view(current, h);
+            title = document.title;
+            return document;
+          },
+        },
+        Scene.given(model),
+      );
+      return title;
+    };
+
+    const teamOf = (id: string, name: string) => ({
+      id: decodeTeamId(id),
+      name,
+      timeZone: decodeTimeZone("UTC"),
+      yourRole: "lead" as const,
+    });
+    const teamDetailOf = (id: string, name: string) => ({
+      team: teamOf(id, name),
+      roster: [],
+      may: {
+        update: true,
+        manageLeads: true,
+        manageMembers: true,
+        managePulses: true,
+        viewResults: true,
+      },
+    });
+    const platform = { _tag: "Loaded" as const, detail: teamDetailOf("team-1", "Platform Engineering") };
+    const pulseDetail = {
+      _tag: "Loaded" as const,
+      detail: {
+        id: decodePulseId("pulse-1"),
+        team: teamOf("team-1", "Platform Engineering"),
+        settings: {
+          name: "Weekly check-in",
+          cadence: { _tag: "Weekly" as const, day: "monday" as const, time: decodeSendTime("09:00") },
+          answerWindowDays: 3,
+          reviewWindowDays: 3,
+          reminders: 1,
+          anonymityMode: "anonymous" as const,
+          distribution: "invitation" as const,
+        },
+        questions: [],
+        estimatedSeconds: 0,
+        warnings: [],
+        templateQuestions: [],
+      },
+    };
+    const inOrganization = (url: string, extra: Partial<Model> = {}): Model => ({
+      ...initialModel(makeUrl(url)),
+      session: signedInAdmin,
+      ...extra,
+    });
+
+    it("names the screen and the Organization on the Teams screen", () => {
+      expect(
+        titleOf(inOrganization("https://app.surveybeat.com/teams", { teams: { _tag: "Loaded", teams: [] } })),
+      ).toBe("Teams · Acme — SurveyBeat");
+    });
+
+    it("shows the Teams screen's title on a page that does not exist", () => {
+      expect(titleOf(inOrganization("https://app.surveybeat.com/nowhere"))).toBe("Teams · Acme — SurveyBeat");
+    });
+
+    it("names the Team on its screen, and 'Team' while its detail loads", () => {
+      expect(
+        titleOf(inOrganization("https://app.surveybeat.com/teams/team-1", { teamDetail: platform })),
+      ).toBe("Platform Engineering · Acme — SurveyBeat");
+      expect(titleOf(inOrganization("https://app.surveybeat.com/teams/team-1"))).toBe(
+        "Team · Acme — SurveyBeat",
+      );
+    });
+
+    it("ignores a Team loaded for another screen", () => {
+      expect(
+        titleOf(
+          inOrganization("https://app.surveybeat.com/teams/team-2", {
+            teamDetail: { _tag: "Loaded", detail: teamDetailOf("team-1", "Platform Engineering") },
+          }),
+        ),
+      ).toBe("Team · Acme — SurveyBeat");
+    });
+
+    it("names the Team on the Pulses screen", () => {
+      expect(
+        titleOf(
+          inOrganization("https://app.surveybeat.com/teams/team-1/pulses", {
+            pulses: {
+              _tag: "Loaded",
+              pulses: { team: teamOf("team-1", "Platform Engineering"), pulses: [] },
+            },
+          }),
+        ),
+      ).toBe("Pulses · Platform Engineering — SurveyBeat");
+    });
+
+    it("names the Pulse and its Team in the Pulse editor", () => {
+      expect(
+        titleOf(
+          inOrganization("https://app.surveybeat.com/teams/team-1/pulses/pulse-1", {
+            pulseDetail,
+            teamDetail: platform,
+          }),
+        ),
+      ).toBe("Weekly check-in · Platform Engineering — SurveyBeat");
+    });
+
+    it("falls back to 'Pulse' and the Organization while the Pulse loads", () => {
+      expect(titleOf(inOrganization("https://app.surveybeat.com/teams/team-1/pulses/pulse-1"))).toBe(
+        "Pulse · Acme — SurveyBeat",
+      );
+    });
+
+    it("names the Team on the Rounds screen", () => {
+      expect(
+        titleOf(
+          inOrganization("https://app.surveybeat.com/teams/team-1/pulses/pulse-1/rounds", {
+            teamDetail: platform,
+          }),
+        ),
+      ).toBe("Rounds · Platform Engineering — SurveyBeat");
+    });
+
+    it("names the Team on the Results screen", () => {
+      expect(
+        titleOf(
+          inOrganization("https://app.surveybeat.com/teams/team-1/rounds/round-1", {
+            teamDetail: platform,
+          }),
+        ),
+      ).toBe("Results · Platform Engineering — SurveyBeat");
+    });
+
+    it("ignores a Team loaded for another Results screen", () => {
+      expect(
+        titleOf(
+          inOrganization("https://app.surveybeat.com/teams/team-1/rounds/round-1", {
+            teamDetail: { _tag: "Loaded", detail: teamDetailOf("team-9", "Other Team") },
+          }),
+        ),
+      ).toBe("Results · Acme — SurveyBeat");
+    });
+
+    it("names My history and the Organization", () => {
+      expect(titleOf(inOrganization("https://app.surveybeat.com/history"))).toBe(
+        "My history · Acme — SurveyBeat",
+      );
+    });
+
+    it("names the Organization settings for admins, and falls back to Teams for others", () => {
+      expect(titleOf(inOrganization("https://app.surveybeat.com/settings"))).toBe(
+        "Organization settings · Acme — SurveyBeat",
+      );
+      expect(
+        titleOf(
+          inOrganization("https://app.surveybeat.com/settings", {
+            session: { ...signedInAdmin, organizationAdmin: false },
+          }),
+        ),
+      ).toBe("Teams · Acme — SurveyBeat");
+    });
+
+    it("gives the German titles the same shape", () => {
+      const german = { ...signedInAdmin, locale: "de" as const };
+      expect(
+        titleOf(
+          inOrganization("https://app.surveybeat.com/teams/team-1/rounds/round-1", {
+            session: german,
+            teamDetail: platform,
+          }),
+        ),
+      ).toBe("Ergebnisse · Platform Engineering — SurveyBeat");
+      expect(titleOf(inOrganization("https://app.surveybeat.com/settings", { session: german }))).toBe(
+        "Organisationseinstellungen · Acme — SurveyBeat",
+      );
+    });
+
+    it("keeps the session and Privacy screens' own titles, all naming SurveyBeat", () => {
+      const signedOut = (url: string): Model => ({
+        ...initialModel(makeUrl(url)),
+        session: { _tag: "SignedOut", failed: false },
+      });
+      expect(titleOf(signedOut("https://app.surveybeat.com/"))).toBe("Sign in to SurveyBeat");
+      expect(titleOf(signedOut("https://app.surveybeat.com/privacy"))).toBe("Privacy at SurveyBeat");
+      expect(titleOf({ ...initialModel(teamsUrl), session: { _tag: "Loading" } })).toBe("SurveyBeat");
+      expect(
+        titleOf({
+          ...initialModel(teamsUrl),
+          session: { _tag: "CreateOrganization", name: "", busy: false },
+        }),
+      ).toBe("Create an Organization — SurveyBeat");
+      expect(titleOf({ ...initialModel(teamsUrl), session: { _tag: "NotInOrganization" } })).toBe(
+        "You're not part of an Organization yet — SurveyBeat",
+      );
+      expect(
+        titleOf({
+          ...initialModel(teamsUrl),
+          session: { _tag: "ChooseOrganization", organizations: [], busy: false },
+        }),
+      ).toBe("Choose an Organization — SurveyBeat");
     });
   });
 });
