@@ -2,6 +2,7 @@ import * as Cloudflare from "@alchemy.run/cloudflare";
 import { SqliteClient } from "@effect/sql-sqlite-do";
 import { organizationActions } from "./organization/Actions.ts";
 import { organizationNotes } from "./organization/Notes.ts";
+import { organizationResults } from "./organization/Results.ts";
 import { organizationSends } from "./organization/Sends.ts";
 import {
   type CommandResult,
@@ -73,16 +74,10 @@ import {
   type SubmissionAnswer,
   calculateRoundResult,
   enforceEffectiveNOnResult,
-  type RoundResult,
-  buildMemberHistory,
-  buildTeamOverview,
-  type MemberHistory,
-  type TeamOverview,
   AiClient,
   buildThemesInput,
   runThemesAttempt,
   shouldRequestThemes,
-  viewRoundResult,
   delayedRoundResult,
   nextRetryAt,
   previewAnswers,
@@ -2035,155 +2030,7 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
             return viewed;
           }).pipe(Effect.orDie),
 
-        viewResults: (
-          actorId: PersonId,
-          teamId: TeamId,
-          roundId: RoundId,
-        ): Effect.Effect<RoundViewed<RoundResult>, never, never> =>
-          Effect.gen(function* () {
-            const dirState = yield* directory.load;
-            const auth = authorizeRoundAction(dirState, actorId, "team.viewResults", teamId);
-            if (auth._tag === "Rejected") {
-              const rejected: RoundViewed<RoundResult> = auth;
-              return rejected;
-            }
-
-            const team = dirState.teams.find((t) => t.id === teamId);
-            if (team === undefined) {
-              const rejected: RoundViewed<RoundResult> = {
-                _tag: "Rejected",
-                rejection: { _tag: "TeamNotFound" },
-              };
-              return rejected;
-            }
-
-            const r = yield* rounds.getRound(roundId);
-            if (r === null || r.teamId !== teamId) {
-              const rejected: RoundViewed<RoundResult> = {
-                _tag: "Rejected",
-                rejection: { _tag: "RoundNotFound" },
-              };
-              return rejected;
-            }
-
-            const effectiveN = Math.max(
-              dirState.minimumGroupSize,
-              r.effectiveMinimumGroupSize ?? dirState.minimumGroupSize,
-            );
-
-            // Rule R7: During an Open Round, only response count is returned, zero scores or comments
-            if (r.status === "scheduled" || r.status === "open") {
-              const submissions = yield* rounds.getSubmissionsForRound(roundId);
-              const eligibleMembersCount = yield* rounds.getRoundMembersCount(roundId);
-              const questions = yield* rounds.getRoundQuestionsDetailed(roundId);
-
-              const openResult = calculateRoundResult({
-                roundId,
-                pulseId: r.pulseId,
-                teamId: r.teamId,
-                status: r.status,
-                plannedOpenDate: r.plannedOpenDate,
-                anonymityMode: r.anonymityMode,
-                closedAt: r.closedAt,
-                effectiveMinimumGroupSize: effectiveN,
-                eligibleMembersCount,
-                questions,
-                submissions,
-                pastRoundsHistory: [],
-              });
-
-              return { _tag: "Viewed", value: openResult } satisfies RoundViewed<RoundResult>;
-            }
-
-            // Closed/ready/shared round: read the stored round_result. Without one, the compute job owns the Result
-            // (it is pending, or retrying): show the delayed stand-in and store nothing (Issue #128).
-            const storedResult = yield* rounds.getRoundResult(roundId);
-            // Delayed while a compute job is pending; with no Result and no job left, the Lead may retry.
-            const resultPending = storedResult === null && (yield* rounds.hasPendingJob(roundId, "compute"));
-            const result: RoundResult =
-              storedResult ??
-              delayedRoundResult({
-                roundId,
-                pulseId: r.pulseId,
-                teamId: r.teamId,
-                status: r.status,
-                plannedOpenDate: r.plannedOpenDate,
-                anonymityMode: r.anonymityMode,
-                closedAt: r.closedAt,
-                effectiveMinimumGroupSize: effectiveN,
-                eligibleMembersCount: yield* rounds.getRoundMembersCount(roundId),
-                submissionsCount: (yield* rounds.getSubmissionsForRound(roundId)).length,
-              });
-
-            // Members/viewers see results without comments; only Lead sees comments behind N (ADR 0004, Issue #3).
-            // Effective N (Rule R9) and the themes and discussion guide (ADR 0016, 0019) are applied in viewRoundResult.
-            const isLead = auth.actor.roles.get(teamId) === "lead";
-            const themes = yield* rounds.getRoundThemes(roundId);
-            const resultToShow = viewRoundResult({
-              stored: result,
-              organizationN: dirState.minimumGroupSize,
-              isLead,
-              themes,
-              round: { status: r.status, reviewEndsAt: r.reviewEndsAt },
-              resultPending,
-            });
-
-            const viewed: RoundViewed<RoundResult> = {
-              _tag: "Viewed",
-              value: resultToShow,
-            };
-            return viewed;
-          }).pipe(Effect.orDie),
-
-        viewTeamOverview: (
-          actorId: PersonId,
-          teamId: TeamId,
-        ): Effect.Effect<RoundViewed<TeamOverview>, never, never> =>
-          Effect.gen(function* () {
-            const dirState = yield* directory.load;
-            const auth = authorizeRoundAction(dirState, actorId, "team.viewResults", teamId);
-            if (auth._tag === "Rejected") {
-              const rejected: RoundViewed<TeamOverview> = auth;
-              return rejected;
-            }
-
-            const team = dirState.teams.find((t) => t.id === teamId);
-            if (team === undefined) {
-              const rejected: RoundViewed<TeamOverview> = {
-                _tag: "Rejected",
-                rejection: { _tag: "TeamNotFound" },
-              };
-              return rejected;
-            }
-
-            const results = yield* rounds.getSharedRoundResultsForTeam(teamId);
-            const teamActions = yield* actions.getActionsForTeam(teamId);
-            const viewed: RoundViewed<TeamOverview> = {
-              _tag: "Viewed",
-              value: buildTeamOverview({
-                teamId,
-                results,
-                minimumGroupSize: dirState.minimumGroupSize,
-                actions: teamActions,
-              }),
-            };
-            return viewed;
-          }).pipe(Effect.orDie),
-
-        viewMemberHistory: (actorId: PersonId): Effect.Effect<MemberHistory, never, never> =>
-          Effect.gen(function* () {
-            const dirState = yield* directory.load;
-            const participated = yield* rounds.getParticipatedRounds(actorId);
-            const inputs = yield* Effect.forEach(participated, (row) =>
-              Effect.map(rounds.getRoundQuestionsDetailed(row.roundId), (questions) => ({
-                ...row,
-                questions,
-                canViewResults:
-                  authorizeRoundAction(dirState, actorId, "team.viewResults", row.teamId)._tag !== "Rejected",
-              })),
-            );
-            return buildMemberHistory({ rounds: inputs, minimumGroupSize: dirState.minimumGroupSize });
-          }).pipe(Effect.orDie),
+        ...organizationResults({ rounds, directory, actions }),
 
         ...organizationActions({ actions, rounds, directory, sql, randomId }),
         ...organizationNotes({ notes, rounds, directory, sql }),
