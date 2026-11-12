@@ -1,6 +1,7 @@
 import * as Cloudflare from "@alchemy.run/cloudflare";
 import { SqliteClient } from "@effect/sql-sqlite-do";
 import { organizationActions } from "./organization/Actions.ts";
+import { organizationDirectory } from "./organization/Directory.ts";
 import { organizationEmailVisibility } from "./organization/EmailVisibility.ts";
 import { organizationSubmissions } from "./organization/Submissions.ts";
 import { organizationNotes } from "./organization/Notes.ts";
@@ -8,8 +9,6 @@ import { organizationRoundViews } from "./organization/RoundViews.ts";
 import { organizationResults } from "./organization/Results.ts";
 import { organizationSends } from "./organization/Sends.ts";
 import {
-  type CommandResult,
-  decide,
   decidePulse,
   decideTestSend,
   type PulseCommand,
@@ -21,19 +20,12 @@ import {
   testInvitationLifetimeMs,
   testSendsPerHour,
   defaultSendPolicy,
-  type DirectoryCommand,
-  DEFAULT_LOCALE,
   type DirectoryState,
   emailLocaleOf,
-  type FollowUp,
-  Locale,
   makeSendStore,
   PersonId,
   SendId,
-  settingsView,
   TeamId,
-  teamsView,
-  teamView,
   type TransactionalEmail,
   calculateReminders,
   calculateResultsReadyDeliveryTime,
@@ -86,11 +78,6 @@ import { makeSqlSendRepository } from "./SqlSendRepository.ts";
  * It must be a literal: the same expression runs again inside the bundle, where `import.meta.url` differs.
  */
 const migrationsDirectory = "packages/cloudflare/migrations";
-
-/** A stored language the schema's CHECK constraints admit; anything else is read as unset. */
-const localeOrNull = (value: string | null): Locale | null => (Schema.is(Locale)(value) ? value : null);
-const localeOr = (value: string | null, fallback: Locale): Locale =>
-  Schema.is(Locale)(value) ? value : fallback;
 
 /**
  * The lease a themes job takes while its network call is in flight: its due time moves this far ahead, so a
@@ -188,19 +175,6 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
       const both = Effect.all([directory.load, pulses.load]);
 
       /** A removed Person's test sends are forgotten with their other records (ADR 0021). */
-      const deleteTestSendsForPerson = (personId: PersonId) =>
-        sql`DELETE FROM test_send WHERE person_id = ${personId}`.pipe(Effect.asVoid, Effect.orDie);
-
-      /** Only sends still waiting go back to the queue; one already sent or failed stays as it is. */
-      const pendingOnly = (followUps: ReadonlyArray<FollowUp>) =>
-        Effect.filter(followUps, (step) =>
-          step._tag === "QueueEmail"
-            ? sends
-                .get(step.sendId)
-                .pipe(Effect.map((record) => record._tag === "Some" && record.value.state._tag === "Pending"))
-            : Effect.succeed(true),
-        );
-
       /** Arms the DO alarm to the earliest pending job due time, or deletes the alarm if none pending. */
       const repairAlarm = () =>
         Effect.gen(function* () {
@@ -1228,95 +1202,6 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
             yield* runDueJobs(now);
           }).pipe(Effect.orDie),
 
-        create: (id: string, name: string) =>
-          sql
-            .withTransaction(sql`INSERT INTO organization (id, name) VALUES (${id}, ${name})`)
-            .pipe(Effect.as({ id, name }), Effect.orDie),
-
-        /** Idempotent: the Organization and its creator as its first Person (an Organization admin in WorkOS). */
-        createWithAdmin: (id: string, name: string, personId: string, email: string, workosUserId: string) =>
-          sql
-            .withTransaction(
-              Effect.all([
-                sql`INSERT INTO organization (id, name) VALUES (${id}, ${name}) ON CONFLICT (id) DO NOTHING`,
-                sql`INSERT INTO person (id, email, workos_user_id, organization_admin)
-                    VALUES (${personId}, ${email}, ${workosUserId}, 1)
-                    ON CONFLICT (id) DO NOTHING`,
-              ]),
-            )
-            .pipe(Effect.asVoid, Effect.orDie),
-
-        linkPerson: (personId: string, workosUserId: string, email: string) =>
-          sql
-            .withTransaction(
-              Effect.gen(function* () {
-                const other = yield* sql<{ id: string }>`
-                  SELECT id FROM person WHERE workos_user_id = ${workosUserId} AND id <> ${personId}`;
-                if (other.length > 0) return false;
-                yield* sql`
-                  UPDATE person SET workos_user_id = ${workosUserId}
-                   WHERE id = ${personId} AND email = ${email} AND removed_at IS NULL AND workos_user_id IS NULL`;
-                const linked = yield* sql<{ id: string }>`
-                  SELECT id FROM person
-                   WHERE id = ${personId} AND workos_user_id = ${workosUserId} AND removed_at IS NULL`;
-                return linked.length > 0;
-              }),
-            )
-            .pipe(Effect.orDie),
-
-        activePerson: (workosUserId: string) =>
-          sql<{
-            id: string;
-            organization_admin: number;
-            locale: string | null;
-            detected_locale: string | null;
-            default_locale: string | null;
-          }>`
-            SELECT person.id, person.organization_admin, person.locale, person.detected_locale,
-                   (SELECT default_locale FROM organization LIMIT 1) AS default_locale
-              FROM person
-             WHERE person.workos_user_id = ${workosUserId} AND person.removed_at IS NULL`.pipe(
-            Effect.map((rows) => {
-              const row = rows[0];
-              if (row === undefined) return null;
-              return {
-                id: row.id,
-                organizationAdmin: row.organization_admin === 1,
-                // The schema's CHECKs keep these to the known languages; anything else is read as unset.
-                locale: localeOrNull(row.locale),
-                detectedLocale: localeOrNull(row.detected_locale),
-                organizationLocale: localeOr(row.default_locale, DEFAULT_LOCALE),
-              };
-            }),
-            Effect.orDie,
-          ),
-
-        runDirectoryCommand: (actorId: PersonId, command: DirectoryCommand, now: number) =>
-          sql
-            .withTransaction(
-              Effect.gen(function* () {
-                const decision = decide(yield* directory.load, actorId, command, now);
-                if (decision._tag === "Rejected") return decision satisfies CommandResult;
-                yield* directory.apply(decision.changes);
-                if (command._tag === "RemovePerson") {
-                  yield* rounds.revokeInvitationForPerson(command.personId, now);
-                  yield* rounds.deleteParticipationForPerson(command.personId);
-                  yield* deleteTestSendsForPerson(command.personId);
-                }
-                return {
-                  _tag: "Accepted",
-                  followUps: yield* pendingOnly(decision.followUps),
-                } satisfies CommandResult;
-              }),
-            )
-            .pipe(Effect.orDie),
-        viewTeams: (actorId: PersonId) =>
-          directory.load.pipe(Effect.map((state) => teamsView(state, actorId))),
-        viewTeam: (actorId: PersonId, teamId: TeamId) =>
-          directory.load.pipe(Effect.map((state) => teamView(state, actorId, teamId))),
-        viewSettings: (actorId: PersonId) =>
-          directory.load.pipe(Effect.map((state) => settingsView(state, actorId))),
-
         runPulseCommand: (actorId: PersonId, command: PulseCommand, now: number) =>
           sql
             .withTransaction(
@@ -1849,11 +1734,7 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
 
         ...organizationSubmissions({ rounds, directory, pulses, actions }),
 
-        get: (id: string) =>
-          sql<{ id: string; name: string }>`SELECT id, name FROM organization WHERE id = ${id}`.pipe(
-            Effect.map((rows) => rows[0] ?? null),
-            Effect.orDie,
-          ),
+        ...organizationDirectory({ sql, sends, rounds, directory }),
 
         ...organizationSends(sends),
       };
