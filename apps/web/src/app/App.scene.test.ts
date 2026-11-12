@@ -241,6 +241,22 @@ describe("App Scenes", () => {
   });
 
   describe("Teams screen", () => {
+    it("opens the Create Team form from its button and closes it without doing anything", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(makeUrl("https://app.surveybeat.com/")),
+          session: signedInAdmin,
+          teams: { _tag: "Loaded", teams: [] },
+        }),
+        Scene.expect(Scene.role("heading", { name: "Create a Team" })).toBeAbsent(),
+        Scene.click(Scene.role("button", { name: "Create Team" })),
+        Scene.expect(Scene.role("heading", { name: "Create a Team" })).toExist(),
+        Scene.click(Scene.role("button", { name: "Cancel" })),
+        Scene.expect(Scene.role("heading", { name: "Create a Team" })).toBeAbsent(),
+      );
+    });
+
     it("renders teams list and creates team via form", () => {
       const teamId = decodeTeamId("team-1");
       const teamSummary = {
@@ -258,9 +274,11 @@ describe("App Scenes", () => {
           teams: { _tag: "Loaded", teams: [teamSummary] },
         }),
         Scene.expect(Scene.text("Engineering")).toExist(),
+        Scene.expect(Scene.role("heading", { name: "Create a Team" })).toBeAbsent(),
+        Scene.click(Scene.role("button", { name: "Create Team" })),
         Scene.expect(Scene.role("heading", { name: "Create a Team" })).toExist(),
         Scene.type(Scene.label("Team name"), "Design"),
-        Scene.type(Scene.label("Time zone"), "UTC"),
+        Scene.change(Scene.label("Time zone"), "UTC"),
         Scene.type(Scene.label("Lead's email"), "lead@acme.com"),
         Scene.click(Scene.role("button", { name: "Create Team" })),
         Scene.Command.expectHas(CreateTeam),
@@ -335,6 +353,7 @@ describe("App Scenes", () => {
         Scene.expect(Scene.text("alice@acme.com")).toExist(),
         Scene.expect(Scene.role("button", { name: "Remove" })).toExist(),
         // Rename team
+        Scene.click(Scene.role("button", { name: "Rename Team" })),
         Scene.type(Scene.label("Team name"), "Renamed Team"),
         Scene.click(Scene.role("button", { name: "Save" })),
         Scene.Command.expectHas(UpdateTeam),
@@ -351,6 +370,7 @@ describe("App Scenes", () => {
         ),
         Scene.expect(Scene.role("heading", { name: "Renamed Team" })).toExist(),
         // Add member
+        Scene.click(Scene.role("button", { name: "Add member" })),
         Scene.type(Scene.label("Add a member by email"), "bob@acme.com"),
         Scene.click(Scene.role("button", { name: "Add member" })),
         Scene.Command.expectHas(AddMember),
@@ -358,13 +378,17 @@ describe("App Scenes", () => {
         Scene.Command.expectHas(GetTeam),
         Scene.Command.resolve(GetTeam, Message.GotTeam({ outcome: { _tag: "Success", detail } })),
         // Assign lead
+        Scene.click(Scene.role("button", { name: "Assign Lead" })),
         Scene.type(Scene.label("Assign a Lead by email"), "carol@acme.com"),
         Scene.click(Scene.role("button", { name: "Assign Lead" })),
         Scene.Command.expectHas(AssignLead),
         Scene.Command.resolve(AssignLead, Message.AssignedLead({ outcome: { _tag: "Success" } })),
         Scene.Command.expectHas(GetTeam),
         Scene.Command.resolve(GetTeam, Message.GotTeam({ outcome: { _tag: "Success", detail } })),
-        // Remove member
+        // Remove member: the first press asks, the second one does it
+        Scene.click(Scene.role("button", { name: "Remove" })),
+        Scene.expect(Scene.role("alertdialog", { name: "Remove?" })).toExist(),
+        Scene.expect(Scene.text("Remove alice@acme.com from this Team?")).toExist(),
         Scene.click(Scene.role("button", { name: "Remove" })),
         Scene.Command.expectHas(RemoveMember),
         Scene.Command.resolve(RemoveMember, Message.RemovedMember({ outcome: { _tag: "Success" } })),
@@ -375,6 +399,54 @@ describe("App Scenes", () => {
             outcome: { _tag: "Success", detail: { ...detail, roster: [] } },
           }),
         ),
+      );
+    });
+
+    it("asks before removing a member, and Escape or Cancel leave the roster alone", () => {
+      const teamId = decodeTeamId("team-1");
+      const personId = decodePersonId("person-1");
+      const detail = {
+        team: {
+          id: teamId,
+          name: "Old Team Name",
+          timeZone: decodeTimeZone("UTC"),
+          yourRole: "lead" as const,
+        },
+        roster: [
+          {
+            personId,
+            email: decodeEmail("alice@acme.com"),
+            role: "member" as const,
+            since: 1700000000000,
+          },
+        ],
+        may: {
+          update: true,
+          manageLeads: true,
+          manageMembers: true,
+          managePulses: true,
+          viewResults: true,
+        },
+      };
+
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}`)),
+          session: signedInAdmin,
+          teamDetail: { _tag: "Loaded", detail },
+        }),
+        Scene.click(Scene.role("button", { name: "Remove" })),
+        Scene.expect(Scene.role("alertdialog", { name: "Remove?" })).toExist(),
+        Scene.keydown(Scene.role("alertdialog", { name: "Remove?" }), "Escape"),
+        Scene.expect(Scene.role("alertdialog", { name: "Remove?" })).toBeAbsent(),
+        Scene.expect(Scene.text("alice@acme.com")).toExist(),
+        Scene.Command.expectNone(),
+        Scene.click(Scene.role("button", { name: "Remove" })),
+        Scene.click(Scene.role("button", { name: "Cancel" })),
+        Scene.expect(Scene.role("alertdialog", { name: "Remove?" })).toBeAbsent(),
+        Scene.expect(Scene.text("alice@acme.com")).toExist(),
+        Scene.Command.expectNone(),
       );
     });
 
@@ -806,6 +878,8 @@ describe("App Scenes", () => {
         Scene.expect(Scene.role("heading", { name: "Organization settings" })).toExist(),
         Scene.expect(Scene.text("alice@acme.com")).toExist(),
         Scene.expect(Scene.role("button", { name: "Make admin" })).toExist(),
+        Scene.expect(Scene.label("Minimum group size")).toBeAbsent(),
+        Scene.click(Scene.role("button", { name: "Change minimum group size" })),
         Scene.type(Scene.label("Minimum group size"), "5"),
         Scene.click(Scene.role("button", { name: "Save" })),
         Scene.Command.expectHas(UpdateSettings),
@@ -1834,7 +1908,9 @@ describe("App Scenes", () => {
         }),
         Scene.expect(Scene.role("heading", { name: "Actions" })).toExist(),
         Scene.expect(Scene.text("No actions committed yet.")).toExist(),
-        // Lead sees commit form
+        // Lead sees the button, and the form only once it is asked for
+        Scene.expect(Scene.role("heading", { name: "Commit an action" })).toBeAbsent(),
+        Scene.click(Scene.role("button", { name: "Commit an action" })),
         Scene.expect(Scene.role("heading", { name: "Commit an action" })).toExist(),
         // Enter title
         Scene.type(Scene.label("Action title"), "Shorten pairing sessions"),
@@ -1866,6 +1942,24 @@ describe("App Scenes", () => {
         Scene.expect(Scene.text("Done")).toExist(),
         Scene.expect(Scene.role("button", { name: "Reopen" })).toExist(),
       );
+    });
+
+    it("asks before dropping an action, and cancelling leaves it untouched", () => {
+      const actionId = Schema.decodeSync(ActionId)("action-1");
+      const base = {
+        ...initialModel(makeUrl("https://app.surveybeat.com/teams/team-1/rounds/round-1")),
+        session: signedInAdmin,
+      };
+      const asked = update(base, Message.AskDropAction({ actionId }));
+      expect(Option.getOrUndefined(asked.model.pendingDropId)).toBe(actionId);
+      expect(asked.commands ?? []).toHaveLength(0);
+
+      const cancelled = update(asked.model, Message.DismissDropAction());
+      expect(Option.getOrUndefined(cancelled.model.pendingDropId)).toBeUndefined();
+      expect(cancelled.commands ?? []).toHaveLength(0);
+
+      const confirmed = update(asked.model, Message.ConfirmDropAction());
+      expect(confirmed.commands?.map((command) => command.name)).toEqual(["UpdateActionCmd"]);
     });
 
     it("renders Actions on sub-N results screen without gating", () => {

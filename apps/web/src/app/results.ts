@@ -46,6 +46,7 @@ import {
   pageTitle,
   panel,
   problemView,
+  confirmDialog,
   secondaryButtonClass,
   sectionTitle,
   selectField,
@@ -693,6 +694,8 @@ export const resultsScreenView = <Message>(
     readonly actionDimension: Dimension | "none";
     readonly actionBusy: boolean;
     readonly actionFailure: Option.Option<Failure>;
+    readonly actionFormOpen: boolean;
+    readonly pendingDropId: ActionId | undefined;
     readonly shareBusy: boolean;
     readonly shareFailure: Option.Option<Failure>;
     readonly retryBusy: boolean;
@@ -708,6 +711,10 @@ export const resultsScreenView = <Message>(
     readonly onActionDueDateChange: (date: string) => Message;
     readonly onActionDimensionChange: (dim: string) => Message;
     readonly onSubmitAction: Message;
+    readonly onToggleActionForm: Message;
+    readonly onAskDrop: (actionId: ActionId) => Message;
+    readonly onConfirmDrop: Message;
+    readonly onCancelDrop: Message;
     readonly onUpdateActionStatus: (actionId: ActionId, status: ActionStatus) => Message;
     readonly onNoteEdit: Message;
     readonly onNoteDraftChange: (text: string) => Message;
@@ -897,7 +904,7 @@ export const resultsScreenView = <Message>(
                   appButton(
                     {
                       text: message("actions.drop"),
-                      onClick: callbacks.onUpdateActionStatus(action.id, "dropped"),
+                      onClick: callbacks.onAskDrop(action.id),
                       className: darkOutlineButtonClass,
                     },
                     h,
@@ -947,10 +954,29 @@ export const resultsScreenView = <Message>(
                       ],
                     ),
                     h.div(
-                      [h.Class("flex flex-wrap items-center gap-2")],
+                      [h.Class("flex flex-col gap-2")],
                       [
-                        badge(action.status === "committed" ? "primary" : "neutral", [statusLabel], h),
-                        ...buttons,
+                        h.div(
+                          [h.Class("flex flex-wrap items-center gap-2")],
+                          [
+                            badge(action.status === "committed" ? "primary" : "neutral", [statusLabel], h),
+                            ...buttons,
+                          ],
+                        ),
+                        state.pendingDropId === action.id
+                          ? confirmDialog(
+                              {
+                                title: message("actions.drop"),
+                                body: message("confirm.dropBody"),
+                                confirmText: message("actions.drop"),
+                                cancelText: message("confirm.cancel"),
+                                isBusy: state.actionBusy,
+                                onConfirm: callbacks.onConfirmDrop,
+                                onCancel: callbacks.onCancelDrop,
+                              },
+                              h,
+                            )
+                          : null,
                       ],
                     ),
                   ],
@@ -1056,7 +1082,17 @@ export const resultsScreenView = <Message>(
           sectionTitle(message("actions.title"), h, "onDark"),
           h.p([h.Class("mt-2 text-mint-text")], [message("actions.intro")]),
           h.div([h.Class("mt-6 flex flex-col gap-4")], actionsItems),
-          commitForm,
+          isLead
+            ? appButton(
+                {
+                  text: message("actions.commitOpen"),
+                  onClick: callbacks.onToggleActionForm,
+                  className: darkOutlineButtonClass,
+                },
+                h,
+              )
+            : null,
+          state.actionFormOpen ? commitForm : null,
         ].filter(Predicate.isNotNull),
         h,
       ),

@@ -118,6 +118,7 @@ export const Model = Schema.Struct({
   createTeamLeadEmail: Schema.String,
   createTeamBusy: Schema.Boolean,
   createTeamFailure: Schema.Option(Failure),
+  createTeamOpen: Schema.Boolean,
   // Team detail screen
   teamDetail: LoadedTeam,
   teamOverview: LoadedOverview,
@@ -135,12 +136,25 @@ export const Model = Schema.Struct({
   assignLeadFailure: Schema.Option(Failure),
   rosterBusy: Schema.Boolean,
   rosterFailure: Schema.Option(Failure),
+  renameOpen: Schema.Boolean,
+  addMemberOpen: Schema.Boolean,
+  assignLeadOpen: Schema.Boolean,
+  // The one destructive-action confirm: Remove, Remove from Organization and Drop share it.
+  pendingRemove: Schema.Option(
+    Schema.Struct({
+      kind: Schema.Literals(["member", "lead"]),
+      personId: PersonId,
+      email: Schema.String,
+    }),
+  ),
+  pendingRemovePerson: Schema.Option(Schema.Struct({ personId: PersonId, email: Schema.String })),
   // Settings screen
   settings: LoadedSettings,
   size: Schema.String,
   sizeSaved: Schema.Boolean,
   sizeBusy: Schema.Boolean,
   sizeFailure: Schema.Option(Failure),
+  sizeOpen: Schema.Boolean,
   aiBusy: Schema.Boolean,
   aiFailure: Schema.Option(Failure),
   defaultLanguageBusy: Schema.Boolean,
@@ -186,6 +200,7 @@ export const Model = Schema.Struct({
   roundRates: Schema.Record(Schema.String, Schema.NullOr(Schema.Finite)),
   roundConfirm: Schema.Option(RoundConfirm),
   roundsSkipDate: Schema.String,
+  roundsSkipOpen: Schema.Boolean,
   roundsBusy: Schema.Boolean,
   roundsFailure: Schema.Option(Failure),
   // Results screen
@@ -206,6 +221,8 @@ export const Model = Schema.Struct({
   actionDimension: Schema.Union([Dimension, Schema.Literal("none")]),
   actionBusy: Schema.Boolean,
   actionFailure: Schema.Option(Failure),
+  actionFormOpen: Schema.Boolean,
+  pendingDropId: Schema.Option(ActionId),
   // Lead's Note on the Round
   roundNote: LoadedNote,
   noteDraft: Schema.String,
@@ -328,6 +345,17 @@ export const Message = defineMessageUnion({
   AssignLeadEmailChanged: { email: Schema.String },
   SubmitAssignLead: {},
   AssignedLead: { outcome: OutcomeVoid },
+  ToggleForm: {
+    form: Schema.Literals([
+      "createTeam",
+      "renameTeam",
+      "addMember",
+      "assignLead",
+      "skipWeek",
+      "commitAction",
+      "minimumSize",
+    ]),
+  },
   RemoveMemberClicked: { personId: PersonId },
   RemovedMember: { outcome: OutcomeVoid },
   RemoveLeadClicked: { personId: PersonId },
@@ -350,6 +378,11 @@ export const Message = defineMessageUnion({
   RevokeAdminClicked: { personId: PersonId },
   RevokedAdmin: { outcome: OutcomeVoid },
   RemovePersonClicked: { personId: PersonId },
+  ConfirmRemove: {},
+  DismissRemove: {},
+  AskDropAction: { actionId: ActionId },
+  ConfirmDropAction: {},
+  DismissDropAction: {},
   RemovedPerson: { outcome: OutcomeVoid },
   // Pulses list screen
   GotPulses: { outcome: OutcomePulses },
@@ -1112,6 +1145,7 @@ export const initialModel = (url: Url): Model => {
     createTeamLeadEmail: "",
     createTeamBusy: false,
     createTeamFailure: Option.none(),
+    createTeamOpen: false,
     teamDetail: { _tag: "Loading" },
     teamOverview: { _tag: "Loading" },
     renameName: "",
@@ -1128,11 +1162,17 @@ export const initialModel = (url: Url): Model => {
     assignLeadFailure: Option.none(),
     rosterBusy: false,
     rosterFailure: Option.none(),
+    renameOpen: false,
+    addMemberOpen: false,
+    assignLeadOpen: false,
+    pendingRemove: Option.none(),
+    pendingRemovePerson: Option.none(),
     settings: { _tag: "Loading" },
     size: "3",
     sizeSaved: false,
     sizeBusy: false,
     sizeFailure: Option.none(),
+    sizeOpen: false,
     aiBusy: false,
     aiFailure: Option.none(),
     defaultLanguageBusy: false,
@@ -1174,6 +1214,7 @@ export const initialModel = (url: Url): Model => {
     roundRates: {},
     roundConfirm: Option.none(),
     roundsSkipDate: "",
+    roundsSkipOpen: false,
     roundsBusy: false,
     roundsFailure: Option.none(),
     results: { _tag: "Loading" },
@@ -1191,6 +1232,8 @@ export const initialModel = (url: Url): Model => {
     actionDimension: "none",
     actionBusy: false,
     actionFailure: Option.none(),
+    actionFormOpen: false,
+    pendingDropId: Option.none(),
     roundNote: { _tag: "Loading" },
     noteDraft: "",
     noteEditing: false,
@@ -1764,10 +1807,17 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
 
     case "RemoveMemberClicked": {
       if (model.teamDetail._tag !== "Loaded") return { model };
-      const teamId = model.teamDetail.detail.team.id;
+      const entry = model.teamDetail.detail.roster.find((row) => row.personId === message.personId);
       return {
-        model: { ...model, rosterBusy: true, rosterFailure: Option.none() },
-        commands: [RemoveMember({ teamId, personId: message.personId })],
+        model: {
+          ...model,
+          rosterFailure: Option.none(),
+          pendingRemove: Option.some({
+            kind: "member",
+            personId: message.personId,
+            email: entry?.email ?? "",
+          }),
+        },
       };
     }
 
@@ -1794,12 +1844,49 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
 
     case "RemoveLeadClicked": {
       if (model.teamDetail._tag !== "Loaded") return { model };
-      const teamId = model.teamDetail.detail.team.id;
+      const entry = model.teamDetail.detail.roster.find((row) => row.personId === message.personId);
       return {
-        model: { ...model, rosterBusy: true, rosterFailure: Option.none() },
-        commands: [RemoveLead({ teamId, personId: message.personId })],
+        model: {
+          ...model,
+          rosterFailure: Option.none(),
+          pendingRemove: Option.some({
+            kind: "lead",
+            personId: message.personId,
+            email: entry?.email ?? "",
+          }),
+        },
       };
     }
+
+    case "ConfirmRemove": {
+      if (Option.isSome(model.pendingRemovePerson)) {
+        const personId = model.pendingRemovePerson.value.personId;
+        return {
+          model: {
+            ...model,
+            pendingRemovePerson: Option.none(),
+            peopleBusy: true,
+            peopleFailure: Option.none(),
+          },
+          commands: [RemovePerson({ personId })],
+        };
+      }
+      if (Option.isNone(model.pendingRemove)) return { model };
+      if (model.teamDetail._tag !== "Loaded") return { model };
+      const pending = model.pendingRemove.value;
+      const teamId = model.teamDetail.detail.team.id;
+      return {
+        model: { ...model, pendingRemove: Option.none(), rosterBusy: true, rosterFailure: Option.none() },
+        commands: [
+          pending.kind === "lead"
+            ? RemoveLead({ teamId, personId: pending.personId })
+            : RemoveMember({ teamId, personId: pending.personId }),
+        ],
+      };
+    }
+
+    case "DismissRemove":
+      return { model: { ...model, pendingRemove: Option.none(), pendingRemovePerson: Option.none() } };
 
     case "RemovedLead": {
       if (model.teamDetail._tag !== "Loaded") return { model };
@@ -2059,11 +2146,56 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       };
     }
 
-    case "RemovePersonClicked":
+    case "RemovePersonClicked": {
+      const person =
+        model.settings._tag === "Loaded"
+          ? model.settings.settings.people.find((row) => row.personId === message.personId)
+          : undefined;
       return {
-        model: { ...model, peopleBusy: true, peopleFailure: Option.none() },
-        commands: [RemovePerson({ personId: message.personId })],
+        model: {
+          ...model,
+          peopleFailure: Option.none(),
+          pendingRemovePerson: Option.some({
+            personId: message.personId,
+            email: person?.email ?? "",
+          }),
+        },
       };
+    }
+
+    case "AskDropAction":
+      return { model: { ...model, pendingDropId: Option.some(message.actionId) } };
+
+    case "DismissDropAction":
+      return { model: { ...model, pendingDropId: Option.none() } };
+
+    case "ConfirmDropAction": {
+      if (Option.isNone(model.pendingDropId)) return { model };
+      return update(
+        model,
+        Message.UpdateActionStatus({ actionId: model.pendingDropId.value, status: "dropped" }),
+      );
+    }
+
+    case "ToggleForm": {
+      switch (message.form) {
+        case "createTeam":
+          return { model: { ...model, createTeamOpen: !model.createTeamOpen } };
+        case "renameTeam":
+          return { model: { ...model, renameOpen: !model.renameOpen } };
+        case "addMember":
+          return { model: { ...model, addMemberOpen: !model.addMemberOpen } };
+        case "assignLead":
+          return { model: { ...model, assignLeadOpen: !model.assignLeadOpen } };
+        case "skipWeek":
+          return { model: { ...model, roundsSkipOpen: !model.roundsSkipOpen } };
+        case "commitAction":
+          return { model: { ...model, actionFormOpen: !model.actionFormOpen } };
+        case "minimumSize":
+          return { model: { ...model, sizeOpen: !model.sizeOpen } };
+      }
+      return { model };
+    }
 
     case "RemovedPerson": {
       if (message.outcome._tag === "Success") {
@@ -3102,12 +3234,14 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
           createLeadEmail: model.createTeamLeadEmail,
           createBusy: model.createTeamBusy,
           createFailure: Option.getOrUndefined(model.createTeamFailure),
+          createOpen: model.createTeamOpen,
         },
         {
           onNameChange: (name) => Message.CreateTeamNameChanged({ name }),
           onTimeZoneChange: (tz) => Message.CreateTeamTimeZoneChanged({ tz }),
           onLeadEmailChange: (email) => Message.CreateTeamLeadEmailChanged({ email }),
           onSubmitCreate: Message.SubmitCreateTeam(),
+          onToggleCreate: Message.ToggleForm({ form: "createTeam" }),
         },
         h,
       );
@@ -3131,6 +3265,10 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
           assignLeadFailure: Option.getOrUndefined(model.assignLeadFailure),
           rosterBusy: model.rosterBusy,
           rosterFailure: Option.getOrUndefined(model.rosterFailure),
+          renameOpen: model.renameOpen,
+          addMemberOpen: model.addMemberOpen,
+          assignLeadOpen: model.assignLeadOpen,
+          pendingRemove: Option.getOrUndefined(model.pendingRemove),
         },
         {
           onRenameNameChange: (name) => Message.RenameNameChanged({ name }),
@@ -3142,6 +3280,11 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
           onSubmitAssignLead: Message.SubmitAssignLead(),
           onRemoveMember: (personId) => Message.RemoveMemberClicked({ personId }),
           onRemoveLead: (personId) => Message.RemoveLeadClicked({ personId }),
+          onToggleRename: Message.ToggleForm({ form: "renameTeam" }),
+          onToggleAddMember: Message.ToggleForm({ form: "addMember" }),
+          onToggleAssignLead: Message.ToggleForm({ form: "assignLead" }),
+          onConfirmRemove: Message.ConfirmRemove(),
+          onCancelRemove: Message.DismissRemove(),
         },
         teamOverviewView(
           model.teamOverview,
@@ -3173,12 +3316,14 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
             createLeadEmail: model.createTeamLeadEmail,
             createBusy: model.createTeamBusy,
             createFailure: Option.getOrUndefined(model.createTeamFailure),
+            createOpen: model.createTeamOpen,
           },
           {
             onNameChange: (name) => Message.CreateTeamNameChanged({ name }),
             onTimeZoneChange: (tz) => Message.CreateTeamTimeZoneChanged({ tz }),
             onLeadEmailChange: (email) => Message.CreateTeamLeadEmailChanged({ email }),
             onSubmitCreate: Message.SubmitCreateTeam(),
+            onToggleCreate: Message.ToggleForm({ form: "createTeam" }),
           },
           h,
         );
@@ -3190,23 +3335,28 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
             sizeSaved: model.sizeSaved,
             sizeBusy: model.sizeBusy,
             sizeFailure: Option.getOrUndefined(model.sizeFailure),
+            sizeOpen: model.sizeOpen,
             aiBusy: model.aiBusy,
             aiFailure: Option.getOrUndefined(model.aiFailure),
             defaultLanguageBusy: model.defaultLanguageBusy,
             defaultLanguageFailure: Option.getOrUndefined(model.defaultLanguageFailure),
             peopleBusy: model.peopleBusy,
             peopleFailure: Option.getOrUndefined(model.peopleFailure),
+            pendingRemovePerson: Option.getOrUndefined(model.pendingRemovePerson),
             failedEmails: model.failedEmails,
             failedEmailResends: model.failedEmailResends,
           },
           {
             onSizeChange: (size) => Message.SizeChanged({ size }),
+            onToggleSize: Message.ToggleForm({ form: "minimumSize" }),
             onSubmitSize: Message.SubmitSize(),
             onAiProcessingToggle: (isOn) => Message.AiProcessingToggled({ isOn }),
             onDefaultLanguageChange: (value) => Message.DefaultLanguageChanged({ value }),
             onGrantAdmin: (personId) => Message.GrantAdminClicked({ personId }),
             onRevokeAdmin: (personId) => Message.RevokeAdminClicked({ personId }),
             onRemovePerson: (personId) => Message.RemovePersonClicked({ personId }),
+            onConfirmRemovePerson: Message.ConfirmRemove(),
+            onCancelRemovePerson: Message.DismissRemove(),
             onResendFailedEmail: (sendId) => Message.ResendFailedEmailClicked({ sendId }),
           },
           h,
@@ -3306,6 +3456,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
           rates: model.roundRates,
           confirm: Option.getOrUndefined(model.roundConfirm),
           skipDate: model.roundsSkipDate,
+          skipOpen: model.roundsSkipOpen,
           busy: model.roundsBusy,
           failure: Option.getOrUndefined(model.roundsFailure),
         },
@@ -3313,6 +3464,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
           onSkipWeek: (plannedOpenDate) => Message.SkipWeekClicked({ plannedOpenDate }),
           onSkipDateChange: (date) => Message.SkipDateChanged({ date }),
           onSubmitSkipDate: Message.SubmitSkipDate(),
+          onToggleSkip: Message.ToggleForm({ form: "skipWeek" }),
           onPause: Message.PausePulseClicked(),
           onResume: Message.ResumePulseClicked(),
           onAskConfirm: (kind, roundId) => Message.RoundConfirmRequested({ kind, roundId }),
@@ -3342,6 +3494,8 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
           actionDimension: model.actionDimension,
           actionBusy: model.actionBusy,
           actionFailure: model.actionFailure,
+          actionFormOpen: model.actionFormOpen,
+          pendingDropId: Option.getOrUndefined(model.pendingDropId),
           roundNote: model.roundNote,
           noteDraft: model.noteDraft,
           noteEditing: model.noteEditing,
@@ -3366,6 +3520,10 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
               dimension: Schema.is(Dimension)(dim) ? dim : "none",
             }),
           onSubmitAction: Message.SubmitAction(),
+          onToggleActionForm: Message.ToggleForm({ form: "commitAction" }),
+          onAskDrop: (actionId) => Message.AskDropAction({ actionId }),
+          onConfirmDrop: Message.ConfirmDropAction(),
+          onCancelDrop: Message.DismissDropAction(),
           onUpdateActionStatus: (actionId, status) => Message.UpdateActionStatus({ actionId, status }),
         },
         h,
