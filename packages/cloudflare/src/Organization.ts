@@ -1,5 +1,7 @@
 import * as Cloudflare from "@alchemy.run/cloudflare";
 import { SqliteClient } from "@effect/sql-sqlite-do";
+import { organizationActions } from "./organization/Actions.ts";
+import { organizationNotes } from "./organization/Notes.ts";
 import { organizationSends } from "./organization/Sends.ts";
 import {
   type CommandResult,
@@ -72,12 +74,6 @@ import {
   calculateRoundResult,
   enforceEffectiveNOnResult,
   type RoundResult,
-  ActionId,
-  type ActionItem,
-  type ActionList,
-  type CreateAction,
-  type UpdateAction,
-  type ActionViewed,
   buildMemberHistory,
   buildTeamOverview,
   type MemberHistory,
@@ -89,9 +85,6 @@ import {
   viewRoundResult,
   delayedRoundResult,
   nextRetryAt,
-  type NoteViewed,
-  type RoundNoteView,
-  noteChange,
   previewAnswers,
   testSubmissionContext,
 } from "@surveybeat/domain";
@@ -2192,263 +2185,8 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
             return buildMemberHistory({ rounds: inputs, minimumGroupSize: dirState.minimumGroupSize });
           }).pipe(Effect.orDie),
 
-        listActions: (
-          actorId: PersonId,
-          teamId: TeamId,
-        ): Effect.Effect<ActionViewed<ActionList>, never, never> =>
-          Effect.gen(function* () {
-            const dirState = yield* directory.load;
-            const auth = authorizeRoundAction(dirState, actorId, "team.viewActions", teamId);
-            if (auth._tag === "Rejected") {
-              const rejected: ActionViewed<ActionList> = {
-                _tag: "Rejected",
-                rejection: { _tag: auth.rejection._tag === "TeamNotFound" ? "TeamNotFound" : "Forbidden" },
-              };
-              return rejected;
-            }
-            const team = dirState.teams.find((t) => t.id === teamId);
-            if (team === undefined) {
-              const rejected: ActionViewed<ActionList> = {
-                _tag: "Rejected",
-                rejection: { _tag: "TeamNotFound" },
-              };
-              return rejected;
-            }
-            const all = yield* actions.getActionsForTeam(teamId);
-            const viewed: ActionViewed<ActionList> = {
-              _tag: "Viewed",
-              value: {
-                teamId,
-                actions: all,
-              },
-            };
-            return viewed;
-          }).pipe(Effect.orDie),
-
-        createAction: (
-          actorId: PersonId,
-          teamId: TeamId,
-          payload: CreateAction,
-          now: number,
-        ): Effect.Effect<ActionViewed<ActionItem>, never, never> =>
-          sql
-            .withTransaction(
-              Effect.gen(function* () {
-                const dirState = yield* directory.load;
-                const auth = authorizeRoundAction(dirState, actorId, "team.createAction", teamId);
-                if (auth._tag === "Rejected") {
-                  const rejected: ActionViewed<ActionItem> = {
-                    _tag: "Rejected",
-                    rejection: {
-                      _tag: auth.rejection._tag === "TeamNotFound" ? "TeamNotFound" : "Forbidden",
-                    },
-                  };
-                  return rejected;
-                }
-                const team = dirState.teams.find((t) => t.id === teamId);
-                if (team === undefined) {
-                  const rejected: ActionViewed<ActionItem> = {
-                    _tag: "Rejected",
-                    rejection: { _tag: "TeamNotFound" },
-                  };
-                  return rejected;
-                }
-                // Check owner is an active member in team
-                const isMember = dirState.memberships.some(
-                  (m) => m.teamId === teamId && m.personId === payload.ownerId && m.endedAt === null,
-                );
-                if (!isMember) {
-                  const rejected: ActionViewed<ActionItem> = {
-                    _tag: "Rejected",
-                    rejection: { _tag: "OwnerNotInTeam" },
-                  };
-                  return rejected;
-                }
-                // Check round exists in team
-                const round = yield* rounds.getRound(payload.roundId);
-                if (round === null || round.teamId !== teamId) {
-                  const rejected: ActionViewed<ActionItem> = {
-                    _tag: "Rejected",
-                    rejection: { _tag: "RoundNotFound" },
-                  };
-                  return rejected;
-                }
-
-                const actionId = ActionId.make(randomId());
-                yield* actions.insertAction({
-                  id: actionId,
-                  teamId,
-                  roundId: payload.roundId,
-                  title: payload.title,
-                  ownerId: payload.ownerId,
-                  dueDate: payload.dueDate ?? null,
-                  dimension: payload.dimension ?? null,
-                  status: "committed",
-                  createdAt: now,
-                  updatedAt: now,
-                  doneAt: null,
-                });
-
-                const item = yield* actions.getActionItem(actionId);
-                const viewed: ActionViewed<ActionItem> = {
-                  _tag: "Viewed",
-                  value: item!,
-                };
-                return viewed;
-              }),
-            )
-            .pipe(Effect.orDie),
-
-        updateAction: (
-          actorId: PersonId,
-          teamId: TeamId,
-          actionId: ActionId,
-          payload: UpdateAction,
-          now: number,
-        ): Effect.Effect<ActionViewed<ActionItem>, never, never> =>
-          sql
-            .withTransaction(
-              Effect.gen(function* () {
-                const dirState = yield* directory.load;
-                const auth = authorizeRoundAction(dirState, actorId, "team.updateAction", teamId);
-                if (auth._tag === "Rejected") {
-                  const rejected: ActionViewed<ActionItem> = {
-                    _tag: "Rejected",
-                    rejection: {
-                      _tag: auth.rejection._tag === "TeamNotFound" ? "TeamNotFound" : "Forbidden",
-                    },
-                  };
-                  return rejected;
-                }
-                const team = dirState.teams.find((t) => t.id === teamId);
-                if (team === undefined) {
-                  const rejected: ActionViewed<ActionItem> = {
-                    _tag: "Rejected",
-                    rejection: { _tag: "TeamNotFound" },
-                  };
-                  return rejected;
-                }
-                const existing = yield* actions.getAction(actionId);
-                if (existing === null || existing.teamId !== teamId) {
-                  const rejected: ActionViewed<ActionItem> = {
-                    _tag: "Rejected",
-                    rejection: { _tag: "ActionNotFound" },
-                  };
-                  return rejected;
-                }
-
-                if (payload.ownerId !== undefined) {
-                  const isMember = dirState.memberships.some(
-                    (m) => m.teamId === teamId && m.personId === payload.ownerId && m.endedAt === null,
-                  );
-                  if (!isMember) {
-                    const rejected: ActionViewed<ActionItem> = {
-                      _tag: "Rejected",
-                      rejection: { _tag: "OwnerNotInTeam" },
-                    };
-                    return rejected;
-                  }
-                }
-
-                let newDoneAt: number | null = existing.doneAt;
-                if (payload.status === "done" && existing.status !== "done") {
-                  newDoneAt = now;
-                } else if (payload.status !== undefined && payload.status !== "done") {
-                  newDoneAt = null;
-                }
-
-                yield* actions.updateAction(actionId, {
-                  title: payload.title ?? existing.title,
-                  ownerId: payload.ownerId ?? existing.ownerId,
-                  dueDate: payload.dueDate !== undefined ? payload.dueDate : existing.dueDate,
-                  dimension: payload.dimension !== undefined ? payload.dimension : existing.dimension,
-                  status: payload.status ?? existing.status,
-                  updatedAt: now,
-                  doneAt: newDoneAt,
-                });
-
-                const item = yield* actions.getActionItem(actionId);
-                const viewed: ActionViewed<ActionItem> = {
-                  _tag: "Viewed",
-                  value: item!,
-                };
-                return viewed;
-              }),
-            )
-            .pipe(Effect.orDie),
-
-        viewRoundNote: (
-          actorId: PersonId,
-          teamId: TeamId,
-          roundId: RoundId,
-        ): Effect.Effect<NoteViewed<RoundNoteView>, never, never> =>
-          Effect.gen(function* () {
-            const dirState = yield* directory.load;
-            const auth = authorizeRoundAction(dirState, actorId, "team.viewNote", teamId);
-            if (auth._tag === "Rejected") {
-              const rejected: NoteViewed<RoundNoteView> = {
-                _tag: "Rejected",
-                rejection: { _tag: auth.rejection._tag === "TeamNotFound" ? "TeamNotFound" : "Forbidden" },
-              };
-              return rejected;
-            }
-            const round = yield* rounds.getRound(roundId);
-            if (round === null || round.teamId !== teamId) {
-              const rejected: NoteViewed<RoundNoteView> = {
-                _tag: "Rejected",
-                rejection: { _tag: "RoundNotFound" },
-              };
-              return rejected;
-            }
-            // During the Review window only the Lead sees the Note; the Team sees it once the Round is Shared.
-            const isLead = auth.actor.roles.get(teamId) === "lead";
-            const note = isLead || round.status === "shared" ? yield* notes.getNote(roundId) : null;
-            const viewed: NoteViewed<RoundNoteView> = { _tag: "Viewed", value: { roundId, note } };
-            return viewed;
-          }).pipe(Effect.orDie),
-
-        saveRoundNote: (
-          actorId: PersonId,
-          teamId: TeamId,
-          roundId: RoundId,
-          text: string,
-          now: number,
-        ): Effect.Effect<NoteViewed<RoundNoteView>, never, never> =>
-          sql
-            .withTransaction(
-              Effect.gen(function* () {
-                const dirState = yield* directory.load;
-                const auth = authorizeRoundAction(dirState, actorId, "team.writeNote", teamId);
-                if (auth._tag === "Rejected") {
-                  const rejected: NoteViewed<RoundNoteView> = {
-                    _tag: "Rejected",
-                    rejection: {
-                      _tag: auth.rejection._tag === "TeamNotFound" ? "TeamNotFound" : "Forbidden",
-                    },
-                  };
-                  return rejected;
-                }
-                const round = yield* rounds.getRound(roundId);
-                if (round === null || round.teamId !== teamId) {
-                  const rejected: NoteViewed<RoundNoteView> = {
-                    _tag: "Rejected",
-                    rejection: { _tag: "RoundNotFound" },
-                  };
-                  return rejected;
-                }
-                // Blank text after trimming clears the Note; anything else replaces it.
-                const change = noteChange(text);
-                if (change._tag === "Delete") {
-                  yield* notes.deleteNote(roundId);
-                } else {
-                  yield* notes.upsertNote({ roundId, teamId, text: change.text, updatedAt: now });
-                }
-                const note = yield* notes.getNote(roundId);
-                const viewed: NoteViewed<RoundNoteView> = { _tag: "Viewed", value: { roundId, note } };
-                return viewed;
-              }),
-            )
-            .pipe(Effect.orDie),
+        ...organizationActions({ actions, rounds, directory, sql, randomId }),
+        ...organizationNotes({ notes, rounds, directory, sql }),
 
         recomputeResult: (roundId: string) =>
           Effect.gen(function* () {
