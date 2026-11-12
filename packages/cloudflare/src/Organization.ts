@@ -1,5 +1,6 @@
 import * as Cloudflare from "@alchemy.run/cloudflare";
 import { SqliteClient } from "@effect/sql-sqlite-do";
+import { organizationSends } from "./organization/Sends.ts";
 import {
   type CommandResult,
   decide,
@@ -27,18 +28,15 @@ import {
   testInvitationLifetimeMs,
   testSendsPerHour,
   defaultSendPolicy,
-  type DeliveryEventKind,
   type DirectoryCommand,
   DEFAULT_LOCALE,
   type DirectoryState,
-  type EmailAddress,
   emailLocaleOf,
   type FollowUp,
   Locale,
   makeSendStore,
   PersonId,
   SendId,
-  type SendOutcome,
   settingsView,
   TeamId,
   teamsView,
@@ -2672,17 +2670,7 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
             Effect.orDie,
           ),
 
-        createEmailSend: (id: SendId, recipient: EmailAddress, email: StoredEmail) =>
-          sends.create(id, recipient, email),
-        getEmailSend: (id: SendId) => sends.get(id).pipe(Effect.map(Option.getOrNull)),
-        claimEmailSend: (id: SendId, now: number) => sends.claim(id, now),
-        settleEmailSend: (id: SendId, attempt: number, outcome: SendOutcome, now: number) =>
-          sends.settle(id, attempt, outcome, now).pipe(Effect.map(Option.getOrNull)),
-        abandonEmailSend: (id: SendId, now: number) =>
-          sends.abandon(id, now).pipe(Effect.map(Option.getOrNull)),
-        requeueEmailSend: (id: SendId) => sends.requeue(id),
-        recordEmailDeliveryEvent: (id: SendId, kind: DeliveryEventKind, code: string | null, now: number) =>
-          sends.recordDeliveryEvent(id, kind, code, now).pipe(Effect.map(Option.getOrNull)),
+        ...organizationSends(sends),
       };
     });
   }),
