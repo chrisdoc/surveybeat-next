@@ -1657,7 +1657,9 @@ describe("App Scenes", () => {
         Scene.expect(
           Scene.text(message("results.roundDate", { date: formatRoundDate("2026-11-09") })),
         ).toExist(),
-        Scene.expect(Scene.text("75% response rate (6 of 8)")).toExist(),
+        // The response rate is in the aside once, not repeated above the scores.
+        Scene.expect(Scene.text("75%")).toExist(),
+        Scene.expect(Scene.text("6 of 8")).toExist(),
         Scene.expect(
           Scene.text(
             "6 of 8 people checked in. This Team is still building its baseline, so no change is judged yet.",
@@ -1975,6 +1977,56 @@ describe("App Scenes", () => {
         actions: { _tag: "Loaded" as const, actions: [] },
       });
 
+    const bareResult = (overrides: Partial<RoundResult>): RoundResult => ({
+      roundId: Schema.decodeSync(RoundId)("round-bare"),
+      pulseId: decodePulseId("pulse-1"),
+      teamId: decodeTeamId("team-1"),
+      status: "closed",
+      plannedOpenDate: "2026-11-09",
+      anonymityMode: "anonymous",
+      closedAt: 1731140000000,
+      effectiveMinimumGroupSize: 4,
+      meetsMinimumGroupSize: true,
+      eligibleMembersCount: 8,
+      submissionsCount: 6,
+      responseRate: 0.75,
+      delayed: false,
+      questions: [],
+      dimensions: [],
+      comments: [],
+      ...overrides,
+    });
+
+    const bareScene = (result: RoundResult) =>
+      Scene.given({
+        ...initialModel(makeUrl("https://app.surveybeat.com/teams/team-1/rounds/round-bare")),
+        session: signedInAdmin,
+        results: { _tag: "Loaded" as const, result },
+        teamDetail: { _tag: "Loaded" as const, detail: leadTeamDetail(decodeTeamId("team-1")) },
+        actions: { _tag: "Loaded" as const, actions: [] },
+      });
+
+    it("puts Share with the team and the Review countdown in front of a Lead's Ready Results", () => {
+      const reviewEndsAt = Date.now() + 2 * 86_400_000 - 3_600_000;
+      Scene.scene(
+        { update, view },
+        bareScene(bareResult({ status: "ready", reviewEndsAt })),
+        Scene.expect(Scene.role("heading", { name: "Only you can see these Results" })).toExist(),
+        Scene.expect(Scene.role("button", { name: "Share with the team" })).toExist(),
+        Scene.expect(Scene.text("2 days left to share")).toExist(),
+      );
+    });
+
+    it("keeps Note and Actions off a Round whose Results could not be computed", () => {
+      Scene.scene(
+        { update, view },
+        bareScene(bareResult({ couldNotCompute: true })),
+        Scene.expect(Scene.text("These Results couldn't be computed.")).toExist(),
+        Scene.expect(Scene.role("heading", { name: "Note from your Lead" })).toBeAbsent(),
+        Scene.expect(Scene.role("heading", { name: "Actions" })).toBeAbsent(),
+      );
+    });
+
     it.each([1, 4, 12])("names a %i-Round trend by its real length", (rounds) => {
       Scene.scene(
         { update, view },
@@ -2090,11 +2142,12 @@ describe("App Scenes", () => {
           { update, view },
           flaggedScene(flaggedResult("rise", 3.6), "de"),
           Scene.expect(Scene.text("Runde vom 09.11.2026")).toExist(),
-          Scene.expect(Scene.text("4,0")).toExist(),
-          Scene.expect(Scene.text("3,6")).toExist(),
+          Scene.expect(Scene.text("4,0 / 5")).toExist(),
+          Scene.expect(Scene.text("3,6 / 5")).toExist(),
           Scene.expect(Scene.text("+0,7 seit der letzten Runde (02.11.2026)")).toExist(),
           Scene.expect(Scene.text("Bewegt sich zwischen Runden meist um etwa ±0,3")).toExist(),
-          Scene.expect(Scene.text("75\u00a0% Rücklaufquote (6 von 8)")).toExist(),
+          Scene.expect(Scene.text("75\u00a0%")).toExist(),
+          Scene.expect(Scene.text("6 von 8")).toExist(),
         );
       });
     });
