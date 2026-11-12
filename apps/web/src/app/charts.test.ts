@@ -87,6 +87,47 @@ describe("lineChart", () => {
     expect(elements(tree, "circle")).toHaveLength(2);
   });
 
+  /** A text element's label: foldkit wraps the string child in a text vnode, which carries `text`. */
+  const textOf = (node: Tree): string => {
+    const parts: Array<string> = [];
+    const walk = (child: Tree | string): void => {
+      if (typeof child === "string") {
+        parts.push(child);
+        return;
+      }
+      const inner = (child as { text?: string }).text;
+      if (inner !== undefined) parts.push(inner);
+      for (const grandchild of child.children ?? []) walk(grandchild);
+    };
+    for (const child of node.children ?? []) walk(child);
+    return parts.join("");
+  };
+
+  const labelsOf = (tree: Tree): Array<string> => elements(tree, "text").map(textOf);
+
+  it("names the 1–5 scale at 1, 3 and 5", () => {
+    expect(labelsOf(render(scores)).slice(0, 3)).toEqual(["1", "3", "5"]);
+  });
+
+  it("writes date labels under the first and last Round and the latest value beside its dot", () => {
+    const tree = render([point(0, 3), point(0.5, null), point(1, 4.2)], {
+      xTicks: [
+        { x: 0, label: "26.10.2026" },
+        { x: 1, label: "09.11.2026" },
+      ],
+      latestLabel: "4.2",
+    });
+    const labels = labelsOf(tree);
+    expect(labels).toContain("26.10.2026");
+    expect(labels).toContain("09.11.2026");
+    expect(labels).toContain("4.2");
+  });
+
+  it("writes no latest value when every Round was a gap", () => {
+    const tree = render([point(0, null), point(1, null)], { latestLabel: "4.2" });
+    expect(labelsOf(tree)).not.toContain("4.2");
+  });
+
   it("sets the viewBox and the accessible label", () => {
     const tree = render(scores, { width: 720 });
     expect(attr(tree, "viewBox")).toBe("0 0 720 120");

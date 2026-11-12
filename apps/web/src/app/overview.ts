@@ -33,8 +33,8 @@ export const LoadedOverview = defineTaggedUnion({
 });
 export type LoadedOverview = typeof LoadedOverview.Type;
 
-/** The viewBox width of the overview charts; the marker strip is positioned against the same width. */
-const OVERVIEW_WIDTH = 720;
+/** The viewBox width of the overview charts; markers are positioned against the same width. */
+const OVERVIEW_WIDTH = 360;
 
 const plotBox = <Message>(children: ReadonlyArray<Html>, h: HtmlBuilder<Message>): Html =>
   h.div([h.Class("flex flex-col gap-2 rounded-control bg-subtle p-4")], children);
@@ -130,11 +130,51 @@ const legend = <Message>(h: HtmlBuilder<Message>): Html =>
     ],
   );
 
-/** One line per Dimension; the Round x positions are shared, so each Dimension reuses them. */
+/** Action markers drawn on the plot itself, on the same x-axis as the lines. */
+const markerOverlay = <Message>(
+  markers: ReadonlyArray<ActionMarker>,
+  xs: ReadonlyArray<number>,
+  interactive: boolean,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    interactive
+      ? [h.Role("group"), h.AriaLabel(message("overview.markersLabel")), h.Class("absolute inset-0")]
+      : [h.AriaHidden(true), h.Class("absolute inset-0")],
+    markers.map((marker, i) => {
+      const x = xs[i] ?? 0.5;
+      if (interactive) return markerButton(marker, x, h);
+      return h.span(
+        [
+          h.AriaHidden(true),
+          h.Class("absolute top-1 flex size-6 -translate-x-1/2 items-center justify-center"),
+          h.Style({ left: plotPercent(x, OVERVIEW_WIDTH) }),
+        ],
+        [eventGlyph(marker.kind, h)],
+      );
+    }),
+  );
+
+/** The latest scored Dimension value, or null when every Round had too few answers. */
+const latestDimensionScore = (dimension: DimensionOverview): number | null => {
+  for (let i = dimension.points.length - 1; i >= 0; i--) {
+    const point = dimension.points[i]!;
+    if (point.score !== null) return point.score;
+  }
+  return null;
+};
+
+/**
+ * One line per Dimension; the Round x positions are shared, so each Dimension reuses them. The markers ride
+ * on the first chart's plot — focusable there, decorative on the others so the tab order has them once.
+ */
 const dimensionPanel = <Message>(
   dimension: DimensionOverview,
+  rounds: ReadonlyArray<OverviewRound>,
   xByRound: ReadonlyMap<RoundId, number>,
-  guides: ReadonlyArray<number>,
+  markers: ReadonlyArray<ActionMarker>,
+  markerXs: ReadonlyArray<number>,
+  interactive: boolean,
   h: HtmlBuilder<Message>,
 ): Html => {
   const name = dimensionName(dimension.dimension);
@@ -143,22 +183,41 @@ const dimensionPanel = <Message>(
     const x = xByRound.get(point.roundId);
     if (x !== undefined) points.push({ x, score: point.score, joinsPrevious: true });
   }
+  const first = rounds[0];
+  const newest = rounds[rounds.length - 1];
+  const latest = latestDimensionScore(dimension);
   return panel(
     [
       subSectionTitle(name, h),
       plotBox(
         [
-          lineChart(
-            {
-              points,
-              ariaLabel: message("overview.chartLabel", { dimension: name }),
-              width: OVERVIEW_WIDTH,
-              dotRadius: 2.5,
-              className: "block h-auto w-full",
-              guides,
-            },
-            h,
+          h.div(
+            [h.Class("relative")],
+            [
+              lineChart(
+                {
+                  points,
+                  ariaLabel: message("overview.chartLabel", { dimension: name }),
+                  width: OVERVIEW_WIDTH,
+                  dotRadius: 2.5,
+                  className: "block h-auto w-full",
+                  guides: markerXs,
+                  ...(rounds.length <= 1 || first === undefined || newest === undefined
+                    ? {}
+                    : {
+                        xTicks: [
+                          { x: 0, label: formatRoundDate(first.plannedOpenDate) },
+                          { x: 1, label: formatRoundDate(newest.plannedOpenDate) },
+                        ],
+                      }),
+                  ...(latest === null ? {} : { latestLabel: formatScore(latest) }),
+                },
+                h,
+              ),
+              ...(markers.length === 0 ? [] : [markerOverlay(markers, markerXs, interactive, h)]),
+            ],
           ),
+          ...(interactive && markers.length > 0 ? [legend(h)] : []),
         ],
         h,
       ),
@@ -299,20 +358,19 @@ export const teamOverviewView = <Message>(
       children.push(plotBox([markersTable(overview.markers, h)], h));
     }
   } else {
-    if (overview.markers.length > 0) {
+    overview.dimensions.forEach((dimension, index) => {
+      children.push(
+        dimensionPanel(dimension, overview.rounds, xByRound, overview.markers, markerXs, index === 0, h),
+      );
+    });
+    // No Dimension line to hang the markers on: keep them in their own row, aligned to the same axis.
+    if (overview.dimensions.length === 0 && overview.markers.length > 0) {
       children.push(
         panel(
           [
             plotBox(
               [
-                h.div(
-                  [
-                    h.Role("group"),
-                    h.AriaLabel(message("overview.markersLabel")),
-                    h.Class("relative h-8 w-full"),
-                  ],
-                  overview.markers.map((marker, i) => markerButton(marker, markerXs[i] ?? 0.5, h)),
-                ),
+                h.div([h.Class("relative h-8 w-full")], [markerOverlay(overview.markers, markerXs, true, h)]),
                 legend(h),
               ],
               h,
@@ -322,9 +380,6 @@ export const teamOverviewView = <Message>(
           "flex flex-col gap-2",
         ),
       );
-    }
-    for (const dimension of overview.dimensions) {
-      children.push(dimensionPanel(dimension, xByRound, markerXs, h));
     }
   }
 

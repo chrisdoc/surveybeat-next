@@ -319,7 +319,8 @@ export const catalog = {
   "results.guide.copy": "Copy as text",
   "results.guide.copied": "Copied.",
   "results.guide.copyFailed": "Couldn't copy. Select the text and copy it instead.",
-  "results.trend12Rounds": "12-Round trend",
+  "results.trendLength.one": "1-Round trend",
+  "results.trendLength.other": "{count}-Round trend",
   "results.distributionTitle": "Distribution",
   "results.delayedTitle": "Results delayed",
   "results.delayedBody":

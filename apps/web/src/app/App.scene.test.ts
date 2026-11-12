@@ -1904,6 +1904,85 @@ describe("App Scenes", () => {
       );
     });
 
+    const trendResult = (rounds: number): RoundResult => {
+      const teamId = decodeTeamId("team-1");
+      const roundId = Schema.decodeSync(RoundId)("round-trend");
+      const trend = Array.from({ length: rounds }, (_, i) => ({
+        roundId,
+        plannedOpenDate: `2026-11-${String(9 + i).padStart(2, "0")}`,
+        score: 4,
+        contributors: 6,
+        hasGap: false,
+      }));
+      return {
+        roundId,
+        pulseId: decodePulseId("pulse-1"),
+        teamId,
+        status: "closed",
+        plannedOpenDate: "2026-11-09",
+        anonymityMode: "anonymous",
+        closedAt: 1731140000000,
+        effectiveMinimumGroupSize: 4,
+        meetsMinimumGroupSize: true,
+        eligibleMembersCount: 8,
+        submissionsCount: 6,
+        responseRate: 0.75,
+        delayed: false,
+        questions: [
+          {
+            questionVersionId: decodeVersionId("qv-trend"),
+            position: 0,
+            text: "How are you feeling?",
+            type: { _tag: "Rating", lowLabel: "Low", highLabel: "High", comment: false },
+            dimension: "clarity",
+            contributors: 6,
+            meetsMinimumGroupSize: true,
+            score: 4,
+            distribution: [],
+            change: null,
+            typicalChange: {
+              status: "buildingBaseline",
+              completedUsableRounds: 0,
+              totalRequiredUsableRounds: 6,
+              typicalChange: null,
+            },
+            trend,
+          },
+        ],
+        dimensions: [
+          {
+            dimension: "clarity",
+            score: 4,
+            usableQuestionCount: 1,
+            contributors: 6,
+            totalQuestionCount: 1,
+            meetsMinimumGroupSize: true,
+            change: null,
+            typicalChange: null,
+            trend: trend.map((point) => ({ ...point, usableQuestionCount: 1 })),
+          },
+        ],
+        comments: [],
+      };
+    };
+
+    const trendScene = (rounds: number) =>
+      Scene.given({
+        ...initialModel(makeUrl("https://app.surveybeat.com/teams/team-1/rounds/round-trend")),
+        session: signedInAdmin,
+        results: { _tag: "Loaded" as const, result: trendResult(rounds) },
+        teamDetail: { _tag: "Loaded" as const, detail: leadTeamDetail(decodeTeamId("team-1")) },
+        actions: { _tag: "Loaded" as const, actions: [] },
+      });
+
+    it.each([1, 4, 12])("names a %i-Round trend by its real length", (rounds) => {
+      Scene.scene(
+        { update, view },
+        trendScene(rounds),
+        Scene.expect(Scene.role("heading", { name: `${rounds}-Round trend` })).toExist(),
+      );
+    });
+
     describe("Highlights, German formats, and the Actions panel", () => {
       /** A closed Round with one flagged Question and one Dimension, so the badge and formats are on screen. */
       const flaggedResult = (direction: "rise" | "drop", questionScore: number): RoundResult => ({
