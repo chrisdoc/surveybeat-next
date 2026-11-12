@@ -327,6 +327,16 @@ const scoreView = <Message>(text: string, h: HtmlBuilder<Message>): Html =>
     [text],
   );
 
+/** A score as "4.2 / 5": the scale belongs to the number, not to a legend somewhere else. */
+const scoreOfFive = (score: number): string => message("results.scoreOf5", { score: formatScore(score) });
+
+/** Whole days left in the Review window, or null when there is no end date or it has already passed. */
+const countdown = (reviewEndsAt: number | undefined): number | null => {
+  if (reviewEndsAt === undefined) return null;
+  const days = Math.ceil((reviewEndsAt - Date.now()) / 86_400_000);
+  return days > 0 ? days : null;
+};
+
 /**
  * What the Round's anonymity mode promises about storage. A Record, so adding a mode (confidential,
  * Release 3) fails to compile until its statement is written.
@@ -738,6 +748,14 @@ export const resultsScreenView = <Message>(
       h,
     ),
     h.div([h.Class("mt-4")], [pageTitle(message("results.title"), h)]),
+    h.p(
+      [h.Class("mt-1 text-muted")],
+      [
+        result.pulseName === undefined
+          ? teamName
+          : message("results.subtitle", { team: teamName, pulse: result.pulseName }),
+      ],
+    ),
   ];
   if (isLead && result.status === "ready") {
     children.push(
@@ -750,6 +768,12 @@ export const resultsScreenView = <Message>(
                 [message("results.review.leadBody", { date: reviewDate })],
               )
             : null,
+          countdown(result.reviewEndsAt) === null
+            ? null
+            : h.p(
+                [h.Class("mt-1 text-sm font-semibold")],
+                [pluralMessage("results.review.countdown", countdown(result.reviewEndsAt) ?? 0)],
+              ),
           h.div(
             [h.Class("mt-4 flex flex-wrap items-center gap-3")],
             [
@@ -804,6 +828,8 @@ export const resultsScreenView = <Message>(
         h,
       ),
     );
+    // Nothing was computed: a Note or an Action would refer to Results nobody can read yet.
+    return resultsLayout(children, result, h);
   } else if (result.delayed) {
     children.push(
       h.div(
@@ -1099,20 +1125,6 @@ export const resultsScreenView = <Message>(
     return resultsLayout(children, result, h);
   }
 
-  // Response rate header
-  children.push(
-    h.p(
-      [h.Class("text-muted")],
-      [
-        message("results.responseRate", {
-          rate: formatPercent(result.responseRate ?? 0),
-          responses: String(result.submissionsCount),
-          eligible: String(result.eligibleMembersCount),
-        }),
-      ],
-    ),
-  );
-
   // Dimensions
   if (result.dimensions.length > 0) {
     children.push(
@@ -1133,7 +1145,7 @@ export const resultsScreenView = <Message>(
                   [
                     subSectionTitle(dimensionName(dim.dimension), h),
                     scoreView(
-                      dim.score !== null ? formatScore(dim.score) : message("results.subNPlaceholder"),
+                      dim.score !== null ? scoreOfFive(dim.score) : message("results.subNPlaceholder"),
                       h,
                     ),
                   ],
@@ -1185,6 +1197,11 @@ export const resultsScreenView = <Message>(
             const qKey = `q-${q.questionVersionId}`;
             const isTable = state.showTable[qKey] ?? false;
             const shown = q.meetsMinimumGroupSize && q.score !== null;
+            // A LongText Question's answers read best under the Question itself, not in the Comments list.
+            const answers =
+              q.type._tag === "LongText"
+                ? result.comments.filter((c) => c.questionVersionId === q.questionVersionId)
+                : [];
 
             return panel(
               [
@@ -1194,7 +1211,7 @@ export const resultsScreenView = <Message>(
                     subSectionTitle(q.text, h),
                     scoreView(
                       q.score !== null
-                        ? formatScore(q.score)
+                        ? scoreOfFive(q.score)
                         : q.meetsMinimumGroupSize
                           ? message("results.dash")
                           : message("results.subNQuestion", { n: String(minimum) }),
@@ -1239,6 +1256,24 @@ export const resultsScreenView = <Message>(
                       ],
                     )
                   : null,
+                answers.length > 0
+                  ? h.div(
+                      [h.Class("mt-2 flex flex-col gap-2")],
+                      [
+                        h.h4([h.Class(smallHeading)], [message("results.answersTitle")]),
+                        ...answers.map((answer) =>
+                          h.blockquote(
+                            [
+                              h.Class(
+                                "m-0 rounded-[16px] border border-line bg-surface px-4 py-3 text-[15px] leading-relaxed",
+                              ),
+                            ],
+                            [answer.text],
+                          ),
+                        ),
+                      ],
+                    )
+                  : null,
               ].filter(Predicate.isNotNull),
               h,
               "flex flex-col gap-2",
@@ -1252,8 +1287,14 @@ export const resultsScreenView = <Message>(
   // Themes: shown after the Questions, before the Comments (ADR 0016)
   children.push(themesSection(result, isLead, h));
 
-  // Comments (Lead only, behind N)
-  if (result.comments.length > 0) {
+  // Comments (Lead only, behind N): the LongText answers already sit under their Question.
+  const longTextQuestions = new Set(
+    result.questions.filter((q) => q.type._tag === "LongText").map((q) => q.questionVersionId),
+  );
+  const remainingComments = result.comments.filter(
+    (comment) => !longTextQuestions.has(comment.questionVersionId),
+  );
+  if (remainingComments.length > 0) {
     children.push(
       h.section(
         [h.Class("mt-8 flex flex-col gap-3")],
@@ -1262,7 +1303,7 @@ export const resultsScreenView = <Message>(
           h.p([h.Class("text-muted")], [message("results.commentsIntro")]),
           h.div(
             [h.Class("mt-2 flex flex-col gap-3")],
-            result.comments.map((c: { readonly questionVersionId: string; readonly text: string }) =>
+            remainingComments.map((c: { readonly questionVersionId: string; readonly text: string }) =>
               h.blockquote(
                 [
                   h.Class(
