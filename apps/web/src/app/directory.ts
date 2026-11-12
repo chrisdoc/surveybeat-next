@@ -13,8 +13,9 @@ import {
   TeamSummary,
   TimeZone,
 } from "@surveybeat/domain";
+import { Nav, Popover } from "@foldkit/ui";
 import { Option, Predicate, Schema } from "effect";
-import type { Html, HtmlBuilder } from "foldkit/html";
+import type { ChildAttribute, Html, HtmlBuilder } from "foldkit/html";
 import { defineTaggedUnion } from "foldkit/schema";
 import { formatDate, message } from "../messages/locale.ts";
 import { Failure, failureMessage } from "./api.ts";
@@ -26,7 +27,6 @@ import {
   emptyState,
   linkButton,
   linkClass,
-  navLink,
   pageShell,
   pageTitle,
   problemView,
@@ -36,7 +36,7 @@ import {
   subSectionTitle,
   textField,
 } from "./components.ts";
-import { historyHref, privacyHref, pulsesHref, settingsHref, teamHref, teamsHref } from "./routes.ts";
+import { historyHref, pulsesHref, settingsHref, teamHref, teamsHref } from "./routes.ts";
 import { failureReasonText } from "./pulses.ts";
 
 export const LoadedTeams = defineTaggedUnion({
@@ -109,52 +109,249 @@ export interface LanguageChoice<Message> {
   readonly onChange: (value: string) => Message;
 }
 
+/** A top-level section of the signed-in app, as the navigation lists them. Team screens belong to `teams`. */
+export type NavSection = "teams" | "history" | "settings";
+
+/** What the header shows: the Organization, the section on screen, and the two header menus (phone navigation and account). */
+export interface ShellHeader<Message> {
+  readonly organizationName: string;
+  readonly organizationAdmin: boolean;
+  readonly section: NavSection | null;
+  /** The Privacy page, whose footer link is marked current. */
+  readonly privacyCurrent: boolean;
+  readonly navMenu: Popover.Model;
+  readonly accountMenu: Popover.Model;
+  readonly onNavMenu: (message: Popover.Message) => Message;
+  readonly onAccountMenu: (message: Popover.Message) => Message;
+}
+
+const sectionHref = (section: NavSection): string => {
+  switch (section) {
+    case "teams":
+      return teamsHref();
+    case "history":
+      return historyHref();
+    case "settings":
+      return settingsHref();
+  }
+};
+
+const sectionNav = <Message>(
+  config: {
+    readonly sections: ReadonlyArray<NavSection>;
+    readonly current: NavSection | null;
+    readonly className: string;
+    readonly linkClass: (isCurrent: boolean) => string;
+  },
+  h: HtmlBuilder<Message>,
+): Html =>
+  Nav.view<NavSection>({
+    items: config.sections,
+    ariaLabel: message("nav.label"),
+    toHref: (section) => sectionHref(section),
+    isItemCurrent: (section) => section === config.current,
+    toView: ({ nav, items }) =>
+      h.nav(
+        [...nav, h.Class(config.className)],
+        items.map((item) =>
+          h.a([...item.link, h.Class(config.linkClass(item.isCurrent))], [message(`nav.${item.value}`)]),
+        ),
+      ),
+  });
+
+const desktopLinkClass = (isCurrent: boolean): string =>
+  `inline-flex min-h-11 items-center border-b-2 ${
+    isCurrent
+      ? "border-primary font-semibold text-ink"
+      : "border-transparent font-medium text-muted hover:text-ink"
+  }`;
+
+const phoneLinkClass = (isCurrent: boolean): string =>
+  `flex min-h-11 items-center rounded-control px-3 ${
+    isCurrent ? "bg-primary-soft font-semibold text-primary" : "font-medium text-ink hover:bg-subtle"
+  }`;
+
+const menuPanelClass =
+  "z-50 w-[min(20rem,calc(100vw-2rem))] rounded-panel border border-line bg-surface p-4 shadow-lg";
+
+const chevronIcon = <Message>(h: HtmlBuilder<Message>): Html =>
+  h.svg(
+    [h.Width("16"), h.Height("16"), h.ViewBox("0 0 16 16"), h.AriaHidden(true), h.Class("shrink-0")],
+    [
+      h.path([
+        h.D("M4 6l4 4 4-4"),
+        h.Fill("none"),
+        h.Stroke("currentColor"),
+        h.StrokeWidth("1.8"),
+        h.StrokeLinecap("round"),
+        h.StrokeLinejoin("round"),
+      ]),
+    ],
+  );
+
+const hamburgerIcon = <Message>(h: HtmlBuilder<Message>): Html =>
+  h.svg(
+    [h.Width("18"), h.Height("18"), h.ViewBox("0 0 18 18"), h.AriaHidden(true), h.Class("shrink-0")],
+    [
+      h.path([
+        h.D("M3 5h12M3 9h12M3 13h12"),
+        h.Fill("none"),
+        h.Stroke("currentColor"),
+        h.StrokeWidth("1.8"),
+        h.StrokeLinecap("round"),
+      ]),
+    ],
+  );
+
+/** A header menu: a trigger button and a panel that is rendered only while the menu is open. */
+const headerMenu = <Message>(
+  model: Popover.Model,
+  toParentMessage: (message: Popover.Message) => Message,
+  parts: {
+    readonly button: (attributes: ReadonlyArray<ChildAttribute>) => Html;
+    readonly panel: (attributes: ReadonlyArray<ChildAttribute>) => Html;
+  },
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.submodel({
+    slotId: model.id,
+    model,
+    view: Popover.view,
+    viewInputs: {
+      anchor: { placement: "bottom-end", gap: 8 },
+      toView: ({ button, panel, isVisible }) =>
+        h.div(
+          [h.Class("relative")],
+          [parts.button(button), isVisible ? parts.panel(panel) : null].filter(Predicate.isNotNull),
+        ),
+    },
+    toParentMessage,
+  });
+
 export const shellView = <Message>(
-  title: string,
-  organizationAdmin: boolean,
+  header: ShellHeader<Message>,
   children: ReadonlyArray<Child>,
   language: LanguageChoice<Message>,
   h: HtmlBuilder<Message>,
   wide = false,
-): Html =>
-  pageShell(
+): Html => {
+  const sections: ReadonlyArray<NavSection> = header.organizationAdmin
+    ? ["teams", "history", "settings"]
+    : ["teams", "history"];
+
+  // The Language select sits in each open menu under its own id; the menus render only while open.
+  const languageField = (id: string): Html =>
+    selectField(
+      {
+        id,
+        label: message("language.label"),
+        value: language.value ?? "",
+        options: [
+          ["", message("language.followBrowser")],
+          ["en", message("language.en")],
+          ["de", message("language.de")],
+        ],
+        isDisabled: language.busy,
+        onChange: language.onChange,
+      },
+      h,
+    );
+  const languageProblem = (): Html | null => problemView(language.failure, h);
+
+  const accountButton = (attributes: ReadonlyArray<ChildAttribute>): Html =>
+    h.button(
+      [
+        ...attributes,
+        h.Class(
+          "inline-flex min-h-11 max-w-[16rem] items-center gap-2 rounded-control px-3 font-semibold text-ink hover:bg-subtle",
+        ),
+      ],
+      [
+        h.span([h.Class("min-w-0 truncate")], [header.organizationName]),
+        // A text space so the accessible name reads "Acme Account menu", not "AcmeAccount menu".
+        " ",
+        h.span([h.Class("sr-only")], [message("account.menu")]),
+        chevronIcon(h),
+      ],
+    );
+
+  const accountPanel = (attributes: ReadonlyArray<ChildAttribute>): Html =>
+    h.div(
+      [...attributes, h.Class(menuPanelClass)],
+      [
+        h.div(
+          [h.Class("flex flex-col gap-3")],
+          [languageField("language"), languageProblem(), signOutView(h, true)].filter(Predicate.isNotNull),
+        ),
+      ],
+    );
+
+  const menuButton = (attributes: ReadonlyArray<ChildAttribute>): Html =>
+    h.button(
+      [
+        ...attributes,
+        h.Class(
+          "inline-flex min-h-11 items-center gap-2 rounded-control border border-line bg-surface px-3 font-semibold text-ink hover:bg-subtle",
+        ),
+      ],
+      [hamburgerIcon(h), message("nav.menu")],
+    );
+
+  const navPanel = (attributes: ReadonlyArray<ChildAttribute>): Html =>
+    h.div(
+      [...attributes, h.Class(`${menuPanelClass} max-h-[calc(100vh-6rem)] overflow-y-auto`)],
+      [
+        sectionNav(
+          { sections, current: header.section, className: "flex flex-col gap-1", linkClass: phoneLinkClass },
+          h,
+        ),
+        h.div(
+          [h.Class("mt-4 flex flex-col gap-3 border-t border-line-soft pt-4")],
+          [
+            h.p([h.Class("break-words text-sm font-semibold text-muted")], [header.organizationName]),
+            languageField("language-menu"),
+            languageProblem(),
+            signOutView(h, true),
+          ].filter(Predicate.isNotNull),
+        ),
+      ],
+    );
+
+  return pageShell(
     {
-      organizationName: title,
       wide,
-      nav: [
-        navLink(teamsHref(), message("nav.teams"), h),
-        navLink(historyHref(), message("nav.history"), h),
-        organizationAdmin ? navLink(settingsHref(), message("nav.settings"), h) : null,
-        navLink(privacyHref(), message("nav.privacy"), h),
-      ].filter(Predicate.isNotNull),
+      privacyCurrent: header.privacyCurrent,
+      header: [
+        sectionNav(
+          {
+            sections,
+            current: header.section,
+            className: "hidden min-w-0 items-center gap-x-6 text-[15px] lg:ml-auto lg:flex",
+            linkClass: desktopLinkClass,
+          },
+          h,
+        ),
+        h.div(
+          [h.Class("hidden lg:block")],
+          [
+            headerMenu(
+              header.accountMenu,
+              header.onAccountMenu,
+              { button: accountButton, panel: accountPanel },
+              h,
+            ),
+          ],
+        ),
+        h.div(
+          [h.Class("ml-auto lg:hidden")],
+          [headerMenu(header.navMenu, header.onNavMenu, { button: menuButton, panel: navPanel }, h)],
+        ),
+      ],
     },
-    [
-      ...children,
-      h.div(
-        [h.Class("mt-10 flex max-w-xs flex-col gap-3")],
-        [
-          selectField(
-            {
-              id: "language",
-              label: message("language.label"),
-              value: language.value ?? "",
-              options: [
-                ["", message("language.followBrowser")],
-                ["en", message("language.en")],
-                ["de", message("language.de")],
-              ],
-              isDisabled: language.busy,
-              onChange: language.onChange,
-            },
-            h,
-          ),
-          problemView(language.failure, h),
-        ].filter(Predicate.isNotNull),
-      ),
-      signOutView(h),
-    ],
+    children,
     h,
   );
+};
 
 export const teamsScreenView = <Message>(
   state: {

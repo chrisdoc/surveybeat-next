@@ -1,8 +1,36 @@
+import AxeBuilder from "@axe-core/playwright";
 import { expect, open, test } from "./fixtures.ts";
 
 test("the app loads", async ({ page, pageErrors }) => {
   await open(page, "/");
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  expect(pageErrors).toEqual([]);
+});
+
+test("the header and footer fit a phone and pass axe on the sign-in and Privacy pages", async ({
+  page,
+  pageErrors,
+}) => {
+  // A 390 px phone: one header row, the footer's Privacy link, no horizontal scroll (B1, #152).
+  await page.setViewportSize({ width: 390, height: 844 });
+  for (const [path, heading] of [
+    ["/", "Sign in to SurveyBeat"],
+    ["/privacy", "Privacy at SurveyBeat"],
+  ] as const) {
+    await open(page, path);
+    await expect(page.getByRole("heading", { name: heading, level: 1 })).toBeVisible();
+    await expect(page.getByRole("contentinfo").getByRole("link", { name: "Privacy" })).toBeVisible();
+
+    const axe = await new AxeBuilder({ page })
+      .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
+      .analyze();
+    expect(axe.violations, `axe on ${path}`).toEqual([]);
+
+    expect(
+      await page.evaluate("document.documentElement.scrollWidth"),
+      `scroll width on ${path}`,
+    ).toBeLessThanOrEqual(390);
+  }
   expect(pageErrors).toEqual([]);
 });
 

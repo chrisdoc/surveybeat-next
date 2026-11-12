@@ -14,13 +14,11 @@ import {
   alertView,
   appButton,
   buttonClass,
-  linkClass,
   screenView,
   secondaryButtonClass,
   signOutView,
   textField,
 } from "./components.ts";
-import { privacyHref } from "./routes.ts";
 
 export const SessionModel = defineTaggedUnion({
   Loading: {},
@@ -104,10 +102,6 @@ export const signInView = <Message>(failed: boolean, h: HtmlBuilder<Message>): H
             h,
           ),
         ],
-      ),
-      h.p(
-        [h.Class("mt-10 border-t border-line pt-4 text-sm")],
-        [h.a([h.Href(privacyHref()), h.Class(linkClass)], [message("nav.privacy")])],
       ),
     ].filter(Predicate.isNotNull),
     h,

@@ -1,3 +1,4 @@
+import { Popover } from "@foldkit/ui";
 import {
   ActionId,
   ActionItem,
@@ -41,13 +42,13 @@ import {
   Weekday,
 } from "@surveybeat/domain";
 import { Effect, Option, Schema } from "effect";
-import { Command, Navigation, type Update } from "foldkit";
+import { Command, Navigation, Update } from "foldkit";
 import type { Document, HtmlBuilder } from "foldkit/html";
 import { defineMessageUnion } from "foldkit/message";
 import { Url } from "foldkit/url";
 import { message, setLocale } from "../messages/locale.ts";
 import { Failure, runApi } from "./api.ts";
-import { privacyView, screenView } from "./components.ts";
+import { privacyContent, privacyView, screenView } from "./components.ts";
 import {
   decodeEmail,
   decodeName,
@@ -60,6 +61,7 @@ import {
   LoadedSettings,
   LoadedTeam,
   LoadedTeams,
+  type NavSection,
   settingsScreenView,
   shellView,
   teamScreenView,
@@ -82,6 +84,7 @@ import {
 import { GuideCopy, LoadedActions, LoadedNote, LoadedResults, resultsScreenView } from "./results.ts";
 import { isLead, LoadedRounds, RoundConfirm, roundsScreenView } from "./rounds.ts";
 import { AppRoute, pulseHref, teamHref, urlToAppRoute } from "./routes.ts";
+import { screenTitle } from "./titles.ts";
 import {
   chooseOrganizationView,
   createOrganizationView,
@@ -105,6 +108,9 @@ export const Model = Schema.Struct({
   browserLocale: Schema.NullOr(Locale),
   languageBusy: Schema.Boolean,
   languageFailure: Schema.Option(Failure),
+  // Header menus: phone navigation and the account menu (closed on every navigation)
+  navMenu: Popover.Model,
+  accountMenu: Popover.Model,
   // Teams screen
   teams: LoadedTeams,
   createTeamName: Schema.String,
@@ -299,6 +305,9 @@ export const Message = defineMessageUnion({
   ChooseOrgClicked: { organizationId: OrganizationId },
   LanguageChanged: { value: Schema.String },
   UpdatedOwnLanguage: { chosen: Schema.Boolean, outcome: OutcomeVoid },
+  // Header menus
+  GotNavMenuMessage: { message: Popover.Message },
+  GotAccountMenuMessage: { message: Popover.Message },
   // Teams screen
   GotTeams: { outcome: OutcomeTeams },
   CreateTeamNameChanged: { name: Schema.String },
@@ -1095,6 +1104,8 @@ export const initialModel = (url: Url): Model => {
     browserLocale: detectBrowserLocale(),
     languageBusy: false,
     languageFailure: Option.none(),
+    navMenu: Popover.init({ id: "nav-menu" }),
+    accountMenu: Popover.init({ id: "account-menu" }),
     teams: { _tag: "Loading" },
     createTeamName: "",
     createTeamTimeZone: timeZone,
@@ -1233,6 +1244,52 @@ const languageChoice = (value: string): Locale | null | undefined => {
   return Schema.is(Locale)(value) ? value : undefined;
 };
 
+/** Folds a header menu's Popover messages into the Model; its Commands (focus) are lifted to the App. */
+const foldNavMenu = Update.foldChild({
+  update: Popover.update,
+  read: (model: Model) => Option.some(model.navMenu),
+  write: (model: Model, navMenu: Popover.Model) => ({ ...model, navMenu }),
+  toParentMessage: (message: Popover.Message) => Message.GotNavMenuMessage({ message }),
+  foldOutMessage: () => (model: Model) => ({ model }),
+});
+const foldAccountMenu = Update.foldChild({
+  update: Popover.update,
+  read: (model: Model) => Option.some(model.accountMenu),
+  write: (model: Model, accountMenu: Popover.Model) => ({ ...model, accountMenu }),
+  toParentMessage: (message: Popover.Message) => Message.GotAccountMenuMessage({ message }),
+  foldOutMessage: () => (model: Model) => ({ model }),
+});
+
+/** Closes both header menus, if open. A navigation always leaves them closed. */
+const closeHeaderMenus = (model: Model): Update.Return<Model, Message> => {
+  const closedNav = foldNavMenu(model, Popover.Message.RequestedClose());
+  const closedAccount = foldAccountMenu(closedNav.model, Popover.Message.RequestedClose());
+  return {
+    model: closedAccount.model,
+    commands: [...(closedNav.commands ?? []), ...(closedAccount.commands ?? [])],
+  };
+};
+
+/** The section of the header navigation a route belongs to; `null` for screens without one. A non-admin's Settings route shows Teams. */
+const navSectionOf = (route: AppRoute, organizationAdmin: boolean): NavSection | null => {
+  switch (route._tag) {
+    case "Teams":
+    case "NotFound":
+    case "Team":
+    case "Pulses":
+    case "Pulse":
+    case "Rounds":
+    case "RoundResults":
+      return "teams";
+    case "History":
+      return "history";
+    case "Settings":
+      return organizationAdmin ? "settings" : "teams";
+    case "Privacy":
+      return null;
+  }
+};
+
 /** True when a Note response belongs to the Round on screen. */
 const isCurrentRoundNote = (model: Model, roundId: RoundId): boolean =>
   model.route._tag === "RoundResults" && model.route.roundId === roundId;
@@ -1308,13 +1365,14 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         noteBusy: false,
         noteFailure: Option.none(),
       };
+      const closed = closeHeaderMenus(nextModel);
       if (model.session._tag === "SignedIn") {
         return {
-          model: nextModel,
-          commands: loadActiveRouteCommand(route),
+          model: closed.model,
+          commands: [...(closed.commands ?? []), ...loadActiveRouteCommand(route)],
         };
       }
-      return { model: nextModel };
+      return closed;
     }
 
     case "Navigated":
@@ -1470,6 +1528,15 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         commands: [LoadSession()],
       };
     }
+
+    // ----------------------------------------
+    // Header menus
+    // ----------------------------------------
+    case "GotNavMenuMessage":
+      return foldNavMenu(model, message.message);
+
+    case "GotAccountMenuMessage":
+      return foldAccountMenu(model, message.message);
 
     // ----------------------------------------
     // Teams screen
@@ -2949,7 +3016,8 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
   // The browser app has one reader, so the language follows the model: every message below reads the live binding.
   setLocale(localeOf(model));
 
-  if (model.route._tag === "Privacy") {
+  // Signed in, the Privacy page keeps the app shell (header menus and Sign out); see below.
+  if (model.route._tag === "Privacy" && model.session._tag !== "SignedIn") {
     return {
       title: message("privacy.title"),
       body: privacyView(h),
@@ -2980,7 +3048,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
 
   if (model.session._tag === "CreateOrganization") {
     return {
-      title: message("createOrganization.title"),
+      title: message("title.session", { screen: message("createOrganization.title") }),
       body: createOrganizationView(
         model.session.name,
         model.session.busy,
@@ -2993,14 +3061,14 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
 
   if (model.session._tag === "NotInOrganization") {
     return {
-      title: message("notInOrganization.title"),
+      title: message("title.session", { screen: message("notInOrganization.title") }),
       body: notInOrganizationView(h),
     };
   }
 
   if (model.session._tag === "ChooseOrganization") {
     return {
-      title: message("chooseOrganization.title"),
+      title: message("title.session", { screen: message("chooseOrganization.title") }),
       body: chooseOrganizationView(
         model.session.organizations,
         model.session.busy,
@@ -3012,7 +3080,14 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
 
   // Signed In
   const { organization, organizationAdmin, locale } = model.session;
-  const shellTitle = message("signedIn.title", { organization: organization.name });
+  const shellTitle = screenTitle({
+    route: model.route,
+    organizationName: organization.name,
+    organizationAdmin,
+    teamDetail: model.teamDetail,
+    pulses: model.pulses,
+    pulseDetail: model.pulseDetail,
+  });
 
   let screenContent = null;
   switch (model.route._tag) {
@@ -3076,6 +3151,10 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
         ),
         h,
       );
+      break;
+
+    case "Privacy":
+      screenContent = h.div([], privacyContent(h));
       break;
 
     case "History":
@@ -3297,8 +3376,16 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
   return {
     title: shellTitle,
     body: shellView(
-      shellTitle,
-      organizationAdmin,
+      {
+        organizationName: organization.name,
+        organizationAdmin,
+        section: navSectionOf(model.route, organizationAdmin),
+        privacyCurrent: model.route._tag === "Privacy",
+        navMenu: model.navMenu,
+        accountMenu: model.accountMenu,
+        onNavMenu: (message) => Message.GotNavMenuMessage({ message }),
+        onAccountMenu: (message) => Message.GotAccountMenuMessage({ message }),
+      },
       [screenContent],
       {
         value: locale,
