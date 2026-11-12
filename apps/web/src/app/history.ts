@@ -12,6 +12,7 @@ import { Failure } from "./api.ts";
 import {
   appButton,
   emptyState,
+  linkClass,
   pageTitle,
   panel,
   problemView,
@@ -19,6 +20,7 @@ import {
   subSectionTitle,
 } from "./components.ts";
 import { type KeptAnswer, KeptAnswers } from "./keptAnswers.ts";
+import { roundResultsHref } from "./routes.ts";
 
 const noticeClass = "mt-4 rounded-control bg-subtle px-4 py-3 text-sm text-muted";
 
@@ -155,6 +157,17 @@ const roundView = <Message>(round: HistoryRound, kept: KeptAnswers, h: HtmlBuild
       subSectionTitle(round.pulseName, h, 2),
       h.p([h.Class("text-sm text-muted")], [message("history.round.meta", { team: round.teamName, date })]),
       ...(note === null ? [] : [h.p([h.Class("text-sm text-muted")], [note])]),
+      ...(round.teamResult === "shown"
+        ? [
+            h.a(
+              [
+                h.Href(roundResultsHref(round.teamId, round.roundId)),
+                h.Class(`inline-flex min-h-11 items-center ${linkClass}`),
+              ],
+              [message("history.viewResults")],
+            ),
+          ]
+        : []),
       questionsTable(round, kept[round.roundId], h),
     ],
     h,

@@ -865,11 +865,14 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
     sql`DELETE FROM round_result WHERE round_id = ${roundId}`.pipe(Effect.asVoid, Effect.orDie);
 
   const getRoundResult = (roundId: RoundId): Effect.Effect<RoundResult | null> =>
-    sql<{ payload: string }>`SELECT payload FROM round_result WHERE round_id = ${roundId}`.pipe(
+    sql<{ payload: string; pulse_name: string }>`SELECT rr.payload, r.pulse_name
+        FROM round_result rr JOIN round r ON r.id = rr.round_id
+       WHERE rr.round_id = ${roundId}`.pipe(
       Effect.map((rows) => {
         const row = rows[0];
         if (row === undefined) return null;
-        return decodeRoundResultPayload(row.payload);
+        const result = decodeRoundResultPayload(row.payload);
+        return result === null ? null : { ...result, pulseName: row.pulse_name };
       }),
       Effect.orDie,
     );
@@ -877,11 +880,12 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
   const getSharedRoundResultsForTeam = (teamId: TeamId): Effect.Effect<ReadonlyArray<RoundResult>> =>
     sql<{
       payload: string;
-    }>`SELECT rr.payload FROM round_result rr JOIN round r ON r.id = rr.round_id WHERE r.team_id = ${teamId} AND r.status = 'shared' ORDER BY r.planned_open_at ASC, r.id ASC`.pipe(
+      pulse_name: string;
+    }>`SELECT rr.payload, r.pulse_name FROM round_result rr JOIN round r ON r.id = rr.round_id WHERE r.team_id = ${teamId} AND r.status = 'shared' ORDER BY r.planned_open_at ASC, r.id ASC`.pipe(
       Effect.map((rows) =>
         rows.flatMap((row) => {
           const result = decodeRoundResultPayload(row.payload);
-          return result === null ? [] : [result];
+          return result === null ? [] : [{ ...result, pulseName: row.pulse_name }];
         }),
       ),
       Effect.orDie,

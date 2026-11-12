@@ -79,7 +79,7 @@ import {
   UpdateTeam,
   view,
 } from "./App.ts";
-import { formatDate, message, setLocale } from "../messages/locale.ts";
+import { formatDate, formatRoundDate, message, setLocale } from "../messages/locale.ts";
 import type { FailedEmailResend } from "./directory.ts";
 import type { KeptAnswers } from "./keptAnswers.ts";
 import type { SessionModel } from "./session.ts";
@@ -390,9 +390,9 @@ describe("App Scenes", () => {
       const overview: TeamOverview = {
         teamId,
         rounds: [
-          { roundId: roundA, plannedOpenDate: "2026-10-26" },
-          { roundId: roundB, plannedOpenDate: "2026-11-02" },
-          { roundId: roundC, plannedOpenDate: "2026-11-09" },
+          { roundId: roundA, plannedOpenDate: "2026-10-26", pulseName: "Weekly check-in" },
+          { roundId: roundB, plannedOpenDate: "2026-11-02", pulseName: "Weekly check-in" },
+          { roundId: roundC, plannedOpenDate: "2026-11-09", pulseName: "Weekly check-in" },
         ],
         dimensions: [
           {
@@ -528,6 +528,41 @@ describe("App Scenes", () => {
         );
         expect(result.model.teamOverview).toEqual({ _tag: "Loading" });
         expect(result.commands?.map((command) => command.name)).toEqual(["GetTeam", "GetTeamOverviewCmd"]);
+      });
+
+      it("links the newest shared Round from the Team page and lists the recent ones", () => {
+        Scene.scene(
+          { update, view },
+          Scene.given({
+            ...initialModel(teamUrl),
+            session: signedInAdmin,
+            teamDetail: { _tag: "Loaded", detail: detailWith(true) },
+            teamOverview: { _tag: "Loaded", overview },
+          }),
+          Scene.expect(Scene.role("heading", { name: "Latest Results" })).toExist(),
+          Scene.expect(Scene.role("link", { name: "View Results" })).toExist(),
+          Scene.expect(Scene.role("heading", { name: "Recent Rounds" })).toExist(),
+          Scene.expect(
+            Scene.role("link", { name: `Weekly check-in · ${formatRoundDate("2026-11-09")}` }),
+          ).toExist(),
+          Scene.expect(
+            Scene.role("link", { name: `Weekly check-in · ${formatRoundDate("2026-10-26")}` }),
+          ).toExist(),
+        );
+      });
+
+      it("shows no Results entry point to someone who may not read Results", () => {
+        Scene.scene(
+          { update, view },
+          Scene.given({
+            ...initialModel(teamUrl),
+            session: signedInAdmin,
+            teamDetail: { _tag: "Loaded", detail: detailWith(false) },
+            teamOverview: { _tag: "Loaded", overview },
+          }),
+          Scene.expect(Scene.role("heading", { name: "Latest Results" })).toBeAbsent(),
+          Scene.expect(Scene.role("link", { name: "View Results" })).toBeAbsent(),
+        );
       });
     });
   });
@@ -710,6 +745,22 @@ describe("App Scenes", () => {
         Scene.expect(Scene.text("Chat")).toBeAbsent(),
         Scene.expect(Scene.text("Priorities keep changing")).toBeAbsent(),
         Scene.expect(Scene.role("button", { name: "Clear my answers on this device" })).toBeAbsent(),
+      );
+    });
+
+    it("links a shared Round to its Results", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given(loaded([shownRound], kept)),
+        Scene.expect(Scene.role("link", { name: message("history.viewResults") })).toExist(),
+      );
+    });
+
+    it("does not link a Round whose Results the member may not see", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given(loaded([soloRound(roundB, "Monthly pulse", "notShared")], {})),
+        Scene.expect(Scene.role("link", { name: message("history.viewResults") })).toBeAbsent(),
       );
     });
 
@@ -1601,6 +1652,11 @@ describe("App Scenes", () => {
           teamDetail: { _tag: "Loaded", detail: leadTeamDetail(teamId) },
         }),
         Scene.expect(Scene.role("heading", { name: "Results" })).toExist(),
+        Scene.expect(Scene.role("navigation", { name: message("breadcrumb.label") })).toExist(),
+        Scene.expect(Scene.role("link", { name: "Platform" })).toExist(),
+        Scene.expect(
+          Scene.text(message("results.roundDate", { date: formatRoundDate("2026-11-09") })),
+        ).toExist(),
         Scene.expect(Scene.text("75% response rate (6 of 8)")).toExist(),
         Scene.expect(
           Scene.text(

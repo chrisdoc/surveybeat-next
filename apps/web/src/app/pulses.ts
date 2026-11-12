@@ -26,7 +26,6 @@ import {
   type Child,
   emptyState,
   linkButton,
-  linkClass,
   pageTitle,
   problemView,
   secondaryButtonClass,
@@ -34,8 +33,10 @@ import {
   subSectionTitle,
   textField,
   textareaField,
+  breadcrumbs,
+  linkClass,
 } from "./components.ts";
-import { pulseHref, pulsesHref, roundsHref, teamHref } from "./routes.ts";
+import { pulseHref, roundsHref, teamHref } from "./routes.ts";
 
 export const LoadedPulses = defineTaggedUnion({
   Loading: {},
@@ -486,8 +487,15 @@ export const pulseEditorView = <Message>(
   },
   h: HtmlBuilder<Message>,
 ): Html => {
+  const pulse = state.pulse._tag === "Loaded" ? state.pulse.detail : undefined;
   const children: Array<Child> = [
-    h.a([h.Href(pulsesHref(state.teamId)), h.Class(linkClass)], [message("pulse.back")]),
+    breadcrumbs(
+      [
+        { label: pulse?.team.name ?? message("title.team"), href: teamHref(state.teamId) },
+        { label: pulse?.settings.name ?? message("title.pulse") },
+      ],
+      h,
+    ),
   ];
 
   if (state.pulse._tag === "Failed") {
