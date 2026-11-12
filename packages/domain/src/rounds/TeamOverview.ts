@@ -5,8 +5,12 @@ import { Dimension } from "../pulses/Question.ts";
 import { RoundId } from "./Round.ts";
 import { enforceEffectiveNOnResult, type RoundResult } from "./Results.ts";
 
-/** One shared Round on the overview's time axis. */
-export const OverviewRound = Schema.Struct({ roundId: RoundId, plannedOpenDate: Schema.String });
+/** One shared Round on the overview's time axis. `pulseName` is set by the read, like the Result it comes from. */
+export const OverviewRound = Schema.Struct({
+  roundId: RoundId,
+  plannedOpenDate: Schema.String,
+  pulseName: Schema.optionalKey(Schema.String),
+});
 export type OverviewRound = typeof OverviewRound.Type;
 
 /** A Dimension's score in one shared Round; null is a gap (below the effective minimum group size, or not asked). */
@@ -104,7 +108,11 @@ export const buildTeamOverview = (params: {
 
   return {
     teamId: params.teamId,
-    rounds: shared.map((result) => ({ roundId: result.roundId, plannedOpenDate: result.plannedOpenDate })),
+    rounds: shared.map((result) => ({
+      roundId: result.roundId,
+      plannedOpenDate: result.plannedOpenDate,
+      ...(result.pulseName !== undefined ? { pulseName: result.pulseName } : {}),
+    })),
     dimensions,
     markers,
   };

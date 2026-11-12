@@ -24,9 +24,10 @@ import {
   problemView,
   secondaryButtonClass,
   textField,
+  breadcrumbs,
 } from "./components.ts";
 import type { LoadedTeam } from "./directory.ts";
-import { pulseHref, roundResultsHref } from "./routes.ts";
+import { pulseHref, roundResultsHref, teamHref } from "./routes.ts";
 
 export const LoadedRounds = defineTaggedUnion({
   Loading: {},
@@ -83,8 +84,20 @@ export const roundsScreenView = <Message>(
   },
   h: HtmlBuilder<Message>,
 ): Html => {
+  const teamName = state.team._tag === "Loaded" ? state.team.detail.team.name : message("title.team");
+  const pulseName =
+    state.rounds._tag === "Loaded"
+      ? (state.rounds.list.rounds[0]?.pulseName ?? message("title.pulse"))
+      : message("title.pulse");
   const children: Array<Child> = [
-    h.a([h.Href(pulseHref(state.teamId, state.pulseId)), h.Class(linkClass)], [message("rounds.back")]),
+    breadcrumbs(
+      [
+        { label: teamName, href: teamHref(state.teamId) },
+        { label: pulseName, href: pulseHref(state.teamId, state.pulseId) },
+        { label: message("rounds.title") },
+      ],
+      h,
+    ),
     h.div([h.Class("mt-4")], [pageTitle(message("rounds.title"), h)]),
   ];
 

@@ -41,7 +41,6 @@ import {
   darkOutlineButtonClass,
   darkPanel,
   dataTable,
-  linkClass,
   linkButton,
   mintButtonClass,
   pageTitle,
@@ -54,6 +53,7 @@ import {
   subSectionTitle,
   textareaField,
   textField,
+  breadcrumbs,
 } from "./components.ts";
 import type { LoadedTeam } from "./directory.ts";
 import { dimensionName } from "./pulses.ts";
@@ -702,13 +702,18 @@ export const resultsScreenView = <Message>(
     !result.delayed &&
     result.questions.length === 0;
 
+  const teamName =
+    state.teamDetail._tag === "Loaded" ? state.teamDetail.detail.team.name : message("title.team");
   const children: Array<Html> = [
-    h.a([h.Href(teamHref(result.teamId)), h.Class(linkClass)], [message("results.back")]),
-    h.div([h.Class("mt-4")], [pageTitle(message("results.title"), h)]),
-    h.p(
-      [h.Class("text-muted")],
-      [message("results.roundDate", { date: formatRoundDate(result.plannedOpenDate) })],
+    breadcrumbs(
+      [
+        { label: teamName, href: teamHref(result.teamId) },
+        ...(result.pulseName === undefined ? [] : [{ label: result.pulseName }]),
+        { label: message("results.roundDate", { date: formatRoundDate(result.plannedOpenDate) }) },
+      ],
+      h,
     ),
+    h.div([h.Class("mt-4")], [pageTitle(message("results.title"), h)]),
   ];
   if (isLead && result.status === "ready") {
     children.push(

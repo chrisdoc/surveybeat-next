@@ -151,6 +151,11 @@ export const RoundResult = Schema.Struct({
   teamId: TeamId,
   status: RoundStatus,
   plannedOpenDate: Schema.String,
+  /**
+   * Optional so stored payloads decode without it; the reads stamp it from the Round row, so a member
+   * who may see Results but not the Pulse page still gets a name for the breadcrumb.
+   */
+  pulseName: Schema.optionalKey(Schema.String),
   /** Release 1 has only anonymous Rounds, so Results stored before this field decode as anonymous. */
   anonymityMode: AnonymityMode.pipe(
     Schema.withDecodingDefaultKey(Effect.succeed<AnonymityMode>("anonymous")),

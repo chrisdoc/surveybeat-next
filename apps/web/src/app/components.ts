@@ -109,6 +109,41 @@ export const pageTitle = <Message>(text: string, h: HtmlBuilder<Message>): Html 
     [text],
   );
 
+export interface Crumb {
+  readonly label: string;
+  readonly href?: string | undefined;
+}
+
+/** The wayfinding above a title — `Team › Pulse › Round` — with the last crumb being the page itself. */
+export const breadcrumbs = <Message>(crumbs: ReadonlyArray<Crumb>, h: HtmlBuilder<Message>): Html =>
+  h.div(
+    [h.Role("navigation"), h.AriaLabel(message("breadcrumb.label"))],
+    [
+      h.ul(
+        [h.Class("flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted")],
+        crumbs.map((crumb, index) => {
+          const isLast = index === crumbs.length - 1;
+          const label =
+            isLast || crumb.href === undefined
+              ? h.span(
+                  [...(isLast ? [h.AriaCurrent("page"), h.Class("font-semibold text-ink")] : [])],
+                  [crumb.label],
+                )
+              : h.a([h.Href(crumb.href), h.Class(linkClass)], [crumb.label]);
+          return h.li(
+            [h.Class("flex items-center gap-x-2")],
+            [
+              ...(index === 0
+                ? []
+                : [h.span([h.AriaHidden(true), h.Class("text-line")], [message("breadcrumb.separator")])]),
+              label,
+            ],
+          );
+        }),
+      ),
+    ],
+  );
+
 /** `onDark` is for a heading inside a `darkPanel`, where `text-ink` would be ink on evergreen. */
 export const sectionTitle = <Message>(
   text: string,

@@ -1,12 +1,30 @@
-import { type ActionMarker, type DimensionOverview, type RoundId, TeamOverview } from "@surveybeat/domain";
+import {
+  type ActionMarker,
+  type DimensionOverview,
+  type OverviewRound,
+  type RoundId,
+  TeamOverview,
+} from "@surveybeat/domain";
 import type { Html, HtmlBuilder } from "foldkit/html";
 import { defineTaggedUnion } from "foldkit/schema";
 import { formatDate, formatRoundDate, formatScore, message } from "../messages/locale.ts";
 import { Failure } from "./api.ts";
 import { type ChartPoint, lineChart, plotPercent } from "./charts.ts";
-import { dataTable, emptyState, panel, problemView, sectionTitle, subSectionTitle } from "./components.ts";
+import {
+  dataTable,
+  emptyState,
+  linkClass,
+  panel,
+  problemView,
+  sectionTitle,
+  subSectionTitle,
+} from "./components.ts";
 import { toggleButton } from "./results.ts";
 import { dimensionName } from "./pulses.ts";
+import { roundResultsHref } from "./routes.ts";
+
+/** How many of the newest shared Rounds the Team page lists. */
+const RECENT_ROUNDS = 5;
 
 export const LoadedOverview = defineTaggedUnion({
   Loading: {},
@@ -182,6 +200,63 @@ const markersTable = <Message>(markers: ReadonlyArray<ActionMarker>, h: HtmlBuil
     h,
   );
 
+/** A Round named by its Pulse and date. */
+const roundName = (round: OverviewRound): string =>
+  round.pulseName === undefined
+    ? formatRoundDate(round.plannedOpenDate)
+    : message("overview.recent.round", {
+        pulse: round.pulseName,
+        date: formatRoundDate(round.plannedOpenDate),
+      });
+
+/** The newest shared Round, linked: the one-click way into Results for everyone who may read them. */
+const latestResults = <Message>(overview: TeamOverview, h: HtmlBuilder<Message>): Html | null => {
+  const latest = overview.rounds[overview.rounds.length - 1];
+  if (latest === undefined) return null;
+  return panel(
+    [
+      subSectionTitle(message("overview.latest.title"), h, 2),
+      h.p([h.Class("text-sm text-muted")], [roundName(latest)]),
+      h.a(
+        [h.Href(roundResultsHref(overview.teamId, latest.roundId)), h.Class(`mt-2 ${linkClass}`)],
+        [message("overview.latest.action")],
+      ),
+    ],
+    h,
+    "flex flex-col gap-1",
+  );
+};
+
+/** The newest shared Rounds, newest first, each linking to its Results. Only shared Rounds reach this list. */
+const recentRounds = <Message>(overview: TeamOverview, h: HtmlBuilder<Message>): Html =>
+  panel(
+    [
+      subSectionTitle(message("overview.recent.title"), h, 2),
+      h.ul(
+        [h.Class("mt-1 flex flex-col")],
+        [...overview.rounds]
+          .reverse()
+          .slice(0, RECENT_ROUNDS)
+          .map((round) =>
+            h.li(
+              [],
+              [
+                h.a(
+                  [
+                    h.Href(roundResultsHref(overview.teamId, round.roundId)),
+                    h.Class(`inline-flex min-h-11 items-center ${linkClass}`),
+                  ],
+                  [roundName(round)],
+                ),
+              ],
+            ),
+          ),
+      ),
+    ],
+    h,
+    "mt-4 flex flex-col gap-1",
+  );
+
 /** The Team health overview on the Team page: Dimension trend lines with Action markers, or tables. */
 export const teamOverviewView = <Message>(
   state: LoadedOverview,
@@ -210,9 +285,11 @@ export const teamOverviewView = <Message>(
   const { rounds: xByRound, markerX } = overviewXs(overview);
   const markerXs = overview.markers.map((marker) => markerX(marker.at));
 
+  const latest = latestResults(overview, h);
   const children: Array<Html> = [
     sectionTitle(message("overview.title"), h),
     h.p([h.Class("text-muted")], [message("overview.intro")]),
+    ...(latest === null ? [recentRounds(overview, h)] : [latest, recentRounds(overview, h)]),
     h.div([h.Class("flex justify-end")], [toggleButton(isTable, onToggleTable, h)]),
   ];
 
