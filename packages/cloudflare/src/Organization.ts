@@ -229,7 +229,9 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
     // Outer phase: capture the SQL files into the bundle.
     const migrations = yield* Cloudflare.SqlMigrations(migrationsDirectory);
 
-    // Inner phase: runs once per object activation, before any method is exposed.
+    // Inner phase: runs once per object activation, before any method is exposed. It is returned,
+    // not yielded: flattening it would run the object's setup when this outer phase runs.
+    // @effect-diagnostics-next-line returnEffectInGen:off
     return Effect.gen(function* () {
       const state = yield* Cloudflare.DurableObjectState;
 

@@ -99,11 +99,12 @@ describe("privacy registry", () => {
         const check = yield* Arbitrary.checkEffect(
           entry.inputs,
           (input) =>
-            Effect.suspend(() => {
-              const scenario = Schema.decodeUnknownSync(RoundResultScenario)(input);
-              const failures = respond(scenario, entry.leadOnly);
-              return failures.length > 0 ? Effect.fail(failures.join("; ")) : Effect.succeed(true);
-            }),
+            Schema.decodeUnknownEffect(RoundResultScenario)(input).pipe(
+              Effect.flatMap((scenario) => {
+                const failures = respond(scenario, entry.leadOnly);
+                return failures.length > 0 ? Effect.fail(failures.join("; ")) : Effect.succeed(true);
+              }),
+            ),
           { runs: 500, seed: 20261109 },
         );
         assert.strictEqual(Arbitrary.formatCheckFailure(check), undefined);

@@ -151,10 +151,10 @@ export const workosIdentityProvider = (config: WorkosConfig) => {
         throw error;
       }
     }).pipe(
-      Effect.flatMap((response): Effect.Effect<CodeExchange, AuthUnavailable> =>
-        "_tag" in response
-          ? Effect.succeed(response)
-          : Effect.map(sealedResponse(response), (session) => ({ _tag: "Authenticated", session })),
+      Effect.filterOrElse(
+        (response) => "_tag" in response,
+        (response) =>
+          Effect.map(sealedResponse(response), (session) => ({ _tag: "Authenticated" as const, session })),
       ),
     );
 
