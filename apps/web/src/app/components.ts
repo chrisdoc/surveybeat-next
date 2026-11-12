@@ -197,7 +197,7 @@ export const badge = <Message>(
 
 export const dataTable = <Message>(
   headers: ReadonlyArray<string>,
-  rows: ReadonlyArray<ReadonlyArray<string>>,
+  rows: ReadonlyArray<ReadonlyArray<Child>>,
   h: HtmlBuilder<Message>,
 ): Html =>
   h.table(

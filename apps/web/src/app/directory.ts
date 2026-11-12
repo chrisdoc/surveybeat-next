@@ -1,10 +1,13 @@
 import {
   EmailAddress,
+  EmailSendProgress,
+  FailedEmail,
   FailedEmails,
   Locale,
   MinimumGroupSize,
   OrganizationSettings,
   PersonId,
+  SendId,
   TeamDetail,
   TeamName,
   TeamSummary,
@@ -15,7 +18,7 @@ import { Option, Predicate, Schema } from "effect";
 import type { ChildAttribute, Html, HtmlBuilder } from "foldkit/html";
 import { defineTaggedUnion } from "foldkit/schema";
 import { formatDate, message } from "../messages/locale.ts";
-import { Failure } from "./api.ts";
+import { Failure, failureMessage } from "./api.ts";
 import {
   type Child,
   appButton,
@@ -63,6 +66,29 @@ export const LoadedFailedEmails = defineTaggedUnion({
   Failed: { failure: Failure },
 });
 export type LoadedFailedEmails = typeof LoadedFailedEmails.Type;
+
+/**
+ * An admin's Resend of one failed send, as its row shows it. `Resending` while the Resend is in flight; `Resent`
+ * holds the send's state as last read and how many reads it took; `Failed` says why the Resend did not go through.
+ */
+export const FailedEmailResend = Schema.Union([
+  Schema.TaggedStruct("Resending", {}),
+  Schema.TaggedStruct("Resent", {
+    state: EmailSendProgress,
+    polls: Schema.Int,
+    statusUnavailable: Schema.Boolean,
+  }),
+  Schema.TaggedStruct("Failed", { failure: Failure }),
+]);
+export type FailedEmailResend = typeof FailedEmailResend.Type;
+
+/** A resent send is checked this often, and the row stops checking after `FAILED_EMAIL_MAX_POLLS` reads (fifteen minutes). */
+export const FAILED_EMAIL_POLL_INTERVAL = "3 seconds";
+export const FAILED_EMAIL_MAX_POLLS = 300;
+
+/** Whether a row should read its resent send again: it is still queued or sending, and the row has not given up. */
+export const failedEmailKeepsPolling = (state: EmailSendProgress, polls: number): boolean =>
+  (state._tag === "Queued" || state._tag === "Sending") && polls < FAILED_EMAIL_MAX_POLLS;
 
 const formPanelClass = "mt-8 flex flex-col gap-4 rounded-panel border border-line bg-surface p-6 sm:p-8";
 
@@ -667,8 +693,77 @@ export const teamScreenView = <Message>(
   return h.section([], children);
 };
 
-/** The failed sends of the Organization, for admins: what each was, who it was for, why it failed, and when. */
-const failedEmailsView = <Message>(failedEmails: LoadedFailedEmails, h: HtmlBuilder<Message>): Html => {
+/** A send's failure reason, with its provider code when it has one. */
+const failedEmailReasonText = (reason: FailedEmail["reason"], code: string | null): string =>
+  code === null
+    ? failureReasonText(reason)
+    : message("email.reasonCode", { reason: failureReasonText(reason), code });
+
+/** A resent send's state, as the row says it: queued, sending, sent, or not sent with its reason. */
+const failedEmailStatusText = (state: EmailSendProgress): string => {
+  switch (state._tag) {
+    case "Queued":
+      return message("settings.failedEmails.status.queued");
+    case "Sending":
+      return message("settings.failedEmails.status.sending");
+    case "Sent":
+      return message("settings.failedEmails.status.sent");
+    case "Failed":
+      return message("settings.failedEmails.status.failed", {
+        reason: failedEmailReasonText(state.reason, state.code),
+      });
+  }
+};
+
+/** The Action cell of one failed send: the Resend button, and what the last Resend said about the send. */
+const failedEmailActionView = <Message>(
+  email: FailedEmail,
+  resend: FailedEmailResend | undefined,
+  onResend: (sendId: SendId) => Message,
+  h: HtmlBuilder<Message>,
+): Child => {
+  const resendButton = (isDisabled: boolean, text: string): Child =>
+    appButton({ text, isDisabled, className: linkButton, onClick: onResend(email.sendId) }, h);
+  const children: Array<Child> = [];
+  if (resend === undefined) {
+    if (email.resendable) children.push(resendButton(false, message("settings.failedEmails.resend")));
+  } else {
+    switch (resend._tag) {
+      case "Resending":
+        children.push(resendButton(true, message("settings.failedEmails.resending")));
+        break;
+      case "Resent":
+        children.push(h.p([h.Role("status")], [failedEmailStatusText(resend.state)]));
+        if (resend.statusUnavailable) {
+          children.push(h.p([], [message("settings.failedEmails.statusUnavailable")]));
+        }
+        if (resend.state._tag === "Failed") {
+          children.push(resendButton(false, message("settings.failedEmails.resend")));
+        }
+        break;
+      case "Failed":
+        if (resend.failure === "EmailNotResendable") {
+          children.push(h.p([h.Role("status")], [failureMessage(resend.failure)]));
+        } else {
+          children.push(h.p([h.Role("status")], [message("settings.failedEmails.resendFailed")]));
+          children.push(resendButton(false, message("settings.failedEmails.resend")));
+        }
+        break;
+    }
+  }
+  return children.length === 0 ? "" : h.div([h.Class("flex flex-col items-start gap-1 text-sm")], children);
+};
+
+/** The failed sends of the Organization, for admins: what each was, who it was for, why it failed, when, and Resend. */
+const failedEmailsView = <Message>(
+  state: {
+    readonly failedEmails: LoadedFailedEmails;
+    readonly failedEmailResends: Readonly<Record<string, FailedEmailResend>>;
+  },
+  onResend: (sendId: SendId) => Message,
+  h: HtmlBuilder<Message>,
+): Html => {
+  const { failedEmails } = state;
   const children: Array<Child> = [subSectionTitle(message("settings.failedEmails.title"), h, 2)];
   if (failedEmails._tag === "Failed") {
     children.push(problemView(failedEmails.failure, h)!);
@@ -687,17 +782,14 @@ const failedEmailsView = <Message>(failedEmails: LoadedFailedEmails, h: HtmlBuil
                 message("settings.failedEmails.recipient"),
                 message("settings.failedEmails.reason"),
                 message("settings.failedEmails.time"),
+                message("settings.failedEmails.action"),
               ],
               emails.map((email) => [
                 message(`email.kind.${email.kind}`),
                 email.recipient,
-                email.code === null
-                  ? failureReasonText(email.reason)
-                  : message("email.reasonCode", {
-                      reason: failureReasonText(email.reason),
-                      code: email.code,
-                    }),
+                failedEmailReasonText(email.reason, email.code),
                 formatDate(new Date(email.failedAt), { dateStyle: "medium", timeStyle: "short" }),
+                failedEmailActionView(email, state.failedEmailResends[email.sendId], onResend, h),
               ]),
               h,
             ),
@@ -713,6 +805,7 @@ export const settingsScreenView = <Message>(
   state: {
     readonly settings: LoadedSettings;
     readonly failedEmails: LoadedFailedEmails;
+    readonly failedEmailResends: Readonly<Record<string, FailedEmailResend>>;
     readonly size: string;
     readonly sizeSaved: boolean;
     readonly sizeBusy: boolean;
@@ -732,6 +825,7 @@ export const settingsScreenView = <Message>(
     readonly onGrantAdmin: (personId: PersonId) => Message;
     readonly onRevokeAdmin: (personId: PersonId) => Message;
     readonly onRemovePerson: (personId: PersonId) => Message;
+    readonly onResendFailedEmail: (sendId: SendId) => Message;
   },
   h: HtmlBuilder<Message>,
 ): Html => {
@@ -884,7 +978,7 @@ export const settingsScreenView = <Message>(
     children.push(problemView(state.peopleFailure, h)!);
   }
 
-  children.push(failedEmailsView(state.failedEmails, h));
+  children.push(failedEmailsView(state, actions.onResendFailedEmail, h));
 
   return h.section([], children);
 };

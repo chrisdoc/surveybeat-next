@@ -55,6 +55,10 @@ export const durableObjectDirectory = (organizations: Organizations) =>
     settings: (organizationId, actorId) => organizations.getByName(organizationId).viewSettings(actorId),
     failedEmails: (organizationId, actorId) =>
       organizations.getByName(organizationId).listFailedEmails(actorId),
+    resendFailedEmail: (organizationId, actorId, sendId, now) =>
+      organizations.getByName(organizationId).resendFailedEmail(actorId, sendId, now),
+    emailStatus: (organizationId, actorId, sendId) =>
+      organizations.getByName(organizationId).viewEmailStatus(actorId, sendId),
   });
 
 /** `OrganizationPulses` on the same objects: the question library and Pulses live with the directory. */

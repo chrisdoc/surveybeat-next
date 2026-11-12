@@ -17,6 +17,7 @@ export const Failure = Schema.Literals([
   "PulseFull",
   "OrderMismatch",
   "TestSendLimitReached",
+  "EmailNotResendable",
   "Invalid",
   "Unavailable",
 ]);
@@ -48,6 +49,8 @@ export const failureMessage = (failure: Failure): string => {
       return message("error.OrderMismatch");
     case "TestSendLimitReached":
       return message("error.TestSendLimitReached");
+    case "EmailNotResendable":
+      return message("error.EmailNotResendable");
     case "Invalid":
       return message("error.Invalid");
     case "Unavailable":
@@ -65,7 +68,8 @@ export const failureOf = (error: unknown): Failure => {
     Predicate.isTagged(error, "QuestionNotFound") ||
     Predicate.isTagged(error, "RoundNotFound") ||
     Predicate.isTagged(error, "ActionNotFound") ||
-    Predicate.isTagged(error, "ResultsNotReady")
+    Predicate.isTagged(error, "ResultsNotReady") ||
+    Predicate.isTagged(error, "FailedEmailNotFound")
   )
     return "NotFound";
   if (Predicate.isTagged(error, "OwnerNotInTeam")) return "Invalid";
@@ -79,6 +83,7 @@ export const failureOf = (error: unknown): Failure => {
     "PulseFull",
     "OrderMismatch",
     "TestSendLimitReached",
+    "EmailNotResendable",
   ] as const) {
     if (Predicate.isTagged(error, tag)) return tag;
   }

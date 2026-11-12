@@ -1,13 +1,24 @@
 import * as Cloudflare from "@alchemy.run/cloudflare";
 import { SqliteClient } from "@effect/sql-sqlite-do";
+import { organizationActions } from "./organization/Actions.ts";
+import { organizationNotes } from "./organization/Notes.ts";
+import { organizationSends } from "./organization/Sends.ts";
 import {
   type CommandResult,
   decide,
   decidePulse,
   decideTestSend,
+  emailStatusView,
   failedEmailsView,
   FailedEmail,
+  FailureReason,
+  isEmailAdmin,
+  isResendable,
+  type InvitationFacts,
   pending,
+  progressOf,
+  type ResendFacts,
+  type ResendResult,
   testSendView,
   type TestSendFound,
   type PulseCommand,
@@ -19,18 +30,15 @@ import {
   testInvitationLifetimeMs,
   testSendsPerHour,
   defaultSendPolicy,
-  type DeliveryEventKind,
   type DirectoryCommand,
   DEFAULT_LOCALE,
   type DirectoryState,
-  type EmailAddress,
   emailLocaleOf,
   type FollowUp,
   Locale,
   makeSendStore,
   PersonId,
   SendId,
-  type SendOutcome,
   settingsView,
   TeamId,
   teamsView,
@@ -66,12 +74,6 @@ import {
   calculateRoundResult,
   enforceEffectiveNOnResult,
   type RoundResult,
-  ActionId,
-  type ActionItem,
-  type ActionList,
-  type CreateAction,
-  type UpdateAction,
-  type ActionViewed,
   buildMemberHistory,
   buildTeamOverview,
   type MemberHistory,
@@ -83,9 +85,6 @@ import {
   viewRoundResult,
   delayedRoundResult,
   nextRetryAt,
-  type NoteViewed,
-  type RoundNoteView,
-  noteChange,
   previewAnswers,
   testSubmissionContext,
 } from "@surveybeat/domain";
@@ -132,6 +131,66 @@ const randomId = (): string =>
 
 const TestSendCount = Schema.Struct({ n: Schema.Int });
 
+/**
+ * What an admin's failed-sends list and Resend read about a send: its recipient and failure, and the facts that
+ * decide whether it may be resent. Never `content` whole: a legacy row's content may still hold a token, so only
+ * the stored email's kind, Invitation reference, and Invitation generation are read. The Invitation and test send
+ * are joined on their keys only. Callers add a `WHERE` (and any order or limit) to it.
+ */
+const SEND_FACTS_SQL = `SELECT es.id, es.recipient, json_extract(es.content, '$._tag') AS kind,
+    json_extract(es.state, '$.reason') AS reason, json_extract(es.state, '$.code') AS code,
+    json_extract(es.state, '$.failedAt') AS failed_at,
+    json_extract(es.content, '$.invitation.generation') AS generation,
+    i.round_id AS invitation_round_id, i.person_id AS invitation_person_id, i.status AS invitation_status,
+    i.resend_count AS invitation_resend_count, i.send_id AS invitation_send_id,
+    EXISTS (SELECT 1 FROM test_send ts WHERE ts.send_id = es.id) AS test_send
+  FROM email_send es
+  LEFT JOIN invitation i ON i.round_id = json_extract(es.content, '$.invitation.roundId')
+    AND i.person_id = json_extract(es.content, '$.invitation.personId')`;
+
+/** One row of `SEND_FACTS_SQL`. The Invitation columns are null when the email names no Invitation row. */
+interface SendFactsRow {
+  readonly id: string;
+  readonly recipient: string;
+  readonly kind: string | null;
+  readonly reason: string | null;
+  readonly code: string | null;
+  readonly failed_at: number | null;
+  readonly generation: number | null;
+  readonly invitation_round_id: string | null;
+  readonly invitation_person_id: string | null;
+  readonly invitation_status: string | null;
+  readonly invitation_resend_count: number | null;
+  readonly invitation_send_id: string | null;
+  readonly test_send: number;
+}
+
+const decodeFailureReason = Schema.decodeUnknownOption(FailureReason);
+
+const invitationOf = (row: SendFactsRow): InvitationFacts | null =>
+  row.invitation_round_id === null ||
+  row.invitation_person_id === null ||
+  row.invitation_status === null ||
+  row.invitation_resend_count === null ||
+  row.invitation_send_id === null
+    ? null
+    : {
+        roundId: row.invitation_round_id,
+        personId: row.invitation_person_id,
+        status: row.invitation_status,
+        resendCount: row.invitation_resend_count,
+        sendId: row.invitation_send_id,
+      };
+
+/** The facts `isResendable` decides on, from one row of `SEND_FACTS_SQL` and the send's failure reason. */
+const resendFactsOf = (row: SendFactsRow, reason: FailureReason): ResendFacts => ({
+  kind: row.kind,
+  reason,
+  generation: row.generation,
+  invitation: invitationOf(row),
+  testSend: row.test_send === 1,
+});
+
 /** A test send's row: whose it is, and which Pulse it tests. */
 const TestSendRow = Schema.Struct({ person_id: PersonId, pulse_id: PulseId, sent_at: Schema.Int });
 
@@ -161,7 +220,9 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
     // Outer phase: capture the SQL files into the bundle.
     const migrations = yield* Cloudflare.SqlMigrations(migrationsDirectory);
 
-    // Inner phase: runs once per object activation, before any method is exposed.
+    // Inner phase: runs once per object activation, before any method is exposed. It is returned,
+    // not yielded: flattening it would run the object's setup when this outer phase runs.
+    // @effect-diagnostics-next-line returnEffectInGen:off
     return Effect.gen(function* () {
       const state = yield* Cloudflare.DurableObjectState;
 
@@ -1467,20 +1528,15 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
         listFailedEmails: (actorId: PersonId) =>
           Effect.gen(function* () {
             const dirState = yield* directory.load;
-            const rows = yield* sql<{
-              id: string;
-              recipient: string;
-              kind: string | null;
-              reason: string | null;
-              code: string | null;
-              failed_at: number | null;
-            }>`SELECT id, recipient, json_extract(content, '$._tag') AS kind,
-                   json_extract(state, '$.reason') AS reason, json_extract(state, '$.code') AS code,
-                   json_extract(state, '$.failedAt') AS failed_at
-              FROM email_send WHERE status = 'Failed' ORDER BY failed_at DESC, id DESC LIMIT 50`.pipe(
-              Effect.orDie,
-            );
+            const rows = yield* sql
+              .unsafe<SendFactsRow>(
+                `${SEND_FACTS_SQL} WHERE es.status = 'Failed' ORDER BY failed_at DESC, es.id DESC LIMIT 50`,
+              )
+              .pipe(Effect.orDie);
             const failed = rows.flatMap((row) => {
+              const reason = decodeFailureReason(row.reason);
+              const resendable =
+                Option.isSome(reason) && isResendable(SendId.make(row.id), resendFactsOf(row, reason.value));
               const decoded = Schema.decodeUnknownOption(FailedEmail)({
                 sendId: row.id,
                 kind: row.kind,
@@ -1488,10 +1544,93 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
                 reason: row.reason,
                 code: row.code,
                 failedAt: row.failed_at,
+                resendable,
               });
               return Option.isSome(decoded) ? [decoded.value] : [];
             });
             return failedEmailsView(dirState, actorId, failed);
+          }),
+
+        /**
+         * An admin's Resend of a failed send (ADR 0006), in one transaction: the send goes from failed to pending
+         * under the same id and content, and a failed Invitation is cleared so the Lead's list stops showing it.
+         * `queue` is set while the send still waits for its first attempt, so a repeated request (a double click)
+         * may queue it twice but delivery sends it once. Nothing here reads a body or token, and nothing links a Submission to anyone.
+         */
+        resendFailedEmail: (actorId: PersonId, sendId: SendId, now: number) =>
+          sql
+            .withTransaction(
+              Effect.gen(function* () {
+                const dirState = yield* directory.load;
+                if (!isEmailAdmin(dirState, actorId))
+                  return { _tag: "Rejected", rejection: { _tag: "Forbidden" } } satisfies ResendResult;
+                const record = yield* sends.get(sendId);
+                if (Option.isNone(record))
+                  return {
+                    _tag: "Rejected",
+                    rejection: { _tag: "FailedEmailNotFound" },
+                  } satisfies ResendResult;
+                const { state } = record.value;
+                // Already queued, sending, or sent: a repeated request (a double click) changes nothing. A send still
+                // waiting for its first attempt is handed to the queue again, in case the earlier enqueue failed after
+                // this object committed; delivery claims it once, so it is still sent once.
+                if (state._tag !== "Failed")
+                  return {
+                    _tag: "Accepted",
+                    status: { sendId, state: progressOf(state) },
+                    queue: state._tag === "Pending" && state.attempts === 0,
+                  } satisfies ResendResult;
+                const rows = yield* sql
+                  .unsafe<SendFactsRow>(`${SEND_FACTS_SQL} WHERE es.id = ?`, [sendId])
+                  .pipe(Effect.orDie);
+                const row = rows[0];
+                if (row === undefined)
+                  return {
+                    _tag: "Rejected",
+                    rejection: { _tag: "EmailNotResendable" },
+                  } satisfies ResendResult;
+                const facts = resendFactsOf(row, state.reason);
+                if (!isResendable(sendId, facts))
+                  return {
+                    _tag: "Rejected",
+                    rejection: { _tag: "EmailNotResendable" },
+                  } satisfies ResendResult;
+
+                yield* sends.requeue(sendId);
+                const invitation = invitationOf(row);
+                if (
+                  facts.kind === "InvitationEmail" &&
+                  invitation !== null &&
+                  invitation.sendId === sendId &&
+                  invitation.status === "failed"
+                ) {
+                  yield* rounds.updateInvitationStatus(
+                    RoundId.make(invitation.roundId),
+                    PersonId.make(invitation.personId),
+                    "pending",
+                    null,
+                    now,
+                  );
+                }
+                return {
+                  _tag: "Accepted",
+                  status: { sendId, state: progressOf(pending) },
+                  queue: true,
+                } satisfies ResendResult;
+              }),
+            )
+            .pipe(Effect.orDie),
+
+        /** One send's status for an admin, polled after a Resend. Only its state is returned, never its content. */
+        viewEmailStatus: (actorId: PersonId, sendId: SendId) =>
+          Effect.gen(function* () {
+            const dirState = yield* directory.load;
+            const record = yield* sends.get(sendId);
+            const status = Option.match(record, {
+              onNone: () => null,
+              onSome: (each) => ({ sendId, state: progressOf(each.state) }),
+            });
+            return emailStatusView(dirState, actorId, status);
           }),
 
         /** Lead controls: skip, pause, resume, close early, cancel. Authorised through permission table. */
@@ -2046,263 +2185,8 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
             return buildMemberHistory({ rounds: inputs, minimumGroupSize: dirState.minimumGroupSize });
           }).pipe(Effect.orDie),
 
-        listActions: (
-          actorId: PersonId,
-          teamId: TeamId,
-        ): Effect.Effect<ActionViewed<ActionList>, never, never> =>
-          Effect.gen(function* () {
-            const dirState = yield* directory.load;
-            const auth = authorizeRoundAction(dirState, actorId, "team.viewActions", teamId);
-            if (auth._tag === "Rejected") {
-              const rejected: ActionViewed<ActionList> = {
-                _tag: "Rejected",
-                rejection: { _tag: auth.rejection._tag === "TeamNotFound" ? "TeamNotFound" : "Forbidden" },
-              };
-              return rejected;
-            }
-            const team = dirState.teams.find((t) => t.id === teamId);
-            if (team === undefined) {
-              const rejected: ActionViewed<ActionList> = {
-                _tag: "Rejected",
-                rejection: { _tag: "TeamNotFound" },
-              };
-              return rejected;
-            }
-            const all = yield* actions.getActionsForTeam(teamId);
-            const viewed: ActionViewed<ActionList> = {
-              _tag: "Viewed",
-              value: {
-                teamId,
-                actions: all,
-              },
-            };
-            return viewed;
-          }).pipe(Effect.orDie),
-
-        createAction: (
-          actorId: PersonId,
-          teamId: TeamId,
-          payload: CreateAction,
-          now: number,
-        ): Effect.Effect<ActionViewed<ActionItem>, never, never> =>
-          sql
-            .withTransaction(
-              Effect.gen(function* () {
-                const dirState = yield* directory.load;
-                const auth = authorizeRoundAction(dirState, actorId, "team.createAction", teamId);
-                if (auth._tag === "Rejected") {
-                  const rejected: ActionViewed<ActionItem> = {
-                    _tag: "Rejected",
-                    rejection: {
-                      _tag: auth.rejection._tag === "TeamNotFound" ? "TeamNotFound" : "Forbidden",
-                    },
-                  };
-                  return rejected;
-                }
-                const team = dirState.teams.find((t) => t.id === teamId);
-                if (team === undefined) {
-                  const rejected: ActionViewed<ActionItem> = {
-                    _tag: "Rejected",
-                    rejection: { _tag: "TeamNotFound" },
-                  };
-                  return rejected;
-                }
-                // Check owner is an active member in team
-                const isMember = dirState.memberships.some(
-                  (m) => m.teamId === teamId && m.personId === payload.ownerId && m.endedAt === null,
-                );
-                if (!isMember) {
-                  const rejected: ActionViewed<ActionItem> = {
-                    _tag: "Rejected",
-                    rejection: { _tag: "OwnerNotInTeam" },
-                  };
-                  return rejected;
-                }
-                // Check round exists in team
-                const round = yield* rounds.getRound(payload.roundId);
-                if (round === null || round.teamId !== teamId) {
-                  const rejected: ActionViewed<ActionItem> = {
-                    _tag: "Rejected",
-                    rejection: { _tag: "RoundNotFound" },
-                  };
-                  return rejected;
-                }
-
-                const actionId = ActionId.make(randomId());
-                yield* actions.insertAction({
-                  id: actionId,
-                  teamId,
-                  roundId: payload.roundId,
-                  title: payload.title,
-                  ownerId: payload.ownerId,
-                  dueDate: payload.dueDate ?? null,
-                  dimension: payload.dimension ?? null,
-                  status: "committed",
-                  createdAt: now,
-                  updatedAt: now,
-                  doneAt: null,
-                });
-
-                const item = yield* actions.getActionItem(actionId);
-                const viewed: ActionViewed<ActionItem> = {
-                  _tag: "Viewed",
-                  value: item!,
-                };
-                return viewed;
-              }),
-            )
-            .pipe(Effect.orDie),
-
-        updateAction: (
-          actorId: PersonId,
-          teamId: TeamId,
-          actionId: ActionId,
-          payload: UpdateAction,
-          now: number,
-        ): Effect.Effect<ActionViewed<ActionItem>, never, never> =>
-          sql
-            .withTransaction(
-              Effect.gen(function* () {
-                const dirState = yield* directory.load;
-                const auth = authorizeRoundAction(dirState, actorId, "team.updateAction", teamId);
-                if (auth._tag === "Rejected") {
-                  const rejected: ActionViewed<ActionItem> = {
-                    _tag: "Rejected",
-                    rejection: {
-                      _tag: auth.rejection._tag === "TeamNotFound" ? "TeamNotFound" : "Forbidden",
-                    },
-                  };
-                  return rejected;
-                }
-                const team = dirState.teams.find((t) => t.id === teamId);
-                if (team === undefined) {
-                  const rejected: ActionViewed<ActionItem> = {
-                    _tag: "Rejected",
-                    rejection: { _tag: "TeamNotFound" },
-                  };
-                  return rejected;
-                }
-                const existing = yield* actions.getAction(actionId);
-                if (existing === null || existing.teamId !== teamId) {
-                  const rejected: ActionViewed<ActionItem> = {
-                    _tag: "Rejected",
-                    rejection: { _tag: "ActionNotFound" },
-                  };
-                  return rejected;
-                }
-
-                if (payload.ownerId !== undefined) {
-                  const isMember = dirState.memberships.some(
-                    (m) => m.teamId === teamId && m.personId === payload.ownerId && m.endedAt === null,
-                  );
-                  if (!isMember) {
-                    const rejected: ActionViewed<ActionItem> = {
-                      _tag: "Rejected",
-                      rejection: { _tag: "OwnerNotInTeam" },
-                    };
-                    return rejected;
-                  }
-                }
-
-                let newDoneAt: number | null = existing.doneAt;
-                if (payload.status === "done" && existing.status !== "done") {
-                  newDoneAt = now;
-                } else if (payload.status !== undefined && payload.status !== "done") {
-                  newDoneAt = null;
-                }
-
-                yield* actions.updateAction(actionId, {
-                  title: payload.title ?? existing.title,
-                  ownerId: payload.ownerId ?? existing.ownerId,
-                  dueDate: payload.dueDate !== undefined ? payload.dueDate : existing.dueDate,
-                  dimension: payload.dimension !== undefined ? payload.dimension : existing.dimension,
-                  status: payload.status ?? existing.status,
-                  updatedAt: now,
-                  doneAt: newDoneAt,
-                });
-
-                const item = yield* actions.getActionItem(actionId);
-                const viewed: ActionViewed<ActionItem> = {
-                  _tag: "Viewed",
-                  value: item!,
-                };
-                return viewed;
-              }),
-            )
-            .pipe(Effect.orDie),
-
-        viewRoundNote: (
-          actorId: PersonId,
-          teamId: TeamId,
-          roundId: RoundId,
-        ): Effect.Effect<NoteViewed<RoundNoteView>, never, never> =>
-          Effect.gen(function* () {
-            const dirState = yield* directory.load;
-            const auth = authorizeRoundAction(dirState, actorId, "team.viewNote", teamId);
-            if (auth._tag === "Rejected") {
-              const rejected: NoteViewed<RoundNoteView> = {
-                _tag: "Rejected",
-                rejection: { _tag: auth.rejection._tag === "TeamNotFound" ? "TeamNotFound" : "Forbidden" },
-              };
-              return rejected;
-            }
-            const round = yield* rounds.getRound(roundId);
-            if (round === null || round.teamId !== teamId) {
-              const rejected: NoteViewed<RoundNoteView> = {
-                _tag: "Rejected",
-                rejection: { _tag: "RoundNotFound" },
-              };
-              return rejected;
-            }
-            // During the Review window only the Lead sees the Note; the Team sees it once the Round is Shared.
-            const isLead = auth.actor.roles.get(teamId) === "lead";
-            const note = isLead || round.status === "shared" ? yield* notes.getNote(roundId) : null;
-            const viewed: NoteViewed<RoundNoteView> = { _tag: "Viewed", value: { roundId, note } };
-            return viewed;
-          }).pipe(Effect.orDie),
-
-        saveRoundNote: (
-          actorId: PersonId,
-          teamId: TeamId,
-          roundId: RoundId,
-          text: string,
-          now: number,
-        ): Effect.Effect<NoteViewed<RoundNoteView>, never, never> =>
-          sql
-            .withTransaction(
-              Effect.gen(function* () {
-                const dirState = yield* directory.load;
-                const auth = authorizeRoundAction(dirState, actorId, "team.writeNote", teamId);
-                if (auth._tag === "Rejected") {
-                  const rejected: NoteViewed<RoundNoteView> = {
-                    _tag: "Rejected",
-                    rejection: {
-                      _tag: auth.rejection._tag === "TeamNotFound" ? "TeamNotFound" : "Forbidden",
-                    },
-                  };
-                  return rejected;
-                }
-                const round = yield* rounds.getRound(roundId);
-                if (round === null || round.teamId !== teamId) {
-                  const rejected: NoteViewed<RoundNoteView> = {
-                    _tag: "Rejected",
-                    rejection: { _tag: "RoundNotFound" },
-                  };
-                  return rejected;
-                }
-                // Blank text after trimming clears the Note; anything else replaces it.
-                const change = noteChange(text);
-                if (change._tag === "Delete") {
-                  yield* notes.deleteNote(roundId);
-                } else {
-                  yield* notes.upsertNote({ roundId, teamId, text: change.text, updatedAt: now });
-                }
-                const note = yield* notes.getNote(roundId);
-                const viewed: NoteViewed<RoundNoteView> = { _tag: "Viewed", value: { roundId, note } };
-                return viewed;
-              }),
-            )
-            .pipe(Effect.orDie),
+        ...organizationActions({ actions, rounds, directory, sql, randomId }),
+        ...organizationNotes({ notes, rounds, directory, sql }),
 
         recomputeResult: (roundId: string) =>
           Effect.gen(function* () {
@@ -2498,10 +2382,10 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
               )
               .pipe(
                 Effect.map((res) => ({ _tag: "Success" as const, ...res })),
-                Effect.catchTag("AlreadyAnswered", () =>
-                  Effect.succeed({ _tag: "AlreadyAnswered" as const }),
-                ),
-                Effect.catchTag("RoundNotOpen", () => Effect.succeed({ _tag: "RoundNotOpen" as const })),
+                Effect.catchTags({
+                  AlreadyAnswered: () => Effect.succeed({ _tag: "AlreadyAnswered" as const }),
+                  RoundNotOpen: () => Effect.succeed({ _tag: "RoundNotOpen" as const }),
+                }),
               );
           }),
         saveAnswer: (editKeyHash: string, answers: ReadonlyArray<SubmissionAnswer>) =>
@@ -2509,10 +2393,10 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
             const dirState = yield* directory.load;
             return yield* rounds.saveAnswer(editKeyHash, answers, dirState.people).pipe(
               Effect.map((res) => ({ _tag: "Success" as const, ...res })),
-              Effect.catchTag("SubmissionNotFound", () =>
-                Effect.succeed({ _tag: "SubmissionNotFound" as const }),
-              ),
-              Effect.catchTag("RoundNotOpen", () => Effect.succeed({ _tag: "RoundNotOpen" as const })),
+              Effect.catchTags({
+                SubmissionNotFound: () => Effect.succeed({ _tag: "SubmissionNotFound" as const }),
+                RoundNotOpen: () => Effect.succeed({ _tag: "RoundNotOpen" as const }),
+              }),
             );
           }),
         deleteParticipationForPerson: (personId: string) =>
@@ -2524,16 +2408,7 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
             Effect.orDie,
           ),
 
-        createEmailSend: (id: SendId, recipient: EmailAddress, email: StoredEmail) =>
-          sends.create(id, recipient, email),
-        getEmailSend: (id: SendId) => sends.get(id).pipe(Effect.map(Option.getOrNull)),
-        claimEmailSend: (id: SendId, now: number) => sends.claim(id, now),
-        settleEmailSend: (id: SendId, attempt: number, outcome: SendOutcome, now: number) =>
-          sends.settle(id, attempt, outcome, now).pipe(Effect.map(Option.getOrNull)),
-        abandonEmailSend: (id: SendId, now: number) =>
-          sends.abandon(id, now).pipe(Effect.map(Option.getOrNull)),
-        recordEmailDeliveryEvent: (id: SendId, kind: DeliveryEventKind, code: string | null, now: number) =>
-          sends.recordDeliveryEvent(id, kind, code, now).pipe(Effect.map(Option.getOrNull)),
+        ...organizationSends(sends),
       };
     });
   }),

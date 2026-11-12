@@ -8,6 +8,7 @@ import {
   Dimension,
   EmailAddress,
   FailedEmails,
+  FailedEmailStatus,
   Locale,
   MemberHistory,
   MinimumGroupSize,
@@ -53,6 +54,9 @@ import {
   decodeName,
   decodeSize,
   decodeZone,
+  FAILED_EMAIL_POLL_INTERVAL,
+  failedEmailKeepsPolling,
+  FailedEmailResend,
   LoadedFailedEmails,
   LoadedSettings,
   LoadedTeam,
@@ -144,6 +148,8 @@ export const Model = Schema.Struct({
   peopleBusy: Schema.Boolean,
   peopleFailure: Schema.Option(Failure),
   failedEmails: LoadedFailedEmails,
+  // Resends of failed sends, by SendId: the row's state while and after an admin resends one
+  failedEmailResends: Schema.Record(Schema.String, FailedEmailResend),
   // Pulses list screen
   pulses: LoadedPulses,
   createPulseBusy: Schema.Boolean,
@@ -277,6 +283,10 @@ export const OutcomeFailedEmails = Schema.Union([
   Schema.TaggedStruct("Success", { list: FailedEmails }),
   Schema.TaggedStruct("Failure", { failure: Failure }),
 ]);
+export const OutcomeFailedEmailStatus = Schema.Union([
+  Schema.TaggedStruct("Success", { status: FailedEmailStatus }),
+  Schema.TaggedStruct("Failure", { failure: Failure }),
+]);
 export const OutcomeVoid = Schema.Union([
   Schema.TaggedStruct("Success", {}),
   Schema.TaggedStruct("Failure", { failure: Failure }),
@@ -332,6 +342,9 @@ export const Message = defineMessageUnion({
   DefaultLanguageChanged: { value: Schema.String },
   UpdatedDefaultLanguage: { outcome: OutcomeVoid },
   GotFailedEmails: { outcome: OutcomeFailedEmails },
+  ResendFailedEmailClicked: { sendId: SendId },
+  ResentFailedEmail: { sendId: SendId, outcome: OutcomeFailedEmailStatus },
+  PolledFailedEmail: { sendId: SendId, outcome: OutcomeFailedEmailStatus },
   GrantAdminClicked: { personId: PersonId },
   GrantedAdmin: { outcome: OutcomeVoid },
   RevokeAdminClicked: { personId: PersonId },
@@ -580,6 +593,40 @@ export const ListFailedEmails = Command.define("ListFailedEmails", {
       (failure) => Message.GotFailedEmails({ outcome: { _tag: "Failure", failure } }),
     ),
   ),
+});
+
+/** Sends a failed send again (ADR 0006). The update reads its state with `PollFailedEmailCmd`. */
+export const ResendFailedEmailCmd = Command.define("ResendFailedEmailCmd", {
+  args: { sendId: SendId },
+  messages: [Message.ResentFailedEmail],
+  execute: ({ sendId }) =>
+    runApi(
+      (api) => api.directory.resendFailedEmail({ params: { sendId } }),
+      (status) => Message.ResentFailedEmail({ sendId, outcome: { _tag: "Success", status } }),
+      (failure) => Message.ResentFailedEmail({ sendId, outcome: { _tag: "Failure", failure } }),
+    ),
+});
+
+/** Reads a resent send's state after the poll interval. The update decides whether to read it again. */
+export const PollFailedEmailCmd = Command.define("PollFailedEmailCmd", {
+  args: { sendId: SendId },
+  messages: [Message.PolledFailedEmail],
+  execute: ({ sendId }) =>
+    Effect.sleep(FAILED_EMAIL_POLL_INTERVAL).pipe(
+      Effect.andThen(
+        runApi(
+          (api) => api.directory.getEmailStatus({ params: { sendId } }),
+          (status) => Message.PolledFailedEmail({ sendId, outcome: { _tag: "Success", status } }),
+          (failure) => Message.PolledFailedEmail({ sendId, outcome: { _tag: "Failure", failure } }),
+        ),
+      ),
+    ),
+});
+
+/** The model with one row's Resend state replaced. */
+const withFailedEmailResend = (model: Model, sendId: SendId, resend: FailedEmailResend): Model => ({
+  ...model,
+  failedEmailResends: { ...model.failedEmailResends, [sendId]: resend },
 });
 
 export const UpdateSettings = Command.define("UpdateSettings", {
@@ -1093,6 +1140,7 @@ export const initialModel = (url: Url): Model => {
     peopleBusy: false,
     peopleFailure: Option.none(),
     failedEmails: { _tag: "Loading" },
+    failedEmailResends: {},
     pulses: { _tag: "Loading" },
     createPulseBusy: false,
     createPulseFailure: Option.none(),
@@ -1289,6 +1337,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         testSendResult: Option.none(),
         settings: { _tag: "Loading" },
         failedEmails: { _tag: "Loading" },
+        failedEmailResends: {},
         teams: { _tag: "Loading" },
         results: { _tag: "Loading" },
         guideCopy: "idle",
@@ -1807,6 +1856,71 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         return { model, commands: [LoadSession()] };
       }
       return { model: { ...model, failedEmails: { _tag: "Failed", failure: outcome.failure } } };
+    }
+
+    case "ResendFailedEmailClicked": {
+      const { sendId } = message;
+      const current = model.failedEmailResends[sendId];
+      // A send is resent once at a time: a click while its Resend is in flight, or while it is queued or sending, does nothing.
+      if (
+        model.failedEmails._tag !== "Loaded" ||
+        current?._tag === "Resending" ||
+        (current?._tag === "Resent" && current.state._tag !== "Failed") ||
+        (current?._tag === "Failed" && current.failure === "EmailNotResendable")
+      ) {
+        return { model };
+      }
+      return {
+        model: withFailedEmailResend(model, sendId, { _tag: "Resending" }),
+        commands: [ResendFailedEmailCmd({ sendId })],
+      };
+    }
+
+    case "ResentFailedEmail": {
+      const { sendId, outcome } = message;
+      // A reply for a row that is no longer waiting on its Resend (the admin navigated away since) is dropped.
+      if (model.failedEmailResends[sendId]?._tag !== "Resending") return { model };
+      if (outcome._tag === "Failure") {
+        const failed = withFailedEmailResend(model, sendId, { _tag: "Failed", failure: outcome.failure });
+        return outcome.failure === "Unauthenticated"
+          ? { model: failed, commands: [LoadSession()] }
+          : { model: failed };
+      }
+      const { state } = outcome.status;
+      const next = withFailedEmailResend(model, sendId, {
+        _tag: "Resent",
+        state,
+        polls: 0,
+        statusUnavailable: false,
+      });
+      if (!failedEmailKeepsPolling(state, 0)) return { model: next };
+      return { model: next, commands: [PollFailedEmailCmd({ sendId })] };
+    }
+
+    case "PolledFailedEmail": {
+      const { sendId, outcome } = message;
+      const current = model.failedEmailResends[sendId];
+      // A read for a row that is no longer resent (the admin navigated away since) is dropped.
+      if (current?._tag !== "Resent") return { model };
+      if (outcome._tag === "Failure") {
+        const failed = withFailedEmailResend(model, sendId, { ...current, statusUnavailable: true });
+        return outcome.failure === "Unauthenticated"
+          ? { model: failed, commands: [LoadSession()] }
+          : { model: failed };
+      }
+      const polls = current.polls + 1;
+      const { state } = outcome.status;
+      const keepsPolling = failedEmailKeepsPolling(state, polls);
+      const settled = state._tag === "Sent" || state._tag === "Failed";
+      const next = withFailedEmailResend(model, sendId, {
+        _tag: "Resent",
+        state,
+        polls,
+        // Gave up while still queued or sending: say so, so the admin knows to reload.
+        statusUnavailable: !keepsPolling && !settled,
+      });
+      if (!keepsPolling) return { model: next };
+      return { model: next, commands: [PollFailedEmailCmd({ sendId })] };
     }
 
     case "SizeChanged":
@@ -3083,6 +3197,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
             peopleBusy: model.peopleBusy,
             peopleFailure: Option.getOrUndefined(model.peopleFailure),
             failedEmails: model.failedEmails,
+            failedEmailResends: model.failedEmailResends,
           },
           {
             onSizeChange: (size) => Message.SizeChanged({ size }),
@@ -3092,6 +3207,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
             onGrantAdmin: (personId) => Message.GrantAdminClicked({ personId }),
             onRevokeAdmin: (personId) => Message.RevokeAdminClicked({ personId }),
             onRemovePerson: (personId) => Message.RemovePersonClicked({ personId }),
+            onResendFailedEmail: (sendId) => Message.ResendFailedEmailClicked({ sendId }),
           },
           h,
         );

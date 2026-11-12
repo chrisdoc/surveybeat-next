@@ -23,7 +23,13 @@ import * as Effect from "effect/Effect";
 import { HttpApi, type HttpApiEndpoint } from "effect/http-api";
 import * as Schema from "effect/Schema";
 import { SurveyBeatApi } from "./index.ts";
-import { type LeadOnlyField, privacyRegistry, RoundResultScenario } from "./PrivacyRegistry.ts";
+import { pageRouteKeys } from "./PageRoutes.ts";
+import {
+  type LeadOnlyField,
+  pageRoutePrivacy,
+  privacyRegistry,
+  RoundResultScenario,
+} from "./PrivacyRegistry.ts";
 
 /** Every endpoint of the runtime declaration, as `group.endpoint`. */
 const declaredEndpoints = (): ReadonlyArray<string> => {
@@ -34,6 +40,26 @@ const declaredEndpoints = (): ReadonlyArray<string> => {
   });
   return keys;
 };
+
+describe("page routes", () => {
+  it("classifies every server-rendered page route", () => {
+    const unclassified = pageRouteKeys.filter((key) => !Object.hasOwn(pageRoutePrivacy, key));
+    assert.deepStrictEqual(
+      unclassified,
+      [],
+      "add these page routes to pageRoutePrivacy in PrivacyRegistry.ts",
+    );
+  });
+
+  it("carries no Result data on a page route", () => {
+    for (const key of pageRouteKeys) assert.strictEqual(pageRoutePrivacy[key]._tag, "NoResultData");
+  });
+
+  it("lists no page route that the Worker does not serve", () => {
+    assert.deepStrictEqual(Object.keys(pageRoutePrivacy).sort(), [...pageRouteKeys].sort());
+    assert.deepStrictEqual([...pageRouteKeys], ["pages.delivery", "pages.unsubscribe"]);
+  });
+});
 
 describe("privacy registry", () => {
   it("classifies every endpoint of SurveyBeatApi", () => {
@@ -73,11 +99,12 @@ describe("privacy registry", () => {
         const check = yield* Arbitrary.checkEffect(
           entry.inputs,
           (input) =>
-            Effect.suspend(() => {
-              const scenario = Schema.decodeUnknownSync(RoundResultScenario)(input);
-              const failures = respond(scenario, entry.leadOnly);
-              return failures.length > 0 ? Effect.fail(failures.join("; ")) : Effect.succeed(true);
-            }),
+            Schema.decodeUnknownEffect(RoundResultScenario)(input).pipe(
+              Effect.flatMap((scenario) => {
+                const failures = respond(scenario, entry.leadOnly);
+                return failures.length > 0 ? Effect.fail(failures.join("; ")) : Effect.succeed(true);
+              }),
+            ),
           { runs: 500, seed: 20261109 },
         );
         assert.strictEqual(Arbitrary.formatCheckFailure(check), undefined);
