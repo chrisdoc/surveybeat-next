@@ -122,6 +122,10 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
       // The API routes always reach the Worker. Any other path is a static asset.
       assets: {
         directory: assetsDirectory,
+        // The app is client-routed: /history, /settings and /teams/<id> have no file, so an unmatched
+        // path serves index.html and the app renders it. Without this a bookmark or a refresh on any
+        // screen answers 404, which is how /history behaves in production today.
+        notFoundHandling: "single-page-application",
         runWorkerFirst: [
           "/auth/*",
           "/api/*",

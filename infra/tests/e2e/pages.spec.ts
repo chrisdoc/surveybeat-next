@@ -6,6 +6,15 @@ test("the app loads", async ({ page, pageErrors }) => {
   expect(pageErrors).toEqual([]);
 });
 
+test("a client route answers the app shell on a hard load", async ({ page, pageErrors }) => {
+  // /history has no file behind it, so the asset layer has to fall back to index.html. Without that
+  // fallback a bookmark, a refresh, or a shared link on any screen answers 404 (it did in production).
+  const response = await page.goto("/history");
+  expect(response?.status(), "GET /history").toBe(200);
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  expect(pageErrors).toEqual([]);
+});
+
 test("the answer page loads", async ({ page, pageErrors }) => {
   // Opened without an Invitation token, the page loads and shows only its error (#143, B10).
   await open(page, "/answer");
