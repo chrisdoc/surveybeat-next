@@ -86,7 +86,19 @@ const smallHeading = "text-[13px] font-semibold text-muted";
 export const GuideCopy = Schema.Literals(["idle", "copied", "failed"]);
 export type GuideCopy = typeof GuideCopy.Type;
 
-/** The 12-round trend line chart of a Dimension or Question. `unusual` marks the latest point in brass. */
+/** "1-Round trend", "4-Round trend": the title says how many Rounds the trend really covers. */
+export const trendTitle = (rounds: number): string => pluralMessage("results.trendLength", rounds);
+
+/** The latest scored point, skipping Rounds whose answers were too few to show. */
+const latestScore = (points: ReadonlyArray<TrendPoint | DimensionTrendPoint>): number | null => {
+  for (let i = points.length - 1; i >= 0; i--) {
+    const point = points[i]!;
+    if (point.score !== null) return point.score;
+  }
+  return null;
+};
+
+/** The trend line chart of a Dimension or Question. `unusual` marks the latest point in brass. */
 export const trendChart = <Message>(
   points: ReadonlyArray<TrendPoint | DimensionTrendPoint>,
   h: HtmlBuilder<Message>,
@@ -94,6 +106,9 @@ export const trendChart = <Message>(
 ): Html => {
   if (points.length === 0) return null;
   const last = points.length - 1;
+  const first = points[0]!;
+  const newest = points[last]!;
+  const latest = latestScore(points);
 
   return lineChart(
     {
@@ -102,8 +117,17 @@ export const trendChart = <Message>(
         score: p.score,
         joinsPrevious: !p.hasGap,
       })),
-      ariaLabel: message("results.trend12Rounds"),
+      ariaLabel: trendTitle(points.length),
       highlightLast: unusual,
+      ...(points.length <= 1
+        ? {}
+        : {
+            xTicks: [
+              { x: 0, label: formatRoundDate(first.plannedOpenDate) },
+              { x: 1, label: formatRoundDate(newest.plannedOpenDate) },
+            ],
+          }),
+      ...(latest === null ? {} : { latestLabel: formatScore(latest) }),
     },
     h,
   );
@@ -1131,7 +1155,7 @@ export const resultsScreenView = <Message>(
                     h.div(
                       [h.Class("flex items-center justify-between")],
                       [
-                        h.h4([h.Class(smallHeading)], [message("results.trend12Rounds")]),
+                        h.h4([h.Class(smallHeading)], [trendTitle(dim.trend.length)]),
                         toggleButton(isTable, callbacks.onToggleTable(dimKey), h),
                       ],
                     ),
@@ -1205,7 +1229,7 @@ export const resultsScreenView = <Message>(
                         h.div(
                           [h.Class("flex items-center justify-between")],
                           [
-                            h.h4([h.Class(smallHeading)], [message("results.trend12Rounds")]),
+                            h.h4([h.Class(smallHeading)], [trendTitle(q.trend.length)]),
                             toggleButton(isTable, callbacks.onToggleTable(qKey), h),
                           ],
                         ),

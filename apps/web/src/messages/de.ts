@@ -323,7 +323,8 @@ export const de = {
   "results.guide.copy": "Als Text kopieren",
   "results.guide.copied": "Kopiert.",
   "results.guide.copyFailed": "Kopieren hat nicht geklappt. Markier den Text und kopier ihn selbst.",
-  "results.trend12Rounds": "Verlauf über 12 Runden",
+  "results.trendLength.one": "Verlauf über 1 Runde",
+  "results.trendLength.other": "Verlauf über {count} Runden",
   "results.distributionTitle": "Verteilung",
   "results.delayedTitle": "Ergebnisse verzögert",
   "results.delayedBody":
