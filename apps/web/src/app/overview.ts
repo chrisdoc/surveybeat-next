@@ -337,7 +337,10 @@ export const teamOverviewView = <Message>(
   if (overview.rounds.length === 0) {
     return h.section(
       [h.Class("flex flex-col gap-4")],
-      [sectionTitle(message("overview.title"), h), emptyState(message("overview.empty"), h)],
+      [
+        sectionTitle(message("overview.title"), h),
+        emptyState({ title: message("overview.empty.title"), body: message("overview.empty") }, h),
+      ],
     );
   }
 

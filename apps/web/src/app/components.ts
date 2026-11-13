@@ -202,14 +202,32 @@ export const alertView = <Message>(text: string, h: HtmlBuilder<Message>): Html 
     [text],
   );
 
-export const emptyState = <Message>(text: string, h: HtmlBuilder<Message>): Html =>
-  h.p(
+export const emptyState = <Message>(
+  config: {
+    readonly title: string;
+    readonly body: string;
+    readonly action?: { readonly text: string; readonly href: string } | undefined;
+  },
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
     [
       h.Class(
-        "mt-3 rounded-control border border-dashed border-line bg-subtle px-4 py-6 text-center text-muted",
+        "mt-3 flex flex-col items-start gap-2 rounded-control border border-dashed border-line bg-subtle p-6",
       ),
     ],
-    [text],
+    [
+      h.p([h.Class("font-semibold")], [config.title]),
+      h.p([h.Class("text-sm text-muted")], [config.body]),
+      ...(config.action === undefined
+        ? []
+        : [
+            h.a(
+              [h.Href(config.action.href), h.Class(`inline-flex min-h-11 items-center ${linkClass}`)],
+              [config.action.text],
+            ),
+          ]),
+    ],
   );
 
 export type BadgeVariant = "neutral" | "primary" | "brass";

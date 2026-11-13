@@ -212,7 +212,7 @@ export const roundsScreenView = <Message>(
   }
 
   if (rounds.length === 0) {
-    children.push(emptyState(message("rounds.empty"), h));
+    children.push(emptyState({ title: message("rounds.empty.title"), body: message("rounds.empty") }, h));
     return h.section([], children);
   }
 

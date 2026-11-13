@@ -383,7 +383,7 @@ export const teamsScreenView = <Message>(
     children.push(problemView(state.teams.failure, h)!);
   } else if (state.teams._tag === "Loaded") {
     if (state.teams.teams.length === 0) {
-      children.push(emptyState(message("teams.empty"), h));
+      children.push(emptyState({ title: message("teams.empty.title"), body: message("teams.empty") }, h));
     } else {
       children.push(
         h.ul(
@@ -500,9 +500,45 @@ export const teamsScreenView = <Message>(
   return h.section([], children);
 };
 
+/** One step of the first-run checklist: what to do, where it happens, and whether it is done. */
+export interface ChecklistStep {
+  readonly text: string;
+  readonly detail?: string | undefined;
+  readonly href: string;
+  readonly done: boolean;
+}
+
+/** The first-run checklist a Team shows until its first Round is shared: numbered steps, each a link. */
+const firstRunChecklistView = <Message>(steps: ReadonlyArray<ChecklistStep>, h: HtmlBuilder<Message>): Html =>
+  h.section(
+    [h.Class("mt-8 rounded-panel border border-line bg-surface p-6")],
+    [
+      subSectionTitle(message("team.checklist.title"), h, 2),
+      h.ol(
+        [h.Class("mt-3 flex flex-col gap-3")],
+        steps.map((step, index) =>
+          h.li(
+            [h.Class("flex flex-wrap items-baseline gap-x-3 gap-y-1")],
+            [
+              h.span([h.Class("text-sm font-semibold text-muted")], [`${index + 1}.`]),
+              h.a([h.Href(step.href), h.Class(`break-words ${linkClass}`)], [step.text]),
+              ...(step.detail === undefined ? [] : [h.span([h.Class("text-sm text-muted")], [step.detail])]),
+              badge(
+                step.done ? "primary" : "neutral",
+                [message(step.done ? "team.checklist.done" : "team.checklist.todo")],
+                h,
+              ),
+            ],
+          ),
+        ),
+      ),
+    ],
+  );
+
 export const teamScreenView = <Message>(
   state: {
     readonly team: LoadedTeam;
+    readonly checklist: ReadonlyArray<ChecklistStep> | null;
     readonly renameName: string;
     readonly renameTimeZone: string;
     readonly renameBusy: boolean;
@@ -556,6 +592,9 @@ export const teamScreenView = <Message>(
 
   const { detail } = state.team;
   children.push(h.div([h.Class("mt-4")], [pageTitle(detail.team.name, h)]));
+  if (state.checklist !== null) {
+    children.push(firstRunChecklistView(state.checklist, h));
+  }
   children.push(
     h.p([h.Class("mt-2 text-muted")], [message("team.timeZone", { timeZone: detail.team.timeZone })]),
   );
@@ -924,7 +963,15 @@ const failedEmailsView = <Message>(
   } else if (failedEmails._tag === "Loaded") {
     const { emails } = failedEmails.list;
     if (emails.length === 0) {
-      children.push(emptyState(message("settings.failedEmails.empty"), h));
+      children.push(
+        emptyState(
+          {
+            title: message("settings.failedEmails.empty.title"),
+            body: message("settings.failedEmails.empty"),
+          },
+          h,
+        ),
+      );
     } else {
       children.push(
         h.div(
