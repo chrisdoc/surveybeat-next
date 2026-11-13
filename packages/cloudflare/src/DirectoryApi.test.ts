@@ -126,7 +126,8 @@ describe("an Organization admin", () => {
     const { admin, teamId } = await setup();
     expect(await admin.call("GET", "/api/teams")).toMatchObject({
       status: 200,
-      body: [{ id: teamId, name: "Platform", yourRole: null }],
+      // Two people in the Team, and no Round scheduled yet.
+      body: [{ id: teamId, name: "Platform", yourRole: null, memberCount: 2, nextRoundDate: null }],
     });
     expect(await roster(admin, teamId)).toEqual(["lead grace@example.com", "member ada@example.com"]);
     expect((await admin.call("GET", `/api/teams/${teamId}`)).body).toMatchObject({

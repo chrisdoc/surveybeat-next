@@ -129,7 +129,23 @@ export const organizationDirectory = ({
           }),
         )
         .pipe(Effect.orDie),
-    viewTeams: (actorId: PersonId) => directory.load.pipe(Effect.map((state) => teamsView(state, actorId))),
+    /**
+     * The Teams list: the directory's view plus each Team's next Round, read from the same
+     * Organization's Rounds so no per-row fetch is needed.
+     */
+    viewTeams: (actorId: PersonId) =>
+      Effect.gen(function* () {
+        const view = teamsView(yield* directory.load, actorId);
+        if (view._tag !== "Viewed") return view;
+        const nextRoundDates = yield* rounds.nextRoundDates();
+        return {
+          _tag: "Viewed" as const,
+          value: view.value.map((team) => ({
+            ...team,
+            nextRoundDate: nextRoundDates[team.id] ?? null,
+          })),
+        };
+      }),
     viewTeam: (actorId: PersonId, teamId: TeamId) =>
       directory.load.pipe(Effect.map((state) => teamView(state, actorId, teamId))),
     viewSettings: (actorId: PersonId) =>

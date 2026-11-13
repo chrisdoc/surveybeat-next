@@ -381,6 +381,8 @@ describe("App Scenes", () => {
         name: "Engineering",
         timeZone: decodeTimeZone("Europe/Berlin"),
         yourRole: "lead" as const,
+        memberCount: 3,
+        nextRoundDate: "2026-11-16",
       };
 
       Scene.scene(
@@ -391,6 +393,9 @@ describe("App Scenes", () => {
           teams: { _tag: "Loaded", teams: [teamSummary] },
         }),
         Scene.expect(Scene.text("Engineering")).toExist(),
+        // The row carries the facts: role badge, size, and the next Round.
+        Scene.expect(Scene.text("Lead")).toExist(),
+        Scene.expect(Scene.text("3 people · Next Round Nov 16, 2026")).toExist(),
         Scene.expect(Scene.role("heading", { name: "Create a Team" })).toBeAbsent(),
         Scene.click(Scene.role("button", { name: "Create Team" })),
         Scene.expect(Scene.role("heading", { name: "Create a Team" })).toExist(),

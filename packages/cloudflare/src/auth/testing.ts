@@ -527,8 +527,17 @@ export class MemoryOrganizations {
           ),
         };
       }),
+    // The fake has no Round dates, so every Team reads as having none scheduled.
     teams: (organizationId, actorId) =>
-      Effect.sync(() => teamsView(this.organization(organizationId).state, actorId)),
+      Effect.sync(() => {
+        const view = teamsView(this.organization(organizationId).state, actorId);
+        return view._tag === "Viewed"
+          ? {
+              _tag: "Viewed" as const,
+              value: view.value.map((team) => ({ ...team, nextRoundDate: null })),
+            }
+          : view;
+      }),
     team: (organizationId, actorId, teamId) =>
       Effect.sync(() => teamView(this.organization(organizationId).state, actorId, teamId)),
     settings: (organizationId, actorId) =>
