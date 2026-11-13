@@ -8,8 +8,12 @@ export const de = {
   "app.error": "Etwas ist schiefgelaufen. Versuch es gleich noch einmal.",
   "app.retry": "Erneut versuchen",
   "signIn.title": "Bei SurveyBeat anmelden",
+  "signIn.framing": "Kurze Check-ins, die zeigen, wie es deinem Team wirklich geht.",
   "signIn.intro":
     "Nutze einen Code, den wir dir per E-Mail schicken, oder dein Google- oder Microsoft-Konto.",
+  "signIn.privacy":
+    "Anonym von Grund auf: Antworten werden nie mit einem Namen oder einer Uhrzeit gespeichert.",
+  "signIn.privacyLink": "So schützen wir deine Daten",
   "signIn.action": "Anmelden",
   "signIn.failed": "Anmelden hat nicht geklappt. Versuch es bitte noch einmal.",
   "signOut.action": "Abmelden",

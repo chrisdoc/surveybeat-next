@@ -3442,6 +3442,22 @@ describe("App Scenes", () => {
       );
     });
 
+    it("centres the sign-in card with product framing and the privacy promise", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(makeUrl("https://app.surveybeat.com/")),
+          session: { _tag: "SignedOut", failed: false },
+        }),
+        Scene.expect(Scene.text("Short check-ins that show how your Team is really doing.")).toExist(),
+        Scene.expect(Scene.role("button", { name: "Sign in" })).toExist(),
+        Scene.expect(Scene.role("link", { name: "How privacy works" })).toExist(),
+        Scene.expect(
+          Scene.text("Anonymous by design: answers are never stored with a name or a time."),
+        ).toExist(),
+      );
+    });
+
     it("renders privacy link on sign in page", () => {
       Scene.scene(
         { update, view },

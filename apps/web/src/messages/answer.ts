@@ -4,6 +4,7 @@
  * which keeps this module out of the German page's bundle.
  */
 export const answerCatalog = {
+  "answer.mark": "SurveyBeat",
   "answer.title": "Your answer",
   "answer.placeholder": "Your Question will appear here.",
   "answer.remaining.one": "{count} Question left",
@@ -14,7 +15,7 @@ export const answerCatalog = {
   "answer.finish": "Finish",
   "answer.loading": "Loading your question\u2026",
   "answer.anonymity":
-    "Your lead only sees combined answers from at least {n} people, never who answered what. Your name is never stored with your answers.",
+    "Your Lead only sees combined answers from at least {n} people. Your name is never stored.",
   "answer.aiNotice":
     "Comments are summarised by an AI service in the EU after names, emails, phone numbers, handles and links are removed. It keeps nothing.",
   "answer.comment.label": "Want to say more?",

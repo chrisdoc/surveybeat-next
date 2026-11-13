@@ -87,6 +87,7 @@ const prerenderAnswer = (): Plugin => {
 
       const body = `<main>
   <noscript><p class="err" role="alert">${message("answer.noscript")}</p></noscript>
+  <p class="mark">${message("answer.mark")}</p>
   <h1 id="pulse"></h1>
   <p class="test-banner" id="test-banner" hidden></p>
   <p class="err" id="err" role="alert" hidden></p>
