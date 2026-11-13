@@ -23,6 +23,8 @@ import {
   type Child,
   appButton,
   badge,
+  confirmDialog,
+  dangerButtonClass,
   dataTable,
   emptyState,
   linkButton,
@@ -30,7 +32,9 @@ import {
   pageShell,
   pageTitle,
   problemView,
+  secondaryButtonClass,
   selectField,
+  timeZoneOptions,
   signOutView,
   checkboxField,
   subSectionTitle,
@@ -362,12 +366,14 @@ export const teamsScreenView = <Message>(
     readonly createLeadEmail: string;
     readonly createBusy: boolean;
     readonly createFailure?: Failure | undefined;
+    readonly createOpen: boolean;
   },
   actions: {
     readonly onNameChange: (name: string) => Message;
     readonly onTimeZoneChange: (tz: string) => Message;
     readonly onLeadEmailChange: (email: string) => Message;
     readonly onSubmitCreate: Message;
+    readonly onToggleCreate: Message;
   },
   h: HtmlBuilder<Message>,
 ): Html => {
@@ -408,7 +414,25 @@ export const teamsScreenView = <Message>(
     }
   }
 
-  if (state.organizationAdmin) {
+  if (state.organizationAdmin && !state.createOpen) {
+    children.push(
+      h.div(
+        [h.Class("mt-6")],
+        [
+          appButton(
+            {
+              text: message("teams.create.open"),
+              onClick: actions.onToggleCreate,
+              className: secondaryButtonClass,
+            },
+            h,
+          ),
+        ],
+      ),
+    );
+  }
+
+  if (state.organizationAdmin && state.createOpen) {
     children.push(
       h.form(
         [h.Class(formPanelClass), h.OnSubmit(actions.onSubmitCreate)],
@@ -424,13 +448,14 @@ export const teamsScreenView = <Message>(
             },
             h,
           ),
-          textField(
+          selectField(
             {
               id: "create-team-tz",
               label: message("teams.create.timeZone"),
               value: state.createTimeZone,
+              options: timeZoneOptions(state.createTimeZone),
               isDisabled: state.createBusy,
-              onInput: actions.onTimeZoneChange,
+              onChange: actions.onTimeZoneChange,
             },
             h,
           ),
@@ -446,13 +471,26 @@ export const teamsScreenView = <Message>(
             h,
           ),
           problemView(state.createFailure, h),
-          appButton(
-            {
-              text: message("teams.create.action"),
-              type: "submit",
-              isDisabled: state.createBusy,
-            },
-            h,
+          h.div(
+            [h.Class("flex flex-wrap gap-3")],
+            [
+              appButton(
+                {
+                  text: message("teams.create.action"),
+                  type: "submit",
+                  isDisabled: state.createBusy,
+                },
+                h,
+              ),
+              appButton(
+                {
+                  text: message("confirm.cancel"),
+                  onClick: actions.onToggleCreate,
+                  className: secondaryButtonClass,
+                },
+                h,
+              ),
+            ],
           ),
         ].filter(Predicate.isNotNull),
       ),
@@ -479,6 +517,12 @@ export const teamScreenView = <Message>(
     readonly assignLeadFailure?: Failure | undefined;
     readonly rosterBusy: boolean;
     readonly rosterFailure?: Failure | undefined;
+    readonly renameOpen: boolean;
+    readonly addMemberOpen: boolean;
+    readonly assignLeadOpen: boolean;
+    readonly pendingRemove:
+      | { readonly kind: "member" | "lead"; readonly personId: PersonId; readonly email: string }
+      | undefined;
   },
   actions: {
     readonly onRenameNameChange: (name: string) => Message;
@@ -490,6 +534,11 @@ export const teamScreenView = <Message>(
     readonly onSubmitAssignLead: Message;
     readonly onRemoveMember: (personId: PersonId) => Message;
     readonly onRemoveLead: (personId: PersonId) => Message;
+    readonly onToggleRename: Message;
+    readonly onToggleAddMember: Message;
+    readonly onToggleAssignLead: Message;
+    readonly onConfirmRemove: Message;
+    readonly onCancelRemove: Message;
   },
   overview: Html,
   h: HtmlBuilder<Message>,
@@ -529,7 +578,25 @@ export const teamScreenView = <Message>(
     children.push(h.div([h.Class("mt-8")], [overview]));
   }
 
-  if (detail.may.update) {
+  if (detail.may.update && !state.renameOpen) {
+    children.push(
+      h.div(
+        [h.Class("mt-6")],
+        [
+          appButton(
+            {
+              text: message("team.rename.open"),
+              onClick: actions.onToggleRename,
+              className: secondaryButtonClass,
+            },
+            h,
+          ),
+        ],
+      ),
+    );
+  }
+
+  if (detail.may.update && state.renameOpen) {
     children.push(
       h.form(
         [h.Class(formPanelClass), h.OnSubmit(actions.onSubmitRename)],
@@ -545,24 +612,38 @@ export const teamScreenView = <Message>(
             },
             h,
           ),
-          textField(
+          selectField(
             {
               id: "rename-team-tz",
               label: message("teams.create.timeZone"),
               value: state.renameTimeZone,
+              options: timeZoneOptions(state.renameTimeZone),
               isDisabled: state.renameBusy,
-              onInput: actions.onRenameTimeZoneChange,
+              onChange: actions.onRenameTimeZoneChange,
             },
             h,
           ),
           problemView(state.renameFailure, h),
-          appButton(
-            {
-              text: message("team.rename.action"),
-              type: "submit",
-              isDisabled: state.renameBusy,
-            },
-            h,
+          h.div(
+            [h.Class("flex flex-wrap gap-3")],
+            [
+              appButton(
+                {
+                  text: message("team.rename.action"),
+                  type: "submit",
+                  isDisabled: state.renameBusy,
+                },
+                h,
+              ),
+              appButton(
+                {
+                  text: message("confirm.cancel"),
+                  onClick: actions.onToggleRename,
+                  className: secondaryButtonClass,
+                },
+                h,
+              ),
+            ],
           ),
         ].filter(Predicate.isNotNull),
       ),
@@ -595,22 +676,33 @@ export const teamScreenView = <Message>(
                 ),
               ],
             ),
-            mayRemove
-              ? h.div(
-                  [h.Class("flex flex-wrap gap-4")],
-                  [
-                    appButton(
-                      {
-                        text: message(isLead ? "team.removeLead" : "team.removeMember"),
-                        isDisabled: state.rosterBusy,
-                        className: linkButton,
-                        onClick: isLead
-                          ? actions.onRemoveLead(entry.personId)
-                          : actions.onRemoveMember(entry.personId),
-                      },
-                      h,
-                    ),
-                  ],
+            mayRemove && state.pendingRemove?.personId !== entry.personId
+              ? appButton(
+                  {
+                    text: message(isLead ? "team.removeLead" : "team.removeMember"),
+                    isDisabled: state.rosterBusy,
+                    className: dangerButtonClass,
+                    onClick: isLead
+                      ? actions.onRemoveLead(entry.personId)
+                      : actions.onRemoveMember(entry.personId),
+                  },
+                  h,
+                )
+              : null,
+            mayRemove && state.pendingRemove?.personId === entry.personId
+              ? confirmDialog(
+                  {
+                    title: message("confirm.removeTitle"),
+                    body: message("confirm.removeMemberBody", {
+                      email: state.pendingRemove.email,
+                    }),
+                    confirmText: message("team.removeMember"),
+                    cancelText: message("confirm.cancel"),
+                    isBusy: state.rosterBusy,
+                    onConfirm: actions.onConfirmRemove,
+                    onCancel: actions.onCancelRemove,
+                  },
+                  h,
                 )
               : null,
           ].filter(Predicate.isNotNull),
@@ -623,7 +715,25 @@ export const teamScreenView = <Message>(
   }
 
   // Add Member
-  if (detail.may.manageMembers) {
+  if (detail.may.manageMembers && !state.addMemberOpen) {
+    children.push(
+      h.div(
+        [h.Class("mt-6")],
+        [
+          appButton(
+            {
+              text: message("team.addMember.open"),
+              onClick: actions.onToggleAddMember,
+              className: secondaryButtonClass,
+            },
+            h,
+          ),
+        ],
+      ),
+    );
+  }
+
+  if (detail.may.manageMembers && state.addMemberOpen) {
     children.push(
       h.form(
         [h.Class(formPanelClass), h.OnSubmit(actions.onSubmitAddMember)],
@@ -643,13 +753,26 @@ export const teamScreenView = <Message>(
           state.addMemberAdded
             ? h.p([h.Role("status"), h.Class("text-sm font-medium text-primary")], [message("team.added")])
             : null,
-          appButton(
-            {
-              text: message("team.addMember.action"),
-              type: "submit",
-              isDisabled: state.addMemberBusy,
-            },
-            h,
+          h.div(
+            [h.Class("flex flex-wrap gap-3")],
+            [
+              appButton(
+                {
+                  text: message("team.addMember.action"),
+                  type: "submit",
+                  isDisabled: state.addMemberBusy,
+                },
+                h,
+              ),
+              appButton(
+                {
+                  text: message("confirm.cancel"),
+                  onClick: actions.onToggleAddMember,
+                  className: secondaryButtonClass,
+                },
+                h,
+              ),
+            ],
           ),
         ].filter(Predicate.isNotNull),
       ),
@@ -657,7 +780,25 @@ export const teamScreenView = <Message>(
   }
 
   // Assign Lead
-  if (detail.may.manageLeads) {
+  if (detail.may.manageLeads && !state.assignLeadOpen) {
+    children.push(
+      h.div(
+        [h.Class("mt-6")],
+        [
+          appButton(
+            {
+              text: message("team.assignLead.open"),
+              onClick: actions.onToggleAssignLead,
+              className: secondaryButtonClass,
+            },
+            h,
+          ),
+        ],
+      ),
+    );
+  }
+
+  if (detail.may.manageLeads && state.assignLeadOpen) {
     children.push(
       h.form(
         [h.Class(formPanelClass), h.OnSubmit(actions.onSubmitAssignLead)],
@@ -677,13 +818,26 @@ export const teamScreenView = <Message>(
           state.assignLeadAdded
             ? h.p([h.Role("status"), h.Class("text-sm font-medium text-primary")], [message("team.added")])
             : null,
-          appButton(
-            {
-              text: message("team.assignLead.action"),
-              type: "submit",
-              isDisabled: state.assignLeadBusy,
-            },
-            h,
+          h.div(
+            [h.Class("flex flex-wrap gap-3")],
+            [
+              appButton(
+                {
+                  text: message("team.assignLead.action"),
+                  type: "submit",
+                  isDisabled: state.assignLeadBusy,
+                },
+                h,
+              ),
+              appButton(
+                {
+                  text: message("confirm.cancel"),
+                  onClick: actions.onToggleAssignLead,
+                  className: secondaryButtonClass,
+                },
+                h,
+              ),
+            ],
           ),
         ].filter(Predicate.isNotNull),
       ),
@@ -810,21 +964,26 @@ export const settingsScreenView = <Message>(
     readonly sizeSaved: boolean;
     readonly sizeBusy: boolean;
     readonly sizeFailure?: Failure | undefined;
+    readonly sizeOpen: boolean;
     readonly aiBusy: boolean;
     readonly aiFailure?: Failure | undefined;
     readonly defaultLanguageBusy: boolean;
     readonly defaultLanguageFailure?: Failure | undefined;
     readonly peopleBusy: boolean;
     readonly peopleFailure?: Failure | undefined;
+    readonly pendingRemovePerson: { readonly personId: PersonId; readonly email: string } | undefined;
   },
   actions: {
     readonly onSizeChange: (size: string) => Message;
+    readonly onToggleSize: Message;
     readonly onSubmitSize: Message;
     readonly onAiProcessingToggle: (isOn: boolean) => Message;
     readonly onDefaultLanguageChange: (value: string) => Message;
     readonly onGrantAdmin: (personId: PersonId) => Message;
     readonly onRevokeAdmin: (personId: PersonId) => Message;
     readonly onRemovePerson: (personId: PersonId) => Message;
+    readonly onConfirmRemovePerson: Message;
+    readonly onCancelRemovePerson: Message;
     readonly onResendFailedEmail: (sendId: SendId) => Message;
   },
   h: HtmlBuilder<Message>,
@@ -842,38 +1001,73 @@ export const settingsScreenView = <Message>(
 
   const { settings } = state.settings;
 
-  // MinimumGroupSizeForm
-  children.push(
-    h.form(
-      [h.Class(formPanelClass), h.OnSubmit(actions.onSubmitSize)],
-      [
-        textField(
-          {
-            id: "min-group-size",
-            label: message("settings.minimumGroupSize"),
-            value: state.size,
-            type: "number",
-            isDisabled: state.sizeBusy,
-            onInput: actions.onSizeChange,
-          },
-          h,
-        ),
-        h.p([h.Class("text-sm text-muted")], [message("settings.minimumGroupSize.help")]),
-        problemView(state.sizeFailure, h),
-        state.sizeSaved
-          ? h.p([h.Role("status"), h.Class("text-sm font-medium text-primary")], [message("settings.saved")])
-          : null,
-        appButton(
-          {
-            text: message("settings.save"),
-            type: "submit",
-            isDisabled: state.sizeBusy,
-          },
-          h,
-        ),
-      ].filter(Predicate.isNotNull),
-    ),
-  );
+  // MinimumGroupSizeForm, opened from its button
+  if (!state.sizeOpen) {
+    children.push(
+      h.div(
+        [h.Class("mt-6")],
+        [
+          appButton(
+            {
+              text: message("settings.minimumGroupSize.open"),
+              onClick: actions.onToggleSize,
+              className: secondaryButtonClass,
+            },
+            h,
+          ),
+        ],
+      ),
+    );
+  }
+
+  if (state.sizeOpen)
+    children.push(
+      h.form(
+        [h.Class(formPanelClass), h.OnSubmit(actions.onSubmitSize)],
+        [
+          textField(
+            {
+              id: "min-group-size",
+              label: message("settings.minimumGroupSize"),
+              value: state.size,
+              type: "number",
+              isDisabled: state.sizeBusy,
+              onInput: actions.onSizeChange,
+            },
+            h,
+          ),
+          h.p([h.Class("text-sm text-muted")], [message("settings.minimumGroupSize.help")]),
+          problemView(state.sizeFailure, h),
+          state.sizeSaved
+            ? h.p(
+                [h.Role("status"), h.Class("text-sm font-medium text-primary")],
+                [message("settings.saved")],
+              )
+            : null,
+          h.div(
+            [h.Class("flex flex-wrap gap-3")],
+            [
+              appButton(
+                {
+                  text: message("settings.save"),
+                  type: "submit",
+                  isDisabled: state.sizeBusy,
+                },
+                h,
+              ),
+              appButton(
+                {
+                  text: message("confirm.cancel"),
+                  onClick: actions.onToggleSize,
+                  className: secondaryButtonClass,
+                },
+                h,
+              ),
+            ],
+          ),
+        ].filter(Predicate.isNotNull),
+      ),
+    );
 
   // AiProcessing
   children.push(
@@ -955,13 +1149,29 @@ export const settingsScreenView = <Message>(
                   },
                   h,
                 ),
-                Option.isSome(personId)
+                Option.isSome(personId) && state.pendingRemovePerson?.personId !== person.personId
                   ? appButton(
                       {
                         text: message("settings.removePerson"),
                         isDisabled: state.peopleBusy,
-                        className: linkButton,
+                        className: dangerButtonClass,
                         onClick: actions.onRemovePerson(person.personId),
+                      },
+                      h,
+                    )
+                  : null,
+                Option.isSome(personId) && state.pendingRemovePerson?.personId === person.personId
+                  ? confirmDialog(
+                      {
+                        title: message("confirm.removeTitle"),
+                        body: message("confirm.removePersonBody", {
+                          email: state.pendingRemovePerson.email,
+                        }),
+                        confirmText: message("settings.removePerson"),
+                        cancelText: message("confirm.cancel"),
+                        isBusy: state.peopleBusy,
+                        onConfirm: actions.onConfirmRemovePerson,
+                        onCancel: actions.onCancelRemovePerson,
                       },
                       h,
                     )

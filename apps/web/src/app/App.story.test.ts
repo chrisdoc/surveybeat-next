@@ -420,8 +420,9 @@ describe("App Stories", () => {
             outcome: { _tag: "Success", detail },
           }),
         ),
-        // Remove member
+        // Remove member: asking first, then confirming
         Story.message(Message.RemoveMemberClicked({ personId })),
+        Story.message(Message.ConfirmRemove()),
         Story.Command.expectHas(RemoveMember),
         Story.Command.resolve(RemoveMember, Message.RemovedMember({ outcome: { _tag: "Success" } })),
         Story.Command.expectHas(GetTeam),
@@ -527,6 +528,7 @@ describe("App Stories", () => {
         ),
         // Remove person
         Story.message(Message.RemovePersonClicked({ personId })),
+        Story.message(Message.ConfirmRemove()),
         Story.Command.expectHas(RemovePerson),
         Story.Command.resolve(RemovePerson, Message.RemovedPerson({ outcome: { _tag: "Success" } })),
         Story.Command.expectHas(GetSettings),

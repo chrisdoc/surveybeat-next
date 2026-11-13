@@ -1,4 +1,5 @@
 import { Button, Checkbox, Input, Select, Textarea } from "@foldkit/ui";
+import { Option } from "effect";
 import type { Html, HtmlBuilder } from "foldkit/html";
 import { message } from "../messages/locale.ts";
 import { type Failure, failureMessage } from "./api.ts";
@@ -14,6 +15,9 @@ export const mintButtonClass =
   "inline-flex min-h-11 items-center justify-center rounded-control bg-mint px-5 py-2 font-semibold text-evergreen hover:bg-mint-text disabled:opacity-50";
 export const darkOutlineButtonClass =
   "inline-flex min-h-11 items-center justify-center rounded-control border border-mint-text px-4 py-2 font-semibold text-white hover:bg-evergreen-raised disabled:opacity-50";
+export const dangerButtonClass =
+  "rounded-control bg-danger px-4 py-2 text-sm font-semibold text-on-primary transition hover:opacity-90 disabled:opacity-50";
+
 export const linkButton =
   "inline-flex min-h-11 items-center px-1 text-sm font-semibold text-primary underline underline-offset-4 hover:text-primary-hover disabled:opacity-50";
 export const linkClass = "font-semibold text-primary underline underline-offset-4 hover:text-primary-hover";
@@ -305,6 +309,58 @@ export const appButton = <Message>(
     },
     h,
   );
+
+/** A destructive action waiting for a yes: danger styling, Escape or Cancel closes it without changing anything. */
+export const confirmDialog = <Message>(
+  config: {
+    readonly title: string;
+    readonly body: string;
+    readonly confirmText: string;
+    readonly cancelText: string;
+    readonly onConfirm: Message;
+    readonly onCancel: Message;
+    readonly isBusy?: boolean | undefined;
+  },
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [
+      h.Role("alertdialog"),
+      h.AriaModal(true),
+      h.AriaLabel(config.title),
+      h.Class("flex flex-col gap-3 rounded-control border border-danger bg-danger-soft p-4"),
+      h.OnKeyDownPreventDefault((key) => (key === "Escape" ? Option.some(config.onCancel) : Option.none())),
+    ],
+    [
+      h.p([h.Class("font-semibold text-danger")], [config.title]),
+      h.p([h.Class("text-sm text-ink")], [config.body]),
+      h.div(
+        [h.Class("flex flex-wrap gap-3")],
+        [
+          appButton(
+            {
+              text: config.confirmText,
+              onClick: config.onConfirm,
+              isDisabled: config.isBusy === true,
+              className: dangerButtonClass,
+            },
+            h,
+          ),
+          appButton(
+            { text: config.cancelText, onClick: config.onCancel, className: secondaryButtonClass },
+            h,
+          ),
+        ],
+      ),
+    ],
+  );
+
+/** Every IANA zone the browser knows, with the current one first so an unset Team still has a choice. */
+export const timeZoneOptions = (current: string): ReadonlyArray<readonly [string, string]> => {
+  const known = Intl.supportedValuesOf("timeZone");
+  const all = known.includes(current) ? known : [current, ...known];
+  return all.map((zone): readonly [string, string] => [zone, zone]);
+};
 
 export const textField = <Message>(
   config: {

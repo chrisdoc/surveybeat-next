@@ -15,9 +15,9 @@ import { Failure } from "./api.ts";
 import {
   appButton,
   badge,
-  buttonClass,
   type Child,
   emptyState,
+  confirmDialog,
   linkButton,
   linkClass,
   pageTitle,
@@ -68,6 +68,7 @@ export const roundsScreenView = <Message>(
     readonly rates: Readonly<Record<string, number | null>>;
     readonly confirm: RoundConfirm | undefined;
     readonly skipDate: string;
+    readonly skipOpen: boolean;
     readonly busy: boolean;
     readonly failure?: Failure | undefined;
   },
@@ -75,6 +76,7 @@ export const roundsScreenView = <Message>(
     readonly onSkipWeek: (plannedOpenDate: string) => Message;
     readonly onSkipDateChange: (date: string) => Message;
     readonly onSubmitSkipDate: Message;
+    readonly onToggleSkip: Message;
     readonly onPause: Message;
     readonly onResume: Message;
     readonly onAskConfirm: (kind: RoundConfirm["kind"], roundId: RoundId) => Message;
@@ -148,28 +150,58 @@ export const roundsScreenView = <Message>(
                   ),
             ],
           ),
-          h.form(
-            [
-              h.Class("flex flex-col gap-4 rounded-panel border border-line bg-surface p-6"),
-              h.OnSubmit(actions.onSubmitSkipDate),
-            ],
-            [
-              textField(
+          state.skipOpen
+            ? null
+            : appButton(
                 {
-                  id: "skip-date",
-                  label: message("rounds.skipDate.label"),
-                  value: state.skipDate,
+                  text: message("rounds.skipDate.open"),
                   isDisabled: state.busy,
-                  onInput: actions.onSkipDateChange,
+                  className: secondaryButtonClass,
+                  onClick: actions.onToggleSkip,
                 },
                 h,
               ),
-              appButton(
-                { text: message("rounds.skipDate.action"), type: "submit", isDisabled: state.busy },
-                h,
-              ),
-            ],
-          ),
+          state.skipOpen
+            ? h.form(
+                [
+                  h.Class("flex flex-col gap-4 rounded-panel border border-line bg-surface p-6"),
+                  h.OnSubmit(actions.onSubmitSkipDate),
+                ],
+                [
+                  textField(
+                    {
+                      id: "skip-date",
+                      label: message("rounds.skipDate.label"),
+                      value: state.skipDate,
+                      isDisabled: state.busy,
+                      onInput: actions.onSkipDateChange,
+                    },
+                    h,
+                  ),
+                  h.div(
+                    [h.Class("flex flex-wrap gap-3")],
+                    [
+                      appButton(
+                        {
+                          text: message("rounds.skipDate.action"),
+                          type: "submit",
+                          isDisabled: state.busy,
+                        },
+                        h,
+                      ),
+                      appButton(
+                        {
+                          text: message("confirm.cancel"),
+                          onClick: actions.onToggleSkip,
+                          className: secondaryButtonClass,
+                        },
+                        h,
+                      ),
+                    ],
+                  ),
+                ],
+              )
+            : null,
         ].filter(Predicate.isNotNull),
       ),
     );
@@ -262,34 +294,17 @@ export const roundsScreenView = <Message>(
                 )
               : null,
             confirming !== undefined
-              ? h.div(
-                  [h.Role("alertdialog"), h.Class("flex flex-col gap-2 rounded-control bg-brass-soft p-4")],
-                  [
-                    h.p([h.Class("text-sm text-brass")], [message(`rounds.confirm.${confirming}`)]),
-                    h.div(
-                      [h.Class("flex gap-4")],
-                      [
-                        appButton(
-                          {
-                            text: message("rounds.confirm.yes"),
-                            isDisabled: state.busy,
-                            className: buttonClass,
-                            onClick: actions.onConfirm,
-                          },
-                          h,
-                        ),
-                        appButton(
-                          {
-                            text: message("rounds.confirm.no"),
-                            isDisabled: state.busy,
-                            className: secondaryButtonClass,
-                            onClick: actions.onDismissConfirm,
-                          },
-                          h,
-                        ),
-                      ],
-                    ),
-                  ],
+              ? confirmDialog(
+                  {
+                    title: message(confirming === "cancel" ? "rounds.cancel" : "rounds.closeEarly"),
+                    body: message(`rounds.confirm.${confirming}`),
+                    confirmText: message("rounds.confirm.yes"),
+                    cancelText: message("rounds.confirm.no"),
+                    isBusy: state.busy,
+                    onConfirm: actions.onConfirm,
+                    onCancel: actions.onDismissConfirm,
+                  },
+                  h,
                 )
               : null,
             failed.length > 0
