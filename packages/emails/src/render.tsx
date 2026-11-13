@@ -1,3 +1,5 @@
+// @effect-diagnostics asyncFunction:off -- React Email's render returns a Promise; the templates hold no Effect.
+
 import {
   EmailTemplates,
   InvitationTokens,

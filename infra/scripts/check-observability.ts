@@ -1,3 +1,7 @@
+// @effect-diagnostics asyncFunction:off -- a standalone Node script: it reports to the shell and never builds an Effect program.
+// @effect-diagnostics globalConsole:off -- the script writes its report to stdout/stderr; it never runs an Effect program.
+// @effect-diagnostics globalFetch:off -- the script calls the deployed stage over the platform fetch; there is no HttpClient outside a Worker.
+
 /**
  * Deployed-settings read-back for the Submission Worker (ADR 0005).
  *

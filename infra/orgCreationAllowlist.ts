@@ -1,3 +1,5 @@
+// @effect-diagnostics nodeBuiltinImport:off -- this file reads the repository from disk or spawns a process outside a Worker; the Effect FileSystem and ChildProcess services do not exist there.
+
 import { readFileSync } from "node:fs";
 import { EmailAddress } from "@surveybeat/domain";
 import * as Schema from "effect/Schema";

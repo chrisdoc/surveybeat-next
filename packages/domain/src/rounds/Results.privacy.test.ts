@@ -1,3 +1,5 @@
+// @effect-diagnostics globalRandom:off -- the test measures the production shuffle, whose order is non-deterministic by design.
+
 import { assert, describe, it } from "@effect/vitest";
 import { type DirectoryState, type MembershipRecord, type PersonRecord } from "../people/Directory.ts";
 import { EmailAddress } from "../email/Email.ts";

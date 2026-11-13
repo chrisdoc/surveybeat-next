@@ -1,3 +1,7 @@
+// @effect-diagnostics globalDate:off -- the fixture supplies the instant; the test never reads the clock.
+// @effect-diagnostics globalDateInEffect:off -- the fixture supplies the instant; the test never reads the clock.
+// @effect-diagnostics nodeBuiltinImport:off -- this file reads the repository from disk or spawns a process outside a Worker; the Effect FileSystem and ChildProcess services do not exist there.
+
 import { SqliteClient } from "@effect/sql-sqlite-do";
 import { assert, describe, it } from "@effect/vitest";
 import { calculateRoundResult, PulseId, QuestionVersionId, RoundId, TeamId } from "@surveybeat/domain";

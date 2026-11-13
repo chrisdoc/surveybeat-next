@@ -17,8 +17,10 @@ Node 24 (`.node-version`) and pnpm 12.18.0 are pinned.
 
 ```sh
 pnpm install
-pnpm typecheck          # tsc -b with project references
-pnpm typecheck:effect   # @effect/tsgo diagnostics; CI runs this first
+pnpm typecheck          # effect-tsgo tsc -b: Effect diagnostics fail the build
+pnpm typecheck:tsc      # plain tsc -b, for a second opinion
+pnpm typecheck:effect   # alias of typecheck, kept for existing callers
+pnpm check:ledger       # counts lint disables and Effect diagnostic overrides; it only shrinks
 pnpm lint               # oxlint --type-aware
 pnpm format             # oxfmt; CI runs format:check
 pnpm test               # Vitest "unit" project only
@@ -27,7 +29,7 @@ pnpm test <path>        # one file, e.g. pnpm test packages/domain/src/people/Si
 pnpm --filter @surveybeat/web build
 ```
 
-CI runs `typecheck:effect`, `typecheck`, `format:check`, `lint`, `test`, then the web build; the privacy suite is a separate required job. There is no root `dev` script: `pnpm --filter @surveybeat/web dev` serves the UI only, and the app calls the API at `window.location.origin`. Exercise sign-in and end-to-end flows on a deployed stage.
+CI runs `typecheck`, `check:ledger`, `format:check`, `lint`, `test`, then the web build; the privacy suite is a separate required job. There is no root `dev` script: `pnpm --filter @surveybeat/web dev` serves the UI only, and the app calls the API at `window.location.origin`. Exercise sign-in and end-to-end flows on a deployed stage.
 
 ## Layout and boundaries
 

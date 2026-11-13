@@ -1,3 +1,8 @@
+// @effect-diagnostics asyncFunction:off -- ADR 0008 keeps the answer entry free of Effect; fetch, timers and their Promises are the page's own async work.
+// @effect-diagnostics globalDate:off -- the page stamps the edit key it already holds; it never compares or stores the time.
+// @effect-diagnostics globalFetch:off -- ADR 0008 keeps the answer entry free of Effect, so the page calls the platform fetch directly.
+// @effect-diagnostics globalTimers:off -- the page debounces its own input with setTimeout; it has no Effect runtime.
+
 import type { AnswerMessage } from "./answer-messages.ts";
 import { keepAnswer } from "./kept-answers.ts";
 import { anonymityStatement, type QuestionData, parseRoundContext } from "./round-context.ts";

@@ -1,3 +1,5 @@
+// @effect-diagnostics cryptoRandomUUIDInEffect:off -- the id labels a captured message in a non-production stage; it is never a token or a secret.
+
 import type * as Cloudflare from "@alchemy.run/cloudflare";
 import { EmailSender } from "@surveybeat/domain";
 import type { RuntimeContext } from "alchemy/RuntimeContext";

@@ -1,3 +1,5 @@
+// @effect-diagnostics anyUnknownInErrorContext:off -- the ConfigProvider layer's failure channel is unknown in effect 4.1.2; the stack entry cannot narrow what it does not handle.
+
 import * as Cloudflare from "@alchemy.run/cloudflare";
 import { SurveyBeatApi } from "@surveybeat/api";
 import { Database, MainWorker, ProductionEmail, SiteWorker, SubmissionWorker } from "@surveybeat/cloudflare";

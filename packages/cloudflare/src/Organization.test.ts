@@ -1,3 +1,6 @@
+// @effect-diagnostics cryptoRandomUUIDInEffect:off -- the fixture needs a value, not a secure token.
+// @effect-diagnostics globalFetchInEffect:off -- the test drives the Worker with the platform fetch; an HttpClient belongs to the Worker, not to the test.
+
 import "./auth/localTestSecrets.ts";
 import * as Cloudflare from "@alchemy.run/cloudflare";
 import * as Test from "@alchemy.run/test/Vitest";

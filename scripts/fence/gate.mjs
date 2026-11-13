@@ -4,8 +4,8 @@ import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const steps = [
-  { name: "typecheck:effect", args: ["run", "typecheck:effect"] },
   { name: "typecheck", args: ["run", "typecheck"] },
+  { name: "check:ledger", args: ["run", "check:ledger"] },
   { name: "format:check", args: ["run", "format:check"] },
   { name: "lint", args: ["run", "lint"] },
   { name: "test", args: ["run", "test"] },

@@ -1,3 +1,5 @@
+// @effect-diagnostics globalDate:off -- every instant here arrives as an argument; these functions only parse and format it in a fixed time zone.
+
 import type { PersonId } from "../people/Identity.ts";
 import { actorOf, type DirectoryState } from "../people/Directory.ts";
 import { type Actor, can, type TeamAction } from "../people/Permissions.ts";

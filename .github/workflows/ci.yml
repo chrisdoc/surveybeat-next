@@ -25,8 +25,8 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Typecheck with Effect diagnostics
-        run: pnpm typecheck:effect
-      - run: pnpm typecheck
+        run: pnpm typecheck
+      - run: pnpm check:ledger
       - run: pnpm format:check
       - run: pnpm lint
       - run: pnpm --filter @surveybeat/web build

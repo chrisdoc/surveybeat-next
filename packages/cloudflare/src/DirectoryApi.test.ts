@@ -1,3 +1,5 @@
+// @effect-diagnostics asyncFunction:off -- the vitest runner awaits a plain Promise here; the test never enters an Effect.
+
 import { describe, expect, it } from "@effect/vitest";
 import { type OrganizationId, type PersonId, SendId, type SendState } from "@surveybeat/domain";
 import { Browser, ORIGIN, SignInWorld } from "./auth/testing.ts";

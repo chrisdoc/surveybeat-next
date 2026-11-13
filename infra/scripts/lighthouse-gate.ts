@@ -1,3 +1,8 @@
+// @effect-diagnostics asyncFunction:off -- a standalone Node script: it reports to the shell and never builds an Effect program.
+// @effect-diagnostics globalConsole:off -- the script writes its report to stdout/stderr; it never runs an Effect program.
+// @effect-diagnostics newPromise:off -- the script waits on a child process or a timeout with a plain Promise; there is no Effect runtime in it.
+// @effect-diagnostics nodeBuiltinImport:off -- this file reads the repository from disk or spawns a process outside a Worker; the Effect FileSystem and ChildProcess services do not exist there.
+
 import { spawn } from "node:child_process";
 import { createServer } from "node:http";
 import { readFileSync, existsSync } from "node:fs";

@@ -1,3 +1,5 @@
+// @effect-diagnostics globalRandom:off -- the shuffle is the deliberate unlinkability step (A4); its whole point is a non-deterministic order, not reproducible randomness.
+
 import { Effect, Schema } from "effect";
 import { TeamId } from "../people/Team.ts";
 import { AnonymityMode, PulseId } from "../pulses/Pulse.ts";

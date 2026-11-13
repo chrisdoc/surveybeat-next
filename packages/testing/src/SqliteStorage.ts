@@ -1,3 +1,5 @@
+// @effect-diagnostics asyncFunction:off -- node:sqlite's transaction callback is async; the harness exposes it to the test, not to an Effect runtime.
+
 import type { DatabaseSync, SQLInputValue } from "node:sqlite";
 
 /**

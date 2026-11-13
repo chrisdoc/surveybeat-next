@@ -1,3 +1,6 @@
+// @effect-diagnostics asyncFunction:off -- the vitest runner awaits a plain Promise here; the test never enters an Effect.
+// @effect-diagnostics cryptoRandomUUIDInEffect:off -- the fake session id is a fixture value, not a token.
+
 import { SurveyBeatApi } from "@surveybeat/api";
 import {
   applyChanges,
