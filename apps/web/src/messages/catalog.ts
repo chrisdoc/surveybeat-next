@@ -22,7 +22,8 @@ export const catalog = {
   "createOrganization.name": "Organization name",
   "createOrganization.action": "Create Organization",
   "notInOrganization.title": "You're not part of an Organization yet",
-  "notInOrganization.intro": "Ask your team lead to add the email you signed in with, then sign in again.",
+  "notInOrganization.intro":
+    "Ask a Lead on your Team to add the email you signed in with, then sign in again.",
   "chooseOrganization.title": "Choose an Organization",
   "chooseOrganization.intro": "You belong to more than one. Pick the one to open.",
   "title.page": "{screen} · {context} — SurveyBeat",
@@ -127,7 +128,7 @@ export const catalog = {
   "pulses.back": "Back to the Team",
   "pulses.title": "Pulses of {team}",
   "pulses.empty": "This Team has no Pulse yet.",
-  "pulses.summary": "{day} {time} · {questions} · about {seconds} s",
+  "pulses.summary": "{day} {time} · {questions} · {duration}",
   "pulses.paused": "Paused",
   "pulses.nextRound": "Next Round {date}",
   "pulses.noRound": "No Round scheduled",
@@ -136,7 +137,7 @@ export const catalog = {
   "pulses.create.action": "Create a Pulse",
   "pulse.questionCount.one": "{count} Question",
   "pulse.questionCount.other": "{count} Questions",
-  "pulse.estimate": "{questions}, about {seconds} seconds to answer.",
+  "pulse.estimate": "{questions}, {duration} to answer.",
   "pulse.warning.TooManyQuestions":
     "{count} Questions is a lot. Pulses with up to {recommended} Questions get more answers.",
   "pulse.warning.TooLong":
@@ -147,7 +148,7 @@ export const catalog = {
     "This Team has {members} people, fewer than the {minimumGroupSize} needed before any Result is shown. You can still set up the Pulse.",
   "pulse.questions": "Questions",
   "pulse.question.numbered": "{number}. {text}",
-  "pulse.question.meta": "{type} · {dimension} · about {seconds} s",
+  "pulse.question.meta": "{type} · {dimension} · {duration}",
   "pulse.question.up": "Move up",
   "pulse.question.down": "Move down",
   "pulse.question.edit": "Edit",
@@ -220,6 +221,8 @@ export const catalog = {
   "role.member": "member",
   "role.viewer": "viewer",
   "settings.title": "Organization settings",
+  "duration.seconds": "about {seconds} s",
+  "duration.minutes": "about {minutes} min",
   "settings.minimumGroupSize": "Minimum group size",
   "settings.minimumGroupSize.help":
     "Results are shown only when at least this many people contributed. At least 3.",
@@ -322,8 +325,8 @@ export const catalog = {
   "results.openSubmissions.other": "{count} Submissions received so far.",
   "results.subNPlaceholder": "Not enough answers to protect anonymity",
   "results.subNQuestion": "Fewer than {n} answers to protect anonymity",
-  "results.buildingBaseline": "Building this Team's baseline ({count} of {total} usable rounds)",
-  "results.biggerChangeThanUsual": "Bigger change than usual for this team",
+  "results.buildingBaseline": "Building this Team's baseline ({count} of {total} usable Rounds)",
+  "results.biggerChangeThanUsual": "Bigger change than usual for this Team",
   "results.highlight.usualMove": "Usually moves about ±{change} between Rounds",
   "results.changeRise": "{change} since last Round ({date})",
   "results.changeDrop": "{change} since last Round ({date})",
@@ -442,9 +445,15 @@ export const catalog = {
   ...answerCatalog,
   "privacy.title": "Privacy at SurveyBeat",
   "privacy.back": "Back",
-  "privacy.anonymity.title": "Anonymous submissions",
+  "privacy.groupSize.title": "Nothing shown below the minimum group size",
+  "privacy.groupSize.body":
+    "Every average, chart and theme waits until at least 4 people have answered. Your Organization can raise that number, never below 3.",
+  "privacy.aiProcessing.title": "AI processing is off until an admin turns it on",
+  "privacy.aiProcessing.body":
+    "Themes and discussion guides are written only when an Organization admin turns AI processing on in Settings. Comments are sent to an AI service only after names, email addresses, phone numbers, handles and links are removed, and the service keeps nothing. Members are told on the answer page and in their emails.",
+  "privacy.anonymity.title": "Anonymous Submissions",
   "privacy.anonymity.body":
-    "Anonymous submissions store no name and no time. Your name, email, and IP address are never recorded with your answers, and answers are saved without a timestamp so they cannot be linked to access logs.",
+    "Anonymous Submissions store no name and no time. Your name, email, and IP address are never recorded with your answers, and answers are saved without a timestamp so they cannot be linked to access logs.",
   "privacy.comments.title": "Comment redaction",
   "privacy.comments.body":
     "Comments are redacted before storage. Names of people in your Organization, email addresses, phone numbers, handles, and URLs are automatically stripped. Other phrasing is kept intact, so please leave out personal details.",
@@ -456,7 +465,7 @@ export const catalog = {
     "When you submit answers, an anonymous Edit key is stored solely in your local browser. Losing or clearing the Edit key means answers cannot be changed.",
   "privacy.restoreTrigger.title": "Who can trigger a restore",
   "privacy.restoreTrigger.body":
-    "Only authorized infrastructure operators with verified credentials can initiate a disaster recovery restore. Organization admins and team leads cannot inspect raw backups or trigger restores.",
+    "Only authorized infrastructure operators with verified credentials can initiate a disaster recovery restore. Organization admins and Leads cannot inspect raw backups or trigger restores.",
   "history.title": "My history",
   "history.intro":
     "The check-ins you took part in. Your own answers are kept only in this browser, for one year. SurveyBeat never stores which answers are yours.",
@@ -483,6 +492,7 @@ export const catalog = {
   "language.followBrowser": "Same as my browser",
   "language.en": "English",
   "language.de": "Deutsch",
+  "settings.defaultLanguage.field": "Language",
   "settings.defaultLanguage": "Default language",
   "settings.defaultLanguage.help":
     "Used for People who have not chosen a language and whose browser language SurveyBeat does not offer, and for their emails.",

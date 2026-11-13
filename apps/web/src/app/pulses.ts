@@ -17,7 +17,7 @@ import {
 import { Option, Predicate, Schema } from "effect";
 import type { Html, HtmlBuilder } from "foldkit/html";
 import { defineTaggedUnion } from "foldkit/schema";
-import { formatRoundDate, message, pluralMessage } from "../messages/locale.ts";
+import { formatDuration, formatRoundDate, message, pluralMessage } from "../messages/locale.ts";
 import { Failure } from "./api.ts";
 import {
   appButton,
@@ -262,7 +262,7 @@ export const pulsesScreenView = <Message>(
                             day: message(`weekday.${pulse.cadence.day}`),
                             time: pulse.cadence.time,
                             questions: pluralMessage("pulse.questionCount", pulse.questionCount),
-                            seconds: pulse.estimatedSeconds,
+                            duration: formatDuration(pulse.estimatedSeconds),
                           }),
                         ],
                       ),
@@ -566,7 +566,7 @@ export const pulseEditorView = <Message>(
       [
         message("pulse.estimate", {
           questions: pluralMessage("pulse.questionCount", detail.questions.length),
-          seconds: detail.estimatedSeconds,
+          duration: formatDuration(detail.estimatedSeconds),
         }),
       ],
     ),
@@ -609,7 +609,7 @@ export const pulseEditorView = <Message>(
                 message("pulse.question.meta", {
                   type: typeName(question.type),
                   dimension: dimensionName(question.dimension),
-                  seconds: question.estimatedSeconds,
+                  duration: formatDuration(question.estimatedSeconds),
                 }),
               ],
             ),

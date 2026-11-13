@@ -2503,7 +2503,7 @@ describe("App Scenes", () => {
         Scene.scene(
           { update, view },
           flaggedScene(flaggedResult("rise", 4.2)),
-          Scene.expect(Scene.text("Bigger change than usual for this team")).toExist(),
+          Scene.expect(Scene.text("Bigger change than usual for this Team")).toExist(),
           Scene.expect(Scene.selector('[data-direction="rise"] path')).toHaveAttr("d", "M6 11V4M3 7l3-3 3 3"),
           Scene.expect(Scene.selector('[data-direction="drop"]')).toBeAbsent(),
           Scene.expect(Scene.text("Usually moves about ±0.3 between Rounds")).toExist(),
@@ -3415,12 +3415,30 @@ describe("App Scenes", () => {
           session: { _tag: "SignedOut", failed: false },
         }),
         Scene.expect(Scene.role("heading", { name: "Privacy at SurveyBeat" })).toExist(),
-        Scene.expect(Scene.role("heading", { name: "Anonymous submissions" })).toExist(),
+        Scene.expect(Scene.role("heading", { name: "Nothing shown below the minimum group size" })).toExist(),
+        Scene.expect(
+          Scene.role("heading", { name: "AI processing is off until an admin turns it on" }),
+        ).toExist(),
+        Scene.expect(Scene.role("heading", { name: "Anonymous Submissions" })).toExist(),
         Scene.expect(Scene.role("heading", { name: "Comment redaction" })).toExist(),
         Scene.expect(Scene.role("heading", { name: "30-day point-in-time restore window" })).toExist(),
         Scene.expect(Scene.role("heading", { name: "Changing your answers" })).toExist(),
         Scene.expect(Scene.role("heading", { name: "Who can trigger a restore" })).toExist(),
         Scene.expect(Scene.role("link", { name: "Back" })).toExist(),
+      );
+    });
+
+    it("keeps the app nav on the privacy page when signed in", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(makeUrl("https://app.surveybeat.com/privacy")),
+          session: signedInAdmin,
+        }),
+        Scene.expect(Scene.role("link", { name: "Teams" })).toExist(),
+        Scene.expect(
+          Scene.role("heading", { name: "AI processing is off until an admin turns it on" }),
+        ).toExist(),
       );
     });
 
@@ -3531,8 +3549,8 @@ describe("App Scenes", () => {
           settings: { _tag: "Loaded", settings },
           size: "4",
         }),
-        Scene.expect(Scene.label("Default language")).toExist(),
-        Scene.change(Scene.label("Default language"), "de"),
+        Scene.expect(Scene.label("Language")).toExist(),
+        Scene.change(Scene.label("Language"), "de"),
         Scene.Command.expectHas(UpdateDefaultLanguage),
         Scene.Command.resolve(
           UpdateDefaultLanguage,

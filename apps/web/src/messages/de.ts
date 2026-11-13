@@ -124,7 +124,7 @@ export const de = {
   "pulses.back": "Zurück zum Team",
   "pulses.title": "Pulses von {team}",
   "pulses.empty": "Dieses Team hat noch keinen Pulse.",
-  "pulses.summary": "{day} {time} · {questions} · etwa {seconds} s",
+  "pulses.summary": "{day} {time} · {questions} · {duration}",
   "pulses.paused": "Pausiert",
   "pulses.nextRound": "Nächster Durchlauf {date}",
   "pulses.noRound": "Kein Durchlauf geplant",
@@ -133,7 +133,7 @@ export const de = {
   "pulses.create.action": "Pulse erstellen",
   "pulse.questionCount.one": "{count} Frage",
   "pulse.questionCount.other": "{count} Fragen",
-  "pulse.estimate": "{questions}, etwa {seconds} Sekunden zum Beantworten.",
+  "pulse.estimate": "{questions}, {duration} zum Beantworten.",
   "pulse.warning.TooManyQuestions":
     "{count} Fragen sind viel. Pulses mit bis zu {recommended} Fragen bekommen mehr Antworten.",
   "pulse.warning.TooLong":
@@ -144,7 +144,7 @@ export const de = {
     "Dieses Team hat {members} Personen, weniger als die {minimumGroupSize}, die vor der Anzeige eines Ergebnisses nötig sind. Du kannst den Pulse trotzdem einrichten.",
   "pulse.questions": "Fragen",
   "pulse.question.numbered": "{number}. {text}",
-  "pulse.question.meta": "{type} · {dimension} · etwa {seconds} s",
+  "pulse.question.meta": "{type} · {dimension} · {duration}",
   "pulse.question.up": "Nach oben",
   "pulse.question.down": "Nach unten",
   "pulse.question.edit": "Bearbeiten",
@@ -217,6 +217,8 @@ export const de = {
   "role.member": "Mitglied",
   "role.viewer": "Nur lesen",
   "settings.title": "Organisationseinstellungen",
+  "duration.seconds": "etwa {seconds} Sek.",
+  "duration.minutes": "etwa {minutes} Min.",
   "settings.minimumGroupSize": "Mindestgruppengröße",
   "settings.minimumGroupSize.help":
     "Ergebnisse werden nur angezeigt, wenn mindestens so viele Personen beigetragen haben. Mindestens 3.",
@@ -451,6 +453,12 @@ export const de = {
   ...answerDe,
   "privacy.title": "Datenschutz bei SurveyBeat",
   "privacy.back": "Zurück",
+  "privacy.groupSize.title": "Nichts unter der Mindestgruppengröße",
+  "privacy.groupSize.body":
+    "Jeder Durchschnitt, jedes Diagramm und jedes Thema wartet, bis mindestens 4 Personen geantwortet haben. Deine Organisation kann die Zahl erhöhen, aber nie unter 3 setzen.",
+  "privacy.aiProcessing.title": "KI-Verarbeitung ist aus, bis ein Admin sie einschaltet",
+  "privacy.aiProcessing.body":
+    "Themen und Gesprächsleitfäden entstehen nur, wenn ein Organisations-Admin die KI-Verarbeitung in den Einstellungen einschaltet. Kommentare gehen erst an einen KI-Dienst, wenn Namen, E-Mail-Adressen, Telefonnummern, Handles und Links entfernt sind, und der Dienst behält nichts. Mitglieder erfahren es auf der Antwortseite und in ihren E-Mails.",
   "privacy.anonymity.title": "Anonyme Einsendungen",
   "privacy.anonymity.body":
     "Anonyme Einsendungen speichern weder einen Namen noch eine Zeit. Dein Name, deine E-Mail-Adresse und deine IP-Adresse werden nie zusammen mit deinen Antworten erfasst. Antworten werden ohne Zeitstempel gespeichert, damit sie nicht mit Zugriffsprotokollen verknüpft werden können.",
@@ -492,6 +500,7 @@ export const de = {
   "language.followBrowser": "Wie mein Browser",
   "language.en": "English",
   "language.de": "Deutsch",
+  "settings.defaultLanguage.field": "Sprache",
   "settings.defaultLanguage": "Standardsprache",
   "settings.defaultLanguage.help":
     "Wird für Personen verwendet, die keine Sprache gewählt haben und deren Browsersprache SurveyBeat nicht anbietet, sowie für ihre E-Mails.",
