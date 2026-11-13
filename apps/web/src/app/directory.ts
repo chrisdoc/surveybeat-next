@@ -357,9 +357,43 @@ export const shellView = <Message>(
   );
 };
 
+/** One thing on the home page that needs the person's attention, with the link that acts on it. */
+export interface AttentionItem {
+  readonly label: string;
+  readonly text: string;
+  readonly detail: string;
+  readonly href: string;
+}
+
+/** The home page's attention list: what is waiting, or one sentence and a link when nothing is. */
+const attentionView = <Message>(items: ReadonlyArray<AttentionItem>, h: HtmlBuilder<Message>): Html =>
+  items.length === 0
+    ? emptyState(
+        {
+          title: message("home.attention.empty.title"),
+          body: message("home.attention.empty.body"),
+          action: { text: message("home.attention.empty.action"), href: historyHref() },
+        },
+        h,
+      )
+    : h.ul(
+        [h.Class("mt-3 flex flex-col gap-2")],
+        items.map((item) =>
+          h.li(
+            [h.Class("flex flex-wrap items-baseline gap-x-3 gap-y-1")],
+            [
+              h.span([h.Class("text-sm font-semibold text-muted")], [item.label]),
+              h.a([h.Href(item.href), h.Class(`break-words ${linkClass}`)], [item.text]),
+              h.span([h.Class("text-sm text-muted")], [item.detail]),
+            ],
+          ),
+        ),
+      );
+
 export const teamsScreenView = <Message>(
   state: {
     readonly teams: LoadedTeams;
+    readonly attention: ReadonlyArray<AttentionItem>;
     readonly organizationAdmin: boolean;
     readonly createName: string;
     readonly createTimeZone: string;
@@ -377,7 +411,14 @@ export const teamsScreenView = <Message>(
   },
   h: HtmlBuilder<Message>,
 ): Html => {
-  const children: Array<Child> = [pageTitle(message("teams.title"), h)];
+  const children: Array<Child> = [
+    pageTitle(message("home.attention.title"), h),
+    attentionView(state.attention, h),
+  ];
+
+  if (state.teams._tag === "Loaded" && state.teams.teams.length > 0) {
+    children.push(h.div([h.Class("mt-8")], [subSectionTitle(message("home.teams.title"), h, 2)]));
+  }
 
   if (state.teams._tag === "Failed") {
     children.push(problemView(state.teams.failure, h)!);

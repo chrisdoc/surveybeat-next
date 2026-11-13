@@ -97,6 +97,8 @@ const decodeTimeZone = Schema.decodeSync(TimeZone);
 const decodeEmail = Schema.decodeSync(EmailAddress);
 const decodeSize = Schema.decodeSync(MinimumGroupSize);
 const decodeSendTime = Schema.decodeSync(SendTime);
+const decodeRoundId = Schema.decodeSync(RoundId);
+const decodeActionId = Schema.decodeSync(ActionId);
 const decodeSendId = Schema.decodeSync(SendId);
 
 const makeUrl = (str: string) => Option.getOrThrow(fromString(str));
@@ -182,7 +184,7 @@ describe("App Scenes", () => {
             outcome: { _tag: "Success", teams: [] },
           }),
         ),
-        Scene.expect(Scene.role("heading", { name: "Teams" })).toExist(),
+        Scene.expect(Scene.role("heading", { name: "What needs my attention" })).toExist(),
       );
     });
 
@@ -236,6 +238,119 @@ describe("App Scenes", () => {
             outcome: { _tag: "Success", teams: [] },
           }),
         ),
+      );
+    });
+  });
+
+  describe("Home page", () => {
+    const teamId = decodeTeamId("team-1");
+    const pulseId = decodePulseId("pulse-1");
+    const roundId = decodeRoundId("round-1");
+    const actionId = decodeActionId("action-1");
+    const teamSummary = {
+      id: teamId,
+      name: "Engineering",
+      timeZone: decodeTimeZone("Europe/Berlin"),
+      yourRole: "lead" as const,
+    };
+    const pulse = {
+      id: pulseId,
+      name: "Weekly check-in",
+      cadence: { _tag: "Weekly" as const, day: "monday" as const, time: decodeSendTime("09:00") },
+      questionCount: 3,
+      estimatedSeconds: 90,
+    };
+    const round = (status: "closed" | "open" | "shared") => ({
+      id: roundId,
+      pulseId,
+      teamId,
+      status,
+      plannedOpenDate: "2026-11-09",
+      plannedOpenAt: Date.parse("2026-11-09T09:00:00Z"),
+      openedAt: status === "open" ? Date.parse("2026-11-09T09:00:00Z") : null,
+      plannedCloseAt: Date.parse("2026-11-13T09:00:00Z"),
+      closedAt: status === "open" ? null : Date.parse("2026-11-13T09:00:00Z"),
+      pulseName: "Weekly check-in",
+    });
+    const action = (status: "committed" | "done") => ({
+      id: actionId,
+      teamId,
+      roundId,
+      title: "Fix standups",
+      ownerId: decodePersonId("person-1"),
+      ownerEmail: decodeEmail("alice@acme.com"),
+      dueDate: "2026-11-20",
+      dimension: null,
+      status,
+      createdAt: Date.parse("2026-11-01T09:00:00Z"),
+      updatedAt: Date.parse("2026-11-01T09:00:00Z"),
+      doneAt: status === "done" ? Date.parse("2026-11-02T09:00:00Z") : null,
+    });
+    const home = (status: "closed" | "open" | "shared", actionStatus: "committed" | "done") => ({
+      teams: { _tag: "Loaded" as const, teams: [teamSummary] },
+      homePulses: { [teamId]: { team: teamSummary, pulses: [pulse] } },
+      homeRounds: { [pulseId]: { pulseId, paused: false, rounds: [round(status)] } },
+      homeActions: { [teamId]: [action(actionStatus)] },
+    });
+
+    it("tells a Lead what waits: Results to share, an open Round, an Action due", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(makeUrl("https://app.surveybeat.com/")),
+          session: signedInAdmin,
+          ...home("closed", "committed"),
+        }),
+        Scene.expect(Scene.role("heading", { name: "What needs my attention" })).toExist(),
+        Scene.expect(Scene.text("Results ready to share")).toExist(),
+        Scene.expect(Scene.text("Action due")).toExist(),
+        Scene.expect(Scene.role("link", { name: "Fix standups" })).toExist(),
+        Scene.expect(Scene.text("Nothing needs your attention")).toBeAbsent(),
+      );
+    });
+
+    it("shows an open Round as the thing to act on", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(makeUrl("https://app.surveybeat.com/")),
+          session: signedInAdmin,
+          ...home("open", "done"),
+        }),
+        Scene.expect(Scene.text("Round open")).toExist(),
+        Scene.expect(Scene.text("Results ready to share")).toBeAbsent(),
+        Scene.expect(Scene.text("Action due")).toBeAbsent(),
+      );
+    });
+
+    it("says nothing needs attention when the Round is shared and the Action is done", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(makeUrl("https://app.surveybeat.com/")),
+          session: signedInAdmin,
+          ...home("shared", "done"),
+        }),
+        Scene.expect(Scene.text("Nothing needs your attention")).toExist(),
+        Scene.expect(Scene.role("link", { name: "See your history" })).toExist(),
+        Scene.expect(Scene.text("Results ready to share")).toBeAbsent(),
+      );
+    });
+
+    it("offers a member nothing to act on", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(makeUrl("https://app.surveybeat.com/")),
+          session: signedInAdmin,
+          teams: {
+            _tag: "Loaded",
+            teams: [{ ...teamSummary, yourRole: "member" as const }],
+          },
+        }),
+        Scene.expect(Scene.text("Nothing needs your attention")).toExist(),
+        Scene.expect(Scene.role("link", { name: "See your history" })).toExist(),
+        Scene.expect(Scene.text("Round open")).toBeAbsent(),
       );
     });
   });

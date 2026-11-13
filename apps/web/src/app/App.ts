@@ -67,7 +67,7 @@ import {
   teamScreenView,
   teamsScreenView,
 } from "./directory.ts";
-import type { ChecklistStep } from "./directory.ts";
+import type { AttentionItem, ChecklistStep } from "./directory.ts";
 import { historyView, LoadedHistory } from "./history.ts";
 import { browserStorage, clearKeptAnswers, KeptAnswers, readKeptAnswers } from "./keptAnswers.ts";
 import { LoadedOverview, teamOverviewView } from "./overview.ts";
@@ -84,7 +84,15 @@ import {
 } from "./pulses.ts";
 import { GuideCopy, LoadedActions, LoadedNote, LoadedResults, resultsScreenView } from "./results.ts";
 import { isLead, LoadedRounds, RoundConfirm, roundsScreenView } from "./rounds.ts";
-import { AppRoute, pulseHref, pulsesHref, roundsHref, teamHref, urlToAppRoute } from "./routes.ts";
+import {
+  AppRoute,
+  pulseHref,
+  pulsesHref,
+  roundResultsHref,
+  roundsHref,
+  teamHref,
+  urlToAppRoute,
+} from "./routes.ts";
 import { screenTitle } from "./titles.ts";
 import {
   chooseOrganizationView,
@@ -167,6 +175,10 @@ export const Model = Schema.Struct({
   failedEmailResends: Schema.Record(Schema.String, FailedEmailResend),
   // Pulses list screen
   pulses: LoadedPulses,
+  /** The home page: each Team's Pulses, each Pulse's Rounds and each Team's Actions, by id. */
+  homePulses: Schema.Record(Schema.String, PulseList),
+  homeRounds: Schema.Record(Schema.String, RoundList),
+  homeActions: Schema.Record(Schema.String, Schema.Array(ActionItem)),
   createPulseBusy: Schema.Boolean,
   createPulseFailure: Schema.Option(Failure),
   // Pulse editor screen
@@ -1183,6 +1195,9 @@ export const initialModel = (url: Url): Model => {
     failedEmails: { _tag: "Loading" },
     failedEmailResends: {},
     pulses: { _tag: "Loading" },
+    homePulses: {},
+    homeRounds: {},
+    homeActions: {},
     createPulseBusy: false,
     createPulseFailure: Option.none(),
     pulseDetail: { _tag: "Loading" },
@@ -1241,6 +1256,64 @@ export const initialModel = (url: Url): Model => {
     noteBusy: false,
     noteFailure: Option.none(),
   };
+};
+
+/**
+ * The home page's "what needs my attention", built from the Team reads already in the Model:
+ * Rounds that closed without being shared, Rounds open now, and Actions committed but not done.
+ * Empty for a member, who has nothing to act on there.
+ */
+const attentionItems = (model: Model): ReadonlyArray<AttentionItem> => {
+  if (model.route._tag !== "Teams") return [];
+  if (model.teams._tag !== "Loaded") return [];
+  const items: Array<AttentionItem> = [];
+  for (const team of model.teams.teams) {
+    const pulses = model.homePulses[team.id];
+    if (pulses !== undefined) {
+      for (const pulse of pulses.pulses) {
+        const rounds = model.homeRounds[pulse.id];
+        if (rounds === undefined) continue;
+        for (const round of rounds.rounds) {
+          if (round.status === "closed" || round.status === "ready") {
+            items.push({
+              label: message("home.attention.share"),
+              text: round.pulseName,
+              detail: message("home.attention.shareDetail", {
+                team: team.name,
+                date: formatRoundDate(round.plannedOpenDate),
+              }),
+              href: roundResultsHref(team.id, round.id),
+            });
+          } else if (round.status === "open") {
+            items.push({
+              label: message("home.attention.open"),
+              text: round.pulseName,
+              detail: message("home.attention.openDetail", {
+                team: team.name,
+                date: formatRoundDate(round.plannedOpenDate),
+              }),
+              href: roundsHref(team.id, pulse.id),
+            });
+          }
+        }
+      }
+    }
+    const actions = model.homeActions[team.id];
+    if (actions === undefined) continue;
+    for (const action of actions) {
+      if (action.status !== "committed") continue;
+      items.push({
+        label: message("home.attention.action"),
+        text: action.title,
+        detail: message("home.attention.actionDetail", {
+          team: team.name,
+          owner: action.ownerEmail,
+        }),
+        href: roundResultsHref(team.id, action.roundId),
+      });
+    }
+  }
+  return items;
 };
 
 /**
@@ -1430,6 +1503,9 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         teamOverview: { _tag: "Loading" },
         history: { _tag: "Loading" },
         pulses: { _tag: "Loading" },
+        homePulses: {},
+        homeRounds: {},
+        homeActions: {},
         pulseDetail: { _tag: "Loading" },
         testSendBusy: false,
         testSendResult: Option.none(),
@@ -1647,6 +1723,12 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
             ...model,
             teams: { _tag: "Loaded", teams: outcome.teams },
           },
+          commands:
+            model.route._tag === "Teams"
+              ? outcome.teams
+                  .filter((team) => team.yourRole === "lead")
+                  .map((team) => ListPulses({ teamId: team.id }))
+              : [],
         };
       }
       if (outcome.failure === "Unauthenticated") {
@@ -2281,11 +2363,22 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
           model: {
             ...model,
             pulses: { _tag: "Loaded", pulses: outcome.pulses },
+            homePulses:
+              model.route._tag === "Teams"
+                ? { ...model.homePulses, [outcome.pulses.team.id]: outcome.pulses }
+                : model.homePulses,
           },
           commands:
             model.route._tag === "Team" && outcome.pulses.pulses[0] !== undefined
               ? [ListRoundsCmd({ teamId: model.route.teamId, pulseId: outcome.pulses.pulses[0].id })]
-              : [],
+              : model.route._tag === "Teams"
+                ? [
+                    ...outcome.pulses.pulses.map((pulse) =>
+                      ListRoundsCmd({ teamId: outcome.pulses.team.id, pulseId: pulse.id }),
+                    ),
+                    ListActionsCmd({ teamId: outcome.pulses.team.id }),
+                  ]
+                : [],
         };
       }
       if (outcome.failure === "Unauthenticated") {
@@ -2719,7 +2812,14 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         }
       }
       return {
-        model: { ...model, rounds: { _tag: "Loaded", list: outcome.list } },
+        model: {
+          ...model,
+          rounds: { _tag: "Loaded", list: outcome.list },
+          homeRounds:
+            model.route._tag === "Teams"
+              ? { ...model.homeRounds, [outcome.list.pulseId]: outcome.list }
+              : model.homeRounds,
+        },
         commands,
       };
     }
@@ -2997,6 +3097,10 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
           model: {
             ...model,
             actions: { _tag: "Loaded", actions: outcome.list.actions },
+            homeActions:
+              model.route._tag === "Teams"
+                ? { ...model.homeActions, [outcome.list.teamId]: outcome.list.actions }
+                : model.homeActions,
           },
         };
       }
@@ -3287,6 +3391,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
       screenContent = teamsScreenView(
         {
           teams: model.teams,
+          attention: attentionItems(model),
           organizationAdmin,
           createName: model.createTeamName,
           createTimeZone: model.createTeamTimeZone,
@@ -3370,6 +3475,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
         screenContent = teamsScreenView(
           {
             teams: model.teams,
+            attention: attentionItems(model),
             organizationAdmin: false,
             createName: model.createTeamName,
             createTimeZone: model.createTeamTimeZone,

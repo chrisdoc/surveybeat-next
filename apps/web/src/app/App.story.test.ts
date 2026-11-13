@@ -33,6 +33,7 @@ import {
   GetTeamOverviewCmd,
   GrantAdmin,
   initialModel,
+  ListActionsCmd,
   ListFailedEmails,
   ListPulses,
   ListRoundsCmd,
@@ -271,6 +272,21 @@ describe("App Stories", () => {
           ListTeams,
           Message.GotTeams({
             outcome: { _tag: "Success", teams: [teamSummary] },
+          }),
+        ),
+        Story.Command.resolve(
+          ListPulses,
+          Message.GotPulses({
+            outcome: {
+              _tag: "Success",
+              pulses: { team: teamSummary, pulses: [] },
+            },
+          }),
+        ),
+        Story.Command.resolve(
+          ListActionsCmd,
+          Message.GotActions({
+            outcome: { _tag: "Success", list: { teamId, actions: [] } },
           }),
         ),
         Story.model((m) => {
