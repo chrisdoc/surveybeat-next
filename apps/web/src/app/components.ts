@@ -552,6 +552,8 @@ export const privacyContent = <Message>(h: HtmlBuilder<Message>): ReadonlyArray<
         [h.Class("flex flex-col gap-6 leading-relaxed text-muted")],
         (
           [
+            ["privacy.groupSize.title", "privacy.groupSize.body"],
+            ["privacy.aiProcessing.title", "privacy.aiProcessing.body"],
             ["privacy.anonymity.title", "privacy.anonymity.body"],
             ["privacy.comments.title", "privacy.comments.body"],
             ["privacy.restore.title", "privacy.restore.body"],

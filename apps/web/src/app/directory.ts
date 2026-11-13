@@ -1221,7 +1221,7 @@ export const settingsScreenView = <Message>(
         selectField(
           {
             id: "default-language",
-            label: message("settings.defaultLanguage"),
+            label: message("settings.defaultLanguage.field"),
             value: settings.defaultLocale,
             options: [
               ["en", message("language.en")],

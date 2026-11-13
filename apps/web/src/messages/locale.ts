@@ -111,6 +111,12 @@ export const messagesFor = (locale: Locale): Messages => {
 export let currentLocale: Locale = "en";
 export let message: Messages["message"] = messagesFor("en").message;
 export let pluralMessage: Messages["pluralMessage"] = messagesFor("en").pluralMessage;
+
+/** A rough duration for people: minutes once it is a whole minute, seconds below. */
+export const formatDuration = (seconds: number): string =>
+  seconds >= 60
+    ? message("duration.minutes", { minutes: Math.round(seconds / 60) })
+    : message("duration.seconds", { seconds });
 export let formatDate: Messages["formatDate"] = messagesFor("en").formatDate;
 export let formatScore: Messages["formatScore"] = messagesFor("en").formatScore;
 export let formatChange: Messages["formatChange"] = messagesFor("en").formatChange;

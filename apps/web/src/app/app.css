@@ -2,6 +2,13 @@
 @import "@fontsource-variable/figtree";
 @import "@fontsource-variable/newsreader";
 
+/* German compounds are long; let headings break where the language allows it. */
+:lang(de) h1,
+:lang(de) h2,
+:lang(de) h3 {
+  hyphens: auto;
+}
+
 @theme {
   --color-stone: #f3f4f1;
   --color-surface: #ffffff;
