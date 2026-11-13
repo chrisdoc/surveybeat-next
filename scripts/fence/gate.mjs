@@ -9,6 +9,7 @@ const steps = [
   { name: "format:check", args: ["run", "format:check"] },
   { name: "lint", args: ["run", "lint"] },
   { name: "test", args: ["run", "test"] },
+  { name: "test:privacy", args: ["run", "test:privacy"] },
 ];
 
 const git = (args) => spawnSync("git", args, { encoding: "utf8" });
