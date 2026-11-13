@@ -5,6 +5,7 @@ import type { AnswerMismatched, AnswerTranslation } from "./answer.ts";
  * so the German answer page ships only these (ADR 0008 budget); `de.ts` spreads them in.
  */
 export const answerDe = {
+  "answer.mark": "SurveyBeat",
   "answer.title": "Deine Antwort",
   "answer.placeholder": "Deine Frage erscheint hier.",
   "answer.remaining.one": "Noch {count} Frage",
@@ -15,7 +16,7 @@ export const answerDe = {
   "answer.finish": "Abschließen",
   "answer.loading": "Deine Frage wird geladen…",
   "answer.anonymity":
-    "Deine Teamleitung sieht nur zusammengefasste Antworten von mindestens {n} Personen, aber nie, wer was geantwortet hat. Dein Name wird nie zusammen mit deinen Antworten gespeichert.",
+    "Deine Teamleitung sieht nur zusammengefasste Antworten von mindestens {n} Personen. Dein Name wird nie gespeichert.",
   "answer.aiNotice":
     "Kommentare werden nach dem Entfernen von Namen, E-Mail-Adressen, Telefonnummern, Handles und Links von einem KI-Dienst in der EU zusammengefasst. Er speichert nichts.",
   "answer.comment.label": "Möchtest du noch etwas sagen?",

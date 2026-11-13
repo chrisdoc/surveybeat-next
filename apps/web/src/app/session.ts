@@ -10,10 +10,14 @@ import type { Html, HtmlBuilder } from "foldkit/html";
 import { defineTaggedUnion } from "foldkit/schema";
 import { message } from "../messages/locale.ts";
 import { type ApiClient, clientEffect } from "./api.ts";
+import { privacyHref } from "./routes.ts";
 import {
   alertView,
   appButton,
   buttonClass,
+  linkClass,
+  pageShell,
+  pageTitle,
   screenView,
   secondaryButtonClass,
   signOutView,
@@ -85,25 +89,47 @@ export const runSessionCall = <E>(
     Effect.provide(FetchHttpClient.layer),
   );
 
+/** The signed-out page: one centred card that says what SurveyBeat is, how to sign in, and what privacy holds. */
 export const signInView = <Message>(failed: boolean, h: HtmlBuilder<Message>): Html =>
-  screenView(
-    message("signIn.title"),
+  pageShell(
+    {},
     [
-      h.p([h.Class("mt-4 text-lg text-muted")], [message("signIn.intro")]),
-      failed ? alertView(message("signIn.failed"), h) : null,
-      h.form(
-        [h.Method("get"), h.Action("/auth/login"), h.Class("mt-4")],
+      h.main(
+        [h.Class("mx-auto flex min-h-[70vh] w-full max-w-[440px] flex-col justify-center py-12")],
         [
-          appButton(
-            {
-              text: message("signIn.action"),
-              type: "submit",
-            },
-            h,
+          h.div(
+            [h.Class("rounded-panel border border-line bg-surface p-8 text-center")],
+            [
+              pageTitle(message("signIn.title"), h),
+              h.p([h.Class("mt-3 text-lg text-ink")], [message("signIn.framing")]),
+              h.p([h.Class("mt-2 text-sm text-muted")], [message("signIn.intro")]),
+              failed ? alertView(message("signIn.failed"), h) : null,
+              h.form(
+                [h.Method("get"), h.Action("/auth/login"), h.Class("mt-6")],
+                [
+                  appButton(
+                    {
+                      text: message("signIn.action"),
+                      type: "submit",
+                      className: `${buttonClass} w-full`,
+                    },
+                    h,
+                  ),
+                ],
+              ),
+              h.p(
+                [h.Class("mt-6 text-sm text-muted")],
+                [
+                  message("signIn.privacy"),
+                  " ",
+                  h.a([h.Href(privacyHref()), h.Class(linkClass)], [message("signIn.privacyLink")]),
+                ],
+              ),
+            ].filter(Predicate.isNotNull),
           ),
         ],
       ),
-    ].filter(Predicate.isNotNull),
+    ],
     h,
   );
 

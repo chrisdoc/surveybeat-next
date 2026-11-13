@@ -18,8 +18,7 @@ const roundContext = (overrides: Record<string, unknown> = {}) => ({
 
 const aiNotice =
   "Comments are summarised by an AI service in the EU after names, emails, phone numbers, handles and links are removed. It keeps nothing.";
-const anonymity =
-  "Your lead only sees combined answers from at least 4 people, never who answered what. Your name is never stored with your answers.";
+const anonymity = "Your Lead only sees combined answers from at least 4 people. Your name is never stored.";
 
 const en = answerMessages(answerCatalog);
 
