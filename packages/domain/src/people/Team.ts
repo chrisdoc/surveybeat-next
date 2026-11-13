@@ -63,6 +63,10 @@ export const TeamSummary = Schema.Struct({
   name: Schema.String,
   timeZone: TimeZone,
   yourRole: Schema.NullOr(MembershipRole),
+  /** How many active members the Team has; the Teams list sets it. */
+  memberCount: Schema.optional(Schema.Int),
+  /** The date of the next Round that is scheduled or open, if there is one; the Teams list sets it. */
+  nextRoundDate: Schema.optional(Schema.NullOr(Schema.String)),
 });
 export type TeamSummary = typeof TeamSummary.Type;
 

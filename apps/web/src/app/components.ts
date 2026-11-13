@@ -18,6 +18,10 @@ export const darkOutlineButtonClass =
 export const dangerButtonClass =
   "rounded-control bg-danger px-4 py-2 text-sm font-semibold text-on-primary transition hover:opacity-90 disabled:opacity-50";
 
+/** A link-styled button for a destructive action: danger text, same hit area as a link. */
+export const dangerLinkButton =
+  "inline-flex min-h-11 items-center px-1 text-sm font-semibold text-danger underline underline-offset-4 hover:opacity-90 disabled:opacity-50";
+
 export const linkButton =
   "inline-flex min-h-11 items-center px-1 text-sm font-semibold text-primary underline underline-offset-4 hover:text-primary-hover disabled:opacity-50";
 export const linkClass = "font-semibold text-primary underline underline-offset-4 hover:text-primary-hover";
@@ -230,12 +234,14 @@ export const emptyState = <Message>(
     ],
   );
 
-export type BadgeVariant = "neutral" | "primary" | "brass";
+export type BadgeVariant = "neutral" | "primary" | "brass" | "success" | "danger";
 
 const badgeClasses: Record<BadgeVariant, string> = {
   neutral: "bg-line-soft text-muted",
   primary: "bg-primary-soft text-primary-hover",
   brass: "bg-brass-soft text-brass",
+  success: "bg-mint text-evergreen",
+  danger: "bg-danger-soft text-danger",
 };
 
 export const badge = <Message>(
@@ -303,6 +309,8 @@ export const problemView = <Message>(failure: Failure | undefined, h: HtmlBuilde
 export const appButton = <Message>(
   config: {
     readonly text: string;
+    /** A decorative glyph shown before the text; the label stays the accessible name. */
+    readonly icon?: string | undefined;
     readonly onClick?: Message | undefined;
     readonly isDisabled?: boolean | undefined;
     readonly type?: "button" | "submit" | "reset" | undefined;
@@ -319,7 +327,12 @@ export const appButton = <Message>(
             ...(config.isDisabled ? [h.Disabled(true)] : []),
             h.Class(config.className ?? buttonClass),
           ],
-          [config.text],
+          [
+            ...(config.icon === undefined
+              ? []
+              : [h.span([h.AriaHidden(true), h.Class("mr-1.5")], [config.icon])]),
+            config.text,
+          ],
         ),
       type: config.type ?? "button",
       ...(config.onClick !== undefined ? { onClick: config.onClick } : {}),

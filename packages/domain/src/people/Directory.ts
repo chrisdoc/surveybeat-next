@@ -587,13 +587,20 @@ export const applyChanges = (
     }
   }, state);
 
-/** A Team as a list shows it to `actor`. */
-export const teamSummaryOf = (team: TeamRecord, actor: Actor): TeamSummary => ({
+/** A Team as a list shows it to `actor`, with how many people are actively in it. */
+export const teamSummaryOf = (team: TeamRecord, actor: Actor, memberCount?: number): TeamSummary => ({
   id: team.id,
   name: team.name,
   timeZone: team.timeZone,
   yourRole: actor.roles.get(team.id) ?? null,
+  // Only the Teams list counts people; other views leave the key out.
+  ...(memberCount === undefined ? {} : { memberCount }),
 });
+
+/** The active memberships of one Team: ended memberships do not count. */
+const activeMembersOf = (state: DirectoryState, teamId: TeamId): number =>
+  state.memberships.filter((membership) => membership.teamId === teamId && membership.endedAt === null)
+    .length;
 
 const byName = (a: { readonly name: string }, b: { readonly name: string }) =>
   a.name.localeCompare(b.name, "en");
@@ -606,7 +613,12 @@ export const teamsView = (state: DirectoryState, actorId: PersonId): Viewed<Read
   const teams = state.teams.filter(
     (team) => listAll || can(actor.value, "team.view", { _tag: "Team", teamId: team.id }),
   );
-  return { _tag: "Viewed", value: [...teams].sort(byName).map((team) => teamSummaryOf(team, actor.value)) };
+  return {
+    _tag: "Viewed",
+    value: [...teams]
+      .sort(byName)
+      .map((team) => teamSummaryOf(team, actor.value, activeMembersOf(state, team.id))),
+  };
 };
 
 const ROLE_ORDER: Readonly<Record<MembershipRole, number>> = { lead: 0, member: 1, viewer: 2 };
@@ -631,7 +643,7 @@ export const teamView = (state: DirectoryState, actorId: PersonId, teamId: TeamI
   return {
     _tag: "Viewed",
     value: {
-      team: teamSummaryOf(team, actor.value),
+      team: teamSummaryOf(team, actor.value, activeMembersOf(state, team.id)),
       roster,
       may: {
         update: can(actor.value, "team.update", resource),

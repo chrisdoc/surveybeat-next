@@ -3,6 +3,7 @@ import {
   type PulseId,
   RoundId,
   RoundList,
+  type RoundStatus,
   type RoundSummary,
   type TeamId,
 } from "@surveybeat/domain";
@@ -15,6 +16,7 @@ import { Failure } from "./api.ts";
 import {
   appButton,
   badge,
+  type BadgeVariant,
   type Child,
   emptyState,
   confirmDialog,
@@ -57,6 +59,18 @@ const roundDates = (round: RoundSummary): string =>
 
 const hasResults = (round: RoundSummary): boolean =>
   round.status === "closed" || round.status === "ready" || round.status === "shared";
+
+/** A Round's status colour: open now, ready to share, closed, shared, cancelled. */
+const statusVariant = (status: RoundStatus): BadgeVariant =>
+  status === "open"
+    ? "primary"
+    : status === "ready"
+      ? "brass"
+      : status === "shared"
+        ? "success"
+        : status === "cancelled"
+          ? "danger"
+          : "neutral";
 
 export const roundsScreenView = <Message>(
   state: {
@@ -234,11 +248,7 @@ export const roundsScreenView = <Message>(
                   [h.Class("font-semibold")],
                   [message("rounds.round", { date: formatRoundDate(round.plannedOpenDate) })],
                 ),
-                badge(
-                  round.status === "open" ? "primary" : "neutral",
-                  [message(`rounds.status.${round.status}`)],
-                  h,
-                ),
+                badge(statusVariant(round.status), [message(`rounds.status.${round.status}`)], h),
               ],
             ),
             h.p([h.Class("text-sm text-muted")], [roundDates(round)]),
@@ -248,7 +258,18 @@ export const roundsScreenView = <Message>(
                   [message("rounds.responseRate", { rate: formatPercent(rate) })],
                 )
               : null,
-            lead && hasResults(round)
+            lead && round.status === "ready"
+              ? h.a(
+                  [
+                    h.Href(roundResultsHref(state.teamId, round.id)),
+                    h.Class(
+                      "inline-flex min-h-11 items-center rounded-control bg-primary px-4 text-sm font-semibold text-on-primary hover:opacity-90",
+                    ),
+                  ],
+                  [message("rounds.reviewShare")],
+                )
+              : null,
+            lead && hasResults(round) && round.status !== "ready"
               ? h.a(
                   [
                     h.Href(roundResultsHref(state.teamId, round.id)),

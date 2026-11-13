@@ -250,6 +250,14 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
     };
   };
 
+  /** The date of each Team's next Round: the earliest one still scheduled or open. */
+  const nextRoundDates = (): Effect.Effect<Readonly<Record<string, string>>> =>
+    sql<{ team_id: string; next_date: string }>`SELECT team_id, MIN(planned_open_date) AS next_date
+        FROM round WHERE status IN ('scheduled', 'open') GROUP BY team_id`.pipe(
+      Effect.map((all) => Object.fromEntries(all.map((row) => [row.team_id, row.next_date]))),
+      Effect.orDie,
+    );
+
   const getRound = (roundId: RoundId): Effect.Effect<RoundRecord | null> =>
     sql`SELECT * FROM round WHERE id = ${roundId}`.pipe(
       Effect.flatMap(rows(RoundRow)),
@@ -1110,6 +1118,7 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
     getRound,
     getParticipatedRounds,
     getRoundsForPulse,
+    nextRoundDates,
     getRoundQuestions,
     findScheduledRound,
     findOpenRound,

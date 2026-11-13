@@ -449,7 +449,9 @@ describe("views for non-admins", () => {
     const grace = world.personWith("grace@example.com");
     const ada = world.personWith("ada@example.com");
 
-    expect(teamsView(world.state, grace)).toMatchObject({ value: [{ name: "Platform", yourRole: "lead" }] });
+    expect(teamsView(world.state, grace)).toMatchObject({
+      value: [{ name: "Platform", yourRole: "lead", memberCount: 2 }],
+    });
     expect(teamView(world.state, grace, platform)).toMatchObject({
       value: {
         may: {
@@ -461,7 +463,9 @@ describe("views for non-admins", () => {
         },
       },
     });
-    expect(teamsView(world.state, ada)).toMatchObject({ value: [{ name: "Platform", yourRole: "member" }] });
+    expect(teamsView(world.state, ada)).toMatchObject({
+      value: [{ name: "Platform", yourRole: "member", memberCount: 2 }],
+    });
     expect(teamView(world.state, ada, platform)).toEqual({
       _tag: "Rejected",
       rejection: { _tag: "Forbidden" },

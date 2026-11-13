@@ -25,6 +25,7 @@ import {
   checkboxField,
   type Child,
   emptyState,
+  dangerLinkButton,
   linkButton,
   pageTitle,
   problemView,
@@ -511,10 +512,28 @@ export const pulseEditorView = <Message>(
   children.push(h.div([h.Class("mt-4")], [pageTitle(detail.settings.name, h)]));
   children.push(h.p([h.Class("mt-2 text-muted")], [detail.team.name]));
   if (detail.team.yourRole === "lead") {
+    // The Pulse and its Rounds are two tabs of one page pair; this one is current.
+    const tabClass = "inline-flex min-h-11 items-center border-b-2 px-3 text-sm font-semibold";
     children.push(
-      h.a(
-        [h.Href(roundsHref(state.teamId, detail.id)), h.Class(`mt-3 inline-block ${linkClass}`)],
-        [message("pulse.rounds")],
+      h.nav(
+        [h.Class("mt-4 flex gap-1 border-b border-line")],
+        [
+          h.a(
+            [
+              h.Href(pulseHref(state.teamId, detail.id)),
+              h.AriaCurrent("page"),
+              h.Class(`${tabClass} border-primary text-ink`),
+            ],
+            [message("pulse.tabs.pulse")],
+          ),
+          h.a(
+            [
+              h.Href(roundsHref(state.teamId, detail.id)),
+              h.Class(`${tabClass} border-transparent text-muted hover:text-ink`),
+            ],
+            [message("pulse.tabs.rounds")],
+          ),
+        ],
       ),
     );
   }
@@ -577,6 +596,7 @@ export const pulseEditorView = <Message>(
                 appButton(
                   {
                     text: message("pulse.question.up"),
+                    icon: "↑",
                     isDisabled: state.actionBusy || index === 0,
                     className: linkButton,
                     onClick: actions.onMoveQuestion(index, -1),
@@ -586,6 +606,7 @@ export const pulseEditorView = <Message>(
                 appButton(
                   {
                     text: message("pulse.question.down"),
+                    icon: "↓",
                     isDisabled: state.actionBusy || index === orderLength - 1,
                     className: linkButton,
                     onClick: actions.onMoveQuestion(index, 1),
@@ -597,6 +618,7 @@ export const pulseEditorView = <Message>(
                   : appButton(
                       {
                         text: message("pulse.question.edit"),
+                        icon: "✎",
                         isDisabled: state.actionBusy,
                         className: linkButton,
                         onClick: actions.onToggleEditQuestion(
@@ -608,8 +630,9 @@ export const pulseEditorView = <Message>(
                 appButton(
                   {
                     text: message("pulse.question.remove"),
+                    icon: "✕",
                     isDisabled: state.actionBusy,
-                    className: linkButton,
+                    className: dangerLinkButton,
                     onClick: actions.onRemoveQuestion(question.questionId),
                   },
                   h,
