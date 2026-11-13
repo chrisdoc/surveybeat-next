@@ -226,7 +226,7 @@ export const pulsesScreenView = <Message>(
   );
 
   if (pulses.pulses.length === 0) {
-    children.push(emptyState(message("pulses.empty"), h));
+    children.push(emptyState({ title: message("pulses.empty.title"), body: message("pulses.empty") }, h));
   } else {
     children.push(
       h.ul(

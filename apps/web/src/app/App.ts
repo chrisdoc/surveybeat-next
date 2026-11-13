@@ -46,7 +46,7 @@ import { Command, Navigation, Update } from "foldkit";
 import type { Document, HtmlBuilder } from "foldkit/html";
 import { defineMessageUnion } from "foldkit/message";
 import { Url } from "foldkit/url";
-import { message, setLocale } from "../messages/locale.ts";
+import { formatRoundDate, message, setLocale } from "../messages/locale.ts";
 import { Failure, runApi } from "./api.ts";
 import { privacyContent, privacyView, screenView } from "./components.ts";
 import {
@@ -67,6 +67,7 @@ import {
   teamScreenView,
   teamsScreenView,
 } from "./directory.ts";
+import type { ChecklistStep } from "./directory.ts";
 import { historyView, LoadedHistory } from "./history.ts";
 import { browserStorage, clearKeptAnswers, KeptAnswers, readKeptAnswers } from "./keptAnswers.ts";
 import { LoadedOverview, teamOverviewView } from "./overview.ts";
@@ -83,7 +84,7 @@ import {
 } from "./pulses.ts";
 import { GuideCopy, LoadedActions, LoadedNote, LoadedResults, resultsScreenView } from "./results.ts";
 import { isLead, LoadedRounds, RoundConfirm, roundsScreenView } from "./rounds.ts";
-import { AppRoute, pulseHref, teamHref, urlToAppRoute } from "./routes.ts";
+import { AppRoute, pulseHref, pulsesHref, roundsHref, teamHref, urlToAppRoute } from "./routes.ts";
 import { screenTitle } from "./titles.ts";
 import {
   chooseOrganizationView,
@@ -1242,12 +1243,66 @@ export const initialModel = (url: Url): Model => {
   };
 };
 
+/**
+ * The Team page's first-run checklist, for a Lead whose Team has not shared a Round yet:
+ * members, a Pulse, a test, the first Round. Null once a Round is shared or the data is not in.
+ */
+const firstRunChecklist = (model: Model): ReadonlyArray<ChecklistStep> | null => {
+  const route = model.route;
+  if (route._tag !== "Team") return null;
+  if (model.teamDetail._tag !== "Loaded") return null;
+  const detail = model.teamDetail.detail;
+  if (!detail.may.managePulses) return null;
+  if (model.pulses._tag !== "Loaded") return null;
+  if (model.pulses.pulses.pulses.length > 0 && model.rounds._tag !== "Loaded") return null;
+  const rounds = model.rounds._tag === "Loaded" ? model.rounds.list.rounds : [];
+  if (rounds.some((round) => round.status !== "scheduled" && round.status !== "open")) return null;
+  const firstPulse = model.pulses.pulses.pulses[0];
+  const scheduled = rounds.find((round) => round.status === "scheduled" || round.status === "open");
+  const members = detail.roster.length;
+  return [
+    {
+      text: message("team.checklist.members"),
+      detail: message("team.checklist.membersDetail", { count: String(members) }),
+      href: teamHref(route.teamId),
+      done: members > 0,
+    },
+    {
+      text: message("team.checklist.pulse"),
+      detail: message("team.checklist.pulseDetail"),
+      href: pulsesHref(route.teamId),
+      done: firstPulse !== undefined,
+    },
+    {
+      text: message("team.checklist.test"),
+      detail: message("team.checklist.testDetail"),
+      href: firstPulse === undefined ? pulsesHref(route.teamId) : pulseHref(route.teamId, firstPulse.id),
+      done: scheduled !== undefined,
+    },
+    {
+      text:
+        scheduled === undefined
+          ? message("team.checklist.round")
+          : message("team.checklist.roundScheduled", {
+              date: formatRoundDate(scheduled.plannedOpenDate),
+            }),
+      href: firstPulse === undefined ? pulsesHref(route.teamId) : roundsHref(route.teamId, firstPulse.id),
+      done: false,
+    },
+  ];
+};
+
 export const loadActiveRouteCommand = (route: AppRoute) => {
   switch (route._tag) {
     case "Teams":
       return [ListTeams()];
     case "Team":
-      return [GetTeam({ teamId: route.teamId }), GetTeamOverviewCmd({ teamId: route.teamId })];
+      // The Pulses feed the first-run checklist; a member sees no checklist, but the list is theirs to read.
+      return [
+        GetTeam({ teamId: route.teamId }),
+        GetTeamOverviewCmd({ teamId: route.teamId }),
+        ListPulses({ teamId: route.teamId }),
+      ];
     case "History":
       return [GetMyHistoryCmd()];
     case "Settings":
@@ -2227,6 +2282,10 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
             ...model,
             pulses: { _tag: "Loaded", pulses: outcome.pulses },
           },
+          commands:
+            model.route._tag === "Team" && outcome.pulses.pulses[0] !== undefined
+              ? [ListRoundsCmd({ teamId: model.route.teamId, pulseId: outcome.pulses.pulses[0].id })]
+              : [],
         };
       }
       if (outcome.failure === "Unauthenticated") {
@@ -3251,6 +3310,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
       screenContent = teamScreenView(
         {
           team: model.teamDetail,
+          checklist: firstRunChecklist(model),
           renameName: model.renameName,
           renameTimeZone: model.renameTimeZone,
           renameBusy: model.renameBusy,

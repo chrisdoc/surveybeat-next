@@ -250,6 +250,8 @@ describe("App Scenes", () => {
           teams: { _tag: "Loaded", teams: [] },
         }),
         Scene.expect(Scene.role("heading", { name: "Create a Team" })).toBeAbsent(),
+        Scene.expect(Scene.text("No Team yet")).toExist(),
+        Scene.expect(Scene.text("You're not in any Team yet.")).toExist(),
         Scene.click(Scene.role("button", { name: "Create Team" })),
         Scene.expect(Scene.role("heading", { name: "Create a Team" })).toExist(),
         Scene.click(Scene.role("button", { name: "Cancel" })),
@@ -450,6 +452,141 @@ describe("App Scenes", () => {
       );
     });
 
+    describe("First-run checklist", () => {
+      const teamId = decodeTeamId("team-1");
+      const pulseId = Schema.decodeSync(PulseId)("pulse-1");
+      const roundId = Schema.decodeSync(RoundId)("round-1");
+      const detail = {
+        team: {
+          id: teamId,
+          name: "Acme",
+          timeZone: decodeTimeZone("UTC"),
+          yourRole: "lead" as const,
+        },
+        roster: [
+          {
+            personId: decodePersonId("person-1"),
+            email: decodeEmail("alice@acme.com"),
+            role: "member" as const,
+            since: 1700000000000,
+          },
+        ],
+        may: {
+          update: true,
+          manageLeads: true,
+          manageMembers: true,
+          managePulses: true,
+          viewResults: true,
+        },
+      };
+      const pulse = {
+        id: pulseId,
+        name: "Weekly check-in",
+        cadence: { _tag: "Weekly" as const, day: "monday" as const, time: decodeSendTime("09:00") },
+        questionCount: 3,
+        estimatedSeconds: 90,
+      };
+
+      it("walks a new Team through members, Pulse, test and first Round", () => {
+        Scene.scene(
+          { update, view },
+          Scene.given({
+            ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}`)),
+            session: signedInAdmin,
+            teamDetail: { _tag: "Loaded", detail },
+            pulses: {
+              _tag: "Loaded",
+              pulses: { team: detail.team, pulses: [] },
+            },
+          }),
+          Scene.expect(Scene.role("heading", { name: "Get to your first Round" })).toExist(),
+          Scene.expect(Scene.text("Add your Team")).toExist(),
+          Scene.expect(Scene.text("1 so far")).toExist(),
+          Scene.expect(Scene.text("Create a Pulse")).toExist(),
+          Scene.expect(Scene.text("Send yourself a test")).toExist(),
+          Scene.expect(Scene.text("First Round")).toExist(),
+          Scene.expect(Scene.text("Done")).toExist(),
+          Scene.expect(Scene.text("To do")).toExist(),
+        );
+      });
+
+      it("marks the test done and names the first Round once one is scheduled", () => {
+        const plannedOpenDate = "2026-11-09";
+        Scene.scene(
+          { update, view },
+          Scene.given({
+            ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}`)),
+            session: signedInAdmin,
+            teamDetail: { _tag: "Loaded", detail },
+            pulses: {
+              _tag: "Loaded",
+              pulses: { team: detail.team, pulses: [pulse] },
+            },
+            rounds: {
+              _tag: "Loaded",
+              list: {
+                pulseId,
+                paused: false,
+                rounds: [
+                  {
+                    id: roundId,
+                    pulseId,
+                    teamId,
+                    status: "scheduled" as const,
+                    plannedOpenDate,
+                    plannedOpenAt: Date.parse("2026-11-09T09:00:00Z"),
+                    openedAt: null,
+                    plannedCloseAt: Date.parse("2026-11-13T09:00:00Z"),
+                    closedAt: null,
+                    pulseName: "Weekly check-in",
+                  },
+                ],
+              },
+            },
+          }),
+          Scene.expect(Scene.text(`First Round on ${formatRoundDate(plannedOpenDate)}`)).toExist(),
+          Scene.expect(Scene.role("heading", { name: "Get to your first Round" })).toExist(),
+        );
+      });
+
+      it("disappears once a Round has been shared", () => {
+        Scene.scene(
+          { update, view },
+          Scene.given({
+            ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}`)),
+            session: signedInAdmin,
+            teamDetail: { _tag: "Loaded", detail },
+            pulses: {
+              _tag: "Loaded",
+              pulses: { team: detail.team, pulses: [pulse] },
+            },
+            rounds: {
+              _tag: "Loaded",
+              list: {
+                pulseId,
+                paused: false,
+                rounds: [
+                  {
+                    id: roundId,
+                    pulseId,
+                    teamId,
+                    status: "closed" as const,
+                    plannedOpenDate: "2026-11-02",
+                    plannedOpenAt: Date.parse("2026-11-02T09:00:00Z"),
+                    openedAt: Date.parse("2026-11-02T09:00:00Z"),
+                    plannedCloseAt: Date.parse("2026-11-06T09:00:00Z"),
+                    closedAt: Date.parse("2026-11-06T09:00:00Z"),
+                    pulseName: "Weekly check-in",
+                  },
+                ],
+              },
+            },
+          }),
+          Scene.expect(Scene.role("heading", { name: "Get to your first Round" })).toBeAbsent(),
+        );
+      });
+    });
+
     describe("Team health overview", () => {
       const teamId = decodeTeamId("team-1");
       const roundA = Schema.decodeSync(RoundId)("round-a");
@@ -599,7 +736,11 @@ describe("App Scenes", () => {
           Message.UrlChanged({ url: teamUrl }),
         );
         expect(result.model.teamOverview).toEqual({ _tag: "Loading" });
-        expect(result.commands?.map((command) => command.name)).toEqual(["GetTeam", "GetTeamOverviewCmd"]);
+        expect(result.commands?.map((command) => command.name)).toEqual([
+          "GetTeam",
+          "GetTeamOverviewCmd",
+          "ListPulses",
+        ]);
       });
 
       it("links the newest shared Round from the Team page and lists the recent ones", () => {
@@ -1216,6 +1357,31 @@ describe("App Scenes", () => {
   });
 
   describe("Pulses list screen", () => {
+    it("names the empty state instead of showing a blank list", () => {
+      const teamId = decodeTeamId("team-1");
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}/pulses`)),
+          session: signedInAdmin,
+          pulses: {
+            _tag: "Loaded",
+            pulses: {
+              team: {
+                id: teamId,
+                name: "Engineering",
+                timeZone: decodeTimeZone("UTC"),
+                yourRole: "lead",
+              },
+              pulses: [],
+            },
+          },
+        }),
+        Scene.expect(Scene.text("No Pulse yet")).toExist(),
+        Scene.expect(Scene.text("This Team has no Pulse yet.")).toExist(),
+      );
+    });
+
     it("renders pulse list and creates a pulse", () => {
       const teamId = decodeTeamId("team-1");
       const pulseId = decodePulseId("pulse-1");

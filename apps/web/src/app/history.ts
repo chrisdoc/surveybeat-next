@@ -9,6 +9,7 @@ import type { Html, HtmlBuilder } from "foldkit/html";
 import { defineTaggedUnion } from "foldkit/schema";
 import { formatRoundDate, formatScore, message } from "../messages/locale.ts";
 import { Failure } from "./api.ts";
+import { teamsHref } from "./routes.ts";
 import {
   appButton,
   emptyState,
@@ -208,7 +209,16 @@ export const historyView = <Message>(
   }
 
   if (history.rounds.length === 0) {
-    children.push(emptyState(message("history.empty"), h));
+    children.push(
+      emptyState(
+        {
+          title: message("history.empty.title"),
+          body: message("history.empty"),
+          action: { text: message("history.empty.action"), href: teamsHref() },
+        },
+        h,
+      ),
+    );
   } else {
     children.push(
       h.div(

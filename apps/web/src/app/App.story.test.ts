@@ -374,6 +374,15 @@ describe("App Stories", () => {
             outcome: { _tag: "Failure", failure: "Forbidden" },
           }),
         ),
+        Story.Command.resolve(
+          ListPulses,
+          Message.GotPulses({
+            outcome: {
+              _tag: "Success",
+              pulses: { team: detail.team, pulses: [] },
+            },
+          }),
+        ),
         Story.model((m) => {
           expect(m.teamDetail._tag).toBe("Loaded");
           expect(m.renameName).toBe("Old Name");
