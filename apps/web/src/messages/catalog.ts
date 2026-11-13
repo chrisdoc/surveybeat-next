@@ -128,6 +128,9 @@ export const catalog = {
   "pulses.title": "Pulses of {team}",
   "pulses.empty": "This Team has no Pulse yet.",
   "pulses.summary": "{day} {time} · {questions} · about {seconds} s",
+  "pulses.paused": "Paused",
+  "pulses.nextRound": "Next Round {date}",
+  "pulses.noRound": "No Round scheduled",
   "pulses.create.intro":
     "A new Pulse starts from the weekly team health Template. You can change its Questions and settings next.",
   "pulses.create.action": "Create a Pulse",

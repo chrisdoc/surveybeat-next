@@ -129,6 +129,10 @@ export const PulseSummary = Schema.Struct({
   cadence: Cadence,
   questionCount: Schema.Int,
   estimatedSeconds: Schema.Int,
+  /** Whether the Pulse is paused; the Pulses list sets it. */
+  paused: Schema.optional(Schema.Boolean),
+  /** The date of the next Round that is scheduled or open, if there is one; the Pulses list sets it. */
+  nextRoundDate: Schema.optional(Schema.NullOr(Schema.String)),
 });
 export type PulseSummary = typeof PulseSummary.Type;
 

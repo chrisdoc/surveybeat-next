@@ -613,7 +613,20 @@ export class MemoryOrganizations {
     pulses: (organizationId, actorId, teamId) =>
       Effect.sync(() => {
         const organization = this.organization(organizationId);
-        return pulsesView(organization.state, organization.pulses, actorId, teamId);
+        const view = pulsesView(organization.state, organization.pulses, actorId, teamId);
+        return view._tag === "Viewed"
+          ? {
+              _tag: "Viewed" as const,
+              value: {
+                ...view.value,
+                pulses: view.value.pulses.map((pulse) => ({
+                  ...pulse,
+                  paused: false,
+                  nextRoundDate: null,
+                })),
+              },
+            }
+          : view;
       }),
     pulse: (organizationId, actorId, teamId, pulseId) =>
       Effect.sync(() => {

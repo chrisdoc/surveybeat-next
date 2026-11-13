@@ -414,6 +414,14 @@ describe("the Pulse editor", () => {
         pulses: [{ id: pulseId, name: "Weekly team health", questionCount: questions().length }],
       },
     });
+    // The Durable Object answers the two facts in one read; without them the keys are left out.
+    expect(
+      pulsesView(directory, state, lead, team, () => ({ paused: true, nextRoundDate: "2026-11-16" })),
+    ).toMatchObject({
+      value: { pulses: [{ paused: true, nextRoundDate: "2026-11-16" }] },
+    });
+    const withoutFacts = pulsesView(directory, state, lead, team);
+    expect(withoutFacts._tag === "Viewed" ? withoutFacts.value.pulses[0] : null).not.toHaveProperty("paused");
     expect(pulsesView(directory, state, admin, team)).toMatchObject({ _tag: "Viewed" });
     expect(pulsesView(directory, state, member, team)).toMatchObject({ rejection: { _tag: "Forbidden" } });
     expect(pulseView(directory, state, member, team, pulseId)).toMatchObject({

@@ -125,6 +125,9 @@ export const de = {
   "pulses.title": "Pulses von {team}",
   "pulses.empty": "Dieses Team hat noch keinen Pulse.",
   "pulses.summary": "{day} {time} · {questions} · etwa {seconds} s",
+  "pulses.paused": "Pausiert",
+  "pulses.nextRound": "Nächster Durchlauf {date}",
+  "pulses.noRound": "Kein Durchlauf geplant",
   "pulses.create.intro":
     "Ein neuer Pulse startet mit der wöchentlichen Vorlage für die Teamgesundheit. Danach kannst du seine Fragen und Einstellungen ändern.",
   "pulses.create.action": "Pulse erstellen",

@@ -17,10 +17,11 @@ import {
 import { Option, Predicate, Schema } from "effect";
 import type { Html, HtmlBuilder } from "foldkit/html";
 import { defineTaggedUnion } from "foldkit/schema";
-import { message, pluralMessage } from "../messages/locale.ts";
+import { formatRoundDate, message, pluralMessage } from "../messages/locale.ts";
 import { Failure } from "./api.ts";
 import {
   appButton,
+  badge,
   buttonClass,
   checkboxField,
   type Child,
@@ -244,18 +245,40 @@ export const pulsesScreenView = <Message>(
                   ),
                 ],
                 [
-                  h.span([], [pulse.name]),
                   h.span(
-                    [h.Class("text-sm font-normal text-muted")],
+                    [h.Class("flex min-w-0 flex-wrap items-center gap-2")],
                     [
-                      message("pulses.summary", {
-                        day: message(`weekday.${pulse.cadence.day}`),
-                        time: pulse.cadence.time,
-                        questions: pluralMessage("pulse.questionCount", pulse.questionCount),
-                        seconds: pulse.estimatedSeconds,
-                      }),
-                    ],
+                      h.span([h.Class("min-w-0 break-words")], [pulse.name]),
+                      pulse.paused === true ? badge("neutral", [message("pulses.paused")], h) : null,
+                    ].filter(Predicate.isNotNull),
                   ),
+                  h.span(
+                    [h.Class("flex flex-col gap-1 text-sm font-normal text-muted sm:items-end")],
+                    [
+                      h.span(
+                        [],
+                        [
+                          message("pulses.summary", {
+                            day: message(`weekday.${pulse.cadence.day}`),
+                            time: pulse.cadence.time,
+                            questions: pluralMessage("pulse.questionCount", pulse.questionCount),
+                            seconds: pulse.estimatedSeconds,
+                          }),
+                        ],
+                      ),
+                      pulse.nextRoundDate === undefined
+                        ? null
+                        : h.span(
+                            [],
+                            [
+                              pulse.nextRoundDate === null
+                                ? message("pulses.noRound")
+                                : message("pulses.nextRound", { date: formatRoundDate(pulse.nextRoundDate) }),
+                            ],
+                          ),
+                    ].filter(Predicate.isNotNull),
+                  ),
+                  h.span([h.AriaHidden(true), h.Class("text-xl text-muted")], ["›"]),
                 ],
               ),
             ],
