@@ -1142,6 +1142,8 @@ describe("App Scenes", () => {
         Scene.expect(Scene.role("columnheader", { name: "Role" })).toExist(),
         Scene.expect(Scene.role("columnheader", { name: "Actions" })).toExist(),
         Scene.expect(Scene.text("Member")).toExist(),
+        // The row's actions sit behind its own native Actions disclosure; Scene cannot toggle it.
+        Scene.expect(Scene.role("button", { name: "Actions" })).toExist(),
         Scene.expect(Scene.role("button", { name: "Make admin" })).toExist(),
         Scene.expect(Scene.label("Minimum group size")).toBeAbsent(),
         Scene.click(Scene.role("button", { name: "Change minimum group size" })),
