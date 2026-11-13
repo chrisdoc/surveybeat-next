@@ -1,6 +1,9 @@
 import { describe, expect, it } from "@effect/vitest";
-import { EmailOutcomeUnknown, EmailRejected } from "@surveybeat/domain";
-import { classifySendError } from "./CloudflareEmailSender.ts";
+import { EmailAddress, EmailOutcomeUnknown, EmailRejected } from "@surveybeat/domain";
+import { RuntimeContext } from "alchemy/RuntimeContext";
+import * as Effect from "effect/Effect";
+import { classifySendError, cloudflareEmailSender } from "./CloudflareEmailSender.ts";
+import { SendEmail } from "./Email.ts";
 
 const thrown = (code: string) => Object.assign(new Error("send failed"), { code });
 
@@ -34,4 +37,54 @@ describe("classifySendError", () => {
       new EmailOutcomeUnknown({ code: "E_INTERNAL_SERVER_ERROR" }),
     );
   });
+});
+
+// Issue 147: production's `send_email` binding shared the name `Email` with the Email queue's producer
+// binding, so the deployed Main Worker kept only the queue. `env.Email.send(message)` then queued the
+// rendered email instead of sending it, resolved to undefined, and every send failed as `unknown`.
+describe("the send_email binding", () => {
+  // Every other binding the deployed production Main Worker has (read back on 2026-11-10).
+  const otherBindings = [
+    "ASSETS",
+    "Database",
+    "Email",
+    "EmailDlq",
+    "EmailEvents",
+    "Jobs",
+    "JobsDlq",
+    "Organization",
+  ];
+
+  it.effect("has a name no other Main Worker binding uses", () =>
+    Effect.gen(function* () {
+      const binding = yield* SendEmail;
+      expect(otherBindings).not.toContain(binding.name);
+    }),
+  );
+});
+
+describe("cloudflareEmailSender", () => {
+  const message = { to: EmailAddress.make("lead@example.com"), subject: "Hi", html: "<p>Hi</p>", text: "Hi" };
+  const senderWith = (result: unknown) =>
+    cloudflareEmailSender({
+      raw: Effect.die("unused"),
+      send: () => Effect.succeed(result as never),
+      sendRaw: () => Effect.die("unused"),
+    }).pipe(Effect.provideService(RuntimeContext, {} as never));
+
+  it.effect("returns the provider's message id", () =>
+    Effect.gen(function* () {
+      const sender = yield* senderWith({ messageId: "m-1" });
+      expect(yield* sender.send(message)).toEqual({ messageId: "m-1" });
+    }),
+  );
+
+  it.effect("treats a send that returns no message id as an unknown outcome, not a crash", () =>
+    Effect.gen(function* () {
+      const sender = yield* senderWith(undefined);
+      expect(yield* Effect.flip(sender.send(message))).toEqual(
+        new EmailOutcomeUnknown({ code: "E_NO_MESSAGE_ID" }),
+      );
+    }),
+  );
 });

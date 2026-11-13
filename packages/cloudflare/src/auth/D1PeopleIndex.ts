@@ -150,6 +150,13 @@ export const d1PeopleIndex = (db: Cloudflare.D1.QueryDatabaseClient) =>
           Option.getOrNull(person.userId),
         ),
 
+      removePerson: (organizationId, personId) =>
+        write(
+          "DELETE FROM person_index WHERE organization_id = ? AND person_id = ?",
+          organizationId,
+          personId,
+        ),
+
       linkPerson: (organizationId, personId, userId) =>
         write(
           `UPDATE person_index SET workos_user_id = ?

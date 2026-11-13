@@ -49,7 +49,7 @@ export const identityOf = (userId: WorkosUserId, email: string, emailVerified: b
 
 /**
  * The operator allowlist for creating an Organization (ADR 0002): comma-separated emails,
- * configured per stage as the `ORG_CREATION_ALLOWLIST` secret. Never hard-coded.
+ * configured per stage in `infra/org-creation-allowlist.yaml` and bound as `ORG_CREATION_ALLOWLIST`.
  */
 export class OrganizationCreationAllowlist {
   private readonly emails: ReadonlySet<string>;

@@ -12,8 +12,12 @@ export const sendsRealEmail = (stage: string): boolean => stage === "production"
 export const SENDING_DOMAIN = `notify.${ZONE}`;
 export const FROM = { email: `team@${SENDING_DOMAIN}`, name: "SurveyBeat" } as const;
 
-/** The `send_email` binding. Bound to the Main Worker in production only. */
-export const SendEmail = Cloudflare.Email.SendEmail("Email");
+/**
+ * The `send_email` binding. Bound to the Main Worker in production only. Its name must differ from
+ * every other binding's: the Email queue's producer is bound as `Email`, and a `send_email` binding of
+ * the same name was silently dropped, so production queued its emails instead of sending them (#147).
+ */
+export const SendEmail = Cloudflare.Email.SendEmail("SendEmail");
 
 /** One message per send. The consumer looks the send up in its Organization's Durable Object. */
 export const EmailQueue = Cloudflare.Queues.Queue("Email");

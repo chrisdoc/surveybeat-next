@@ -29,8 +29,8 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm format:check
       - run: pnpm lint
-      - run: pnpm test
       - run: pnpm --filter @surveybeat/web build
+      - run: pnpm test
 
   # The privacy suite (SPEC §7): every `*.privacy.test.ts` across the packages. Required on every PR.
   privacy:

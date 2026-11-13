@@ -1,6 +1,6 @@
 # SurveyBeat
 
-Cloudflare-only Effect app. One Durable Object per Organization is the system of record; D1 holds only the global index and auth/email bookkeeping, never survey content. Two Workers serve the app/API (`MainWorker`) and the answer page's submission path (`SubmissionWorker`).
+Cloudflare-only Effect app. One Durable Object per Organization is the system of record; D1 holds only the global index and auth/email bookkeeping, never survey content. Three Workers serve the app/API (`MainWorker`), the answer page's submission path (`SubmissionWorker`), and the static landing page (`SiteWorker`, ADR 0020).
 
 Read `SPEC.md` (authoritative spec), `GLOSSARY.md` (domain vocabulary), and `docs/adr/` (binding decisions) before changing behavior. `docs/infra.md` covers stages, WorkOS sign-in, email, and observability.
 
@@ -34,7 +34,7 @@ CI runs `typecheck:effect`, `typecheck`, `format:check`, `lint`, `test`, then th
 - `packages/domain` — Effect schemas and services by concept (`people/`, `email/`); depends only on `effect`.
 - `packages/api` — the `HttpApi` declaration shared by the Worker and the typed web client; depends on `domain`.
 - `packages/cloudflare` — all Cloudflare adapters plus the `MainWorker` and `SubmissionWorker` entries; the only package that touches the Alchemy runtime.
-- `apps/web` — one Vite project with two entries: the React app (`index.html`) and the plain-TypeScript answer page (`answer.html`).
+- `apps/web` — one Vite project with two entries, the Foldkit app (`index.html`) and the plain-TypeScript answer page (`answer.html`), plus a separate build (`vite.site.config.ts`) that prerenders the landing page (`site.html`, `src/site/`) into `dist-site`.
 - `packages/emails` — React Email templates and rendering. `packages/testing` — privacy harness. `infra` — Alchemy stack, scripts, Playwright e2e, privacy sweep. `tools/oxlint-plugin-surveybeat` — local lint rules.
 
 ## Toolchain traps
@@ -44,7 +44,7 @@ CI runs `typecheck:effect`, `typecheck`, `format:check`, `lint`, `test`, then th
 - Stricter than defaults: `exactOptionalPropertyTypes`, `noUncheckedIndexedAccess`, `verbatimModuleSyntax` (use `import type`), and relative imports carry explicit `.ts`/`.tsx` extensions.
 - Lint bans `any` and type assertions (`as Foo`) outside `*.test.ts` (`consistent-type-assertions: never`). Decode with Effect Schema or use typed helpers instead.
 - All user-facing text comes from `apps/web/src/messages/catalog.ts` or `packages/emails/src/messages/catalog.ts`; `no-literal-ui-text` fails otherwise. HTML shells must hold no visible text and an empty `<title>` (asserted in `messages.test.ts`). Plurals use `<base>.one`/`.other`.
-- The lint plugin enforces the boundaries: `domain`/`api` may not import `cloudflare:*` or Alchemy, and `apps/web/src/answer/**` may not import React, Base UI, or the HttpApi client.
+- The lint plugin enforces the boundaries: `domain`/`api` may not import `cloudflare:*`, Alchemy, or Foldkit, and `apps/web/src/answer/**` may not import React, Base UI, Foldkit, or the HttpApi client.
 - Keep the answer entry plain TypeScript within its budget (JS ≤ 10 KB gzip critical path, CSS ≤ 2 KB inline, HTML ≤ 8 KB); no framework, per ADR 0008.
 
 ## Tests
@@ -59,7 +59,7 @@ CI runs `typecheck:effect`, `typecheck`, `format:check`, `lint`, `test`, then th
 
 - Every Cloudflare resource is declared in `infra/alchemy.run.ts`; no dashboard edits, no wrangler config.
 - Run Alchemy from the repo root: the Organization DO migrations path (`packages/cloudflare/migrations`) is relative to the working directory. Build the web app first; the Main Worker serves `apps/web/dist`.
-- `pnpm infra:deploy --stage dev-<name>` needs `WORKOS_API_KEY`, `WORKOS_CLIENT_ID`, and `ORG_CREATION_ALLOWLIST` in the environment.
+- `pnpm infra:deploy --stage dev-<name>` needs `WORKOS_API_KEY` and `WORKOS_CLIENT_ID` in the environment. Who may create an Organization is `infra/org-creation-allowlist.yaml`, per stage.
 - Non-production stages never send real email; sends are recorded in D1's `captured_email`. Only `production` sends.
 - The Submission Worker must keep every observability channel off. `pnpm check:observability --stage <stage>` reads the deployed settings back; the canary sweep proves no logs are kept. Stage scripts need `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
 - New SQL migrations: numbered files in `packages/cloudflare/migrations` (Durable Object) or `packages/cloudflare/d1-migrations` (D1).

@@ -11,6 +11,7 @@
     "test": "vitest run --project unit",
     "test:privacy": "vitest run --project privacy",
     "test:e2e": "pnpm --filter @surveybeat/infra test:e2e",
+    "test:lighthouse": "pnpm --filter @surveybeat/infra test:lighthouse",
     "test:preview-privacy": "node infra/tests/privacy/canary-sweep.ts",
     "infra:deploy": "alchemy deploy infra/alchemy.run.ts",
     "infra:destroy": "alchemy destroy infra/alchemy.run.ts",

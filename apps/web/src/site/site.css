@@ -1,0 +1,104 @@
+/* The landing page uses the app's theme as is: the same tokens, fonts and light/dark switch. */
+@import "../app/app.css";
+
+@source "./";
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+@layer components {
+  .site-press {
+    transition:
+      background-color 150ms ease,
+      transform 150ms ease;
+  }
+  .site-press:hover {
+    transform: translateY(-1px);
+  }
+  .site-press:active {
+    transform: translateY(0) scale(0.98);
+  }
+
+  .site-underline {
+    background: linear-gradient(currentColor, currentColor) no-repeat 0 calc(50% + 0.8em) / 0 1.5px;
+    transition:
+      background-size 200ms ease,
+      color 150ms ease;
+  }
+  .site-underline:hover {
+    background-size: 100% 1.5px;
+  }
+
+  .site-lift {
+    transition:
+      transform 200ms ease,
+      border-color 200ms ease;
+  }
+  .site-lift:hover {
+    transform: translateY(-2px);
+    border-color: var(--color-primary);
+  }
+
+  .site-scale {
+    border-color: var(--color-line);
+    color: var(--color-ink);
+  }
+  .site-scale-chosen {
+    border-color: var(--color-primary);
+    background-color: var(--color-primary);
+    color: var(--color-on-primary);
+    animation: site-tap 3.2s ease-in-out 1.2s 3;
+  }
+}
+
+@keyframes site-enter {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+@keyframes site-tap {
+  0%,
+  70%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-primary) 45%, transparent);
+  }
+  85% {
+    box-shadow: 0 0 0 8px color-mix(in srgb, var(--color-primary) 0%, transparent);
+  }
+}
+@keyframes site-beat {
+  0%,
+  60%,
+  100% {
+    transform: scale(1);
+  }
+  30% {
+    transform: scale(1.8);
+  }
+}
+
+.site-enter {
+  animation: site-enter 600ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.site-enter-late {
+  animation: site-enter 700ms cubic-bezier(0.2, 0.7, 0.2, 1) 120ms both;
+}
+.site-beat {
+  animation: site-beat 1.6s ease-in-out 3;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

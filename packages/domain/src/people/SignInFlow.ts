@@ -1,5 +1,6 @@
 import { Clock, Effect, Option, Redacted } from "effect";
 import type { OrganizationCreationAllowlist, PersonId, WorkosOrganizationId } from "./Identity.ts";
+import type { Locale } from "./Locale.ts";
 import type { OrganizationId } from "./Organization.ts";
 import {
   candidatesFor,
@@ -24,6 +25,11 @@ import {
 export interface Member {
   readonly organization: OrganizationSummary;
   readonly personId: PersonId;
+  /** From the Organization's Durable Object, not the token's role claim, which can be minutes old. */
+  readonly organizationAdmin: boolean;
+  readonly locale: Locale | null;
+  readonly detectedLocale: Locale | null;
+  readonly organizationLocale: Locale;
 }
 
 /** A session that passed the per-request check, possibly refreshed on the way. */
@@ -82,7 +88,7 @@ export const checkSession = Effect.fnUntraced(function* (sealed: Redacted.Redact
   if (Option.isNone(person)) return { session, member: Option.none() } satisfies CheckedSession;
   return {
     session,
-    member: Option.some({ organization: organization.value, personId: person.value }),
+    member: Option.some({ organization: organization.value, ...person.value }),
   } satisfies CheckedSession;
 });
 
@@ -92,7 +98,10 @@ const signedIn = (session: ProviderSession, member: Member): SessionOutcome => (
     _tag: "SignedIn",
     organization: member.organization,
     personId: member.personId,
-    organizationAdmin: Option.contains(session.role, "admin"),
+    organizationAdmin: member.organizationAdmin,
+    locale: member.locale,
+    detectedLocale: member.detectedLocale,
+    organizationLocale: member.organizationLocale,
   },
 });
 
@@ -139,9 +148,13 @@ const enter = Effect.fnUntraced(function* (session: ProviderSession, candidate: 
   if (Option.isNone(workosOrganizationId)) {
     return yield* Effect.die(`Organization ${organizationId} has People but no WorkOS organization`);
   }
-  yield* identityProvider.ensureMembership(identity.userId, workosOrganizationId.value, "member");
+  yield* identityProvider.ensureMembership(
+    identity.userId,
+    workosOrganizationId.value,
+    person.value.organizationAdmin ? "admin" : "member",
+  );
   const refreshed = yield* identityProvider.refresh(session.sealed, workosOrganizationId);
-  return signedIn(refreshed, { organization: candidate.organization, personId: person.value });
+  return signedIn(refreshed, { organization: candidate.organization, ...person.value });
 });
 
 /**
@@ -180,7 +193,7 @@ const finishCreation = Effect.fnUntraced(function* (session: ProviderSession, cl
   yield* identityProvider.ensureMembership(identity.userId, workosOrganizationId, "admin");
   yield* index.completeClaim(identity.userId, yield* Clock.currentTimeMillis);
   const refreshed = yield* identityProvider.refresh(session.sealed, Option.some(workosOrganizationId));
-  return signedIn(refreshed, { organization, personId: person.value });
+  return signedIn(refreshed, { organization, ...person.value });
 });
 
 /** A creation this user may still finish: started, not completed, and still allowlisted. */

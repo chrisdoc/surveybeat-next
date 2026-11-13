@@ -1,0 +1,16 @@
+# Who may create an Organization (ADR 0002), per stage. Read at deploy time by
+# infra/alchemy.run.ts and bound to the Main Worker as ORG_CREATION_ALLOWLIST.
+# A stage without its own entry uses `default` (pr-*, dev-*, and other personal stages).
+# Emails are matched case-insensitively, and only when WorkOS verified them.
+# A change takes effect at the next deploy of that stage.
+
+production:
+  - me@chrisdoc.dev
+  - c.kieslich@gmail.com
+
+staging:
+  - me@chrisdoc.dev
+  - c.kieslich@gmail.com
+
+default:
+  - me@chrisdoc.dev

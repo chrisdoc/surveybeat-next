@@ -5,14 +5,14 @@ import {
   type SendRecord,
   type SendRepository,
   SendState,
-  TransactionalEmail,
+  StoredEmail,
 } from "@surveybeat/domain";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 
 const StateJson = Schema.fromJsonString(SendState);
-const ContentJson = Schema.fromJsonString(TransactionalEmail);
+const ContentJson = Schema.fromJsonString(StoredEmail);
 
 const Row = Schema.Struct({
   id: SendId,

@@ -1,8 +1,12 @@
 import { Context, type Effect, type Option, type Redacted } from "effect";
 import type { EmailAddress } from "../email/Email.ts";
 import type { Identity, PersonId, SessionId, WorkosOrganizationId, WorkosUserId } from "./Identity.ts";
+import type { Locale } from "./Locale.ts";
 import type { OrganizationId } from "./Organization.ts";
+import type { MembershipId, TeamId } from "./Team.ts";
 import type { AuthUnavailable, OrganizationSummary, PersonCandidate, Unauthenticated } from "./SignIn.ts";
+import type { PulseId } from "../pulses/Pulse.ts";
+import type { QuestionId } from "../pulses/Question.ts";
 
 /** A verified session from the identity provider, and the sealed cookie value that carries it. */
 export interface ProviderSession {
@@ -69,11 +73,28 @@ export interface IdentityProviderShape {
     name: string,
     externalId: OrganizationId,
   ) => Effect.Effect<WorkosOrganizationId, AuthUnavailable>;
-  /** Idempotent: an existing membership is kept as it is (never downgraded). */
+  /**
+   * Idempotent: creates the membership, or reactivates an inactive one, with `role`. The
+   * Organization's Durable Object decides who is an admin, so an existing role is set to `role` too.
+   */
   readonly ensureMembership: (
     userId: WorkosUserId,
     organization: WorkosOrganizationId,
     role: OrganizationRole,
+  ) => Effect.Effect<void, AuthUnavailable>;
+  /** Sets the role of an existing membership. Does nothing when the user has none (not signed in yet). */
+  readonly setMembershipRole: (
+    userId: WorkosUserId,
+    organization: WorkosOrganizationId,
+    role: OrganizationRole,
+  ) => Effect.Effect<void, AuthUnavailable>;
+  /**
+   * Deactivates the membership, so AuthKit stops putting the user back into the organization at
+   * sign-in (ADR 0010). Idempotent; does nothing when there is none.
+   */
+  readonly deactivateMembership: (
+    userId: WorkosUserId,
+    organization: WorkosOrganizationId,
   ) => Effect.Effect<void, AuthUnavailable>;
 }
 
@@ -118,6 +139,8 @@ export interface PeopleIndexShape {
     readonly email: EmailAddress;
     readonly userId: Option.Option<WorkosUserId>;
   }) => Effect.Effect<void>;
+  /** A removed Person is no longer a sign-in candidate. Idempotent. */
+  readonly removePerson: (organizationId: OrganizationId, personId: PersonId) => Effect.Effect<void>;
   /** Links an unlinked Person. Does nothing when the Person is already linked (to anyone). */
   readonly linkPerson: (
     organizationId: OrganizationId,
@@ -160,11 +183,23 @@ export interface OrganizationPeopleShape {
     userId: WorkosUserId,
     email: EmailAddress,
   ) => Effect.Effect<boolean>;
-  /** The user's Person in this Organization, unless it is removed or ended. */
+  /** The user's Person in this Organization, unless it is removed. */
   readonly activePerson: (
     organizationId: OrganizationId,
     userId: WorkosUserId,
-  ) => Effect.Effect<Option.Option<PersonId>>;
+  ) => Effect.Effect<Option.Option<ActivePerson>>;
+}
+
+/** An active Person, and whether the Organization's Durable Object holds them as an Organization admin. */
+export interface ActivePerson {
+  readonly personId: PersonId;
+  readonly organizationAdmin: boolean;
+  /** The Person's own language, or `null` to follow the browser (ADR 0018). */
+  readonly locale: Locale | null;
+  /** The browser's language last seen at sign-in. */
+  readonly detectedLocale: Locale | null;
+  /** The Organization's default language. */
+  readonly organizationLocale: Locale;
 }
 
 export class OrganizationPeople extends Context.Service<OrganizationPeople, OrganizationPeopleShape>()(
@@ -175,6 +210,10 @@ export class OrganizationPeople extends Context.Service<OrganizationPeople, Orga
 export interface NewIdsShape {
   readonly organizationId: Effect.Effect<OrganizationId>;
   readonly personId: Effect.Effect<PersonId>;
+  readonly teamId: Effect.Effect<TeamId>;
+  readonly membershipId: Effect.Effect<MembershipId>;
+  readonly pulseId: Effect.Effect<PulseId>;
+  readonly questionId: Effect.Effect<QuestionId>;
 }
 
 export class NewIds extends Context.Service<NewIds, NewIdsShape>()("@surveybeat/domain/NewIds") {}

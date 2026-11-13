@@ -80,8 +80,8 @@ const main = async (): Promise<number> => {
   console.log(`Main Worker ${mainScript}, canary ${mainCanary}`);
   console.log(`Submission Worker ${submissionScript}, canary ${submissionCanary}`);
 
-  // An id that is not 32 hex characters is answered 404 without waking a Durable Object.
-  const mainSent = await send(REQUESTS, () => fetch(`${mainUrl}/orgs/${mainCanary}`));
+  // An unauthenticated session request with the canary query param hits the Main Worker without waking a Durable Object.
+  const mainSent = await send(REQUESTS, () => fetch(`${mainUrl}/auth/session?canary=${mainCanary}`));
   const submissionSent = await send(REQUESTS, () =>
     fetch(`${submissionUrl}/submit?canary=${submissionCanary}`, {
       method: "POST",

@@ -6,7 +6,13 @@
     "tsBuildInfoFile": "dist/.tsbuildinfo",
     "types": ["node"]
   },
-  "include": ["alchemy.run.ts", "scripts", "tests"],
+  "include": [
+    "alchemy.run.ts",
+    "orgCreationAllowlist.ts",
+    "orgCreationAllowlist.test.ts",
+    "scripts",
+    "tests"
+  ],
   "references": [
     { "path": "../packages/domain" },
     { "path": "../packages/api" },

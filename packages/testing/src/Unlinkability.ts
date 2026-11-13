@@ -86,6 +86,15 @@ export const randomHex = (bytes = 16): Effect.Effect<string> =>
   });
 
 /**
+ * A byte source drawn from the seeded `Random`, for a subject whose storage mints its own keys
+ * (for example Submission ids). Read it inside `makeSubject` so it follows the harness's seed.
+ */
+export const seededRandomBytes: Effect.Effect<(size: number) => Uint8Array> = Effect.gen(function* () {
+  const random = yield* Random.Random;
+  return (size) => Uint8Array.from({ length: size }, () => Math.floor(random.nextDoubleUnsafe() * 256));
+});
+
+/**
  * Writes k Participants in index order into a fresh subject and runs every attack, once per seed.
  * `makeSubject` runs inside the seeded `Random`, so it must create fresh, empty storage each time.
  */

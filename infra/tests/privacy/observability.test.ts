@@ -35,8 +35,14 @@ describe("decodeEventCount", () => {
         events: {
           count: 2,
           events: [
-            { source: { message: "GET /orgs/sbcanary" }, $metadata: { service: "surveybeat-main-dev" } },
-            { source: { message: "GET /orgs/sbcanary" }, $metadata: { service: "surveybeat-main-dev" } },
+            {
+              source: { message: "GET /auth/session?canary=sbcanary" },
+              $metadata: { service: "surveybeat-main-dev" },
+            },
+            {
+              source: { message: "GET /auth/session?canary=sbcanary" },
+              $metadata: { service: "surveybeat-main-dev" },
+            },
           ],
         },
       },
