@@ -1133,6 +1133,10 @@ describe("App Scenes", () => {
         }),
         Scene.expect(Scene.role("heading", { name: "Organization settings" })).toExist(),
         Scene.expect(Scene.text("alice@acme.com")).toExist(),
+        Scene.expect(Scene.role("columnheader", { name: "Email" })).toExist(),
+        Scene.expect(Scene.role("columnheader", { name: "Role" })).toExist(),
+        Scene.expect(Scene.role("columnheader", { name: "Actions" })).toExist(),
+        Scene.expect(Scene.text("Member")).toExist(),
         Scene.expect(Scene.role("button", { name: "Make admin" })).toExist(),
         Scene.expect(Scene.label("Minimum group size")).toBeAbsent(),
         Scene.click(Scene.role("button", { name: "Change minimum group size" })),
@@ -1632,6 +1636,11 @@ describe("App Scenes", () => {
         Scene.expect(Scene.role("heading", { name: "Settings" })).toExist(),
         Scene.expect(Scene.role("button", { name: "Edit" })).toExist(),
         Scene.expect(Scene.role("button", { name: "Remove" })).toExist(),
+        // Editor controls: labelled icon buttons, and the Pulse/Rounds tabs
+        Scene.expect(Scene.role("button", { name: "Move up" })).toBeDisabled(),
+        Scene.expect(Scene.role("button", { name: "Move down" })).toBeDisabled(),
+        Scene.expect(Scene.role("link", { name: "Pulse", current: "page" })).toExist(),
+        Scene.expect(Scene.role("link", { name: "Rounds", current: "page" })).toBeAbsent(),
         // Add template question
         Scene.click(Scene.role("button", { name: "Add" })),
         Scene.Command.expectHas(AddQuestionCmd),
@@ -3224,6 +3233,25 @@ describe("App Scenes", () => {
           }),
         ],
       );
+
+    it("shows Review and share on a Ready Round, and only there", () => {
+      const readyId = Schema.decodeSync(RoundId)("round-ready");
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...given("lead"),
+          rounds: {
+            _tag: "Loaded" as const,
+            list: { ...rounds, rounds: [summary(readyId, "ready", "2026-11-09")] },
+          },
+          roundDetails: {},
+          roundRates: {},
+        }),
+        Scene.expect(Scene.text("Ready")).toExist(),
+        Scene.expect(Scene.role("link", { name: "Review and share" })).toExist(),
+        Scene.expect(Scene.role("link", { name: "View Results" })).toBeAbsent(),
+      );
+    });
 
     it("lists Rounds for a Lead with status, response rate, and a link to Results", () => {
       Scene.scene(

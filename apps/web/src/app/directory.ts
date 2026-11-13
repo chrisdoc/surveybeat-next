@@ -26,6 +26,7 @@ import {
   confirmDialog,
   dangerButtonClass,
   dataTable,
+  dangerLinkButton,
   emptyState,
   linkButton,
   linkClass,
@@ -1208,67 +1209,69 @@ export const settingsScreenView = <Message>(
   // People
   children.push(h.div([h.Class("mt-8")], [subSectionTitle(message("settings.people"), h, 2)]));
   children.push(
-    h.ul(
-      [h.Class("mt-3 rounded-panel border border-line bg-surface px-6")],
+    dataTable(
+      [message("settings.people.email"), message("settings.people.role"), message("settings.people.actions")],
       settings.people.map((person) => {
         const personId = decodePerson(person.personId);
-        return h.li(
-          [h.Class("border-b border-line-soft py-3 last:border-b-0")],
-          [
-            h.p(
-              [h.Class("flex flex-wrap items-center gap-2 font-medium")],
-              [
-                h.span([h.Class("min-w-0 break-all")], [person.email]),
-                person.organizationAdmin ? badge("primary", [message("settings.admin")], h) : null,
-                person.linked ? null : badge("neutral", [message("settings.notSignedInYet")], h),
-              ].filter(Predicate.isNotNull),
-            ),
-            h.div(
-              [h.Class("flex flex-wrap gap-x-4 gap-y-2")],
-              [
-                appButton(
-                  {
-                    text: message(person.organizationAdmin ? "settings.revokeAdmin" : "settings.makeAdmin"),
-                    isDisabled: state.peopleBusy,
-                    className: linkButton,
-                    onClick: person.organizationAdmin
-                      ? actions.onRevokeAdmin(person.personId)
-                      : actions.onGrantAdmin(person.personId),
-                  },
-                  h,
-                ),
-                Option.isSome(personId) && state.pendingRemovePerson?.personId !== person.personId
-                  ? appButton(
-                      {
-                        text: message("settings.removePerson"),
-                        isDisabled: state.peopleBusy,
-                        className: dangerButtonClass,
-                        onClick: actions.onRemovePerson(person.personId),
-                      },
-                      h,
-                    )
-                  : null,
-                Option.isSome(personId) && state.pendingRemovePerson?.personId === person.personId
-                  ? confirmDialog(
-                      {
-                        title: message("confirm.removeTitle"),
-                        body: message("confirm.removePersonBody", {
-                          email: state.pendingRemovePerson.email,
-                        }),
-                        confirmText: message("settings.removePerson"),
-                        cancelText: message("confirm.cancel"),
-                        isBusy: state.peopleBusy,
-                        onConfirm: actions.onConfirmRemovePerson,
-                        onCancel: actions.onCancelRemovePerson,
-                      },
-                      h,
-                    )
-                  : null,
-              ].filter(Predicate.isNotNull),
-            ),
-          ],
-        );
+        return [
+          h.div(
+            [h.Class("flex flex-wrap items-center gap-2")],
+            [
+              h.span([h.Class("min-w-0 break-all")], [person.email]),
+              person.linked ? null : badge("neutral", [message("settings.notSignedInYet")], h),
+            ].filter(Predicate.isNotNull),
+          ),
+          badge(
+            person.organizationAdmin ? "primary" : "neutral",
+            [message(person.organizationAdmin ? "settings.admin" : "settings.member")],
+            h,
+          ),
+          h.div(
+            [h.Class("flex flex-wrap items-center gap-x-4 gap-y-2")],
+            [
+              appButton(
+                {
+                  text: message(person.organizationAdmin ? "settings.revokeAdmin" : "settings.makeAdmin"),
+                  isDisabled: state.peopleBusy,
+                  className: linkButton,
+                  onClick: person.organizationAdmin
+                    ? actions.onRevokeAdmin(person.personId)
+                    : actions.onGrantAdmin(person.personId),
+                },
+                h,
+              ),
+              Option.isSome(personId) && state.pendingRemovePerson?.personId !== person.personId
+                ? appButton(
+                    {
+                      text: message("settings.removePerson"),
+                      isDisabled: state.peopleBusy,
+                      className: dangerLinkButton,
+                      onClick: actions.onRemovePerson(person.personId),
+                    },
+                    h,
+                  )
+                : null,
+              Option.isSome(personId) && state.pendingRemovePerson?.personId === person.personId
+                ? confirmDialog(
+                    {
+                      title: message("confirm.removeTitle"),
+                      body: message("confirm.removePersonBody", {
+                        email: state.pendingRemovePerson.email,
+                      }),
+                      confirmText: message("settings.removePerson"),
+                      cancelText: message("confirm.cancel"),
+                      isBusy: state.peopleBusy,
+                      onConfirm: actions.onConfirmRemovePerson,
+                      onCancel: actions.onCancelRemovePerson,
+                    },
+                    h,
+                  )
+                : null,
+            ].filter(Predicate.isNotNull),
+          ),
+        ];
       }),
+      h,
     ),
   );
 
