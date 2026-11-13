@@ -258,6 +258,24 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
       Effect.orDie,
     );
 
+  /** Each Pulse of a Team, whether it is paused, and its next planned open date if one is scheduled or open. */
+  const pulseFacts = (
+    teamId: TeamId,
+  ): Effect.Effect<Readonly<Record<string, { paused: boolean; nextRoundDate: string | null }>>> =>
+    sql<{ pulse_id: string; paused_at: number | null; next_date: string | null }>`SELECT p.id AS pulse_id,
+          p.paused_at AS paused_at,
+          MIN(CASE WHEN r.status IN ('scheduled', 'open') THEN r.planned_open_date END) AS next_date
+        FROM pulse p LEFT JOIN round r ON r.pulse_id = p.id
+        WHERE p.team_id = ${teamId}
+        GROUP BY p.id`.pipe(
+      Effect.map((all) =>
+        Object.fromEntries(
+          all.map((row) => [row.pulse_id, { paused: row.paused_at !== null, nextRoundDate: row.next_date }]),
+        ),
+      ),
+      Effect.orDie,
+    );
+
   const getRound = (roundId: RoundId): Effect.Effect<RoundRecord | null> =>
     sql`SELECT * FROM round WHERE id = ${roundId}`.pipe(
       Effect.flatMap(rows(RoundRow)),
@@ -1119,6 +1137,7 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
     getParticipatedRounds,
     getRoundsForPulse,
     nextRoundDates,
+    pulseFacts,
     getRoundQuestions,
     findScheduledRound,
     findOpenRound,

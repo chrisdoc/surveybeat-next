@@ -518,6 +518,8 @@ export const pulsesView = (
   state: PulseState,
   actorId: PersonId,
   teamId: TeamId,
+  /** Each Pulse's state and next Round; the Durable Object answers them in one read. */
+  facts?: (pulseId: PulseId) => { readonly paused: boolean; readonly nextRoundDate: string | null },
 ): PulseViewed<PulseList> =>
   viewAuthorized(directory, actorId, teamId, (actor) => {
     const team = directory.teams.find((each) => each.id === teamId);
@@ -527,12 +529,14 @@ export const pulsesView = (
       .sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id, "en"))
       .map((pulse) => {
         const questions = questionsOf(state, pulse);
+        const known = facts?.(pulse.id);
         return {
           id: pulse.id,
           name: pulse.settings.name,
           cadence: pulse.settings.cadence,
           questionCount: questions.length,
           estimatedSeconds: estimateSeconds(questions),
+          ...(known === undefined ? {} : { paused: known.paused, nextRoundDate: known.nextRoundDate }),
         };
       });
     return { _tag: "Viewed", value: { team: teamSummaryOf(team, actor), pulses } };

@@ -1222,7 +1222,21 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
             )
             .pipe(Effect.orDie),
         viewPulses: (actorId: PersonId, teamId: TeamId) =>
-          both.pipe(Effect.map(([people, library]) => pulsesView(people, library, actorId, teamId))),
+          Effect.all([both, rounds.pulseFacts(teamId)]).pipe(
+            Effect.map(([[people, library], facts]) =>
+              pulsesView(
+                people,
+                library,
+                actorId,
+                teamId,
+                (pulseId) =>
+                  facts[pulseId] ?? {
+                    paused: false,
+                    nextRoundDate: null,
+                  },
+              ),
+            ),
+          ),
         viewPulse: (actorId: PersonId, teamId: TeamId, pulseId: PulseId) =>
           both.pipe(Effect.map(([people, library]) => pulseView(people, library, actorId, teamId, pulseId))),
 

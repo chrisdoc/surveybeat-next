@@ -166,9 +166,21 @@ test(
       { _tag: "NoOneTap" },
       { _tag: "TeamBelowMinimumGroupSize", members: 1, minimumGroupSize: 4 },
     ]);
-    assert.deepStrictEqual(body.list, {
-      _tag: "Viewed",
+    const list = body.list as {
+      _tag: string;
       value: {
+        team: Record<string, unknown>;
+        pulses: ReadonlyArray<Record<string, unknown> & { nextRoundDate?: string | null }>;
+      };
+    };
+    assert.strictEqual(list._tag, "Viewed");
+    if (list._tag !== "Viewed") return;
+    // The list names each Pulse's state and next Round; the date comes from its scheduled Round.
+    const { nextRoundDate, ...pulse } = list.value.pulses[0]!;
+    assert.match(nextRoundDate ?? "", /^\d{4}-\d{2}-\d{2}$/);
+    assert.deepStrictEqual(
+      { team: list.value.team, pulses: [pulse] },
+      {
         team: { id: `team-${run}`, name: "Platform", timeZone: "Europe/Berlin", yourRole: null },
         pulses: [
           {
@@ -177,10 +189,11 @@ test(
             cadence: { _tag: "Weekly", day: "friday", time: "15:30" },
             questionCount: 7,
             estimatedSeconds: 70,
+            paused: false,
           },
         ],
       },
-    });
+    );
   }),
 );
 
