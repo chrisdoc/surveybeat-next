@@ -7,11 +7,6 @@ import { hostnameFor } from "./Hostnames.ts";
 import Organization from "./Organization.ts";
 import { submissionRoutes } from "./SubmissionRoutes.ts";
 
-/**
- * The Submission Worker (ADR 0005). Every log channel is switched off, because Alchemy turns
- * observability on when the prop is omitted. `infra/scripts/check-observability.ts` reads the
- * deployed settings back, since Alchemy has not applied `invocationLogs` and `persist` in the past.
- */
 export default class SubmissionWorker extends Cloudflare.Worker<SubmissionWorker>()(
   "Submission",
   Effect.gen(function* () {

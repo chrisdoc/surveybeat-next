@@ -58,15 +58,12 @@ const extractAnswers = (body: RawBody): ReadonlyArray<SubmissionAnswer> => {
   return [];
 };
 
-/** Credential-bearing query parameters. Accepted only in the POST body (ADR 0005, issue #130). */
 const credentialQueryParams = ["token", "t", "editKey", "edit_key", "editKeyHash", "edit_key_hash"] as const;
 
-/** Credential-bearing headers. Accepted only in the POST body (ADR 0005, issue #130). */
 const credentialHeaders = ["x-invitation-token", "x-edit-key"] as const;
 
 const EDIT_KEY_HASH = /^[0-9a-f]{64}$/;
 
-/** A test Invitation's token or a test Edit key, unexpired (ADR 0021): where it belongs. */
 type TestIndexRow = {
   readonly organization_id: string;
   readonly pulse_id: string;
@@ -97,10 +94,6 @@ const corsHeaders = {
   "access-control-allow-headers": "Content-Type",
 };
 
-/**
- * Routes for the Submission Worker (ADR 0005). Kept apart from the Worker class so the routing can
- * be tested with a fake Organization and an in-memory D1.
- */
 export const submissionRoutes = (organizations: Organizations, database: Cloudflare.D1.QueryDatabaseClient) =>
   Effect.gen(function* () {
     const request = yield* HttpServerRequest;
@@ -111,12 +104,9 @@ export const submissionRoutes = (organizations: Organizations, database: Cloudfl
     }
 
     if (path === "/submit" && request.method === "POST") {
-      // Deliberately logs nothing and never reads the body.
       return yield* HttpServerResponse.json({ ok: true }, { status: 202 });
     }
 
-    // Credentials in the query string or headers are refused before the body is parsed or any
-    // D1 or Organization is touched.
     const url = new URL(request.url, "https://submit.surveybeat.app");
     const credentialInUrl = credentialQueryParams.some((name) => url.searchParams.has(name));
     const credentialInHeader = credentialHeaders.some((name) => request.headers[name] !== undefined);
@@ -131,7 +121,6 @@ export const submissionRoutes = (organizations: Organizations, database: Cloudfl
     const token = body.token;
     const editKey = body.editKey;
 
-    // Invariant A5: A request carrying both an Invitation token and an Edit key is rejected (400).
     if (token !== undefined && editKey !== undefined) {
       return yield* HttpServerResponse.json(
         { error: "A request carrying both a token and an Edit key is rejected" },
@@ -156,7 +145,6 @@ export const submissionRoutes = (organizations: Organizations, database: Cloudfl
         .first<{ organization_id: string; round_id: string; person_id: string }>()
         .pipe(Effect.orDie);
       if (row === null) {
-        // A test Invitation has no Round: its context is built from the Pulse (ADR 0021).
         const now = yield* Clock.currentTimeMillis;
         const testRow = yield* findTestInvitation(database, tokenHash, now);
         if (testRow === null) {
@@ -185,7 +173,6 @@ export const submissionRoutes = (organizations: Organizations, database: Cloudfl
       if (token === undefined) {
         return yield* HttpServerResponse.json({ error: "Missing invitation token" }, { status: 400 });
       }
-      // The browser sends only the hash with the first Answer (ADR 0005).
       const editKeyHash = body.editKeyHash;
       if (editKeyHash === undefined) {
         return yield* HttpServerResponse.json({ error: "Missing edit key hash" }, { status: 400 });
@@ -201,7 +188,6 @@ export const submissionRoutes = (organizations: Organizations, database: Cloudfl
         .first<{ organization_id: string; round_id: string; person_id: string }>()
         .pipe(Effect.orDie);
       if (row === null) {
-        // A test saves nothing: the comment is only redacted for the preview; the Edit key hash is indexed (ADR 0021).
         const now = yield* Clock.currentTimeMillis;
         const testRow = yield* findTestInvitation(database, tokenHash, now);
         if (testRow === null) {
@@ -246,7 +232,6 @@ export const submissionRoutes = (organizations: Organizations, database: Cloudfl
     }
 
     if (path === "/answer" && request.method === "POST") {
-      // Later Answers carry the raw Edit key; the server derives the hash itself.
       if (token !== undefined) {
         return yield* HttpServerResponse.json(
           { error: "Invitation token is not accepted here" },
@@ -270,7 +255,6 @@ export const submissionRoutes = (organizations: Organizations, database: Cloudfl
         .first<{ organization_id: string; round_id: string }>()
         .pipe(Effect.orDie);
       if (row === null) {
-        // A test answer is redacted and discarded, as its first answer was (ADR 0021).
         const now = yield* Clock.currentTimeMillis;
         const testRow = yield* findTestSubmission(database, editKeyHash, now);
         if (testRow === null) {
