@@ -6,7 +6,10 @@ import { HttpServerRequest } from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import { hostnameFor, siteDomainFor } from "./Hostnames.ts";
 
-const assetsDirectory = new URL("../../../apps/web/dist-site", import.meta.url).pathname;
+export const siteAssetsDirectory = new URL("../../../apps/web/dist-site", import.meta.url).pathname;
+
+export const isAppRedirect = (method: string | undefined, path: string | undefined) =>
+  method === "GET" && (path === "/app" || path === "/app/");
 
 export default class SiteWorker extends Cloudflare.Worker<SiteWorker>()(
   "Site",
@@ -17,7 +20,7 @@ export default class SiteWorker extends Cloudflare.Worker<SiteWorker>()(
     return {
       main: import.meta.url,
       assets: {
-        directory: assetsDirectory,
+        directory: siteAssetsDirectory,
         htmlHandling: "auto-trailing-slash",
         runWorkerFirst: ["/app", "/app/"],
       },
@@ -34,7 +37,7 @@ export default class SiteWorker extends Cloudflare.Worker<SiteWorker>()(
       fetch: Effect.gen(function* () {
         const request = yield* HttpServerRequest;
         const path = request.url.split("?")[0];
-        if (request.method === "GET" && (path === "/app" || path === "/app/")) {
+        if (isAppRedirect(request.method, path)) {
           return HttpServerResponse.redirect(appOrigin, { status: 302 });
         }
         return HttpServerResponse.empty({ status: 404 });
