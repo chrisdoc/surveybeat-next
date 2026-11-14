@@ -25,6 +25,7 @@ import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Redacted from "effect/Redacted";
+import { isProviderRefusal, isProviderUnreachable } from "./ProviderFailure.ts";
 import { withProviderDeadline } from "./ProviderDeadline.ts";
 
 export interface WorkosConfig {
@@ -34,27 +35,7 @@ export interface WorkosConfig {
   readonly requestTimeout: Duration.Duration;
 }
 
-const statusOf = (error: unknown): number | undefined =>
-  typeof error === "object" && error !== null && "status" in error && typeof error.status === "number"
-    ? error.status
-    : undefined;
-
-const isRefusal = (error: unknown): boolean => {
-  const status = statusOf(error);
-  return status !== undefined && status >= 400 && status < 500 && status !== 408 && status !== 429;
-};
-
 class MalformedCookie extends Data.TaggedError("MalformedCookie") {}
-
-const isNetworkFailure = (error: unknown): boolean => {
-  if (error instanceof TypeError) return true;
-  if (typeof error !== "object" || error === null) return false;
-  if ("code" in error && typeof error.code === "string" && /^ERR_JWKS|^ERR_JOSE_GENERIC/.test(error.code)) {
-    return true;
-  }
-  const status = statusOf(error);
-  return status !== undefined && (status >= 500 || status === 408 || status === 429);
-};
 
 const callWith =
   (timeout: Duration.Duration) =>
@@ -67,7 +48,7 @@ const authCallWith =
     withProviderDeadline(
       Effect.tryPromise({
         try: f,
-        catch: (error) => (isRefusal(error) ? new Unauthenticated() : new AuthUnavailable()),
+        catch: (error) => (isProviderRefusal(error) ? new Unauthenticated() : new AuthUnavailable()),
       }),
       timeout,
     );
@@ -172,7 +153,7 @@ export const workosIdentityProvider = (config: WorkosConfig) => {
       withProviderDeadline(
         Effect.tryPromise({
           try: () => load(Redacted.value(sealed)).authenticate(),
-          catch: (error) => (isNetworkFailure(error) ? new AuthUnavailable() : new MalformedCookie()),
+          catch: (error) => (isProviderUnreachable(error) ? new AuthUnavailable() : new MalformedCookie()),
         }),
         config.requestTimeout,
       ).pipe(
@@ -208,7 +189,7 @@ export const workosIdentityProvider = (config: WorkosConfig) => {
     revokeSession: (sessionId) =>
       call(() =>
         users.revokeSession({ sessionId }).catch((error: unknown) => {
-          if (isRefusal(error)) return undefined;
+          if (isProviderRefusal(error)) return undefined;
           throw error;
         }),
       ).pipe(Effect.asVoid),
@@ -270,7 +251,7 @@ export const workosIdentityProvider = (config: WorkosConfig) => {
         if (existing?.status === "active" || existing?.status === "pending") {
           yield* call(() =>
             users.deactivateOrganizationMembership(existing.id).catch((error: unknown) => {
-              if (isRefusal(error)) return undefined;
+              if (isProviderRefusal(error)) return undefined;
               throw error;
             }),
           );
