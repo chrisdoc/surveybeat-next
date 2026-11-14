@@ -6,14 +6,8 @@ import { HttpServerRequest } from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import { hostnameFor, siteDomainFor } from "./Hostnames.ts";
 
-/** `apps/web`'s landing-page build output (`vite.site.config.ts`). Absolute, like MainWorker's assets. */
 const assetsDirectory = new URL("../../../apps/web/dist-site", import.meta.url).pathname;
 
-/**
- * The Site Worker: the static landing page (English at `/`, German at `/de/`), prerendered at build
- * time and served from assets. Its one dynamic route, `/app`, redirects to the app's origin, so the
- * app Worker's routing and auth stay untouched (ADR 0020).
- */
 export default class SiteWorker extends Cloudflare.Worker<SiteWorker>()(
   "Site",
   Effect.gen(function* () {
@@ -27,7 +21,6 @@ export default class SiteWorker extends Cloudflare.Worker<SiteWorker>()(
         htmlHandling: "auto-trailing-slash",
         runWorkerFirst: ["/app", "/app/"],
       },
-      // Stages without a custom app hostname live on workers.dev, whose URL is not known here: `/app` falls back to `/`.
       env: {
         ...(appHostname === undefined ? {} : { APP_ORIGIN: `https://${appHostname}` }),
       },

@@ -18,7 +18,6 @@ import * as Schema from "effect/Schema";
 import type { makeSqlDirectory } from "../SqlDirectory.ts";
 import type { makeSqlRounds } from "../SqlRounds.ts";
 
-/** A stored language the schema's CHECK constraints admit; anything else is read as unset. */
 const localeOrNull = (value: string | null): Locale | null => (Schema.is(Locale)(value) ? value : null);
 const localeOr = (value: string | null, fallback: Locale): Locale =>
   Schema.is(Locale)(value) ? value : fallback;
@@ -36,7 +35,6 @@ export const organizationDirectory = ({
   const deleteTestSendsForPerson = (personId: PersonId) =>
     sql`DELETE FROM test_send WHERE person_id = ${personId}`.pipe(Effect.asVoid, Effect.orDie);
 
-  /** Only sends still waiting go back to the queue; one already sent or failed stays as it is. */
   const pendingOnly = (followUps: ReadonlyArray<FollowUp>) =>
     Effect.filter(followUps, (step) =>
       step._tag === "QueueEmail"
@@ -52,7 +50,6 @@ export const organizationDirectory = ({
         .withTransaction(sql`INSERT INTO organization (id, name) VALUES (${id}, ${name})`)
         .pipe(Effect.as({ id, name }), Effect.orDie),
 
-    /** Idempotent: the Organization and its creator as its first Person (an Organization admin in WorkOS). */
     createWithAdmin: (id: string, name: string, personId: string, email: string, workosUserId: string) =>
       sql
         .withTransaction(
@@ -101,7 +98,6 @@ export const organizationDirectory = ({
           return {
             id: row.id,
             organizationAdmin: row.organization_admin === 1,
-            // The schema's CHECKs keep these to the known languages; anything else is read as unset.
             locale: localeOrNull(row.locale),
             detectedLocale: localeOrNull(row.detected_locale),
             organizationLocale: localeOr(row.default_locale, DEFAULT_LOCALE),
@@ -129,10 +125,6 @@ export const organizationDirectory = ({
           }),
         )
         .pipe(Effect.orDie),
-    /**
-     * The Teams list: the directory's view plus each Team's next Round, read from the same
-     * Organization's Rounds so no per-row fetch is needed.
-     */
     viewTeams: (actorId: PersonId) =>
       Effect.gen(function* () {
         const view = teamsView(yield* directory.load, actorId);

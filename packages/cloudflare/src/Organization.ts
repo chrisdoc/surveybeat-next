@@ -76,19 +76,10 @@ import { makeSqlPulses } from "./SqlPulses.ts";
 import { makeSqlRounds, secureRandomBytes } from "./SqlRounds.ts";
 import { makeSqlSendRepository } from "./SqlSendRepository.ts";
 
-/**
- * Relative to the directory Alchemy runs in, which is the repository root (`pnpm infra:deploy`, `pnpm test`).
- * It must be a literal: the same expression runs again inside the bundle, where `import.meta.url` differs.
- */
 const migrationsDirectory = "packages/cloudflare/migrations";
 
-/**
- * The lease a themes job takes while its network call is in flight: its due time moves this far ahead, so a
- * concurrent alarm or request cannot start a second call. If the object dies mid-call, the job retries after it.
- */
 const THEMES_LEASE_MS = 10 * 60_000;
 
-/** Origin used in email links when the stage has no custom hostname (never delivered for real). */
 const fallbackAppOrigin = "https://app.invalid";
 
 const randomId = (): string =>
@@ -113,32 +104,20 @@ const parseAttempts = (payload: string | null): number => {
   }
 };
 
-/**
- * The Organization Durable Object (ADR 0006): one object per Organization, SQLite storage.
- * Methods return plain data (no `Option`), because they cross the RPC boundary.
- * The Main Worker maps it to the domain schemas.
- */
 export default class Organization extends Cloudflare.DurableObject<Organization>()(
   "Organization",
   Effect.gen(function* () {
-    // Outer phase: capture the SQL files into the bundle.
     const migrations = yield* Cloudflare.SqlMigrations(migrationsDirectory);
 
-    // Inner phase: runs once per object activation, before any method is exposed. It is returned,
-    // not yielded: flattening it would run the object's setup when this outer phase runs.
     // @effect-diagnostics-next-line returnEffectInGen:off -- the object setup must be returned, not yielded: flattening it would run the setup when the outer phase runs, not once per activation.
     return Effect.gen(function* () {
       const state = yield* Cloudflare.DurableObjectState;
 
-      // The app's public origin, bound by the Main Worker from the stage (`MainWorker.ts`). Stages without
-      // a custom hostname live on workers.dev, whose URL is not known at declaration time. They never send
-      // real email (docs/infra.md), so their links fall back to a reserved .invalid origin (the email schema requires https) rather than production.
       const appOrigin = yield* Config.String("APP_ORIGIN").pipe(
         Config.withDefault(fallbackAppOrigin),
         Effect.orDie,
       );
 
-      // Invitation tokens are derived from this key, never stored (issue 42): only their hashes are.
       const invitationKey = yield* Config.Redacted("INVITATION_TOKEN_KEY").pipe(
         Effect.flatMap((secret) => Effect.promise(() => importInvitationTokenKey(Redacted.value(secret)))),
         Effect.orDie,
@@ -146,15 +125,12 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
       const tokenOf = (ref: InvitationTokenRef) =>
         Effect.promise(() => deriveInvitationToken(invitationKey, ref));
 
-      // The OpenRouter key for the Comment themes call (ADR 0015). Empty on stages without it: the call then
-      // fails closed with AiNotConfigured. Provided only where the themes attempt runs, never to other code.
       const aiKey = yield* Config.Redacted("OPENROUTER_API_KEY").pipe(
         Config.withDefault(Redacted.make("")),
         Effect.orDie,
       );
       const ai = makeOpenRouterAiClient(aiKey);
 
-      // Pass `storage` (not just `db`) so `withTransaction` uses `storage.transaction()`.
       const scope = yield* Scope.make();
       const sql = yield* SqliteClient.make({ storage: state.raw.storage }).pipe(
         Effect.provideService(Scope.Scope, scope),
@@ -163,22 +139,14 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
 
       yield* migrations.apply().pipe(Effect.orDie);
 
-      // Transactional email: the domain's SendStore on this object's `email_send` table.
       const sends = makeSendStore(makeSqlSendRepository(sql), defaultSendPolicy);
-      // People, Teams, and Memberships: the domain decides, this object loads and applies.
       const directory = makeSqlDirectory(sql, sends);
-      // The question library and Pulses, decided against the directory (roles, Teams, N).
       const pulses = makeSqlPulses(sql);
-      // Round lifecycle engine and schedule table (ADR 0006).
       const rounds = makeSqlRounds(sql, secureRandomBytes);
-      // Actions committed from Results (slice 13).
       const actions = makeSqlActions(sql);
-      // The Lead's Note on a Round (R2 04).
       const notes = makeSqlNotes(sql);
       const both = Effect.all([directory.load, pulses.load]);
 
-      /** A removed Person's test sends are forgotten with their other records (ADR 0021). */
-      /** Arms the DO alarm to the earliest pending job due time, or deletes the alarm if none pending. */
       const repairAlarm = () =>
         Effect.gen(function* () {
           const earliest = yield* rounds.getEarliestPendingJobDueAt();
@@ -192,7 +160,6 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
           }
         }).pipe(Effect.orDie);
 
-      /** Active Members and Leads of a Team with the time zone each receives at: their own, else the Team's. */
       const activeMembersWithTimeZones = (dirState: DirectoryState, teamId: TeamId, teamTimeZone: string) =>
         Effect.gen(function* () {
           const activeMembers = dirState.memberships.filter(
@@ -204,7 +171,6 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
           return { activeMembers, memberTimeZones };
         });
 
-      /** Schedules the next Round for a Pulse, keyed by (pulse_id, planned_open_date). */
       const scheduleNextRound = (pulseId: PulseId, teamId: TeamId, now: number) =>
         Effect.gen(function* () {
           const paused = yield* rounds.isPulsePaused(pulseId);
@@ -306,7 +272,6 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
           yield* repairAlarm();
         });
 
-      /** Updates the Scheduled Round's planned times and settings when Pulse settings change. */
       const updateScheduledRoundForPulse = (pulseId: PulseId, now: number) =>
         Effect.gen(function* () {
           const scheduled = yield* rounds.findScheduledRound(pulseId);
@@ -371,7 +336,6 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
           yield* repairAlarm();
         });
 
-      /** When a Round closing now leaves its Review window: the Pulse's window in days, copied at close (issue 106). */
       const reviewEndsAtOf = (pulseState: PulseState, pulseId: PulseId, now: number) => {
         const pulse = pulseState.pulses.find((p) => p.id === pulseId);
         return now + (pulse?.settings.reviewWindowDays ?? 0) * 86_400_000;
@@ -390,7 +354,6 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
           : null;
       };
 
-      /** Idempotent DO method: opens a Round, freezes questions and members, sends invitations, schedules reminders & close & next Round. */
       const executeOpenJob = (jobId: JobId, roundId: RoundId, now: number) =>
         Effect.gen(function* () {
           const job = yield* rounds.getJob(jobId);
@@ -402,7 +365,6 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
             return;
           }
 
-          // Idempotency: if invitations already exist for this round, open was already executed.
           const existingInvitations = yield* rounds.getInvitations(roundId);
           if (existingInvitations.length > 0) {
             yield* rounds.markJobCompleted(jobId, now);
@@ -443,7 +405,6 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
             };
           });
 
-          // Freezes eligible members and question versions in storage.
           yield* rounds.openRound(roundId, now, instants.closeInstant, pulse.questions, frozenMembers);
 
           const ratingQuestion = firstRatingQuestionOf(pulse, pulseState);
@@ -454,12 +415,10 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
           );
           const emailActions = eligibleActions.slice(0, 3).map((a) => a.title);
 
-          // Dispatch invitations and schedule reminders
           for (const m of frozenMembers) {
             const person = dirState.people.find((p) => p.id === m.personId);
             if (person === undefined || person.removedAt !== null) continue;
 
-            // Generation 0 is the Invitation as opened; only its hash is stored.
             const invitation = { roundId, personId: m.personId, generation: 0 };
             const tokenHash = yield* tokenOf(invitation).pipe(
               Effect.flatMap((token) => Effect.promise(() => hashToken(token))),
@@ -507,7 +466,6 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
               });
             }
 
-            // Reminders
             const reminderInstants = calculateReminders(
               m.sendAt,
               round.answerWindowDays,
@@ -541,12 +499,9 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
 
           yield* rounds.markJobCompleted(jobId, now);
 
-          // Create the next Scheduled Round right then
           yield* scheduleNextRound(round.pulseId, round.teamId, now);
         });
 
-      // Jobs name only the Person: the token is derived when the job runs. Jobs scheduled before tokens
-      // were derived also hold their random `token`; they use it as is, since it matches the stored hash.
       const InvitationJobPayload = Schema.Struct({
         personId: Schema.String,
         token: Schema.optionalKey(Schema.String),
@@ -588,7 +543,6 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
         }
       };
 
-      /** Dispatches an Invitation or Results-ready email when a send time arrives. */
       const executeSendJob = (jobId: JobId, roundId: RoundId, now: number) =>
         Effect.gen(function* () {
           const job = yield* rounds.getJob(jobId);
@@ -607,7 +561,6 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
           }
 
           if ("kind" in payload) {
-            // Results-ready delivery: round must be ready or shared
             if (round.status !== "ready" && round.status !== "shared") {
               yield* rounds.markJobCompleted(jobId, now);
               return;
@@ -640,7 +593,6 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
             return;
           }
 
-          // Invitation delivery: round must be open
           if (round.status !== "open") {
             yield* rounds.markJobCompleted(jobId, now);
             return;
@@ -684,14 +636,12 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
                   ...common,
                   invitation: { roundId, personId, generation: inv.resendCount },
                 }
-              : // A job scheduled before tokens were derived: its token is in the job already.
-                { _tag: "InvitationEmail", ...common, token: payload.token };
+              : { _tag: "InvitationEmail", ...common, token: payload.token };
 
           yield* sends.create(inv.sendId, person.email, invitationEmail);
           yield* rounds.markJobCompleted(jobId, now);
         });
 
-      /** Dispatches a reminder email for an open round if eligible. */
       const executeRemindJob = (jobId: JobId, roundId: RoundId, now: number) =>
         Effect.gen(function* () {
           const job = yield* rounds.getJob(jobId);
@@ -703,7 +653,6 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
             return;
           }
 
-          // Skipped if close is less than 2 hours away
           if (now >= round.plannedCloseAt - 2 * 3600_000) {
             yield* rounds.markJobCompleted(jobId, now);
             return;
@@ -718,14 +667,12 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
           const { personId } = payload;
           const pid = PersonId.make(personId);
 
-          // Skipped if member has answered
           const answered = yield* rounds.hasAnswered(roundId, pid);
           if (answered) {
             yield* rounds.markJobCompleted(jobId, now);
             return;
           }
 
-          // Skipped if member has opted out of reminders for this pulse
           const optedOut = yield* rounds.isOptedOut(round.pulseId, pid);
           if (optedOut) {
             yield* rounds.markJobCompleted(jobId, now);
@@ -748,7 +695,6 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
             return;
           }
 
-          // A revoked Invitation (Round cancelled) gets no reminder; a Resend moves it to a new generation.
           const inv = yield* rounds.getInvitation(roundId, pid);
           if (inv === null || inv.status === "revoked") {
             yield* rounds.markJobCompleted(jobId, now);
@@ -777,8 +723,7 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
                   ...common,
                   invitation: { roundId, personId, generation: inv.resendCount },
                 }
-              : // A job scheduled before tokens were derived: its token is in the job already.
-                {
+              : {
                   _tag: "ReminderEmail",
                   ...common,
                   token: payload.token,
@@ -790,7 +735,6 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
           yield* rounds.markJobCompleted(jobId, now);
         });
 
-      /** Idempotent DO method: closes an Open Round, stores effective N, enqueues computeResult. */
       const executeCloseJob = (jobId: JobId, roundId: RoundId, now: number) =>
         Effect.gen(function* () {
           const job = yield* rounds.getJob(jobId);
@@ -803,7 +747,6 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
           }
 
           const [dirState, pulseState] = yield* both;
-          // Stricter of Organization's current N and round's stored N (ADR 0004)
           const effectiveN = Math.max(
             dirState.minimumGroupSize,
             round.effectiveMinimumGroupSize ?? dirState.minimumGroupSize,
@@ -814,7 +757,6 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
           yield* rounds.cancelJobsForRound(roundId, ["send", "remind"]);
           yield* rounds.markJobCompleted(jobId, now);
 
-          // Enqueue computeResult through stub (slice 11 stub)
           const computeJobId = JobId.make(randomId());
           yield* rounds.insertJob({
             id: computeJobId,
@@ -830,16 +772,11 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
           yield* executeComputeJob(computeJobId, roundId, now);
         });
 
-      /** The Persons with `role` in the Team: active Memberships only. */
       const activePersonsWithRole = (dirState: DirectoryState, teamId: TeamId, role: "lead" | "member") =>
         dirState.memberships
           .filter((m) => m.teamId === teamId && m.endedAt === null && m.role === role)
           .map((m) => m.personId);
 
-      /**
-       * Schedules each person's results-ready email for their own morning, or sends it at once when that time
-       * has passed. Job ids are per Round and person, so scheduling twice adds nothing.
-       */
       const scheduleResultsReady = (round: RoundRecord, personIds: ReadonlyArray<PersonId>, now: number) =>
         Effect.gen(function* () {
           const dirState = yield* directory.load;
@@ -873,12 +810,6 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
           }
         });
 
-      /**
-       * Shares a Ready Round's Result with the Team (ADR 0004 and the Review window, Issue #106). Idempotent, and
-       * it runs inside the caller's transaction. Earlier Ready Rounds of the Pulse are shared with it: a later
-       * Round's trend and change already carry their scores, so no Result may reach a member before its Round is
-       * Shared. Members get their results-ready email as each Round is shared; Leads got theirs at close.
-       */
       const shareResults = (roundId: RoundId, now: number) =>
         Effect.gen(function* () {
           const target = yield* rounds.getRound(roundId);
@@ -896,7 +827,6 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
             if (!changed) continue;
 
             yield* rounds.cancelJobsForRound(id, ["share"]);
-            // Leads already have theirs from close (same job id, so this adds none); a member made Lead since still gets one.
             yield* scheduleResultsReady(
               round,
               [
@@ -909,7 +839,6 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
           yield* repairAlarm();
         });
 
-      /** Idempotent: the Review window has ended, so the Round's Result is shared (a no-op if it already is). */
       const executeShareJob = (jobId: JobId, roundId: RoundId, now: number) =>
         Effect.gen(function* () {
           const job = yield* rounds.getJob(jobId);
@@ -919,22 +848,12 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
           yield* rounds.markJobCompleted(jobId, now);
         });
 
-      /**
-       * Test stages only (reached through test routes behind `isTestStage`): the next compute attempts of a Round
-       * that fail with a defect, before any write. Lives in memory, so it is gone when the object is evicted.
-       */
       const injectedComputeFailures = new Map<RoundId, number>();
 
-      /**
-       * Idempotent DO method: computes Result, saves to round_result, moves to Ready then Shared. A defect retries at
-       * the backoff time (Issue #128). It gives up once 24 h have passed since the job was created: a delayed Result is
-       * stored, and the Lead may retry from the Round.
-       */
       const executeComputeJob = (jobId: JobId, roundId: RoundId, now: number) =>
         Effect.gen(function* () {
           const job = yield* rounds.getJob(jobId);
           if (job === null || job.status !== "pending") return;
-          // A retry that is not due yet: a doubled alarm or request changes nothing.
           if (job.dueAt > now) return;
 
           const round = yield* rounds.getRound(roundId);
@@ -977,7 +896,6 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
               pastRoundsHistory: pastHistory,
             });
 
-            // Test stages only: a defect here is raised before any write, as a failing computation would be.
             const injected = injectedComputeFailures.get(roundId) ?? 0;
             if (injected > 0) {
               injectedComputeFailures.set(roundId, injected - 1);
@@ -987,7 +905,6 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
             yield* rounds.saveRoundResult(roundId, result, now);
             yield* rounds.markRoundReady(roundId, now);
 
-            // The one themes call for this Round (ADR 0016, 0019). It runs as its own job, never inside this transaction.
             if (shouldRequestThemes(result, dirState.aiProcessing)) {
               const requested = yield* rounds.requestThemes(roundId, now);
               if (requested) {
@@ -1004,10 +921,8 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
               }
             }
 
-            // Leads get their results-ready email now. Members get theirs when the Round is Shared.
             yield* scheduleResultsReady(round, activePersonsWithRole(dirState, round.teamId, "lead"), now);
 
-            // Shared at once when the Review window is zero (or already over); otherwise a share job at its end.
             const readied = yield* rounds.getRound(roundId);
             const reviewEndsAt = readied?.reviewEndsAt ?? null;
             if (reviewEndsAt === null || reviewEndsAt <= now) {
@@ -1032,7 +947,6 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
           yield* computeEffect.pipe(
             Effect.catchDefect((defect: unknown) =>
               Effect.gen(function* () {
-                // A defect after the Result was stored (the Round is no longer Closed) leaves that Result in place.
                 const current = yield* rounds.getRound(roundId);
                 if (current === null || current.status !== "closed") {
                   yield* Effect.logError(
@@ -1041,7 +955,6 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
                   yield* rounds.markJobCompleted(jobId, now);
                   return;
                 }
-                // The 24 h budget starts when the job is created: a Lead's retry makes a new job, so a fresh one.
                 const attempts = parseAttempts(job.payload) + 1;
                 const dueAt = nextRetryAt(job.createdAt, attempts, now);
 
@@ -1076,14 +989,8 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
           );
         });
 
-      /**
-       * Idempotent: the Round's one Comment themes and discussion guide call (ADR 0016, ADR 0019). The network
-       * call runs between two transactions, never inside one. The job's due time is moved ahead as a lease
-       * while the call is in flight. Nothing is logged: the input, the reply, and any error body stay out.
-       */
       const executeThemesJob = (jobId: JobId, roundId: RoundId, now: number) =>
         Effect.gen(function* () {
-          // 1. Check everything the call needs, and take the lease.
           const prepared = yield* sql.withTransaction(
             Effect.gen(function* () {
               const job = yield* rounds.getJob(jobId);
@@ -1096,7 +1003,6 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
               }
 
               const dirState = yield* directory.load;
-              // An admin may have turned AI processing off since the request: then nothing is sent.
               if (!dirState.aiProcessing) {
                 yield* rounds.giveUpThemes(roundId, now);
                 yield* rounds.markJobCompleted(jobId, now);
@@ -1105,8 +1011,6 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
 
               const round = yield* rounds.getRound(roundId);
               const stored = yield* rounds.getRoundResult(roundId);
-              // The Organization's N may have been raised since close: decide on, and send, only what
-              // the Result shows under today's effective N (ADR 0004, Rule R9).
               const effective =
                 stored === null ? null : enforceEffectiveNOnResult(stored, dirState.minimumGroupSize);
               if (round === null || effective === null || !shouldRequestThemes(effective, true)) {
@@ -1125,10 +1029,8 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
             }),
           );
           if (prepared === null) return;
-          // The lease is now the job's due time: arm the alarm for its expiry, in case the object dies mid-call.
           yield* repairAlarm();
 
-          // 2. The one network call, outside any transaction.
           const decision = yield* runThemesAttempt({
             input: prepared.input,
             requestedAt: prepared.requestedAt,
@@ -1136,7 +1038,6 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
             now,
           }).pipe(Effect.provideService(AiClient, ai));
 
-          // 3. Record the outcome, unless the Round's themes were settled meanwhile.
           yield* sql.withTransaction(
             Effect.gen(function* () {
               const current = yield* rounds.getRoundThemes(roundId);
@@ -1163,7 +1064,6 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
           yield* repairAlarm();
         });
 
-      /** Processes all jobs currently due from the schedule table, then updates the alarm. */
       const runDueJobs = (nowMs?: number) =>
         Effect.gen(function* () {
           const now = nowMs ?? (yield* Clock.currentTimeMillis);
@@ -1171,7 +1071,6 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
             const dueJobs = yield* rounds.getDueJobs(now);
             if (dueJobs.length === 0) break;
             for (const job of dueJobs) {
-              // The themes call makes a network request, so it runs outside any transaction (ADR 0016).
               if (job.type === "themes") {
                 yield* executeThemesJob(job.id, job.roundId, now);
                 continue;
@@ -1243,11 +1142,6 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
         viewPulse: (actorId: PersonId, teamId: TeamId, pulseId: PulseId) =>
           both.pipe(Effect.map(([people, library]) => pulseView(people, library, actorId, teamId, pulseId))),
 
-        /**
-         * A test of a Pulse to the actor's own address (ADR 0021). Only the send is recorded here: its
-         * token is derived from a random test id and stored as a hash, and the email goes through the
-         * queue like every other. No Submission, Answer, or Participation is written.
-         */
         sendTestInvitation: (actorId: PersonId, teamId: TeamId, pulseId: PulseId, now: number) =>
           sql
             .withTransaction(
@@ -1295,7 +1189,6 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
               }),
             )
             .pipe(Effect.orDie),
-        /** The test send a token-less email belongs to, for indexing its token once sent (ADR 0021). */
         ...organizationEmailVisibility({ sql, sends, rounds, directory }),
 
         runRoundCommand: (actorId: PersonId, command: RoundCommand, now: number) =>
@@ -1430,7 +1323,6 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
                         rejection: { _tag: "RoundNotFound" },
                       } satisfies RoundCommandResult;
                     }
-                    // Only a Lead shares: an admin may manage Rounds but sees no Result before it is shared.
                     if (auth.actor.roles.get(command.teamId) !== "lead") {
                       return {
                         _tag: "Rejected",
@@ -1459,14 +1351,12 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
                         rejection: { _tag: "RoundNotFound" },
                       } satisfies RoundCommandResult;
                     }
-                    // Only a Lead retries: only a Lead sees that the Result could not be computed.
                     if (auth.actor.roles.get(command.teamId) !== "lead") {
                       return {
                         _tag: "Rejected",
                         rejection: { _tag: "Forbidden" },
                       } satisfies RoundCommandResult;
                     }
-                    // Already computed: a repeated click changes nothing.
                     if (round.status === "ready" || round.status === "shared") {
                       return { _tag: "Accepted" } satisfies RoundCommandResult;
                     }
@@ -1476,12 +1366,10 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
                         rejection: { _tag: "InvalidRoundState", status: round.status },
                       } satisfies RoundCommandResult;
                     }
-                    // A computation is already retrying: a repeated click joins it.
                     if (yield* rounds.hasPendingJob(round.id, "compute")) {
                       return { _tag: "Accepted" } satisfies RoundCommandResult;
                     }
 
-                    // A fresh compute job: its own 24 h budget, run at once like the close.
                     yield* rounds.deleteRoundResult(round.id);
                     const computeJobId = JobId.make(randomId());
                     yield* rounds.insertJob({
@@ -1562,7 +1450,6 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
                       } satisfies RoundCommandResult;
                     }
 
-                    // A Resend moves to the next generation, so the old link stops working.
                     const invitation = {
                       roundId: command.roundId,
                       personId: command.personId,
@@ -1647,7 +1534,6 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
             return true;
           }).pipe(Effect.orDie),
 
-        /** Test stages only (`isTestStage`): the next `count` compute attempts of the Round fail with a defect. */
         injectComputeFailures: (roundId: string, count: number) =>
           Effect.sync(() => {
             injectedComputeFailures.set(RoundId.make(roundId), count);
@@ -1661,7 +1547,6 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
           Effect.gen(function* () {
             const peeked = yield* rounds.getJob(JobId.make(jobId));
             if (peeked !== null && peeked.type === "themes") {
-              // Outside any transaction, as in runDueJobs (ADR 0016).
               const now = nowMs ?? (yield* Clock.currentTimeMillis);
               yield* executeThemesJob(peeked.id, peeked.roundId, now);
               yield* repairAlarm();
@@ -1719,7 +1604,6 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
           rounds.optOutReminders(PulseId.make(pulseId), PersonId.make(personId), now ?? Date.now()),
         isOptedOut: (pulseId: string, personId: string) =>
           rounds.isOptedOut(PulseId.make(pulseId), PersonId.make(personId)),
-        // A Round that is still Scheduled is re-timed, because the earliest member send decides when it opens.
         setPersonTimeZone: (personId: string, timeZone: string) =>
           Effect.gen(function* () {
             const pid = PersonId.make(personId);

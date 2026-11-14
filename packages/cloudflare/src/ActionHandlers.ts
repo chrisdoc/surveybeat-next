@@ -5,7 +5,6 @@ import * as Effect from "effect/Effect";
 import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
 import { type AuthServices, currentMember, requireSameOrigin } from "./auth/AuthHandlers.ts";
 
-/** Everything the Action endpoints need: sign-in's services and the Organization objects. */
 export type ActionServices = AuthServices | OrganizationActions;
 
 export const actionHandlers = <R>(services: Effect.Effect<Context.Context<ActionServices>, never, R>) => {

@@ -25,26 +25,16 @@ import { HttpServerRequest, toURL } from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
 
-/**
- * The session cookie holds the WorkOS sealed session (access token, refresh token, user), sealed
- * with the stage's cookie password. `__Host-` pins it to this exact host over HTTPS, with no
- * `Domain` and `Path=/`, so `pr-<n>.submit.surveybeat.app` and other subdomains never see it.
- * `SameSite=Lax` keeps it off cross-site POSTs; it is still sent on the top-level GET that
- * returns from AuthKit.
- */
 export const SESSION_COOKIE = "__Host-surveybeat-session";
-/** The OAuth `state` for one sign-in attempt: CSRF protection for `/auth/callback`. */
 export const STATE_COOKIE = "__Host-surveybeat-auth-state";
 
 const SESSION_MAX_AGE = "30 days";
 const STATE_MAX_AGE = "10 minutes";
 const cookieOptions = { path: "/", httpOnly: true, secure: true, sameSite: "lax" } as const;
 
-/** Everything sign-in needs. The Worker builds these per request; tests provide fakes. */
 export type AuthServices = IdentityProvider | PeopleIndex | OrganizationPeople | NewIds;
 
 export interface AuthHandlerOptions<R> {
-  /** Builds the services for one request. */
   readonly services: Effect.Effect<Context.Context<AuthServices>, never, R>;
   readonly allowlist: Effect.Effect<OrganizationCreationAllowlist, never, R>;
 }
@@ -54,7 +44,6 @@ const randomToken = () =>
     "",
   );
 
-/** This Worker's origin, from the URL Cloudflare received (it is absolute on Workers). */
 export const requestOrigin = Effect.map(HttpServerRequest, (request) =>
   URL.canParse(request.originalUrl)
     ? new URL(request.originalUrl).origin
@@ -77,17 +66,12 @@ const expireSessionCookie = HttpEffect.appendPreResponseHandler((_request, respo
   HttpServerResponse.expireCookie(response, SESSION_COOKIE, cookieOptions).pipe(Effect.orDie),
 );
 
-/**
- * State-changing requests must come from our own pages. `SameSite=Lax` already keeps the cookie
- * off cross-site POSTs; this also refuses same-site ones from other subdomains.
- */
 export const requireSameOrigin = Effect.gen(function* () {
   const request = yield* HttpServerRequest;
   const origin = request.headers.origin;
   if (origin !== undefined && origin !== (yield* requestOrigin)) return yield* new Forbidden();
 });
 
-/** The per-request check on the cookie. A request it rejects also loses the cookie. */
 const authenticated = Effect.gen(function* () {
   const sealed = yield* sealedFromRequest;
   if (Option.isNone(sealed)) return yield* new Unauthenticated();
@@ -97,10 +81,6 @@ const authenticated = Effect.gen(function* () {
   );
 });
 
-/**
- * The Person the request is signed in as, after the per-request check (ADR 0010). A refreshed
- * session is written back. Signed in but not in an Organization (or removed from it): `Forbidden`.
- */
 export const currentMember = Effect.gen(function* () {
   const { sealed, checked } = yield* authenticated;
   if (sealedChanged(sealed, checked.session)) yield* setSessionCookie(checked.session.sealed);
@@ -108,14 +88,12 @@ export const currentMember = Effect.gen(function* () {
   return checked.member.value;
 });
 
-/** Answers the state, writing the session back when a refresh or an Organization switch changed it. */
 const respond = (sealed: Redacted.Redacted<string>, outcome: SessionOutcome) =>
   Effect.gen(function* () {
     if (sealedChanged(sealed, outcome.session)) yield* setSessionCookie(outcome.session.sealed);
     return outcome.state;
   });
 
-/** The `auth` group of `SurveyBeatApi`: AuthKit sign-in, first sign-in, the picker, and sign-out. */
 export const authHandlers = <R>({ services, allowlist }: AuthHandlerOptions<R>) => {
   const provide = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
     Effect.flatMap(services, (context) => Effect.provideContext(effect, context));
@@ -148,7 +126,6 @@ export const authHandlers = <R>({ services, allowlist }: AuthHandlerOptions<R>) 
                 HttpServerResponse.expireCookie(STATE_COOKIE, cookieOptions),
                 Effect.orDie,
               );
-            // A missing or different state is a forged or replayed callback: never exchange its code.
             if (query.code === undefined || expected === undefined || query.state !== expected) {
               return yield* back(`${home}?signin=failed`);
             }
@@ -169,9 +146,7 @@ export const authHandlers = <R>({ services, allowlist }: AuthHandlerOptions<R>) 
       .handle("logout", () =>
         provide(
           Effect.gen(function* () {
-            // 403, cookie kept: another site must not be able to sign the user out.
             yield* requireSameOrigin;
-            // From here the cookie goes whatever happens, also on a 503 from WorkOS.
             yield* expireSessionCookie;
             const home = `${yield* requestOrigin}/`;
             const sealed = yield* sealedFromRequest;
@@ -187,13 +162,10 @@ export const authHandlers = <R>({ services, allowlist }: AuthHandlerOptions<R>) 
       )
       .handle("session", () =>
         provide(
-          // Its side effects (linking, WorkOS membership) are idempotent and only what the user is
-          // entitled to, so a cross-site top-level GET is harmless (ADR 0010).
           Effect.gen(function* () {
             const { sealed, checked } = yield* authenticated;
             return yield* sessionState(checked, yield* allowlist).pipe(
               Effect.flatMap((outcome) => respond(sealed, outcome)),
-              // The one Person on offer could not be entered (removed since the index was written).
               Effect.catchTag("Forbidden", () => Effect.succeed({ _tag: "NotInOrganization" } as const)),
             );
           }),
