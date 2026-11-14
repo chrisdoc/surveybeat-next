@@ -5,6 +5,7 @@ import {
   claim,
   pending,
   recordDeliveryEvent,
+  requeue,
   retryDelaySeconds,
   type SendState,
   settle,
@@ -129,6 +130,21 @@ describe("recordDeliveryEvent", () => {
 
   it("ignores events for a send that is not sent", () => {
     expect(recordDeliveryEvent(pending, "bounced", null, 9)).toEqual(Option.none());
+  });
+});
+
+describe("requeue", () => {
+  it("sends a failed send again: pending, with no attempts and no last code", () => {
+    const failed: SendState = { _tag: "Failed", reason: "rejected", code: "E_X", failedAt: 1 };
+    expect(requeue(failed)).toEqual(Option.some({ _tag: "Pending", attempts: 0, lastCode: null }));
+  });
+
+  it.each([
+    ["pending", pending],
+    ["sending", sending(1)],
+    ["sent", sent],
+  ] as const)("leaves a %s send alone", (_name, state) => {
+    expect(requeue(state)).toEqual(Option.none());
   });
 });
 

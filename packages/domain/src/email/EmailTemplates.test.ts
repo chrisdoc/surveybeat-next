@@ -1,0 +1,161 @@
+import { describe, expect, it } from "@effect/vitest";
+import { Effect, Schema } from "effect";
+import {
+  type InvitationEmail,
+  type InvitationEmailWithToken,
+  type ReminderEmail,
+  type ReminderEmailWithToken,
+  StoredEmail,
+  type TestInvitationEmail,
+  TransactionalEmail,
+} from "./Email.ts";
+import { InvitationTokens, withToken } from "./EmailTemplates.ts";
+
+const invitation = { roundId: "round-1", personId: "person-1", generation: 2 };
+const base = {
+  pulseName: "Weekly Pulse",
+  baseUrl: "https://app.surveybeat.app",
+  ratingQuestion: null,
+  actions: [],
+};
+
+const tokens = {
+  derive: (ref: typeof invitation) => Effect.succeed(`${ref.roundId}.${ref.personId}.${ref.generation}`),
+  deriveTest: (ref: { pulseId: string; personId: string; testId: string }) =>
+    Effect.succeed(`test.${ref.pulseId}.${ref.personId}.${ref.testId}`),
+};
+const resolve = (email: StoredEmail) =>
+  withToken(email).pipe(Effect.provideService(InvitationTokens, tokens));
+
+const invitationEmail: InvitationEmail = {
+  _tag: "InvitationEmail",
+  locale: "en",
+  ...base,
+  minimumGroupSize: 4,
+  invitation,
+};
+const reminderEmail: ReminderEmail = { _tag: "ReminderEmail", locale: "en", ...base, invitation };
+const testEmail: TestInvitationEmail = {
+  _tag: "TestInvitationEmail",
+  locale: "en",
+  ...base,
+  minimumGroupSize: 4,
+  test: { pulseId: "pulse-1", personId: "person-1", testId: "test-7" },
+};
+
+describe("withToken", () => {
+  it.effect("derives the token an Invitation or reminder refers to", () =>
+    Effect.gen(function* () {
+      const invited = yield* resolve(invitationEmail);
+      expect(invited).toMatchObject({ _tag: "InvitationEmail", token: "round-1.person-1.2" });
+      expect(invited).not.toHaveProperty("invitation");
+      const reminded = yield* resolve(reminderEmail);
+      expect(reminded).toMatchObject({ _tag: "ReminderEmail", token: "round-1.person-1.2" });
+    }),
+  );
+
+  it.effect("renders a test send as an Invitation marked as a test, with a test token", () =>
+    Effect.gen(function* () {
+      const rendered = yield* resolve(testEmail);
+      expect(rendered).toEqual({
+        _tag: "InvitationEmail",
+        locale: "en",
+        ...base,
+        minimumGroupSize: 4,
+        token: "test.pulse-1.person-1.test-7",
+        test: true,
+      });
+    }),
+  );
+
+  it.effect("carries the AI processing flag through to the rendered email", () =>
+    Effect.gen(function* () {
+      const invited = yield* resolve({ ...invitationEmail, aiProcessing: true });
+      expect(invited).toMatchObject({ _tag: "InvitationEmail", aiProcessing: true });
+      const reminded = yield* resolve({ ...reminderEmail, aiProcessing: true });
+      expect(reminded).toMatchObject({ _tag: "ReminderEmail", aiProcessing: true });
+    }),
+  );
+
+  it.effect("keeps the token of a row stored before tokens were derived", () =>
+    Effect.gen(function* () {
+      const legacy: InvitationEmailWithToken = {
+        _tag: "InvitationEmail",
+        locale: "en",
+        ...base,
+        anonymityStatement: "Your name is never stored with your answers.",
+        token: "stored-token",
+      };
+      expect(yield* resolve(legacy)).toEqual(legacy);
+      const legacyReminder: ReminderEmailWithToken = {
+        _tag: "ReminderEmail",
+        locale: "en",
+        ...base,
+        token: "stored-token",
+        unsubscribeUrl: "https://app.surveybeat.app/api/reminders/unsubscribe?t=stored-token",
+      };
+      expect(yield* resolve(legacyReminder)).toEqual(legacyReminder);
+    }),
+  );
+});
+
+describe("stored email schemas", () => {
+  const decodeStored = Schema.decodeUnknownSync(StoredEmail);
+  const decodeWritable = Schema.decodeUnknownSync(TransactionalEmail);
+
+  it("decode rows stored before tokens were derived", () => {
+    const row = {
+      _tag: "InvitationEmail",
+      ...base,
+      anonymityStatement: "Your name is never stored with your answers.",
+      token: "stored-token",
+    };
+    expect(decodeStored(row)).toEqual({ ...row, locale: "en" });
+    expect(() => decodeWritable(row)).toThrow();
+  });
+
+  it("decode rows stored before the AI processing flag existed, with no flag", () => {
+    const row = { _tag: "ReminderEmail", ...base, invitation };
+    expect(decodeStored(row)).toEqual({ ...row, locale: "en" });
+    expect(decodeWritable(row)).toEqual({ ...row, locale: "en" });
+    expect(decodeStored(row)).not.toHaveProperty("aiProcessing");
+  });
+
+  it("decode a stored email written before languages existed as English", () => {
+    const stored = JSON.parse(JSON.stringify(invitationEmail)) as Record<string, unknown>;
+    delete stored.locale;
+    expect(decodeStored(stored)).toMatchObject({ _tag: "InvitationEmail", locale: "en" });
+    const added = { _tag: "AddedToTeam", teamName: "Platform", leadName: "Grace", signInUrl: base.baseUrl };
+    expect(decodeWritable(added)).toMatchObject({ _tag: "AddedToTeam", locale: "en" });
+  });
+
+  it("round-trip a stored email with its language", () => {
+    const german = { ...reminderEmail, locale: "de" as const };
+    expect(decodeStored(german)).toEqual(german);
+  });
+
+  it("round-trip a row with the AI processing flag", () => {
+    const flagged = { ...invitationEmail, aiProcessing: true };
+    expect(decodeStored(flagged)).toEqual(flagged);
+    expect(decodeWritable(flagged)).toEqual(flagged);
+  });
+
+  it("round-trip a stored test send without a token", () => {
+    const testSend: TestInvitationEmail = {
+      _tag: "TestInvitationEmail",
+      locale: "de",
+      ...base,
+      minimumGroupSize: 4,
+      test: { pulseId: "pulse-1", personId: "person-1", testId: "test-7" },
+    };
+    expect(decodeStored(testSend)).toEqual(testSend);
+    expect(decodeWritable(testSend)).toEqual(testSend);
+    expect(JSON.stringify(Schema.encodeSync(StoredEmail)(testSend))).not.toContain("token");
+  });
+
+  it("round-trip a new row without a token", () => {
+    expect(decodeStored(invitationEmail)).toEqual(invitationEmail);
+    expect(decodeStored(reminderEmail)).toEqual(reminderEmail);
+    expect(JSON.stringify(Schema.encodeSync(StoredEmail)(invitationEmail))).not.toContain("token");
+  });
+});

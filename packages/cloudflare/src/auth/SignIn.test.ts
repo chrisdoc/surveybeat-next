@@ -1,60 +1,13 @@
+// @effect-diagnostics asyncFunction:off -- the vitest runner awaits a plain Promise here; the test never enters an Effect.
+
 import { describe, expect, it } from "@effect/vitest";
 import { SESSION_COOKIE, STATE_COOKIE } from "./AuthHandlers.ts";
-import { SignInWorld } from "./testing.ts";
+import { Browser, ORIGIN, SignInWorld } from "./testing.ts";
 
 /**
  * The sign-in API end to end over HTTP: real handlers, real domain flow, and in-memory stand-ins
  * for WorkOS, the D1 index, and the Organization Durable Objects.
  */
-
-const ORIGIN = "https://pr-1.app.surveybeat.app";
-
-/** A browser of one: keeps cookies between requests, never follows redirects. */
-class Browser {
-  readonly cookies = new Map<string, string>();
-  constructor(private readonly handle: (request: Request) => Promise<Response>) {}
-
-  async fetch(path: string, init: RequestInit = {}): Promise<Response> {
-    const headers = new Headers(init.headers);
-    if (this.cookies.size > 0) {
-      headers.set("cookie", [...this.cookies].map(([name, value]) => `${name}=${value}`).join("; "));
-    }
-    const response = await this.handle(
-      new Request(`${ORIGIN}${path}`, { ...init, headers, redirect: "manual" }),
-    );
-    for (const header of response.headers.getSetCookie()) {
-      const [pair = "", ...attributes] = header.split(";").map((part) => part.trim());
-      const [name = "", value = ""] = pair.split("=");
-      const expired = attributes.some(
-        (attribute) => /^max-age=0$/i.test(attribute) || /^expires=.*1970/i.test(attribute),
-      );
-      if (expired || value === "") this.cookies.delete(name);
-      else this.cookies.set(name, value);
-    }
-    return response;
-  }
-
-  get = (path: string) => this.fetch(path);
-  post = (path: string, body: unknown, origin = ORIGIN) =>
-    this.fetch(path, {
-      method: "POST",
-      headers: { "content-type": "application/json", origin },
-      body: JSON.stringify(body),
-    });
-
-  /** Goes through AuthKit as the user the code belongs to. */
-  async signIn(code: string): Promise<void> {
-    const login = await this.get("/auth/login");
-    const state = new URL(login.headers.get("location") ?? "").searchParams.get("state") ?? "";
-    const callback = await this.get(`/auth/callback?${new URLSearchParams({ code, state }).toString()}`);
-    expect(callback.headers.get("location")).toBe(`${ORIGIN}/`);
-  }
-
-  async session(): Promise<{ status: number; body: unknown }> {
-    const response = await this.get("/auth/session");
-    return { status: response.status, body: await response.json() };
-  }
-}
 
 const setup = (allowlist = "") => {
   const world = new SignInWorld(allowlist);
@@ -142,7 +95,7 @@ describe("first sign-in with no matching Person", () => {
     if (created_ === undefined) throw new Error("no WorkOS organization");
     const [organizationId, workosOrganization] = created_;
     expect(world.workos.memberships.get(`user_1/${workosOrganization.id}`)).toBe("admin");
-    expect(world.durable.organizations.get(organizationId)?.name).toBe("Acme");
+    expect(world.durable.organizations.get(organizationId)?.state.organizationName).toBe("Acme");
     // The new cookie is scoped to the Organization, so the next request is signed in.
     expect((await browser.session()).body).toMatchObject({
       _tag: "SignedIn",
@@ -240,9 +193,7 @@ describe("a creator removed from their Organization", () => {
   const removeCreator = (world: SignInWorld) => {
     const [claim] = [...world.index.claims.values()];
     if (claim === undefined) throw new Error("no claim");
-    const person = world.durable.person(claim.organization.id, claim.adminPersonId);
-    if (person === undefined) throw new Error("no creator");
-    person.removed = true;
+    world.durable.remove(claim.organization.id, claim.adminPersonId);
   };
 
   it("is not made admin again by the session check or another create", async () => {
@@ -274,6 +225,28 @@ describe("a creator removed from their Organization", () => {
   });
 });
 
+describe("languages in the session (ADR 0018)", () => {
+  it("carries the Person's language, the browser language, and the Organization's default", async () => {
+    const { world, browser } = setup();
+    const acme = world.addOrganization("Acme");
+    const personId = world.addPerson(acme.id, "ada@example.com");
+    const organization = world.durable.organizations.get(acme.id);
+    if (organization === undefined) throw new Error("no Organization");
+    organization.state = { ...organization.state, defaultLocale: "de" };
+    world.durable.update(acme.id, personId, { locale: "en", detectedLocale: "de" });
+
+    await browser.signIn(world.workos.addUser("ada@example.com"));
+
+    expect((await browser.session()).body).toMatchObject({
+      _tag: "SignedIn",
+      personId,
+      locale: "en",
+      detectedLocale: "de",
+      organizationLocale: "de",
+    });
+  });
+});
+
 describe("linking a WorkOS user to a Person", () => {
   it("links by an exact match on a verified email, whatever its case", async () => {
     const { world, browser } = setup();
@@ -286,6 +259,9 @@ describe("linking a WorkOS user to a Person", () => {
       organization: { id: acme.id, name: "Acme" },
       personId,
       organizationAdmin: false,
+      locale: null,
+      detectedLocale: null,
+      organizationLocale: "en",
     });
     expect(world.durable.person(acme.id, personId)?.workosUserId).toBe("user_1");
     expect(world.index.persons.get(`${acme.id}/${personId}`)?.userId).toBe("user_1");
@@ -346,6 +322,9 @@ describe("linking a WorkOS user to a Person", () => {
       organization: { id: acme.id, name: "Acme" },
       personId: acmePerson,
       organizationAdmin: false,
+      locale: null,
+      detectedLocale: null,
+      organizationLocale: "en",
     });
     expect((await browser.session()).body).toMatchObject({ _tag: "SignedIn", organization: { id: acme.id } });
   });
@@ -392,9 +371,7 @@ describe("the per-request session check", () => {
 
   it("drops a removed Person from the Organization on the next request, but keeps the session", async () => {
     const { world, browser, acme, personId } = await signedIn();
-    const person = world.durable.person(acme.id, personId);
-    if (person === undefined) throw new Error("no person");
-    person.removed = true;
+    world.durable.remove(acme.id, personId);
     expect(await browser.session()).toEqual({ status: 200, body: { _tag: "NotInOrganization" } });
     expect(browser.cookies.has(SESSION_COOKIE)).toBe(true);
   });
@@ -407,9 +384,7 @@ describe("the per-request session check", () => {
     const globexPerson = world.addPerson(globex.id, "ada@example.com");
     await browser.signIn(world.workos.addUser("ada@example.com"));
     await browser.post("/auth/organization/choose", { organizationId: acme.id });
-    const person = world.durable.person(acme.id, acmePerson);
-    if (person === undefined) throw new Error("no person");
-    person.removed = true;
+    world.durable.remove(acme.id, acmePerson);
 
     expect((await browser.session()).body).toMatchObject({ _tag: "ChooseOrganization" });
     const chosen = await browser.post("/auth/organization/choose", { organizationId: globex.id });
@@ -461,9 +436,7 @@ describe("the per-request session check", () => {
       await browser.post("/auth/organization/choose", { organizationId: organization.id });
     }
     expect(world.workos.memberships.has(`${userId}/${acme.workos}`)).toBe(true);
-    const person = world.durable.person(acme.id, acmePerson);
-    if (person === undefined) throw new Error("no person");
-    person.removed = true;
+    world.durable.remove(acme.id, acmePerson);
 
     world.workos.requireOrganizationSelection = true;
     const next = newBrowser();

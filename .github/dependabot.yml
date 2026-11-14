@@ -1,0 +1,63 @@
+version: 2
+updates:
+  # Maintain dependencies for npm packages across the pnpm monorepo
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Etc/UTC"
+    open-pull-requests-limit: 10
+    groups:
+      # Group tightly-coupled framework & ecosystem packages so they always update together
+      effect:
+        patterns:
+          - "effect"
+          - "@effect/*"
+      alchemy:
+        patterns:
+          - "alchemy"
+          - "@alchemy.run/*"
+      react:
+        patterns:
+          - "react"
+          - "react-dom"
+          - "@types/react"
+          - "@types/react-dom"
+          - "react-email"
+          - "@base-ui/react"
+      foldkit:
+        patterns:
+          - "foldkit"
+          - "@foldkit/*"
+      tailwind:
+        patterns:
+          - "tailwindcss"
+          - "@tailwindcss/*"
+      # Group devDependencies (linting, formatting, test runners, type definitions)
+      dev-dependencies:
+        dependency-type: "development"
+        patterns:
+          - "*"
+      # Group remaining minor and patch updates to minimize PR volume
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+        patterns:
+          - "*"
+
+  # Maintain dependencies for GitHub Actions workflows
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Etc/UTC"
+    open-pull-requests-limit: 5
+    groups:
+      actions:
+        patterns:
+          - "*"

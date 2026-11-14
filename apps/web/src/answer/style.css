@@ -1,0 +1,266 @@
+:root {
+  --stone: #f3f4f1;
+  --surface: #ffffff;
+  --line: #e1e5e1;
+  --ink: #0e2a24;
+  --muted: #3d554f;
+  --primary: #0b5d55;
+  --on-primary: #ffffff;
+  --primary-soft: #d3e7e2;
+  --evergreen: #0e2a24;
+  --mint: #9fd6cb;
+  --danger: #b42318;
+  --radius-panel: 20px;
+  --radius-control: 12px;
+  color-scheme: light dark;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  font:
+    16px/1.5 system-ui,
+    -apple-system,
+    sans-serif;
+  color: var(--ink);
+  background: var(--stone);
+}
+main {
+  max-width: 34rem;
+  margin: 0 auto;
+  padding: 1.25rem 1rem 2rem;
+}
+h1 {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  margin: 0 0 1rem;
+  color: var(--muted);
+}
+h2,
+legend {
+  font:
+    400 1.9rem/1.15 "Iowan Old Style",
+    "Palatino Linotype",
+    Georgia,
+    serif;
+  letter-spacing: -0.01em;
+}
+h2 {
+  margin: 0.25rem 0 1rem;
+}
+[hidden] {
+  display: none !important;
+}
+fieldset {
+  border: 0;
+  margin: 0 0 1rem;
+  padding: 0;
+}
+legend {
+  margin-bottom: 1.25rem;
+  padding: 0;
+}
+.scale {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.scale label {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 56px;
+  padding: 0.5rem 1rem;
+  background: var(--surface);
+  border: 1px solid var(--muted);
+  border-radius: var(--radius-control);
+  cursor: pointer;
+}
+.scale input {
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  accent-color: var(--primary);
+  flex-shrink: 0;
+}
+.scale label span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.scale label:has(input:checked) {
+  color: var(--on-primary);
+  background: var(--primary);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px var(--primary-soft);
+}
+.scale label:has(input:checked) input {
+  accent-color: var(--on-primary);
+}
+.scale label:has(input:focus-visible) {
+  outline: 2px solid var(--primary);
+  outline-offset: 6px;
+}
+.test-banner {
+  margin: 0 0 1rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--primary-soft);
+  border-radius: var(--radius-control);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.anon {
+  min-height: 44px;
+  margin: 1.5rem 0 1rem;
+  padding: 0.75rem 0.75rem 0.75rem 2.25rem;
+  background: var(--surface)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230b5d55' stroke-width='2'%3E%3Crect x='5' y='11' width='14' height='9' rx='2'/%3E%3Cpath d='M8 11V8a4 4 0 018 0v3'/%3E%3C/svg%3E")
+    no-repeat 0.6rem 50% / 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  font-size: 0.875rem;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+}
+/* The mark sits above the Pulse name, small and quiet, like the dashboard's brand line. */
+.mark {
+  margin: 0 0 0.25rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+}
+/* The same primary token as the dashboard's buttons (ADR 0020). */
+button {
+  min-height: 52px;
+  min-width: 44px;
+  width: 100%;
+  font: inherit;
+  font-weight: 600;
+  color: var(--on-primary);
+  background: var(--primary);
+  border: 0;
+  border-radius: var(--radius-control);
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+textarea {
+  width: 100%;
+  min-height: 6rem;
+  font: inherit;
+  font-size: 16px;
+  color: var(--ink);
+  padding: 0.75rem;
+  background: var(--surface);
+  border: 1px solid var(--muted);
+  border-radius: var(--radius-control);
+}
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.comment-section {
+  margin-top: 1rem;
+}
+.comment-label {
+  display: block;
+  font-weight: 600;
+  font-size: 0.95rem;
+  margin-bottom: 0.25rem;
+}
+.comment-disclosure {
+  font-size: 0.825rem;
+  color: var(--muted);
+  line-height: 1.4;
+  margin: 0 0 0.5rem;
+}
+.lead-preview {
+  font-size: 0.9rem;
+  color: var(--ink);
+  margin-top: 0.5rem;
+  font-weight: 500;
+}
+.lead-text {
+  font-style: italic;
+}
+.question-block {
+  margin-bottom: 2rem;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 1.5rem;
+}
+.question-block:last-child {
+  border-bottom: none;
+}
+ul.actions {
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+ul.actions li {
+  min-height: 44px;
+  padding: 0.6rem 0.75rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  display: flex;
+  align-items: center;
+}
+.err {
+  color: var(--danger);
+  background: var(--surface);
+  border: 1px solid var(--danger);
+  padding: 0.75rem;
+  border-radius: var(--radius-control);
+  margin-bottom: 1rem;
+}
+.state-box {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  padding: 1.5rem;
+  margin: 1rem 0;
+  text-align: center;
+}
+@media (min-width: 640px) {
+  body.is-desktop .mobile-next-btn {
+    display: none !important;
+  }
+  body.is-desktop .desktop-finish-btn {
+    display: block !important;
+    margin-top: 1.5rem;
+  }
+  body.is-desktop [data-question-screen] {
+    display: block !important;
+  }
+}
+@media (max-width: 639px) {
+  .desktop-finish-btn {
+    display: none !important;
+  }
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --stone: #0b1f1b;
+    --surface: #12302a;
+    --line: #2a4f46;
+    --ink: #e8f0ed;
+    --muted: #a9c2ba;
+    --primary: #7fcdbe;
+    --on-primary: #06221d;
+    --primary-soft: #1f4a42;
+    --evergreen: #081814;
+    --mint: #9fd6cb;
+    --danger: #ff8a7a;
+  }
+  .anon {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%237fcdbe' stroke-width='2'%3E%3Crect x='5' y='11' width='14' height='9' rx='2'/%3E%3Cpath d='M8 11V8a4 4 0 018 0v3'/%3E%3C/svg%3E");
+  }
+}

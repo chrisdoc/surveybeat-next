@@ -4,7 +4,15 @@
     "rootDir": "src",
     "outDir": "dist",
     "tsBuildInfoFile": "dist/.tsbuildinfo",
-    "types": []
+    "types": [],
+    "plugins": [
+      {
+        "name": "@effect/language-service",
+        // Debt from the effect 4.1.2 pin: these are the exact unstable APIs this package calls.
+        // Delete an entry when the pin moves and the module becomes stable.
+        "allowedUnstableApis": ["@effect/vitest#it"]
+      }
+    ]
   },
   "include": ["src"]
 }

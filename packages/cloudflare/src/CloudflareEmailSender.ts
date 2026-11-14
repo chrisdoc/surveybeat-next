@@ -2,6 +2,8 @@ import type * as Cloudflare from "@alchemy.run/cloudflare";
 import { EmailOutcomeUnknown, EmailRejected, EmailSender } from "@surveybeat/domain";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import * as Effect from "effect/Effect";
+import * as Option from "effect/Option";
+import * as Schema from "effect/Schema";
 import { FROM } from "./Email.ts";
 
 /** Refusals that another attempt cannot fix. */
@@ -37,6 +39,8 @@ export const classifySendError = (error: unknown): EmailRejected | EmailOutcomeU
   return new EmailRejected({ code, permanent: PERMANENT.has(code) || code.startsWith("E_HEADER_") });
 };
 
+const decodeResult = Schema.decodeUnknownOption(Schema.Struct({ messageId: Schema.NonEmptyString }));
+
 /** `EmailSender` on Cloudflare Email Sending, from `notify.surveybeat.app`. Built inside a handler. */
 export const cloudflareEmailSender = (client: Cloudflare.Email.SendClient) =>
   Effect.gen(function* () {
@@ -50,10 +54,17 @@ export const cloudflareEmailSender = (client: Cloudflare.Email.SendClient) =>
             subject: message.subject,
             html: message.html,
             text: message.text,
+            ...(message.headers !== undefined ? { headers: { ...message.headers } } : {}),
           })
           .pipe(
-            Effect.map((result) => ({ messageId: result.messageId })),
             Effect.mapError((error) => classifySendError(error.cause)),
+            // A call that resolves without a message id (as a misbound queue does) may have sent nothing.
+            Effect.flatMap((result) =>
+              Option.match(decodeResult(result), {
+                onNone: () => Effect.fail(new EmailOutcomeUnknown({ code: "E_NO_MESSAGE_ID" })),
+                onSome: ({ messageId }) => Effect.succeed({ messageId }),
+              }),
+            ),
             Effect.provideContext(runtime),
           ),
     });

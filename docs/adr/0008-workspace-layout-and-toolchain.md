@@ -1,5 +1,7 @@
 # Workspace layout and toolchain: pnpm, TypeScript 7, oxc tools, and Alchemy v2's Effect runtime kept inside the adapters
 
+> Partly superseded by ADR 0011 (the app entry uses Foldkit, not React and Base UI), ADR 0012 (`packages/cloudflare` depends on `packages/emails`), and ADR 0013 (domain folder layout). The rest stands.
+
 **Workspace.** pnpm workspaces with a `catalog:` of exact pins, on Node 24 LTS (`.node-version`). Pinned at: `effect` and all `@effect/*` 4.1.2, `alchemy` and `@alchemy.run/*` 2.0.0-beta.85, `typescript` 7.0.2, and exact `oxlint`, `oxlint-tsgolint`, and `oxfmt` versions. The Effect and Alchemy pins move only together, in a PR of their own, because both are marked unstable or beta.
 
 **Packages.**
@@ -8,7 +10,7 @@
 | --- | --- | --- |
 | `packages/domain` | Schemas and services by concept (`people/`, `pulses/`, `rounds/`, `answering/`, `results/`, `actions/`, `privacy/`), schedule and Result calculations | `effect` only |
 | `packages/api` | The HttpApi declaration shared by server and client | `domain` |
-| `packages/cloudflare` | Adapters (Organization DO, D1, Queue consumer, `EmailSender`, alarm scheduler) and the two Worker entries: the main Worker and the Submission Worker | `domain`, `api`, `emails` (the Queue consumer renders email), Alchemy runtime |
+| `packages/cloudflare` | Adapters (Organization DO, D1, Queue consumer, `EmailSender`, alarm scheduler) and the two Worker entries: the main Worker and the Submission Worker | `domain`, `api`, Alchemy runtime |
 | `apps/web` | One Vite 8 project with two entries: the app (React, TanStack Router, Base UI) and the answer page (no React, no HttpApi client: plain `fetch` plus shared Schemas) | `api`, `domain` (Schemas) |
 | `packages/emails` | Email templates | `domain` |
 | `infra` | The Alchemy stack and stages (`pr-<n>`, `staging`, `production`) | everything |

@@ -1,5 +1,6 @@
 import { Schema } from "effect";
 import { OrganizationCreationAllowlist, type Identity, PersonId } from "./Identity.ts";
+import { Locale } from "./Locale.ts";
 import { OrganizationId } from "./Organization.ts";
 
 /** An Organization as the sign-in screens show it: id and name only. */
@@ -64,8 +65,17 @@ export const SessionState = Schema.Union([
   Schema.TaggedStruct("SignedIn", {
     organization: OrganizationSummary,
     personId: PersonId,
-    /** WorkOS's org-level `admin` role. It grants no access to any Team's Results (ADR 0003). */
+    /**
+     * An Organization admin, as its Durable Object holds them (the WorkOS `admin` role is kept in
+     * step). It grants no access to any Team's Results (ADR 0003).
+     */
     organizationAdmin: Schema.Boolean,
+    /** The language the Person chose, or none to follow the browser (ADR 0018). */
+    locale: Schema.NullOr(Locale),
+    /** The browser's language last seen at sign-in (`null` if unknown). */
+    detectedLocale: Schema.NullOr(Locale),
+    /** The Organization's default language. */
+    organizationLocale: Locale,
   }),
   Schema.TaggedStruct("ChooseOrganization", { organizations: Schema.Array(OrganizationSummary) }),
   Schema.TaggedStruct("CreateOrganization", {}),

@@ -25,12 +25,13 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Typecheck with Effect diagnostics
-        run: pnpm typecheck:effect
-      - run: pnpm typecheck
+        run: pnpm typecheck
+      - run: pnpm check:ledger
+      - run: pnpm check:comments
       - run: pnpm format:check
       - run: pnpm lint
-      - run: pnpm test
       - run: pnpm --filter @surveybeat/web build
+      - run: pnpm test
 
   # The privacy suite (SPEC §7): every `*.privacy.test.ts` across the packages. Required on every PR.
   privacy:

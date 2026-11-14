@@ -1,11 +1,12 @@
 import { Context, Effect, Layer, Option, Ref, Semaphore } from "effect";
-import type { EmailAddress, SendId, TransactionalEmail } from "./Email.ts";
+import type { EmailAddress, SendId, StoredEmail } from "./Email.ts";
 import {
   abandon,
   claim,
   type DeliveryEventKind,
   pending,
   recordDeliveryEvent,
+  requeue,
   type SendOutcome,
   type SendPolicy,
   type SendState,
@@ -16,7 +17,7 @@ import {
 export interface SendRecord {
   readonly id: SendId;
   readonly recipient: EmailAddress;
-  readonly email: TransactionalEmail;
+  readonly email: StoredEmail;
   readonly state: SendState;
 }
 
@@ -26,11 +27,17 @@ export type ClaimResult =
       readonly _tag: "Send";
       readonly attempt: number;
       readonly recipient: EmailAddress;
-      readonly email: TransactionalEmail;
+      readonly email: StoredEmail;
     }
   | { readonly _tag: "Wait"; readonly until: number }
   | { readonly _tag: "Finished"; readonly state: SendState }
   | { readonly _tag: "Missing" };
+
+/** What an admin's Resend found: the send was failed and is pending now, or it was not failed and is unchanged. */
+export type RequeueResult =
+  | { readonly _tag: "Missing" }
+  | { readonly _tag: "Requeued" }
+  | { readonly _tag: "Unchanged"; readonly state: SendState };
 
 /**
  * Where send states live, with every transition applied atomically. The Organization Durable
@@ -39,11 +46,7 @@ export type ClaimResult =
  */
 export interface SendStoreShape {
   /** Idempotent: creating a send that exists returns its current state and changes nothing. */
-  readonly create: (
-    id: SendId,
-    recipient: EmailAddress,
-    email: TransactionalEmail,
-  ) => Effect.Effect<SendState>;
+  readonly create: (id: SendId, recipient: EmailAddress, email: StoredEmail) => Effect.Effect<SendState>;
   readonly get: (id: SendId) => Effect.Effect<Option.Option<SendRecord>>;
   readonly claim: (id: SendId, now: number) => Effect.Effect<ClaimResult>;
   /** The state after the outcome, or the unchanged state when `attempt` no longer held the send. */
@@ -54,6 +57,8 @@ export interface SendStoreShape {
     now: number,
   ) => Effect.Effect<Option.Option<SendState>>;
   readonly abandon: (id: SendId, now: number) => Effect.Effect<Option.Option<SendState>>;
+  /** An admin's Resend (ADR 0006): a failed send becomes pending again, under the same id. */
+  readonly requeue: (id: SendId) => Effect.Effect<RequeueResult>;
   readonly recordDeliveryEvent: (
     id: SendId,
     kind: DeliveryEventKind,
@@ -129,6 +134,18 @@ export const makeSendStore = (repository: SendRepository, policy: SendPolicy): S
       transition(id, (state) => settle(state, attempt, outcome, now, policy)),
 
     abandon: (id, now) => transition(id, (state) => abandon(state, now)),
+
+    requeue: (id) =>
+      repository.transaction(
+        Effect.gen(function* () {
+          const record = yield* repository.get(id);
+          if (Option.isNone(record)) return { _tag: "Missing" } as const;
+          const next = requeue(record.value.state);
+          if (Option.isNone(next)) return { _tag: "Unchanged", state: record.value.state } as const;
+          yield* repository.setState(id, next.value);
+          return { _tag: "Requeued" } as const;
+        }),
+      ),
 
     recordDeliveryEvent: (id, kind, code, now) =>
       transition(id, (state) => recordDeliveryEvent(state, kind, code, now)),

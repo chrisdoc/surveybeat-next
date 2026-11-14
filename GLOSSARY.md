@@ -115,12 +115,20 @@ Replacing names of the Organization's People, contact details, handles, and link
 _Avoid_: Anonymization, scrubbing, masking
 
 **Comment theme**:
-A machine-written summary of a group of comments, with a label, sentiment, count, and redacted quotes.
+A machine-written summary of at least two of a Round's redacted comments: a short label and one neutral sentence, never a quote. Members see the label and sentence; only the Lead sees how many comments support it (ADR 0016).
 _Avoid_: Cluster, topic, insight
+
+**Review window**:
+The time after a Round's Result is computed (normally at close) during which only the Lead sees it. It ends when the Lead shares the Result with the Team, or automatically when the window runs out (0–7 days per Pulse, default 3). The Lead cannot withhold a Result beyond it.
+_Avoid_: Embargo, approval, moderation
 
 **Action**:
 A commitment the Team makes in response to a Result, with an owner, a due date, and a status.
 _Avoid_: Action item, task, todo
+
+**Discussion guide**:
+An AI-written agenda for the Lead's conversation with the Team about one Round: what stood out, what people raised, Actions to check on, and up to three questions. Only the Lead sees it (ADR 0019).
+_Avoid_: Report, summary, briefing
 
 **Note**:
 The Lead's free-text summary of a team discussion, visible to the Team.

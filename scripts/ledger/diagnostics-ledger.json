@@ -1,0 +1,17 @@
+{
+  "effect-file:anyUnknownInErrorContext": 5,
+  "effect-file:asyncFunction": 26,
+  "effect-file:cryptoRandomUUIDInEffect": 5,
+  "effect-file:globalConsole": 5,
+  "effect-file:globalDate": 16,
+  "effect-file:globalDateInEffect": 2,
+  "effect-file:globalFetch": 5,
+  "effect-file:globalFetchInEffect": 2,
+  "effect-file:globalRandom": 2,
+  "effect-file:globalTimers": 3,
+  "effect-file:newPromise": 3,
+  "effect-file:nodeBuiltinImport": 20,
+  "effect-file:unsafeEffectTypeAssertion": 1,
+  "effect-next-line:returnEffectInGen": 1,
+  "lint:block": 1
+}

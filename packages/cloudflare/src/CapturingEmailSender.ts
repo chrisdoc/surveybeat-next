@@ -1,3 +1,5 @@
+// @effect-diagnostics cryptoRandomUUIDInEffect:off -- the id labels a captured message in a non-production stage; it is never a token or a secret.
+
 import type * as Cloudflare from "@alchemy.run/cloudflare";
 import { EmailSender } from "@surveybeat/domain";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
@@ -15,9 +17,10 @@ export const capturingEmailSender = (db: Cloudflare.D1.QueryDatabaseClient) =>
       send: (message) =>
         Effect.gen(function* () {
           const messageId = `captured-${crypto.randomUUID()}`;
+          const headers = message.headers !== undefined ? JSON.stringify(message.headers) : null;
           yield* db
             .prepare(
-              "INSERT INTO captured_email (message_id, recipient, subject, html, text, captured_at) VALUES (?, ?, ?, ?, ?, ?)",
+              "INSERT INTO captured_email (message_id, recipient, subject, html, text, captured_at, headers) VALUES (?, ?, ?, ?, ?, ?, ?)",
             )
             .bind(
               messageId,
@@ -26,6 +29,7 @@ export const capturingEmailSender = (db: Cloudflare.D1.QueryDatabaseClient) =>
               message.html,
               message.text,
               yield* Clock.currentTimeMillis,
+              headers,
             )
             .run();
           return { messageId };

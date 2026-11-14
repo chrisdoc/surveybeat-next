@@ -4,18 +4,29 @@ The stack is `infra/alchemy.run.ts` (stack name `Surveybeat`). Run Alchemy from 
 
 | Stage | Hostnames |
 | --- | --- |
-| `pr-<n>` | `pr-<n>.app.surveybeat.app`, `pr-<n>.submit.surveybeat.app` |
-| `production` | `app.surveybeat.app`, `submit.surveybeat.app` |
+| `pr-<n>` | `pr-<n>.dashboard.surveybeat.app`, `pr-<n>.submit.surveybeat.app` |
+| `staging` | `staging.dashboard.surveybeat.app`, `staging.submit.surveybeat.app` |
+| `production` | `dashboard.surveybeat.app`, `submit.surveybeat.app` (with `app.surveybeat.app` redirecting to `dashboard`) |
 | any other (personal dev, tests) | workers.dev |
 
 A new custom hostname takes about a minute to get its certificate, so the first requests fail the TLS handshake. `infra/scripts/smoke.ts` retries.
+
+The landing page (`SiteWorker`, ADR 0020) uses the stage's own name without `app` or `submit`: `pr-<n>.surveybeat.app` and `staging.surveybeat.app`. `production` serves it on workers.dev until the apex cutover below, and every other stage stays on workers.dev. On a stage without an `app` hostname (personal `dev-*` stages), the page's sign-in links (`/app`) cannot know the app's workers.dev URL and lead back to the landing page; open `mainUrl` from the deploy output instead.
+
+## Apex cutover (landing page)
+
+`surveybeat.app` and `www.surveybeat.app` still point at the old app on Vercel, and production deploys on every merge to main. Do these steps in this order, or the production deploy collides with the old records:
+
+1. Remove the Vercel records for `surveybeat.app` and `www.surveybeat.app` from the Cloudflare zone. This is a one-time manual change, made by the owner.
+2. Set `APEX_SERVED_BY_SITE` to `true` in `packages/cloudflare/src/Hostnames.ts`. Production then serves `surveybeat.app` from the Site Worker, and `www.surveybeat.app` redirects to it.
+3. Merge to main. The production deploy claims the apex.
 
 ## Commands
 
 ```sh
 pnpm --filter @surveybeat/web build        # the Main Worker serves apps/web/dist
 # Sign-in secrets, read at deploy (and destroy) time. Use the WorkOS SurveyBeat Staging values.
-export WORKOS_API_KEY=sk_test_... WORKOS_CLIENT_ID=client_... ORG_CREATION_ALLOWLIST=you@example.com
+export WORKOS_API_KEY=sk_test_... WORKOS_CLIENT_ID=client_...
 pnpm infra:deploy --stage dev-yourname     # `alchemy deploy infra/alchemy.run.ts`
 pnpm infra:destroy --stage dev-yourname
 CLOUDFLARE_API_TOKEN=... CLOUDFLARE_ACCOUNT_ID=... pnpm check:observability --stage dev-yourname
@@ -25,7 +36,7 @@ E2E_BASE_URL=<main-url> pnpm test:e2e      # once: pnpm --filter @surveybeat/inf
 
 ## Preview stages in CI
 
-`.github/workflows/preview.yml` deploys `pr-<number>` on every push to a pull request, smoke tests the stage, and destroys it when the pull request closes. It needs the repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`, plus the sign-in secrets `WORKOS_API_KEY`, `WORKOS_CLIENT_ID`, and `ORG_CREATION_ALLOWLIST` (below). Fork pull requests are skipped. After the deploy, two jobs run against the stage:
+`.github/workflows/preview.yml` deploys `pr-<number>` on every push to a pull request, smoke tests the stage, and destroys it when the pull request closes. It needs the repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`, plus the sign-in secrets `WORKOS_API_KEY` and `WORKOS_CLIENT_ID` (below). Fork pull requests are skipped. After the deploy, two jobs run against the stage:
 
 - `preview-privacy` reads back the Submission Worker's settings (below) on every PR. When the PR touches `packages/cloudflare`, `infra`, the answer entry (`apps/web/answer.html`, `src/answer`, `src/messages`, `vite.config.ts`), the dependency pins or this workflow, it also runs the canary sweep (`infra/tests/privacy/canary-sweep.ts`).
 - `e2e` runs the Playwright tests in `infra/tests/e2e/` (the SPEC §7 flow, which grows with the slices).
@@ -36,20 +47,33 @@ The Main Worker handles `/auth/login`, `/auth/callback`, and `/auth/logout` with
 
 | Binding | Source |
 | --- | --- |
-| `WORKOS_API_KEY`, `WORKOS_CLIENT_ID`, `ORG_CREATION_ALLOWLIST` | The deploying shell's environment (GitHub secrets in CI), bound as Worker secrets. The allowlist is comma-separated emails that may create an Organization, matched case-insensitively and only when WorkOS verified the email. |
+| `WORKOS_API_KEY`, `WORKOS_CLIENT_ID` | The deploying shell's environment, bound as Worker secrets. In CI they are GitHub secrets: the `production` environment holds the SurveyBeat Production values, and every other stage falls back to the repository secrets, which hold the Staging values. |
+| `ORG_CREATION_ALLOWLIST` | `infra/org-creation-allowlist.yaml`, the emails that may create an Organization, keyed by stage with `default` for any stage not listed. `infra/alchemy.run.ts` reads it at deploy time and it wins over the shell; a missing file, an empty list, or a malformed email fails the deploy. Bound as a Worker secret, comma-separated. Emails match case-insensitively and only when WorkOS verified them. A change takes effect at the stage's next deploy. |
 | `WORKOS_COOKIE_PASSWORD` | Generated per stage by Alchemy (`Random`, 32 bytes as hex) and kept in its state. Destroying a stage discards it. |
+| `OPENROUTER_API_KEY` | Optional. The deploying environment's `OPENROUTER_API_KEY` (a GitHub secret in CI), bound as a Worker secret; empty when unset. AI features fail closed (`AiNotConfigured`) without it. Account settings and the EU-only routing are per ADR 0015. |
 
-**WorkOS environments.** `pr-*` and personal stages use **SurveyBeat Staging** (`environment_01M6TXKPTEY2HWYAEFC0XMMVB2`, AuthKit domain `straightforward-mouse-82-staging.authkit.app`). Production (`environment_01M6TXKQ8G5Q9ASGGJCQE1FAFH`) is for slice 15 and does not have the `admin` role yet. Staging has:
+**WorkOS environments.** `pr-*` and personal stages use **SurveyBeat Staging** (`environment_01M6TXKPTEY2HWYAEFC0XMMVB2`, AuthKit domain `straightforward-mouse-82-staging.authkit.app`). Production is **SurveyBeat Production** (`environment_01M6TXKQ8G5Q9ASGGJCQE1FAFH`). Staging has:
 
-- redirect URIs `https://pr-*.app.surveybeat.app/auth/callback`, `https://*.chrisdoc.workers.dev/auth/callback`, `http://localhost:5173/auth/callback`. Wildcards work: WorkOS sends `pr-52` to the hosted page and a host outside the list to `/redirect-uri-invalid` (checked on 2026-11-07);
-- logout URIs `https://pr-*.app.surveybeat.app/` (default), `https://*.chrisdoc.workers.dev/`, `http://localhost:5173/`, set with `workos authkit logout-uris set --environment-id environment_01M6TXKPTEY2HWYAEFC0XMMVB2`;
+- redirect URIs `https://pr-*.dashboard.surveybeat.app/auth/callback`, `https://staging.dashboard.surveybeat.app/auth/callback`, `https://*.chrisdoc.workers.dev/auth/callback`, `http://localhost:5173/auth/callback`. Wildcards work: WorkOS sends `pr-52` to the hosted page and a host outside the list to `/redirect-uri-invalid` (checked on 2026-11-07);
+- logout URIs `https://pr-*.dashboard.surveybeat.app/` (default), `https://staging.dashboard.surveybeat.app/`, `https://*.chrisdoc.workers.dev/`, `http://localhost:5173/`, set with `workos authkit logout-uris set --environment-id environment_01M6TXKPTEY2HWYAEFC0XMMVB2`;
 - the roles `member` (default) and `admin` (Organization admin, created with `workos role create`).
+
+Production has:
+
+- sign-in methods enabled in the dashboard (a new environment allows only SSO, which shows "This account is not authorized to sign in");
+- redirect URI `https://dashboard.surveybeat.app/auth/callback` (default), `https://app.surveybeat.app/auth/callback`;
+- logout URI `https://dashboard.surveybeat.app/` (default), `https://app.surveybeat.app/`;
+- the roles `member` (default) and `admin` (Organization admin).
 
 The smoke test checks that WorkOS accepts the stage's authorization URL and that `WORKOS_API_KEY` belongs to the client's environment: a key from another environment deploys fine and only fails at the first real sign-in.
 
 **Session cookie.** `__Host-surveybeat-session` holds the WorkOS sealed session: `HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/`, no `Domain`, 30 days. `__Host-surveybeat-auth-state` holds the OAuth `state` for 10 minutes. POSTs with an `Origin` other than the stage's own are refused.
 
-**Per-request check.** The access token is verified locally (JWKS cached per isolate) and refreshed when it expired. Then the session must not be in D1's `revoked_session`, and when the token is scoped to an Organization, the user's Person in its Durable Object must be active (ADR 0010). Sign-out writes `revoked_session` before redirecting to WorkOS's logout, so a copied cookie stops working at once.
+**Per-request check.** The access token is verified locally (JWKS cached per isolate) and refreshed when it expired. Then the session must not be in D1's `revoked_session`, and when the token is scoped to an Organization, the Person linked to the WorkOS user must be active in its Durable Object (ADR 0010). Sign-out writes `revoked_session` before redirecting to WorkOS's logout, so a copied cookie stops working at once.
+
+**Organization admins** are held in the Organization's Durable Object (`person.organization_admin`), not read from the token's role claim, which can be minutes old. The WorkOS `admin` role is kept in step when an admin is granted or revoked, and set at each sign-in from the Durable Object.
+
+**Teams and People** (`/api/*`, `packages/cloudflare/src/DirectoryHandlers.ts`, rules in `packages/domain/src/people/Directory.ts`, permissions in `Permissions.ts`). The Durable Object authorizes and commits each change in one transaction, then the Worker puts the D1 index, WorkOS, and the email queue in step. Removing a Person marks them removed in the Durable Object (the per-request check denies them at once), deletes their `person_index` row, then deactivates their WorkOS organization membership. If WorkOS cannot be reached the call answers 503 and repeating it finishes the removal.
 
 **D1 index** (`d1-migrations/0003_people_index.sql`): `organization_index` (Organization ↔ WorkOS organization, name), `person_index` (WorkOS user → Persons; email → Organizations for Persons not yet linked; emails normalised), `organization_claim` (one created Organization per WorkOS user, which makes creation idempotent), and `revoked_session`.
 
@@ -92,7 +116,11 @@ cf d1 query <databaseId> --sql "SELECT recipient, subject, text FROM captured_em
 
 No stage other than `production` can send real mail. To try real sending elsewhere, change `sendsRealEmail` in `packages/cloudflare/src/Email.ts` on a throwaway branch and deploy a personal stage. That stage then also claims `notify.surveybeat.app` and its event subscription, so destroy it before production is deployed.
 
+**The `send_email` binding is named `SendEmail`.** Binding names share one namespace per Worker. Until #147 it was named `Email`, like the Email queue's producer binding; the deploy kept only the queue, so production queued each rendered email instead of sending it and every send failed as `unknown`. Read the deployed bindings back with `cf workers versions get <version> --worker-id <main worker>` when email stops arriving.
+
 **Send states.** `pending → sending → sent | failed(reason)`. A delivery takes a two-minute lease before calling the provider, and the call times out after 30 seconds. A clear rejection (`E_RATE_LIMIT_EXCEEDED` and other coded errors) returns the send to `pending` and the message is retried after 30 s, 60 s, and 120 s; the fourth rejection fails it. Permanent rejections (`E_RECIPIENT_SUPPRESSED`, sender and header errors) fail at once. An error without a code, a timeout, or a lease that expired with no outcome fails the send as `unknown`, and it is never resent automatically. A message the queue dead-letters fails its send too (`abandoned`, or `rejected` after earlier rejections).
+
+**Resend.** An Organization admin can resend a failed send from the Failed emails list in Organization settings (`POST /api/organization/failed-emails/:sendId/resend`, #159). The same send goes back to `pending` under its id, with its stored content and recipient, and is queued again; the consumer renders it as on the first delivery. A complained-about send is never resent, and an Invitation, reminder, or test email only while its link is still live (Invitation not revoked or re-sent since, test send still kept). Repeating the request sends it once.
 
 **Bounces and complaints.** Alchemy's `Cloudflare.Queues.Subscription` with the `email.sending` source subscribes the `EmailEvents` queue to `message.bounced`, `message.complained`, `message.rejected`, and `message.failed` for the sending subdomain. The consumer finds the send through the D1 table `email_message` (provider message id → Organization and send) and fails it with the event's reason.
 

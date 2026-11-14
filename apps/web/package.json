@@ -4,20 +4,20 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build"
+    "build": "vite build && vite build -c vite.site.config.ts"
   },
   "dependencies": {
-    "@base-ui/react": "catalog:",
+    "@foldkit/ui": "catalog:",
+    "@fontsource-variable/figtree": "5.3.0",
+    "@fontsource-variable/newsreader": "5.3.0",
     "@surveybeat/api": "workspace:*",
     "@surveybeat/domain": "workspace:*",
     "effect": "catalog:",
-    "react": "catalog:",
-    "react-dom": "catalog:"
+    "foldkit": "catalog:"
   },
   "devDependencies": {
+    "@foldkit/vite-plugin": "catalog:",
     "@tailwindcss/vite": "catalog:",
-    "@types/react": "catalog:",
-    "@types/react-dom": "catalog:",
     "tailwindcss": "catalog:",
     "vite": "catalog:"
   }

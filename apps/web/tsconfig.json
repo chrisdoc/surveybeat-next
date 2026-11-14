@@ -5,9 +5,20 @@
     "outDir": "dist-types",
     "tsBuildInfoFile": "dist-types/.tsbuildinfo",
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
-    "jsx": "react-jsx",
-    "types": ["vite/client"]
+    "types": ["vite/client"],
+    "plugins": [
+      {
+        "name": "@effect/language-service",
+        // Debt from the effect 4.1.2 pin: these are the exact unstable APIs this app calls.
+        // Delete an entry when the pin moves and the module becomes stable.
+        "allowedUnstableApis": [
+          "@effect/vitest#it",
+          "effect/http-api/HttpApiClient#make",
+          "effect/http/FetchHttpClient#layer"
+        ]
+      }
+    ]
   },
-  "include": ["src", "vite.config.ts"],
+  "include": ["src", "vite.config.ts", "vite.site.config.ts"],
   "references": [{ "path": "../../packages/domain" }, { "path": "../../packages/api" }]
 }

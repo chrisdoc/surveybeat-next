@@ -1,1 +1,96 @@
 @import "tailwindcss";
+@import "@fontsource-variable/figtree";
+@import "@fontsource-variable/newsreader";
+
+/* German compounds are long; let headings break where the language allows it. */
+:lang(de) h1,
+:lang(de) h2,
+:lang(de) h3 {
+  hyphens: auto;
+}
+
+@theme {
+  --color-stone: #f3f4f1;
+  --color-surface: #ffffff;
+  --color-line: #e1e5e1;
+  --color-line-soft: #ecefec;
+  --color-ink: #0e2a24;
+  --color-muted: #3d554f;
+  --color-primary: #0b5d55;
+  --color-primary-hover: #07433d;
+  --color-on-primary: #ffffff;
+  --color-primary-soft: #d3e7e2;
+  --color-evergreen: #0e2a24;
+  --color-evergreen-raised: #15372f;
+  --color-mint: #9fd6cb;
+  --color-mint-text: #bfd3cc;
+  --color-brass-soft: #f6eedc;
+  --color-brass: #6a4f12;
+  --color-danger: #b42318;
+  --color-danger-soft: #fef3f2;
+  --color-subtle: #f7f8f6;
+
+  --font-sans: "Figtree Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Newsreader Variable", Georgia, serif;
+
+  --radius-panel: 20px;
+  --radius-control: 12px;
+}
+
+:root {
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-stone: #0b1f1b;
+    --color-surface: #12302a;
+    --color-subtle: #163a33;
+    --color-line: #2a4f46;
+    --color-line-soft: #1e4038;
+    --color-ink: #e8f0ed;
+    --color-muted: #a9c2ba;
+    --color-primary: #7fcdbe;
+    --color-primary-hover: #9fd6cb;
+    --color-on-primary: #06221d;
+    --color-primary-soft: #1f4a42;
+    --color-evergreen: #081814;
+    --color-evergreen-raised: #102a24;
+    --color-mint: #9fd6cb;
+    --color-mint-text: #bfd3cc;
+    --color-brass-soft: #3a2f14;
+    --color-brass: #f0d79a;
+    --color-danger: #ff8a7a;
+    --color-danger-soft: #3a1a16;
+  }
+}
+
+@layer base {
+  body {
+    background-color: var(--color-stone);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  a,
+  button,
+  input,
+  select,
+  textarea,
+  summary,
+  [tabindex] {
+    &:focus-visible {
+      outline: 2px solid var(--color-primary);
+      outline-offset: 2px;
+    }
+  }
+
+  .num,
+  dd,
+  td,
+  output {
+    font-variant-numeric: tabular-nums;
+  }
+}

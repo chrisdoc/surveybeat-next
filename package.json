@@ -3,18 +3,24 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "typecheck": "tsc -b",
+    "typecheck": "effect-tsgo tsc -b",
+    "typecheck:tsc": "tsc -b",
     "typecheck:effect": "effect-tsgo tsc -b",
+    "check": "pnpm typecheck && pnpm format:check && pnpm lint && pnpm check:ledger && pnpm check:comments",
+    "check:ledger": "node scripts/ledger/diagnostics-ledger.mjs",
+    "check:comments": "node scripts/ledger/comment-debt.mjs",
     "lint": "oxlint --type-aware",
     "format": "oxfmt .",
     "format:check": "oxfmt --check .",
     "test": "vitest run --project unit",
     "test:privacy": "vitest run --project privacy",
     "test:e2e": "pnpm --filter @surveybeat/infra test:e2e",
+    "test:lighthouse": "pnpm --filter @surveybeat/infra test:lighthouse",
     "test:preview-privacy": "node infra/tests/privacy/canary-sweep.ts",
     "infra:deploy": "alchemy deploy infra/alchemy.run.ts",
     "infra:destroy": "alchemy destroy infra/alchemy.run.ts",
-    "check:observability": "node infra/scripts/check-observability.ts"
+    "check:observability": "node infra/scripts/check-observability.ts",
+    "prepare": "node scripts/fence/install.mjs && effect-tsgo patch --typescript"
   },
   "devDependencies": {
     "@effect/platform-node": "catalog:",

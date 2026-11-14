@@ -1,15 +1,12 @@
 import * as Cloudflare from "@alchemy.run/cloudflare";
-import * as Effect from "effect/Effect";
-import { HttpServerRequest } from "effect/http/HttpServerRequest";
-import * as HttpServerResponse from "effect/http/HttpServerResponse";
-import { hostnameFor } from "./Hostnames.ts";
 import { Stack } from "alchemy/Stack";
+import { Layer } from "effect";
+import * as Effect from "effect/Effect";
+import { Database } from "./Database.ts";
+import { hostnameFor } from "./Hostnames.ts";
+import Organization from "./Organization.ts";
+import { submissionRoutes } from "./SubmissionRoutes.ts";
 
-/**
- * The Submission Worker (ADR 0005). Every log channel is switched off, because Alchemy turns
- * observability on when the prop is omitted. `infra/scripts/check-observability.ts` reads the
- * deployed settings back, since Alchemy has not applied `invocationLogs` and `persist` in the past.
- */
 export default class SubmissionWorker extends Cloudflare.Worker<SubmissionWorker>()(
   "Submission",
   Effect.gen(function* () {
@@ -28,15 +25,12 @@ export default class SubmissionWorker extends Cloudflare.Worker<SubmissionWorker
       ...(hostname === undefined ? {} : { domain: hostname }),
     };
   }),
-  Effect.succeed({
-    fetch: Effect.gen(function* () {
-      const request = yield* HttpServerRequest;
-      const path = request.url.split("?")[0];
-      if (path === "/submit" && request.method === "POST") {
-        // Deliberately logs nothing and never reads the body.
-        return yield* HttpServerResponse.json({ ok: true }, { status: 202 });
-      }
-      return yield* HttpServerResponse.json({ error: "not found" }, { status: 404 });
-    }),
-  }),
+  Effect.gen(function* () {
+    const organizations = yield* Organization;
+    const database = yield* Cloudflare.D1.QueryDatabase(yield* Database);
+
+    return {
+      fetch: submissionRoutes(organizations, database),
+    };
+  }).pipe(Effect.provide(Layer.mergeAll(Cloudflare.D1.QueryDatabaseBinding))),
 ) {}

@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "hooks": {
+    "beforeShellExecution": [
+      {
+        "command": "node scripts/fence/vcs-command-policy.mjs --format=cursor",
+        "timeout": 15,
+        "failClosed": true
+      }
+    ]
+  }
+}

@@ -1,3 +1,5 @@
+// @effect-diagnostics asyncFunction:off -- Playwright's API is promise-based and these specs never enter an Effect.
+
 import { test as base, expect, type Page } from "@playwright/test";
 
 /** Uncaught errors on a page. Each test asserts there are none. */

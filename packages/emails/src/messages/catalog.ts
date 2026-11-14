@@ -1,5 +1,6 @@
 /**
- * Every user-facing string of the emails. English only. Same conventions as `apps/web/src/messages`:
+ * Every user-facing string of the emails, in English: the source of the keys and placeholders. German
+ * lives in `de.ts`, checked against these keys at compile time. Same conventions as `apps/web/src/messages`:
  * flat keys, `{placeholder}` templates.
  */
 export const catalog = {
@@ -14,4 +15,51 @@ export const catalog = {
   "addedToTeam.action": "Open SurveyBeat",
   "addedToTeam.link": "If the button does not work, open this link:",
   "addedToTeam.reason": "You received this email because {lead} added you to {team}.",
+
+  "invitation.subject": "{pulse}",
+  "invitation.subjectTest": "Test: {pulse}",
+  "invitation.preview": "Your check-in for {pulse} is open.",
+  "invitation.testNotice": "This is a test. Your answers aren't saved.",
+  "invitation.anonymity":
+    "Your lead only sees combined answers from at least {n} people, never who answered what. Your name is never stored with your answers.",
+  "invitation.openCheckIn": "Open check-in",
+  "invitation.changeWhen": "Change when I get this",
+  "invitation.personalNotice": "This link is personal. Don't forward it.",
+  "invitation.reason": "You received this email because you are a member of the team.",
+  "invitation.reasonTest": "You sent yourself this test from the Pulse editor.",
+  "privacy.aiNotice":
+    "Comments are summarised by an AI service in the EU after names, emails, phone numbers, handles and links are removed. It keeps nothing.",
+  "invitation.actionsHeading": "Team actions in progress",
+
+  "reminder.subject": "Reminder: {pulse}",
+  "reminder.preview": "There is still time to complete your check-in for {pulse}.",
+  "reminder.heading": "Reminder: {pulse}",
+  "reminder.body": "Your check-in is still waiting. Take a moment to share how things are going.",
+  "reminder.unsubscribe": "Turn off reminders for this Pulse",
+
+  "resultsReady.subject": "Results are in: {pulse}",
+  "resultsReady.preview": "The Results for {pulse} are ready to view.",
+  "resultsReady.heading": "Results are in for {pulse}",
+  "resultsReady.body":
+    "The check-in has closed with a {responseRate}% response rate. See what changed and how the team is doing.",
+  "resultsReady.action": "View Results",
+  "resultsReady.link": "If the button does not work, open this link:",
+  "resultsReady.reason": "You received this email because you are a member of {team}.",
+
+  "page.delivery.title": "Change delivery time · SurveyBeat",
+  "page.delivery.heading": "Change delivery time",
+  "page.delivery.intro": "We'll deliver your check-ins and reminders at your local time.",
+  "page.delivery.timeZone": "Time zone",
+  "page.delivery.save": "Save preference",
+  "page.deliverySaved.title": "Delivery preference updated · SurveyBeat",
+  "page.deliverySaved.heading": "Preferences updated",
+  "page.deliverySaved.body": "Your delivery time zone has been set to {timeZone}.",
+  "page.unsubscribe.title": "Turn off reminders · SurveyBeat",
+  "page.unsubscribe.heading": "Turn off reminders",
+  "page.unsubscribe.body": "You will no longer receive reminders for this Pulse check-in.",
+  "page.unsubscribe.button": "Turn off reminders",
+  "page.error.missingTokenOrTimeZone": "Missing token or time zone.",
+  "page.error.missingToken": "Missing token.",
+  "page.error.invalid": "This link is not valid or has expired.",
+  "page.unsubscribed": "Reminders for this Pulse are turned off.",
 } as const;

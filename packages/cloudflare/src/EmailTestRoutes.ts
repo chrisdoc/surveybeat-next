@@ -31,6 +31,7 @@ export const emailTestRoutes = (
         recipient: EmailAddress.make("ada@example.com"),
         email: {
           _tag: "AddedToTeam",
+          locale: "en",
           teamName: "Platform",
           leadName: "Grace Hopper",
           signInUrl: "https://app.surveybeat.app/",

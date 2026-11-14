@@ -1,4 +1,13 @@
-import { normaliseEmail, OrganizationPeople, PersonId } from "@surveybeat/domain";
+import {
+  normaliseEmail,
+  OrganizationActions,
+  OrganizationDirectory,
+  OrganizationNotes,
+  OrganizationPeople,
+  OrganizationPulses,
+  OrganizationRounds,
+  PersonId,
+} from "@surveybeat/domain";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import type { Organizations } from "../EmailDelivery.ts";
@@ -23,6 +32,82 @@ export const durableObjectPeople = (organizations: Organizations) =>
         .getByName(organizationId)
         .activePerson(userId)
         .pipe(
-          Effect.map((id) => Option.map(Option.fromNullishOr(id), (personId) => PersonId.make(personId))),
+          Effect.map((row) =>
+            Option.map(Option.fromNullishOr(row), (person) => ({
+              personId: PersonId.make(person.id),
+              organizationAdmin: person.organizationAdmin,
+              locale: person.locale,
+              detectedLocale: person.detectedLocale,
+              organizationLocale: person.organizationLocale,
+            })),
+          ),
         ),
+  });
+
+/** `OrganizationDirectory` on the same objects: each decides and commits its own changes. */
+export const durableObjectDirectory = (organizations: Organizations) =>
+  OrganizationDirectory.of({
+    run: (organizationId, actorId, command, now) =>
+      organizations.getByName(organizationId).runDirectoryCommand(actorId, command, now),
+    teams: (organizationId, actorId) => organizations.getByName(organizationId).viewTeams(actorId),
+    team: (organizationId, actorId, teamId) =>
+      organizations.getByName(organizationId).viewTeam(actorId, teamId),
+    settings: (organizationId, actorId) => organizations.getByName(organizationId).viewSettings(actorId),
+    failedEmails: (organizationId, actorId) =>
+      organizations.getByName(organizationId).listFailedEmails(actorId),
+    resendFailedEmail: (organizationId, actorId, sendId, now) =>
+      organizations.getByName(organizationId).resendFailedEmail(actorId, sendId, now),
+    emailStatus: (organizationId, actorId, sendId) =>
+      organizations.getByName(organizationId).viewEmailStatus(actorId, sendId),
+  });
+
+/** `OrganizationPulses` on the same objects: the question library and Pulses live with the directory. */
+export const durableObjectPulses = (organizations: Organizations) =>
+  OrganizationPulses.of({
+    run: (organizationId, actorId, command, now) =>
+      organizations.getByName(organizationId).runPulseCommand(actorId, command, now),
+    pulses: (organizationId, actorId, teamId) =>
+      organizations.getByName(organizationId).viewPulses(actorId, teamId),
+    pulse: (organizationId, actorId, teamId, pulseId) =>
+      organizations.getByName(organizationId).viewPulse(actorId, teamId, pulseId),
+    sendTest: (organizationId, actorId, teamId, pulseId, now) =>
+      organizations.getByName(organizationId).sendTestInvitation(actorId, teamId, pulseId, now),
+    testSend: (organizationId, actorId, teamId, pulseId, sendId, now) =>
+      organizations.getByName(organizationId).viewTestSend(actorId, teamId, pulseId, sendId, now),
+  });
+
+/** `OrganizationRounds` on the same objects: the Round lifecycle engine and schedule table. */
+export const durableObjectRounds = (organizations: Organizations) =>
+  OrganizationRounds.of({
+    run: (organizationId, actorId, command, now) =>
+      organizations.getByName(organizationId).runRoundCommand(actorId, command, now),
+    rounds: (organizationId, actorId, teamId, pulseId) =>
+      organizations.getByName(organizationId).viewRounds(actorId, teamId, pulseId),
+    round: (organizationId, actorId, teamId, roundId) =>
+      organizations.getByName(organizationId).viewRound(actorId, teamId, roundId),
+    results: (organizationId, actorId, teamId, roundId) =>
+      organizations.getByName(organizationId).viewResults(actorId, teamId, roundId),
+    overview: (organizationId, actorId, teamId) =>
+      organizations.getByName(organizationId).viewTeamOverview(actorId, teamId),
+    history: (organizationId, actorId) => organizations.getByName(organizationId).viewMemberHistory(actorId),
+  });
+
+/** `OrganizationActions` on the same objects: actions committed from Results. */
+export const durableObjectActions = (organizations: Organizations) =>
+  OrganizationActions.of({
+    list: (organizationId, actorId, teamId) =>
+      organizations.getByName(organizationId).listActions(actorId, teamId),
+    create: (organizationId, actorId, teamId, payload, now) =>
+      organizations.getByName(organizationId).createAction(actorId, teamId, payload, now),
+    update: (organizationId, actorId, teamId, actionId, payload, now) =>
+      organizations.getByName(organizationId).updateAction(actorId, teamId, actionId, payload, now),
+  });
+
+/** `OrganizationNotes` on the same objects: the Lead's Note on each Round. */
+export const durableObjectNotes = (organizations: Organizations) =>
+  OrganizationNotes.of({
+    get: (organizationId, actorId, teamId, roundId) =>
+      organizations.getByName(organizationId).viewRoundNote(actorId, teamId, roundId),
+    save: (organizationId, actorId, teamId, roundId, text, now) =>
+      organizations.getByName(organizationId).saveRoundNote(actorId, teamId, roundId, text, now),
   });

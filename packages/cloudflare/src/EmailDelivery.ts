@@ -1,20 +1,30 @@
 import type * as Cloudflare from "@alchemy.run/cloudflare";
 import {
   deliver,
+  deriveInvitationToken,
+  deriveTestInvitationToken,
   type DeliveryEventKind,
   type EmailAddress,
   type EmailSender,
   type EmailTemplates,
+  importInvitationTokenKey,
+  type InvitationTokenRef,
+  InvitationTokens,
   OrganizationId,
   SendId,
   type SendState,
   SendStore,
+  type TestInvitationTokenRef,
+  testInvitationLifetimeMs,
   type TransactionalEmail,
 } from "@surveybeat/domain";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import * as Clock from "effect/Clock";
+import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
+import * as Redacted from "effect/Redacted";
 import * as Schema from "effect/Schema";
 import { EmailSendRequested } from "./Email.ts";
 import type Organization from "./Organization.ts";
@@ -31,9 +41,27 @@ export const organizationSendStore = (organization: OrganizationStub) =>
     settle: (id, attempt, outcome, now) =>
       organization.settleEmailSend(id, attempt, outcome, now).pipe(Effect.map(Option.fromNullishOr)),
     abandon: (id, now) => organization.abandonEmailSend(id, now).pipe(Effect.map(Option.fromNullishOr)),
+    requeue: (id) => organization.requeueEmailSend(id),
     recordDeliveryEvent: (id, kind, code, now) =>
       organization.recordEmailDeliveryEvent(id, kind, code, now).pipe(Effect.map(Option.fromNullishOr)),
   });
+
+/**
+ * Derives Invitation tokens with the stage's `INVITATION_TOKEN_KEY` (`auth/AuthConfig.ts`). The Queue
+ * consumer needs them only to render an email, so no token is ever persisted. A missing key is a
+ * deploy bug, so it dies.
+ */
+export const InvitationTokensLive = Layer.effect(
+  InvitationTokens,
+  Effect.gen(function* () {
+    const secret = yield* Config.Redacted("INVITATION_TOKEN_KEY");
+    const key = yield* Effect.promise(() => importInvitationTokenKey(Redacted.value(secret)));
+    return {
+      derive: (ref: InvitationTokenRef) => Effect.promise(() => deriveInvitationToken(key, ref)),
+      deriveTest: (ref: TestInvitationTokenRef) => Effect.promise(() => deriveTestInvitationToken(key, ref)),
+    };
+  }).pipe(Effect.orDie),
+);
 
 /**
  * Creates a send and asks the consumer to deliver it. Idempotent per `sendId`. If the enqueue
@@ -103,7 +131,47 @@ export const handleSendMessage = (
       Effect.provideService(SendStore, organizationSendStore(organizations.getByName(organizationId))),
     );
     if (result._tag === "RetryAfter") return message.retry({ delaySeconds: result.seconds });
-    if (result.state !== null) yield* indexMessage(db, request.value, result.state);
+    if (result.state !== null) {
+      yield* indexMessage(db, request.value, result.state);
+      const inv = yield* organizations.getByName(organizationId).getInvitationBySendId(sendId);
+      if (inv !== null) {
+        const round = yield* organizations.getByName(organizationId).getRound(inv.roundId);
+        if (round !== null) {
+          yield* db
+            .prepare(
+              "INSERT INTO invitation_index (token_hash, organization_id, round_id, person_id, pulse_id) VALUES (?, ?, ?, ?, ?) ON CONFLICT (token_hash) DO NOTHING",
+            )
+            .bind(inv.tokenHash, organizationId, inv.roundId, inv.personId, round.pulseId)
+            .run()
+            .pipe(Effect.asVoid);
+        }
+        if (result.state._tag === "Failed") {
+          yield* organizations
+            .getByName(organizationId)
+            .failInvitation(inv.roundId, inv.personId, result.state.reason);
+        }
+      } else {
+        // A test Invitation's token is indexed apart from real ones, and only once its email went out (ADR 0021).
+        const test = yield* organizations.getByName(organizationId).getTestSendBySendId(sendId);
+        if (test !== null && result.state._tag !== "Failed") {
+          yield* db
+            .prepare(
+              "INSERT INTO test_invitation_index (token_hash, organization_id, pulse_id, expires_at) VALUES (?, ?, ?, ?) ON CONFLICT (token_hash) DO NOTHING",
+            )
+            .bind(test.tokenHash, organizationId, test.pulseId, test.sentAt + testInvitationLifetimeMs)
+            .run()
+            .pipe(Effect.asVoid);
+          // Expired test tokens and Edit keys are forgotten whenever a new test goes out.
+          for (const table of ["test_invitation_index", "test_submission_index"] as const) {
+            yield* db
+              .prepare(`DELETE FROM ${table} WHERE expires_at <= ?`)
+              .bind(test.sentAt)
+              .run()
+              .pipe(Effect.asVoid);
+          }
+        }
+      }
+    }
     yield* logOutcome(sendId, result.state);
     message.ack();
   });

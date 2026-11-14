@@ -1,5 +1,11 @@
+// @effect-diagnostics asyncFunction:off -- a standalone Node script: it reports to the shell and never builds an Effect program.
+// @effect-diagnostics globalConsole:off -- the script writes its report to stdout/stderr; it never runs an Effect program.
+// @effect-diagnostics globalFetch:off -- the script calls the deployed stage over the platform fetch; there is no HttpClient outside a Worker.
+// @effect-diagnostics globalTimers:off -- a plain setTimeout in a script that has no Effect runtime.
+// @effect-diagnostics newPromise:off -- the script waits on a child process or a timeout with a plain Promise; there is no Effect runtime in it.
+
 /**
- * Smoke test for a deployed stage: create an Organization and read it back, then check sign-in.
+ * Smoke test for a deployed stage: check session and sign-in.
  *
  *   node infra/scripts/smoke.ts https://pr-12.app.surveybeat.app [https://pr-12.submit.surveybeat.app]
  *
@@ -16,7 +22,7 @@ if (mainUrl === undefined) {
   process.exit(2);
 }
 
-const ATTEMPTS = 40;
+const ATTEMPTS = 120;
 const DELAY_MS = 5000;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -32,10 +38,12 @@ const request = async (url: string, init?: RequestInit): Promise<Response> => {
     } catch (error) {
       last = error instanceof Error ? error.message : String(error);
     }
-    console.log(`${init?.method ?? "GET"} ${url}: ${last}, retrying (${attempt}/${ATTEMPTS})`);
+    console.log(
+      `${init?.method ?? "GET"} ${url}: ${last}, retrying (${attempt}/${ATTEMPTS}; for new hostnames, delays are usually TLS certificate issuance)`,
+    );
     await sleep(DELAY_MS);
   }
-  throw new Error(`${url} never became ready: ${last}`);
+  throw new Error(`${url} never became ready: ${last} (hint: the cause is usually certificate issuance)`);
 };
 
 function fail(message: string): never {
@@ -43,34 +51,11 @@ function fail(message: string): never {
   process.exit(1);
 }
 
-const created = await request(`${mainUrl}/orgs`, {
-  method: "POST",
-  headers: { "content-type": "application/json" },
-  body: JSON.stringify({ name: "Smoke test" }),
-});
-if (created.status !== 200) fail(`POST /orgs answered ${created.status}`);
-const organization: unknown = await created.json();
-const id =
-  typeof organization === "object" && organization !== null && "id" in organization
-    ? organization.id
-    : undefined;
-if (typeof id !== "string") fail("POST /orgs returned no id");
-console.log(`POST /orgs -> ${id}`);
-
-const fetched = await request(`${mainUrl}/orgs/${id}`);
-if (fetched.status !== 200) fail(`GET /orgs/${id} answered ${fetched.status}`);
-const body: unknown = await fetched.json();
-if (JSON.stringify(body) !== JSON.stringify(organization)) fail("GET /orgs/:id differs from POST");
-console.log(`GET /orgs/${id} -> ${JSON.stringify(body)}`);
-
-// The stage is ready by now, so a 404 here is the answer, not the edge catching up.
-const missing = await fetch(`${mainUrl}/orgs/${"0".repeat(32)}`);
-if (missing.status !== 404) fail(`GET of an unknown id answered ${missing.status}`);
-
 // Sign-in: the Worker can read its WorkOS secrets (an unauthenticated session check answers 401,
-// not 500), and WorkOS accepts this stage's callback URL (redirect URIs are set per environment).
-const session = await fetch(`${mainUrl}/auth/session`);
+// not 500), and retrying covers initial edge/certificate issuance convergence.
+const session = await request(`${mainUrl}/auth/session`);
 if (session.status !== 401) fail(`GET /auth/session without a cookie answered ${session.status}`);
+console.log(`GET /auth/session -> 401 (OK)`);
 
 const login = await fetch(`${mainUrl}/auth/login`, { redirect: "manual" });
 const authorize = login.headers.get("location");

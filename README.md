@@ -15,18 +15,12 @@ This repository is the Cloudflare rebuild. Read these before you change behavior
 You need Node 24. `.node-version` pins it. `package.json` pins pnpm at 12.18.0.
 
 ```sh
-pnpm install
-```
-
-That install sets `core.hooksPath` to `.githooks`.
-
-## Check your change
-
-Run the commands from the repository root.
-
-```sh
-pnpm typecheck          # tsc -b with project references
-pnpm typecheck:effect   # the same check, with @effect/tsgo diagnostics
+pnpm install            # install the workspace
+pnpm typecheck          # effect-tsgo tsc -b: Effect diagnostics fail the build
+pnpm typecheck:tsc      # plain tsc -b, for a second opinion
+pnpm typecheck:effect   # alias of typecheck, kept for existing callers
+pnpm check:ledger       # counts lint disables and Effect diagnostic overrides; it only shrinks
+pnpm check:comments     # counts prose comments per package; it only shrinks
 pnpm lint               # oxlint, type-aware
 pnpm format             # oxfmt writes formatting. CI runs pnpm format:check
 pnpm test               # the Vitest unit project
@@ -34,6 +28,8 @@ pnpm test:privacy       # the Vitest privacy project
 pnpm check              # typecheck:effect, typecheck, format:check, and lint
 pnpm --filter @surveybeat/web build
 ```
+
+That install sets `core.hooksPath` to `.githooks`.
 
 CI runs `typecheck:effect`, then `typecheck`, `format:check`, `lint`, `test`, and the web build. The privacy suite is a separate required job.
 
