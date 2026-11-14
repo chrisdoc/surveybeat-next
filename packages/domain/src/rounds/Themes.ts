@@ -2,6 +2,7 @@ import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
+import { isUnhandled, setup, transition, types } from "xstate";
 import { AiClient, type AiInput, type AiRequest, RedactedText } from "../ai/AiClient.ts";
 import { redact, type Roster } from "../privacy/Redaction.ts";
 import { DiscussionGuide, enforceEffectiveNOnResult, type RoundResult } from "./Results.ts";
@@ -228,6 +229,78 @@ export type ThemesJobDecision =
   | { readonly _tag: "RetryAt"; readonly dueAt: number; readonly attempts: number }
   | { readonly _tag: "GiveUp" };
 
+type ThemesEvent =
+  | { readonly type: "Store"; readonly themes: StoredThemes }
+  | { readonly type: "Reject" }
+  | { readonly type: "Unavailable" }
+  | { readonly type: "Invalid" }
+  | { readonly type: "NotConfigured" };
+
+export const themesRetryMachine = setup({
+  schemas: {
+    context: types<{
+      attempts: number;
+      requestedAt: number;
+      now: number;
+      decision: ThemesJobDecision | null;
+    }>(),
+    events: {
+      Store: types<{ themes: StoredThemes }>(),
+      Reject: types<Record<string, never>>(),
+      Unavailable: types<Record<string, never>>(),
+      Invalid: types<Record<string, never>>(),
+      NotConfigured: types<Record<string, never>>(),
+    },
+  },
+}).createMachine({
+  id: "ThemesRetry",
+  context: { attempts: 0, requestedAt: 0, now: 0, decision: null },
+  initial: "pending",
+  states: {
+    pending: {
+      on: {
+        Store: ({ event }) => ({
+          target: "ready",
+          context: { decision: { _tag: "Store", themes: event.themes } },
+        }),
+        Reject: ({ context }) => retryOrGiveUp(context),
+        Unavailable: ({ context }) => retryOrGiveUp(context),
+        Invalid: ({ context }) => retryOrGiveUp(context),
+        NotConfigured: () => ({ target: "failed", context: { decision: { _tag: "GiveUp" } } }),
+      },
+    },
+    ready: {},
+    failed: {},
+  },
+});
+
+const retryOrGiveUp = (context: { attempts: number; requestedAt: number; now: number }) => {
+  const failedAttempts = context.attempts + 1;
+  const dueAt = nextRetryAt(context.requestedAt, failedAttempts, context.now);
+  return dueAt === null
+    ? { target: "failed", context: { decision: { _tag: "GiveUp" } as const } }
+    : {
+        context: {
+          attempts: failedAttempts,
+          decision: { _tag: "RetryAt", dueAt, attempts: failedAttempts } as const,
+        },
+      };
+};
+
+const themesDecision = (
+  params: { readonly requestedAt: number; readonly attempts: number; readonly now: number },
+  event: ThemesEvent,
+): ThemesJobDecision => {
+  const snapshot = themesRetryMachine.resolveState({
+    value: "pending",
+    context: { attempts: params.attempts, requestedAt: params.requestedAt, now: params.now, decision: null },
+  });
+  const [next, effects] = transition(themesRetryMachine, snapshot, event);
+  const decision = isUnhandled(snapshot, [next, effects]) ? null : next.context.decision;
+  if (decision === null) throw new Error("Themes retry refused " + event.type);
+  return decision;
+};
+
 export const runThemesAttempt = (params: {
   readonly input: AiInput;
   readonly requestedAt: number;
@@ -235,20 +308,19 @@ export const runThemesAttempt = (params: {
   readonly now: number;
 }): Effect.Effect<ThemesJobDecision, never, AiClient> => {
   const comments = params.input.comments.map((c) => c.text);
-  const retry = (): ThemesJobDecision => {
-    const failedAttempts = params.attempts + 1;
-    const dueAt = nextRetryAt(params.requestedAt, failedAttempts, params.now);
-    return dueAt === null ? { _tag: "GiveUp" } : { _tag: "RetryAt", dueAt, attempts: failedAttempts };
-  };
 
   return AiClient.use((client) => client.complete(themesRequest(params.input))).pipe(
     Effect.flatMap((reply) => checkThemesReply(reply, comments)),
-    Effect.map((themes): ThemesJobDecision => ({ _tag: "Store", themes })),
+    Effect.map((themes): ThemesJobDecision => themesDecision(params, { type: "Store", themes })),
     Effect.catchTags({
-      AiNotConfigured: (): Effect.Effect<ThemesJobDecision> => Effect.succeed({ _tag: "GiveUp" }),
-      AiRejected: (): Effect.Effect<ThemesJobDecision> => Effect.succeed(retry()),
-      AiUnavailable: (): Effect.Effect<ThemesJobDecision> => Effect.succeed(retry()),
-      ThemesReplyInvalid: (): Effect.Effect<ThemesJobDecision> => Effect.succeed(retry()),
+      AiNotConfigured: (): Effect.Effect<ThemesJobDecision> =>
+        Effect.succeed(themesDecision(params, { type: "NotConfigured" })),
+      AiRejected: (): Effect.Effect<ThemesJobDecision> =>
+        Effect.succeed(themesDecision(params, { type: "Reject" })),
+      AiUnavailable: (): Effect.Effect<ThemesJobDecision> =>
+        Effect.succeed(themesDecision(params, { type: "Unavailable" })),
+      ThemesReplyInvalid: (): Effect.Effect<ThemesJobDecision> =>
+        Effect.succeed(themesDecision(params, { type: "Invalid" })),
     }),
   );
 };
