@@ -48,6 +48,7 @@ import {
   type RoundCommand,
   type RoundCommandResult,
   authorizeRoundAction,
+  roundCommandRejection,
   type FrozenRoundMember,
   type PulseRecord,
   type PulseState,
@@ -1280,11 +1281,9 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
                         rejection: { _tag: "RoundNotFound" },
                       } satisfies RoundCommandResult;
                     }
-                    if (round.status !== "open") {
-                      return {
-                        _tag: "Rejected",
-                        rejection: { _tag: "RoundNotOpen" },
-                      } satisfies RoundCommandResult;
+                    const rejection = roundCommandRejection(round.status, command);
+                    if (rejection !== null) {
+                      return { _tag: "Rejected", rejection } satisfies RoundCommandResult;
                     }
 
                     const effectiveN = Math.max(
@@ -1332,11 +1331,9 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
                     if (round.status === "shared") {
                       return { _tag: "Accepted" } satisfies RoundCommandResult;
                     }
-                    if (round.status !== "ready") {
-                      return {
-                        _tag: "Rejected",
-                        rejection: { _tag: "InvalidRoundState", status: round.status },
-                      } satisfies RoundCommandResult;
+                    const rejection = roundCommandRejection(round.status, command);
+                    if (rejection !== null) {
+                      return { _tag: "Rejected", rejection } satisfies RoundCommandResult;
                     }
 
                     yield* shareResults(round.id, now);
@@ -1360,11 +1357,9 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
                     if (round.status === "ready" || round.status === "shared") {
                       return { _tag: "Accepted" } satisfies RoundCommandResult;
                     }
-                    if (round.status !== "closed") {
-                      return {
-                        _tag: "Rejected",
-                        rejection: { _tag: "InvalidRoundState", status: round.status },
-                      } satisfies RoundCommandResult;
+                    const rejection = roundCommandRejection(round.status, command);
+                    if (rejection !== null) {
+                      return { _tag: "Rejected", rejection } satisfies RoundCommandResult;
                     }
                     if (yield* rounds.hasPendingJob(round.id, "compute")) {
                       return { _tag: "Accepted" } satisfies RoundCommandResult;
@@ -1395,11 +1390,9 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
                         rejection: { _tag: "RoundNotFound" },
                       } satisfies RoundCommandResult;
                     }
-                    if (round.status !== "scheduled" && round.status !== "open") {
-                      return {
-                        _tag: "Rejected",
-                        rejection: { _tag: "InvalidRoundState", status: round.status },
-                      } satisfies RoundCommandResult;
+                    const rejection = roundCommandRejection(round.status, command);
+                    if (rejection !== null) {
+                      return { _tag: "Rejected", rejection } satisfies RoundCommandResult;
                     }
 
                     yield* rounds.cancelRound(round.id, now);
@@ -1418,11 +1411,9 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
                         rejection: { _tag: "RoundNotFound" },
                       } satisfies RoundCommandResult;
                     }
-                    if (round.status !== "open") {
-                      return {
-                        _tag: "Rejected",
-                        rejection: { _tag: "RoundNotOpen" },
-                      } satisfies RoundCommandResult;
+                    const rejection = roundCommandRejection(round.status, command);
+                    if (rejection !== null) {
+                      return { _tag: "Rejected", rejection } satisfies RoundCommandResult;
                     }
 
                     const inv = yield* rounds.getInvitation(command.roundId, command.personId);

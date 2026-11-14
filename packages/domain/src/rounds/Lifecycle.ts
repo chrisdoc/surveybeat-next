@@ -485,6 +485,42 @@ export type RoundDecision<A> =
 
 const reject = (rejection: RoundRejection) => ({ _tag: "Rejected", rejection }) as const;
 
+export type RoundCommandTag = RoundCommand["_tag"];
+
+export const roundCommandRejection = (status: RoundStatus, command: RoundCommand): RoundRejection | null => {
+  switch (command._tag) {
+    case "SkipWeek":
+    case "UnskipWeek":
+    case "PausePulse":
+    case "ResumePulse":
+      return null;
+    case "CloseRoundEarly":
+    case "ResendInvitation":
+      return status === "open" ? null : { _tag: "RoundNotOpen" };
+    case "ShareResults":
+      return status === "ready" || status === "shared" ? null : { _tag: "InvalidRoundState", status };
+    case "RetryResult":
+      return status === "closed" || status === "ready" || status === "shared"
+        ? null
+        : { _tag: "InvalidRoundState", status };
+    case "CancelRound":
+      return status === "scheduled" || status === "open" ? null : { _tag: "InvalidRoundState", status };
+  }
+};
+
+export const roundStatusAfter = (status: RoundStatus, command: RoundCommand): RoundStatus => {
+  switch (command._tag) {
+    case "CloseRoundEarly":
+      return "closed";
+    case "ShareResults":
+      return "shared";
+    case "CancelRound":
+      return "cancelled";
+    default:
+      return status;
+  }
+};
+
 /** Authorizes `action` on the Team via the permission table. */
 export const authorizeRoundAction = (
   directory: DirectoryState,
