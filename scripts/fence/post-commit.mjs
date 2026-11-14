@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
+/** @param {string[]} args */
 const git = (args) => spawnSync("git", args, { encoding: "utf8" });
 
 const tree = git(["rev-parse", "HEAD^{tree}"]);

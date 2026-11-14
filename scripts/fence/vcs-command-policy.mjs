@@ -39,7 +39,19 @@ const REASON_HOOK_FILES =
 const REASON_LEFTHOOK_UNINSTALL =
   "The fence refuses this command: uninstalling the hook manager leaves the commit gate in place but makes it look removable. Editing hooks needs owner sign-off.";
 
+/**
+ * @typedef {{ type: "word" | "op", value: string, quoted?: boolean }} Token
+ * @typedef {{ name: string, value: string }} Assignment
+ * @typedef {{ decision: "allow" } | { decision: "deny", reason: string }} Decision
+ * @typedef {{ tool_input?: { command?: unknown, commands?: unknown[] }, toolInput?: { command?: unknown }, command?: unknown }} HookPayload
+ */
+
+/**
+ * @param {string} input
+ * @returns {Token[]}
+ */
 export const tokenize = (input) => {
+  /** @type {Token[]} */
   const tokens = [];
   let word = "";
   let started = false;
@@ -52,7 +64,7 @@ export const tokenize = (input) => {
   };
   let i = 0;
   while (i < input.length) {
-    const character = input[i];
+    const character = input.charAt(i);
     if (character === "\\") {
       if (i + 1 < input.length) {
         word += input[i + 1];
@@ -113,8 +125,14 @@ export const tokenize = (input) => {
   return tokens;
 };
 
+/**
+ * @param {Token[]} tokens
+ * @returns {Token[][]}
+ */
 const segmentsOf = (tokens) => {
+  /** @type {Token[][]} */
   const segments = [];
+  /** @type {Token[]} */
   let current = [];
   for (const token of tokens) {
     if (token.type === "op" && SEGMENT_BREAKS.has(token.value)) {
@@ -128,12 +146,19 @@ const segmentsOf = (tokens) => {
   return segments;
 };
 
+/**
+ * @param {Token[]} words
+ * @returns {{ assignments: Assignment[], rest: Token[] }}
+ */
 const withoutPrefixes = (words) => {
+  /** @type {Assignment[]} */
   const assignments = [];
   let sawEnv = false;
   let i = 0;
   while (i < words.length) {
-    const value = words[i].value;
+    const word = words[i];
+    if (word === undefined) break;
+    const value = word.value;
     if (!sawEnv && basename(value) === "env") {
       sawEnv = true;
       i += 1;
@@ -141,7 +166,7 @@ const withoutPrefixes = (words) => {
     }
     const assignment = ENV_ASSIGNMENT.exec(value);
     if (assignment !== null) {
-      assignments.push({ name: assignment[1], value: assignment[2] });
+      assignments.push({ name: assignment[1] ?? "", value: assignment[2] ?? "" });
       i += 1;
       continue;
     }
@@ -158,13 +183,21 @@ const withoutPrefixes = (words) => {
   return { assignments, rest: words.slice(i) };
 };
 
+/**
+ * @param {Token[]} words
+ * @returns {number}
+ */
 const commandIndex = (words) => {
   let i = 0;
   while (i < words.length) {
-    if (!PREFIX_COMMANDS.has(basename(words[i].value))) break;
+    const word = words[i];
+    if (word === undefined) break;
+    if (!PREFIX_COMMANDS.has(basename(word.value))) break;
     i += 1;
-    while (i < words.length && words[i].value.startsWith("-")) {
-      const flag = words[i].value;
+    while (i < words.length) {
+      const token = words[i];
+      if (token === undefined || !token.value.startsWith("-")) break;
+      const flag = token.value;
       i += 1;
       if (flag === "-u" || flag === "-n" || flag === "--user" || flag === "-c") i += 1;
     }
@@ -172,14 +205,26 @@ const commandIndex = (words) => {
   return i;
 };
 
+/**
+ * @param {Token[]} words
+ * @returns {boolean}
+ */
 const hooksPathMentioned = (words) => words.some((word) => word.value.toLowerCase().includes("hookspath"));
 
+/**
+ * @param {Token[]} words
+ * @returns {boolean}
+ */
 const hookFilesMentioned = (words) =>
   words.some((word) => {
     const value = word.value.toLowerCase();
     return value.includes(".git/hooks") || value.includes(".git\\hooks") || value.includes("git_dir/hooks");
   });
 
+/**
+ * @param {Assignment[]} assignments
+ * @returns {boolean}
+ */
 const disabledHookEnvironment = (assignments) =>
   assignments.some(({ name, value }) => {
     if (name === "GIT_CONFIG_PARAMETERS" || name === "GIT_CONFIG_COUNT") {
@@ -190,6 +235,11 @@ const disabledHookEnvironment = (assignments) =>
     return value === "0" || value.toLowerCase() === "false";
   });
 
+/**
+ * @param {Token[]} words
+ * @param {number} start
+ * @returns {string}
+ */
 const shellPayload = (words, start) => {
   const flagIndex = words.findIndex(
     (word, index) => index >= start && /^-[A-Za-z]*c[A-Za-z]*$/.test(word.value),
@@ -198,13 +248,19 @@ const shellPayload = (words, start) => {
   return words[flagIndex + 1]?.value ?? "";
 };
 
+/**
+ * @param {Token[]} args
+ * @returns {"no-verify" | null}
+ */
 const commitSkip = (args) => {
   let i = 0;
   while (i < args.length) {
-    const value = args[i].value;
+    const token = args[i];
+    if (token === undefined) break;
+    const value = token.value;
     if (value === "--") return null;
     if (value.startsWith("--")) {
-      if (NO_VERIFY.test(value.split("=")[0])) return "no-verify";
+      if (NO_VERIFY.test(value.split("=")[0] ?? "")) return "no-verify";
       i += 1;
       continue;
     }
@@ -212,7 +268,7 @@ const commitSkip = (args) => {
       const letters = value.slice(1);
       let consumesNext = false;
       for (let j = 0; j < letters.length; j += 1) {
-        const letter = letters[j];
+        const letter = letters[j] ?? "";
         if (letter === "n") return "no-verify";
         if (SHORT_WITH_VALUE.has(letter)) {
           consumesNext = j === letters.length - 1;
@@ -227,10 +283,16 @@ const commitSkip = (args) => {
   return null;
 };
 
+/**
+ * @param {Token[]} args
+ * @returns {{ name: string, rest: Token[] }}
+ */
 const gitSubcommand = (args) => {
   let i = 0;
   while (i < args.length) {
-    const value = args[i].value;
+    const token = args[i];
+    if (token === undefined) break;
+    const value = token.value;
     if (value === "--") return { name: "", rest: [] };
     if (value === "-C" || value === "-c" || value === "-p" || value === "-P") {
       i += 2;
@@ -249,6 +311,12 @@ const gitSubcommand = (args) => {
   return { name: "", rest: [] };
 };
 
+/**
+ * @param {Token[]} words
+ * @param {number} depth
+ * @param {boolean} gatePassed
+ * @returns {Decision}
+ */
 const evaluateSegment = (words, depth, gatePassed) => {
   if (hooksPathMentioned(words)) return { decision: "deny", reason: REASON_HOOKS_PATH };
   if (hookFilesMentioned(words)) return { decision: "deny", reason: REASON_HOOK_FILES };
@@ -292,6 +360,11 @@ const evaluateSegment = (words, depth, gatePassed) => {
   return { decision: "allow" };
 };
 
+/**
+ * @param {string} command
+ * @param {{ gatePassed?: boolean, depth?: number }} [options]
+ * @returns {Decision}
+ */
 export const evaluateCommand = (command, options = {}) => {
   const { gatePassed = false, depth = 0 } = options;
   if (typeof command !== "string" || command.trim() === "") return { decision: "allow" };
@@ -303,6 +376,7 @@ export const evaluateCommand = (command, options = {}) => {
   return { decision: "allow" };
 };
 
+/** @param {string[]} args */
 const gitOutput = (args) => spawnSync("git", args, { encoding: "utf8" });
 
 export const gateHasPassed = () => {
@@ -323,14 +397,23 @@ const readStdin = async () => {
   return input;
 };
 
+/** @param {unknown} value */
+const stringOrEmpty = (value) => (typeof value === "string" ? value : "");
+
+/**
+ * @param {HookPayload} payload
+ * @returns {string}
+ */
 const commandFromPayload = (payload) => {
+  const commands = payload.tool_input?.commands;
+  const first = Array.isArray(commands) ? stringOrEmpty(commands[0]) : "";
   const candidates = [
-    payload?.tool_input?.command,
-    payload?.toolInput?.command,
-    payload?.command,
-    payload?.tool_input?.commands?.[0],
+    stringOrEmpty(payload.tool_input?.command),
+    stringOrEmpty(payload.toolInput?.command),
+    stringOrEmpty(payload.command),
+    first,
   ];
-  return candidates.find((candidate) => typeof candidate === "string") ?? "";
+  return candidates.find((candidate) => candidate !== "") ?? "";
 };
 
 const payloadCommand = async () => {
@@ -342,11 +425,19 @@ const payloadCommand = async () => {
   }
 };
 
+/**
+ * @param {string[]} args
+ * @returns {string}
+ */
 const formatOf = (args) => {
   const flag = args.find((arg) => arg.startsWith("--format="));
   return flag === undefined ? "claude" : flag.slice("--format=".length);
 };
 
+/**
+ * @param {string[]} args
+ * @returns {string | undefined}
+ */
 const inlineCommand = (args) => {
   const index = args.indexOf("--command");
   return index === -1 ? undefined : (args[index + 1] ?? "");

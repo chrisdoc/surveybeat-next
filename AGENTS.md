@@ -61,6 +61,7 @@ CI runs `typecheck`, `check:ledger`, `check:comments`, `format:check`, `lint`, `
 
 - Effect is 4.1.2, not 3.x. Import from `effect/Effect`, `effect/Schema`, `effect/http-api`, `effect/http/...`; there is no `@effect/platform` v3-style API here. Copy the import style from neighboring files.
 - TypeScript 7 (native compiler) with `tsc -b`. A new package needs its own `tsconfig.json` and an entry in the root `tsconfig.json` references.
+- `scripts/` is a `checkJs` project (`scripts/tsconfig.json`: `allowJs`, `checkJs`, declarations only) and part of `pnpm typecheck`, so the fence and ledger scripts are typed like the rest of the tree. Those files run in Node outside the Effect runtime, so the Effect language service turns its node-builtin and global rules off for that project only; every Effect rule that applies to Effect code stays at `error`.
 - Stricter than defaults: `exactOptionalPropertyTypes`, `noUncheckedIndexedAccess`, `verbatimModuleSyntax` (use `import type`), and relative imports carry explicit `.ts`/`.tsx` extensions.
 - Lint bans `any` and type assertions (`as Foo`) outside `*.test.ts` (`consistent-type-assertions: never`). Decode with Effect Schema or use typed helpers instead.
 - All user-facing text comes from `apps/web/src/messages/catalog.ts` or `packages/emails/src/messages/catalog.ts`; `no-literal-ui-text` fails otherwise. HTML shells must hold no visible text and an empty `<title>` (asserted in `messages.test.ts`). Plurals use `<base>.one`/`.other`.

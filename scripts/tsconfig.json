@@ -1,0 +1,59 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "dist",
+    "tsBuildInfoFile": "dist/.tsbuildinfo",
+    "types": ["node"],
+    "allowJs": true,
+    "checkJs": true,
+    "declaration": true,
+    "declarationMap": false,
+    "emitDeclarationOnly": true,
+    "plugins": [
+      {
+        "name": "@effect/language-service",
+        "diagnosticSeverity": {
+          "anyUnknownInErrorContext": "error",
+          "unsafeEffectTypeAssertion": "error",
+          "floatingEffect": "error",
+          "floatingEffectInVitest": "error",
+          "missingEffectContext": "error",
+          "missingEffectError": "error",
+          "missingLayerContext": "error",
+          "leakingRequirements": "error",
+          "globalErrorInEffectCatch": "error",
+          "globalErrorInEffectFailure": "error",
+          "unknownInEffectCatch": "error",
+          "tryCatchInEffectGen": "error",
+          "returnEffectInGen": "error",
+          "runEffectInsideEffect": "error",
+          "schemaSyncInEffect": "error",
+          "instanceOfSchema": "error",
+          "newPromise": "off",
+          "asyncFunction": "off",
+          "globalConsole": "off",
+          "globalConsoleInEffect": "error",
+          "globalDate": "off",
+          "globalDateInEffect": "error",
+          "globalFetch": "off",
+          "globalFetchInEffect": "error",
+          "globalRandom": "off",
+          "globalRandomInEffect": "error",
+          "globalTimers": "off",
+          "globalTimersInEffect": "error",
+          "cryptoRandomUUID": "off",
+          "cryptoRandomUUIDInEffect": "error",
+          "nodeBuiltinImport": "off",
+          "strictEffectProvide": "off",
+          "lazyEffect": "off",
+          "strictBooleanExpressions": "off"
+        },
+        "ignoreEffectWarningsInTscExitCode": false,
+        "ignoreEffectErrorsInTscExitCode": false,
+        "ignoreEffectSuggestionsInTscExitCode": false
+      }
+    ]
+  },
+  "include": ["**/*.mjs"]
+}

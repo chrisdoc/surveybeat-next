@@ -29,6 +29,7 @@
     "@effect/platform-node": "catalog:",
     "@effect/tsgo": "catalog:",
     "@effect/vitest": "catalog:",
+    "@types/node": "catalog:",
     "@yielded/effect-tsrs": "catalog:",
     "alchemy": "catalog:",
     "oxfmt": "catalog:",

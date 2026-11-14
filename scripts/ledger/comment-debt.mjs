@@ -25,6 +25,12 @@ const IGNORED = [
   ".opencode/**",
 ];
 
+/** @param {unknown} thrown */
+const stdoutOf = (thrown) =>
+  typeof thrown === "object" && thrown !== null && "stdout" in thrown && typeof thrown.stdout === "string"
+    ? thrown.stdout
+    : "";
+
 const oxlint = () => {
   const args = ["exec", "oxlint", "--config", configPath, "--format", "json"];
   for (const pattern of IGNORED) args.push("--ignore-pattern", pattern);
@@ -36,10 +42,11 @@ const oxlint = () => {
       stdio: ["ignore", "pipe", "ignore"],
     });
   } catch (error) {
-    return typeof error.stdout === "string" ? error.stdout : "";
+    return stdoutOf(error);
   }
 };
 
+/** @param {string} filename */
 const packageOf = (filename) => {
   const parts = filename.replace(/^\.\//, "").replaceAll("\\", "/").split("/");
   const [first, second] = parts;
@@ -52,6 +59,7 @@ const packageOf = (filename) => {
 const collect = () => {
   const output = oxlint();
   const report = JSON.parse(output === "" ? '{"diagnostics":[]}' : output);
+  /** @type {Record<string, number>} */
   const current = {};
   for (const diagnostic of report.diagnostics) {
     if (typeof diagnostic.code !== "string" || !diagnostic.code.startsWith(RULE)) continue;
@@ -71,6 +79,7 @@ const readLedger = () => {
   }
 };
 
+/** @param {Record<string, number>} counts */
 const total = (counts) => Object.values(counts).reduce((sum, count) => sum + count, 0);
 
 const main = () => {

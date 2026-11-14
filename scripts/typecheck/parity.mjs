@@ -10,8 +10,23 @@ import {
 
 const TSC_EFFECT_PREFIX = "TS377";
 
+/** @typedef {{ diagnostics?: { code: number | string }[], typescriptDiagnostics?: { code: string }[] }} EffectReport */
+
+/** @param {number | null} status */
 const verdict = (status) => (status === 0 ? "ok" : "failed");
+
+/**
+ * @param {string[]} left
+ * @param {string[]} right
+ */
 const same = (left, right) => left.join(",") === right.join(",");
+
+/** @param {EffectReport} report */
+const effectCodesOf = (report) =>
+  [
+    ...(report.diagnostics ?? []).map((diagnostic) => `TS${String(diagnostic.code).padStart(6, "0")}`),
+    ...(report.typescriptDiagnostics ?? []).map((diagnostic) => `TS${diagnostic.code}`),
+  ].sort(byCode);
 
 let mismatched = false;
 const projects = readProjects();
@@ -21,11 +36,7 @@ for (const config of projects) {
   const tsc = typeScriptCodes(config);
   const plain = plainCodes(config);
 
-  const parsed = JSON.parse(effect.output.slice(effect.output.indexOf("{")) || "{}");
-  const effectCodes = [
-    ...(parsed.diagnostics ?? []).map((diagnostic) => `TS${String(diagnostic.code).padStart(6, "0")}`),
-    ...(parsed.typescriptDiagnostics ?? []).map((diagnostic) => `TS${diagnostic.code}`),
-  ].sort(byCode);
+  const effectCodes = effectCodesOf(JSON.parse(effect.output.slice(effect.output.indexOf("{")) || "{}"));
   const tscCodes = codesOf(tsc.output);
   const effectFree = codesOf(effect.output).filter((code) => !code.startsWith(TSC_EFFECT_PREFIX));
   const plainEffectFree = codesOf(plain.output).filter((code) => !code.startsWith(TSC_EFFECT_PREFIX));

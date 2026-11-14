@@ -7,6 +7,10 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const workspacePath = join(root, "pnpm-workspace.yaml");
 const revisionPath = join(root, "scripts", "typecheck", "tsrs-revision.json");
 
+/**
+ * @param {string} pkg
+ * @returns {string}
+ */
 const latest = (pkg) => execFileSync("npm", ["view", pkg, "version"], { encoding: "utf8" }).trim();
 
 const effectTsrs = latest("@yielded/effect-tsrs");

@@ -12,6 +12,7 @@ const steps = [
   { name: "test:privacy", args: ["run", "test:privacy"] },
 ];
 
+/** @param {string[]} args */
 const git = (args) => spawnSync("git", args, { encoding: "utf8" });
 
 for (const step of steps) {

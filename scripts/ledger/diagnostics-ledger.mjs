@@ -15,7 +15,12 @@ const trackedFiles = () =>
     .split("\0")
     .filter((file) => file !== "" && sourceFile.test(file));
 
+/**
+ * @param {string} text
+ * @param {Map<string, number>} tally
+ */
 const countFile = (text, tally) => {
+  /** @param {string} kind */
   const bump = (kind) => tally.set(kind, (tally.get(kind) ?? 0) + 1);
   for (const match of text.matchAll(effectNextLine)) bump(`effect-next-line:${match[1]}`);
   for (const match of text.matchAll(effectFile)) bump(`effect-file:${match[1]}`);
@@ -36,6 +41,7 @@ const collect = () => {
   return tally;
 };
 
+/** @param {Map<string, number>} tally */
 const sorted = (tally) =>
   Object.fromEntries(
     [...tally.entries()].sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0)),

@@ -1,13 +1,32 @@
 {
   "files": [],
   "references": [
-    { "path": "packages/domain" },
-    { "path": "packages/api" },
-    { "path": "packages/cloudflare" },
-    { "path": "packages/emails" },
-    { "path": "packages/testing" },
-    { "path": "apps/web" },
-    { "path": "infra" },
-    { "path": "tools/oxlint-plugin-surveybeat" }
+    {
+      "path": "packages/domain"
+    },
+    {
+      "path": "packages/api"
+    },
+    {
+      "path": "packages/cloudflare"
+    },
+    {
+      "path": "packages/emails"
+    },
+    {
+      "path": "packages/testing"
+    },
+    {
+      "path": "apps/web"
+    },
+    {
+      "path": "infra"
+    },
+    {
+      "path": "tools/oxlint-plugin-surveybeat"
+    },
+    {
+      "path": "scripts"
+    }
   ]
 }
