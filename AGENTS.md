@@ -31,9 +31,12 @@ Node 24 (`.node-version`) and pnpm 12.18.0 are pinned.
 
 ```sh
 pnpm install
-pnpm typecheck          # effect-tsgo tsc -b: Effect diagnostics fail the build
-pnpm typecheck:tsc      # plain tsc -b, for a second opinion
-pnpm typecheck:effect   # alias of typecheck, kept for existing callers
+pnpm typecheck          # effect-tsrs --strict --type-check per project: Effect diagnostics fail the build
+pnpm typecheck:tsc      # patched tsc -b, the comparison checker; not a CI step
+pnpm typecheck:parity   # compares effect-tsrs with patched tsc, then plain tsrs with Effect codes excluded
+pnpm typecheck:fast     # plain tsrs: fast feedback without Effect diagnostics
+pnpm typecheck:effect   # alias of typecheck:tsc, kept for existing callers
+pnpm bump:checkers      # bumps both checker pins, installs, reports the bundled tsrs revision, runs parity
 pnpm check:ledger       # counts lint disables and Effect diagnostic overrides; it only shrinks
 pnpm check:comments     # counts prose comments per package (docs/agents/comment-debt-plan.md); it only shrinks
 pnpm lint               # oxlint --type-aware
