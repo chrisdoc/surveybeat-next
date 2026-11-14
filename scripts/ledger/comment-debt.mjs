@@ -15,6 +15,8 @@ const IGNORED = [
   ".alchemy/**",
   "infra/tests/**",
   "tools/oxlint-plugin-surveybeat/fixtures/**",
+  "tools/oxlint/anti-slop/**",
+  "tools/oxlint/fixtures/**",
   "**/*.test.ts",
   ".agents/**",
   ".claude/**",

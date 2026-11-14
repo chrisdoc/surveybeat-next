@@ -29,6 +29,8 @@
     "@effect/platform-node": "catalog:",
     "@effect/tsgo": "catalog:",
     "@effect/vitest": "catalog:",
+    "@foldkit/oxlint-plugin": "catalog:",
+    "@oxlint/plugins": "catalog:",
     "@types/node": "catalog:",
     "@yielded/effect-tsrs": "catalog:",
     "alchemy": "catalog:",
@@ -37,6 +39,7 @@
     "oxlint-tsgolint": "catalog:",
     "tsrs": "catalog:",
     "typescript": "catalog:",
+    "ultracite": "catalog:",
     "vitest": "catalog:"
   },
   "engines": {

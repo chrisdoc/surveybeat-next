@@ -19,7 +19,7 @@ When the installed `effect` package contains `AGENTS.md`, read that file first. 
 
 Use `search`, then `read`. One program can do both through `POST https://ratstack.sh/api/execute`, as `tools.search({ query, limit })` and `tools.read({ id })`. That program cannot import, export, or call `fetch`. An MCP client uses the same tools at `https://ratstack.sh/mcp`.
 
-This repo has the floor from that guide. Strict TypeScript, oxlint, `oxfmt --check`, Vitest with `@effect/vitest`, and the fence below are in place. Alchemy and Foldkit are in use. ADR 0008 and ADR 0011 record that choice. Add another template package only when an ADR names it.
+This repo has the floor from that guide. Strict TypeScript, oxlint, `oxfmt --check`, Vitest with `@effect/vitest`, and the fence below are in place. `oxlint.config.ts` extends Ultracite core and loads the Foldkit, anti-slop, effect-tests and pattern plugins; `docs/agents/lint-scope.md` lists what runs at `error` and every rule that is off while the restyle in #216 is outstanding. Alchemy and Foldkit are in use. ADR 0008 and ADR 0011 record that choice. Add another template package only when an ADR names it.
 
 The fence is `.githooks/` and `scripts/fence/`. `pnpm install` sets `core.hooksPath` to `.githooks`. The pre-commit hook runs `pnpm check` and then `pnpm test`, and refuses the commit when a step fails. Fix the failure and commit again so the hook runs. Claude Code denies a `git` command that passes `--no-verify` or sets `core.hooksPath`, through `scripts/fence/vcs-command-policy.mjs`. The post-commit hook reports a commit that skipped the gate. CI also runs the privacy suite and the web build. The hook stops after `pnpm test`.
 

@@ -1,0 +1,14 @@
+{
+  "jsPlugins": [
+    "../anti-slop/index.ts",
+    "../anti-slop/effect/index.ts",
+    "../effect-tests.ts",
+    "../patterns.ts"
+  ],
+  "rules": {
+    "anti-slop/no-reflect-get": "error",
+    "effect-tests/no-manual-effect-runtime-in-tests": "error",
+    "patterns/no-module-level-mutable-state": "error",
+    "patterns/no-sleep-in-loop": "error"
+  }
+}

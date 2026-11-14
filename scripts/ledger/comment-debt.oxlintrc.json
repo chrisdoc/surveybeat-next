@@ -5,19 +5,21 @@
     "no-comments/directive-reason": "error"
   },
   "ignorePatterns": [
-    "**/dist/**",
+    "**/*.test.ts",
     "**/dist-types/**",
+    "**/dist/**",
     "**/node_modules/**",
-    ".alchemy/**",
-    "infra/tests/**",
-    "tools/oxlint-plugin-surveybeat/fixtures/**",
     ".agents/**",
+    ".alchemy/**",
     ".claude/**",
     ".cursor/**",
-    ".pi/**",
     ".entire/**",
     ".factory/**",
     ".opencode/**",
-    "**/*.test.ts"
+    ".pi/**",
+    "infra/tests/**",
+    "tools/oxlint-plugin-surveybeat/fixtures/**",
+    "tools/oxlint/anti-slop/**",
+    "tools/oxlint/fixtures/**"
   ]
 }

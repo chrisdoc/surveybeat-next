@@ -155,10 +155,8 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
       );
     }
 
-    const settings = yield* Effect.cached(authSettings);
-    const identityProvider = yield* Effect.cached(
-      Effect.map(settings, ({ workos }) => workosIdentityProvider(workos)),
-    );
+    const settings = authSettings;
+    const identityProvider = Effect.map(settings, ({ workos }) => workosIdentityProvider(workos));
     const people = durableObjectPeople(organizations);
     const directory = durableObjectDirectory(organizations);
     const pulses = durableObjectPulses(organizations);

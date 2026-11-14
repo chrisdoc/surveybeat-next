@@ -7,7 +7,7 @@ export default defineConfig({
         test: {
           name: "unit",
           include: ["{packages,apps,tools,infra,scripts}/**/*.test.ts"],
-          exclude: ["**/*.privacy.test.ts", "**/node_modules/**", "**/dist/**"],
+          exclude: ["**/*.privacy.test.ts", "**/node_modules/**", "**/dist/**", "tools/oxlint/fixtures/**"],
         },
       },
       {
