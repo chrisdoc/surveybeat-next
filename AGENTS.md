@@ -2,7 +2,7 @@
 
 Cloudflare-only Effect app. One Durable Object per Organization is the system of record; D1 holds only the global index and auth/email bookkeeping, never survey content. Three Workers serve the app/API (`MainWorker`), the answer page's submission path (`SubmissionWorker`), and the static landing page (`SiteWorker`, ADR 0020).
 
-Read `SPEC.md` (authoritative spec), `GLOSSARY.md` (domain vocabulary), and `docs/adr/` (binding decisions) before changing behavior. `docs/infra.md` covers stages, WorkOS sign-in, email, and observability.
+Read `SPEC.md` (authoritative spec), `GLOSSARY.md` (domain vocabulary), and `docs/adr/` (binding decisions) before changing behavior. `docs/infra.md` covers stages, WorkOS sign-in, email, and observability. For Effect, Alchemy, Foldkit, XState, a new lint rule, or a Cloudflare resource, start at the [ratstack agent guide](https://ratstack.sh/llms.txt) and follow the Ratstack section.
 
 ## Ground rules
 
@@ -10,6 +10,20 @@ Read `SPEC.md` (authoritative spec), `GLOSSARY.md` (domain vocabulary), and `doc
 - If a change contradicts an ADR, say so and add a new ADR under `docs/adr/`; never silently override one.
 - Issues and specs live in GitHub issues (`gh`); conventions are in `docs/agents/issue-tracker.md`. Commit subjects name the release slice, e.g. `R1 03: ...`.
 - Privacy invariants are release blockers (SPEC §7): anonymous Submissions store no Person and no time (ADR 0005), comments are redacted at store time (ADR 0009), and every shown aggregate obeys the minimum group size (ADR 0004).
+
+## Ratstack
+
+SurveyBeat keeps its own packages, commands, and deploy steps in this file. The [ratstack agent guide](https://ratstack.sh/llms.txt) is the reference for Effect, Alchemy, Foldkit, and XState. The template's package list and deploy steps describe the reference repo at [joelhooks/rat-stack](https://github.com/joelhooks/rat-stack).
+
+When the installed `effect` package contains `AGENTS.md`, read that file first. It matches the pin. Then search the guide before you change Effect, Alchemy, Foldkit, XState, a lint rule, or a Cloudflare resource. Read the page the search returns, including the rule or skill that owns the change.
+
+Use `search`, then `read`. One program can do both through `POST https://ratstack.sh/api/execute`, as `tools.search({ query, limit })` and `tools.read({ id })`. That program cannot import, export, or call `fetch`. An MCP client uses the same tools at `https://ratstack.sh/mcp`.
+
+This repo has the floor from that guide. Strict TypeScript, oxlint, `oxfmt --check`, Vitest with `@effect/vitest`, and the fence below are in place. Alchemy and Foldkit are in use. ADR 0008 and ADR 0011 record that choice. Add another template package only when an ADR names it.
+
+The fence is `.githooks/` and `scripts/fence/`. `pnpm install` sets `core.hooksPath` to `.githooks`. The pre-commit hook runs `pnpm check` and then `pnpm test`, and refuses the commit when a step fails. Fix the failure and commit again so the hook runs. Claude Code denies a `git` command that passes `--no-verify` or sets `core.hooksPath`, through `scripts/fence/vcs-command-policy.mjs`. The post-commit hook reports a commit that skipped the gate. CI also runs the privacy suite and the web build. The hook stops after `pnpm test`.
+
+Put a reason in a name, a type, a test, a commit message, or an ADR. `docs/agents/comment-debt-plan.md` tracks the comments already in the tree. The `no-comments` lint rule is not enabled yet.
 
 ## Commands (from the repo root)
 
@@ -53,7 +67,7 @@ CI runs `typecheck`, `check:ledger`, `check:comments`, `format:check`, `lint`, `
 ## Tests
 
 - Tests are colocated `*.test.ts`. A privacy test must be named `*.privacy.test.ts` or CI never runs it.
-- Use `@effect/vitest` (`it.effect` for Effect programs).
+- Use `@effect/vitest` (`it.effect` for Effect programs). Prefer a property or a model for a domain rule, and keep an example test for a seam. Make a new property fail on a planted bug, then remove that bug, before you trust the test.
 - Adapter tests use `@alchemy.run/test`'s `Test.make({ dev: true })` against local workerd and are slow (deploy timeouts up to 240 s); run the single file you need.
 - A new API endpoint must be classified in `packages/api/src/PrivacyRegistry.ts` or the package will not typecheck; `registry.privacy.test.ts` checks the runtime declaration too.
 - End-to-end tests run only against a deployed stage: `E2E_BASE_URL=https://pr-<n>.app.surveybeat.app pnpm test:e2e` (install Chromium once with `pnpm --filter @surveybeat/infra exec playwright install chromium`).
