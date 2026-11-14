@@ -5,6 +5,7 @@ import { actorOf, type DirectoryState } from "../people/Directory.ts";
 import { type Actor, can, type TeamAction } from "../people/Permissions.ts";
 import type { TeamId } from "../people/Team.ts";
 import type { PulseId, SendTime, Weekday } from "../pulses/Pulse.ts";
+import { isUnhandled, setup, transition, types } from "xstate";
 import type { JobId, RoundId, RoundStatus, ScheduleJobStatus, ScheduleJobType } from "./Round.ts";
 
 export interface FrozenRoundMember {
@@ -441,39 +442,188 @@ const reject = (rejection: RoundRejection) => ({ _tag: "Rejected", rejection }) 
 
 export type RoundCommandTag = RoundCommand["_tag"];
 
-export const roundCommandRejection = (status: RoundStatus, command: RoundCommand): RoundRejection | null => {
+type RoundEvent =
+  | {
+      readonly type: "SkipWeek";
+      readonly teamId: TeamId;
+      readonly pulseId: PulseId;
+      readonly plannedOpenDate: string;
+    }
+  | {
+      readonly type: "UnskipWeek";
+      readonly teamId: TeamId;
+      readonly pulseId: PulseId;
+      readonly plannedOpenDate: string;
+    }
+  | { readonly type: "PausePulse"; readonly teamId: TeamId; readonly pulseId: PulseId }
+  | { readonly type: "ResumePulse"; readonly teamId: TeamId; readonly pulseId: PulseId }
+  | { readonly type: "CloseRoundEarly"; readonly teamId: TeamId; readonly roundId: RoundId }
+  | { readonly type: "ShareResults"; readonly teamId: TeamId; readonly roundId: RoundId }
+  | { readonly type: "RetryResult"; readonly teamId: TeamId; readonly roundId: RoundId }
+  | { readonly type: "CancelRound"; readonly teamId: TeamId; readonly roundId: RoundId }
+  | {
+      readonly type: "ResendInvitation";
+      readonly teamId: TeamId;
+      readonly roundId: RoundId;
+      readonly personId: PersonId;
+    };
+
+const roundEvent = (command: RoundCommand): RoundEvent => {
   switch (command._tag) {
     case "SkipWeek":
     case "UnskipWeek":
+      return {
+        type: command._tag,
+        teamId: command.teamId,
+        pulseId: command.pulseId,
+        plannedOpenDate: command.plannedOpenDate,
+      };
     case "PausePulse":
     case "ResumePulse":
-      return null;
+      return { type: command._tag, teamId: command.teamId, pulseId: command.pulseId };
     case "CloseRoundEarly":
-    case "ResendInvitation":
-      return status === "open" ? null : { _tag: "RoundNotOpen" };
     case "ShareResults":
-      return status === "ready" || status === "shared" ? null : { _tag: "InvalidRoundState", status };
     case "RetryResult":
-      return status === "closed" || status === "ready" || status === "shared"
-        ? null
-        : { _tag: "InvalidRoundState", status };
     case "CancelRound":
-      return status === "scheduled" || status === "open" ? null : { _tag: "InvalidRoundState", status };
+      return { type: command._tag, teamId: command.teamId, roundId: command.roundId };
+    case "ResendInvitation":
+      return {
+        type: command._tag,
+        teamId: command.teamId,
+        roundId: command.roundId,
+        personId: command.personId,
+      };
   }
 };
 
-export const roundStatusAfter = (status: RoundStatus, command: RoundCommand): RoundStatus => {
-  switch (command._tag) {
-    case "CloseRoundEarly":
-      return "closed";
-    case "ShareResults":
-      return "shared";
-    case "CancelRound":
-      return "cancelled";
-    default:
-      return status;
+const roundIdEvent = types<{ teamId: TeamId; roundId: RoundId }>();
+
+const accept = (status: RoundStatus) => ({ target: status, context: { status, rejection: null } });
+
+const refuse = (status: RoundStatus) => ({
+  context: { rejection: { _tag: "InvalidRoundState", status } as const },
+});
+
+const refuseClosed = { context: { rejection: { _tag: "RoundNotOpen" } as const } };
+
+export const roundMachine = setup({
+  schemas: {
+    context: types<{ status: RoundStatus; rejection: RoundRejection | null }>(),
+    events: {
+      SkipWeek: types<{ teamId: TeamId; pulseId: PulseId; plannedOpenDate: string }>(),
+      UnskipWeek: types<{ teamId: TeamId; pulseId: PulseId; plannedOpenDate: string }>(),
+      PausePulse: types<{ teamId: TeamId; pulseId: PulseId }>(),
+      ResumePulse: types<{ teamId: TeamId; pulseId: PulseId }>(),
+      CloseRoundEarly: roundIdEvent,
+      ShareResults: roundIdEvent,
+      RetryResult: roundIdEvent,
+      CancelRound: roundIdEvent,
+      ResendInvitation: types<{ teamId: TeamId; roundId: RoundId; personId: PersonId }>(),
+    },
+  },
+}).createMachine({
+  id: "Round",
+  context: { status: "scheduled", rejection: null },
+  initial: "scheduled",
+  states: {
+    scheduled: {
+      on: {
+        SkipWeek: () => accept("scheduled"),
+        UnskipWeek: () => accept("scheduled"),
+        PausePulse: () => accept("scheduled"),
+        ResumePulse: () => accept("scheduled"),
+        CloseRoundEarly: () => refuseClosed,
+        ShareResults: () => refuse("scheduled"),
+        RetryResult: () => refuse("scheduled"),
+        CancelRound: () => accept("cancelled"),
+        ResendInvitation: () => refuseClosed,
+      },
+    },
+    open: {
+      on: {
+        SkipWeek: () => accept("open"),
+        UnskipWeek: () => accept("open"),
+        PausePulse: () => accept("open"),
+        ResumePulse: () => accept("open"),
+        CloseRoundEarly: () => accept("closed"),
+        ShareResults: () => refuse("open"),
+        RetryResult: () => refuse("open"),
+        CancelRound: () => accept("cancelled"),
+        ResendInvitation: () => accept("open"),
+      },
+    },
+    closed: {
+      on: {
+        SkipWeek: () => accept("closed"),
+        UnskipWeek: () => accept("closed"),
+        PausePulse: () => accept("closed"),
+        ResumePulse: () => accept("closed"),
+        CloseRoundEarly: () => refuseClosed,
+        ShareResults: () => refuse("closed"),
+        RetryResult: () => accept("closed"),
+        CancelRound: () => refuse("closed"),
+        ResendInvitation: () => refuseClosed,
+      },
+    },
+    ready: {
+      on: {
+        SkipWeek: () => accept("ready"),
+        UnskipWeek: () => accept("ready"),
+        PausePulse: () => accept("ready"),
+        ResumePulse: () => accept("ready"),
+        CloseRoundEarly: () => refuseClosed,
+        ShareResults: () => accept("shared"),
+        RetryResult: () => accept("ready"),
+        CancelRound: () => refuse("ready"),
+        ResendInvitation: () => refuseClosed,
+      },
+    },
+    shared: {
+      on: {
+        SkipWeek: () => accept("shared"),
+        UnskipWeek: () => accept("shared"),
+        PausePulse: () => accept("shared"),
+        ResumePulse: () => accept("shared"),
+        CloseRoundEarly: () => refuseClosed,
+        ShareResults: () => accept("shared"),
+        RetryResult: () => accept("shared"),
+        CancelRound: () => refuse("shared"),
+        ResendInvitation: () => refuseClosed,
+      },
+    },
+    cancelled: {
+      on: {
+        SkipWeek: () => accept("cancelled"),
+        UnskipWeek: () => accept("cancelled"),
+        PausePulse: () => accept("cancelled"),
+        ResumePulse: () => accept("cancelled"),
+        CloseRoundEarly: () => refuseClosed,
+        ShareResults: () => refuse("cancelled"),
+        RetryResult: () => refuse("cancelled"),
+        CancelRound: () => refuse("cancelled"),
+        ResendInvitation: () => refuseClosed,
+      },
+    },
+  },
+});
+
+const roundSnapshot = (status: RoundStatus) =>
+  roundMachine.resolveState({ value: status, context: { status, rejection: null } });
+
+const roundStep = (status: RoundStatus, command: RoundCommand) => {
+  const snapshot = roundSnapshot(status);
+  const [next, effects] = transition(roundMachine, snapshot, roundEvent(command));
+  if (isUnhandled(snapshot, [next, effects])) {
+    throw new Error("Round has no transition for " + command._tag + " in " + status);
   }
+  return next.context;
 };
+
+export const roundCommandRejection = (status: RoundStatus, command: RoundCommand): RoundRejection | null =>
+  roundStep(status, command).rejection;
+
+export const roundStatusAfter = (status: RoundStatus, command: RoundCommand): RoundStatus =>
+  roundStep(status, command).status;
 
 export const authorizeRoundAction = (
   directory: DirectoryState,

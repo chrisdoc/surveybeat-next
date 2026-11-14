@@ -1,4 +1,6 @@
-import { assert, describe, it, prop } from "@effect/vitest";
+import { assert, describe, expect, it, prop } from "@effect/vitest";
+import { createEffectActor } from "@xstate/effect";
+import { sendAndAwait } from "@xstate/effect/test";
 import { Clock, Duration, Effect, Schema } from "effect";
 import { TestClock } from "effect/testing";
 import {
@@ -8,6 +10,7 @@ import {
   localToUtc,
   nextEightWeeksCadenceDates,
   roundCommandRejection,
+  roundMachine,
   roundStatusAfter,
   type RoundCommand,
   type RoundCommandTag,
@@ -524,5 +527,71 @@ describe("the Round lifecycle table", () => {
       }
       return true;
     },
+  );
+});
+
+describe("the Round machine", () => {
+  const roundId = RoundId.make("round-1");
+
+  it.each([
+    ["scheduled", "CloseRoundEarly", "RoundNotOpen"],
+    ["closed", "ShareResults", "InvalidRoundState"],
+    ["open", "RetryResult", "InvalidRoundState"],
+    ["shared", "CancelRound", "InvalidRoundState"],
+  ] as const)("refuses %s in %s with %s", (status, tag, rejection) => {
+    const command = commandOf(tag);
+    expect(roundCommandRejection(status, command)).toEqual(
+      rejection === "RoundNotOpen" ? { _tag: "RoundNotOpen" } : { _tag: "InvalidRoundState", status },
+    );
+    expect(roundStatusAfter(status, command)).toBe(status);
+  });
+
+  it.effect("cancels a scheduled Round and then refuses every transition out of cancelled", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const actor = yield* createEffectActor(roundMachine, {
+          snapshot: roundMachine.resolveState({
+            value: "scheduled",
+            context: { status: "scheduled", rejection: null },
+          }),
+        });
+        yield* sendAndAwait(actor, {
+          type: "CancelRound",
+          teamId: TeamId.make("team-1"),
+          roundId,
+        });
+        expect(actor.getSnapshot().value).toBe("cancelled");
+        expect(actor.getSnapshot().context.rejection).toBeNull();
+
+        yield* sendAndAwait(actor, {
+          type: "ShareResults",
+          teamId: TeamId.make("team-1"),
+          roundId,
+        });
+        expect(actor.getSnapshot().value).toBe("cancelled");
+        expect(actor.getSnapshot().context.rejection).toEqual({
+          _tag: "InvalidRoundState",
+          status: "cancelled",
+        });
+      }),
+    ),
+  );
+
+  it.effect("closes an open Round early and refuses to close it twice", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const actor = yield* createEffectActor(roundMachine, {
+          snapshot: roundMachine.resolveState({
+            value: "open",
+            context: { status: "open", rejection: null },
+          }),
+        });
+        yield* sendAndAwait(actor, { type: "CloseRoundEarly", teamId: TeamId.make("team-1"), roundId });
+        expect(actor.getSnapshot().value).toBe("closed");
+        yield* sendAndAwait(actor, { type: "CloseRoundEarly", teamId: TeamId.make("team-1"), roundId });
+        expect(actor.getSnapshot().value).toBe("closed");
+        expect(actor.getSnapshot().context.rejection).toEqual({ _tag: "RoundNotOpen" });
+      }),
+    ),
   );
 });
