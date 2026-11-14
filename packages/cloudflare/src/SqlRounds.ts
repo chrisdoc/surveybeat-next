@@ -159,16 +159,10 @@ const ActionSummaryRow = Schema.Struct({
 const rows = <S extends Schema.Top & { readonly DecodingServices: never }>(schema: S) =>
   Schema.decodeUnknownEffect(Schema.Array(schema));
 
-/** Fills `size` bytes. Production passes {@link secureRandomBytes}; the privacy suite passes a seeded source. */
 export type RandomBytes = (size: number) => Uint8Array;
 
-/** Web Crypto, the only source the Organization object may use for keys (ADR 0005). */
 export const secureRandomBytes: RandomBytes = (size) => crypto.getRandomValues(new Uint8Array(size));
 
-/**
- * `randomBytes` has no default on purpose: Submission ids must be unpredictable in production, and the
- * A4 harness (`@surveybeat/testing` Unlinkability) must be able to seed them so its runs are repeatable.
- */
 export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: RandomBytes) => {
   const toRoundRecord = (row: typeof RoundRow.Type): RoundRecord => ({
     id: row.id,
@@ -243,7 +237,6 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
         dimension: d.dimension,
         score: d.score,
         usableQuestionCount: d.usableQuestionCount,
-        // Results stored before the count was kept lack it.
         ...(d.contributors === undefined ? {} : { contributors: d.contributors }),
         meetsMinimumGroupSize: d.meetsMinimumGroupSize,
       })),
@@ -390,10 +383,6 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
             review_ends_at = ${reviewEndsAt}, updated_at = ${closedAt}
         WHERE id = ${roundId} AND status = 'open'`.pipe(Effect.asVoid, Effect.orDie);
 
-  /**
-   * The Review window starts when the Result exists (Issue #128): its end moves by the time the Result took to
-   * compute after close. A Round whose Result is computed at close keeps its end unchanged.
-   */
   const markRoundReady = (roundId: RoundId, now: number): Effect.Effect<void> =>
     sql`UPDATE round
         SET status = 'ready', updated_at = ${now},
@@ -439,7 +428,6 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
       )
       .pipe(Effect.asVoid, Effect.orDie);
 
-  // Pulse pause / skip methods
   const pausePulse = (pulseId: PulseId, now: number): Effect.Effect<void> =>
     sql`UPDATE pulse SET paused_at = ${now} WHERE id = ${pulseId}`.pipe(Effect.asVoid, Effect.orDie);
 
@@ -474,7 +462,6 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
       Effect.orDie,
     );
 
-  // Schedule Job methods
   const insertJob = (job: ScheduleJobRecord): Effect.Effect<void> =>
     sql`INSERT INTO schedule_job (id, round_id, type, due_at, status, payload, created_at, completed_at)
         VALUES (${job.id}, ${job.roundId}, ${job.type}, ${job.dueAt}, ${job.status}, ${job.payload}, ${job.createdAt}, ${job.completedAt})
@@ -544,7 +531,6 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
       Effect.orDie,
     );
 
-  // Invitation methods
   const insertInvitations = (invitations: ReadonlyArray<InvitationRecord>): Effect.Effect<void> =>
     Effect.forEach(
       invitations,
@@ -917,10 +903,6 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
       Effect.orDie,
     );
 
-  /**
-   * The Rounds a Person took part in, newest first, from Participation records only. Never reads a
-   * Submission or an Answer: the Person's own answers never leave their browser (ADR 0017).
-   */
   const getParticipatedRounds = (personId: PersonId) =>
     sql`SELECT r.id, r.team_id, t.name AS team_name, r.pulse_name, r.planned_open_date, r.status, rr.payload
         FROM participation p
@@ -1071,7 +1053,6 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
   const updateJobPayload = (jobId: JobId, payload: string): Effect.Effect<void> =>
     sql`UPDATE schedule_job SET payload = ${payload} WHERE id = ${jobId}`.pipe(Effect.asVoid, Effect.orDie);
 
-  // Comment themes and discussion guide (ADR 0016, ADR 0019): one row per Round, stored once.
   const requestThemes = (roundId: RoundId, now: number): Effect.Effect<boolean> =>
     sql<{ round_id: string }>`INSERT INTO round_themes (round_id, status, requested_at, attempts)
         VALUES (${roundId}, 'pending', ${now}, 0)
@@ -1101,7 +1082,6 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
         const failed: RoundThemesRecord = { status: "failed" };
         return failed;
       }
-      // A payload that fails to decode is a defect with a fixed message: its text is AI output and never logged.
       const themes = yield* decodeStoredThemes(row.payload ?? "").pipe(
         Effect.mapError(() => new Error("round_themes payload invalid")),
         Effect.orDie,

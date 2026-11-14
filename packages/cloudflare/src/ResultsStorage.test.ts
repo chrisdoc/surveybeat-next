@@ -228,6 +228,39 @@ describe("RoundResult storage and performance (Issue #45, ADR 0004)", () => {
     assert.strictEqual(totalRows.c, 1, "Must remain exactly one row");
   });
 
+  it("decodes a stored Result written before Dimension contributors were kept", () => {
+    const result = calculateRoundResult({
+      roundId: RoundId.make("round-legacy"),
+      pulseId: PulseId.make("pulse-legacy"),
+      teamId: TeamId.make("team-legacy"),
+      status: "closed",
+      plannedOpenDate: "2026-11-02",
+      anonymityMode: "anonymous",
+      closedAt: 1730592000000,
+      effectiveMinimumGroupSize: 4,
+      eligibleMembersCount: 8,
+      questions: perfQuestions,
+      submissions: [1, 2, 3, 4].map((n) => ({
+        id: `sub-legacy-${n}`,
+        answers: [
+          { questionVersionId: perfQv1, value: 4, comment: null },
+          { questionVersionId: perfQv2, value: 4, comment: null },
+        ],
+      })),
+      pastRoundsHistory: [],
+    });
+
+    const legacy: unknown = JSON.parse(JSON.stringify(result));
+    const dimensions = (legacy as { dimensions: Array<Record<string, unknown>> }).dimensions;
+    const first = dimensions[0];
+    if (first === undefined) throw new Error("the Result has no Dimension to strip");
+    delete first.contributors;
+
+    const decoded = Option.getOrNull(Schema.decodeUnknownOption(RoundResult)(legacy));
+    assert.isNotNull(decoded);
+    assert.strictEqual(decoded.dimensions[0]?.contributors, undefined);
+  });
+
   it("Performance: 104 weekly Rounds (2 years) query renders in under 1.5 seconds", () => {
     const db = initDatabase();
     seedPerfTeam(db);
