@@ -227,6 +227,7 @@ const pluginRules = {
   "patterns/no-shared-pending-cache": "error",
   "patterns/no-sleep-in-loop": "error",
   "patterns/shared-waiters": "error",
+  "xstate-effect/no-inline-effect": "error",
 };
 
 export default defineConfig({
@@ -252,6 +253,7 @@ export default defineConfig({
     "./tools/oxlint-plugin-surveybeat/index.js",
     "./tools/oxlint-plugin-surveybeat/no-comments.js",
     { name: "foldkit", specifier: "@foldkit/oxlint-plugin" },
+    { name: "xstate-effect", specifier: "@xstate/effect/oxlint" },
     { name: "anti-slop", specifier: "./tools/oxlint/anti-slop/index.ts" },
     { name: "anti-slop-effect", specifier: "./tools/oxlint/anti-slop/effect/index.ts" },
     "./tools/oxlint/effect-tests.ts",

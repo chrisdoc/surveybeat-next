@@ -3,12 +3,17 @@
     "../anti-slop/index.ts",
     "../anti-slop/effect/index.ts",
     "../effect-tests.ts",
-    "../patterns.ts"
+    "../patterns.ts",
+    {
+      "name": "xstate-effect",
+      "specifier": "@xstate/effect/oxlint"
+    }
   ],
   "rules": {
     "anti-slop/no-reflect-get": "error",
     "effect-tests/no-manual-effect-runtime-in-tests": "error",
     "patterns/no-module-level-mutable-state": "error",
-    "patterns/no-sleep-in-loop": "error"
+    "patterns/no-sleep-in-loop": "error",
+    "xstate-effect/no-inline-effect": "error"
   }
 }

@@ -212,6 +212,9 @@ catalogs:
     '@workos-inc/node':
       specifier: 12.2.0
       version: 12.2.0
+    '@xstate/effect':
+      specifier: 1.0.0-beta.0
+      version: 1.0.0-beta.0
     '@yielded/effect-tsrs':
       specifier: 0.2.3
       version: 0.2.3
@@ -260,6 +263,9 @@ catalogs:
     vitest:
       specifier: 5.1.0
       version: 5.1.0
+    xstate:
+      specifier: 6.0.0-beta.1
+      version: 6.0.0-beta.1
 
 importers:
 
@@ -283,6 +289,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
+      '@xstate/effect':
+        specifier: 'catalog:'
+        version: 1.0.0-beta.0(@oxlint/plugins@1.92.0)(effect@4.1.2)(xstate@6.0.0-beta.1)
       '@yielded/effect-tsrs':
         specifier: 'catalog:'
         version: 0.2.3
@@ -442,9 +451,15 @@ importers:
 
   packages/domain:
     dependencies:
+      '@xstate/effect':
+        specifier: 'catalog:'
+        version: 1.0.0-beta.0(@oxlint/plugins@1.92.0)(effect@4.1.2)(xstate@6.0.0-beta.1)
       effect:
         specifier: 'catalog:'
         version: 4.1.2
+      xstate:
+        specifier: 'catalog:'
+        version: 6.0.0-beta.1
 
   packages/emails:
     dependencies:
@@ -2065,6 +2080,16 @@ packages:
     resolution: {integrity: sha512-uWzWtPieLqn+juXcIm8YQxh0qokZg0dnjzGm5AHeemiG6VeqzGYc6nlqQ2zw/OI80aYuaPo/ZOURACyQuqYgnA==}
     engines: {node: '>=22.11.0'}
 
+  '@xstate/effect@1.0.0-beta.0':
+    resolution: {integrity: sha512-UW9oREcMeU5iiL/lOL0Ol8Gu4kbR4uHpzv8qW6+tEWNpQ/Yaf3SqqoHtN5johpO9XCRNBSFuNoKQeJrLDyoo8A==}
+    peerDependencies:
+      '@oxlint/plugins': ^1.76.0
+      effect: ^4.0.0
+      xstate: ^6.0.0-beta.0
+    peerDependenciesMeta:
+      '@oxlint/plugins':
+        optional: true
+
   '@yielded/effect-tsrs-darwin-arm64@0.2.3':
     resolution: {integrity: sha512-wfzYR0qEXUm6zJA0+hEwQGkYphhPahuzD3yrJ1s/SGV/b8b5Zv7ZzV6xHUolDI5AcuqNE9Kxji8VI0knebfhGA==}
     cpu: [arm64]
@@ -3201,6 +3226,10 @@ packages:
       utf-8-validate:
         optional: true
 
+  xstate@6.0.0-beta.1:
+    resolution: {integrity: sha512-HzG+CdBxkxcqBv91aUfbscjKhREhnu949en+Ype3kIZ0cUVmK7LsPWU06GMyu+O7z9bIq52eDPQfzlUM7AtJ9g==}
+    hasBin: true
+
   y18n@5.0.8:
     resolution: {integrity: sha512-0pfFzegeDWJHJIAmTLRP2DwHjdF5s7jo9tuztdQxAhINCdvS+3nGINqPd00AphqJR/0LhANUS6/+7SCb98YOfA==}
     engines: {node: '>=10'}
@@ -4259,6 +4288,13 @@ snapshots:
   '@vitest/spy@5.1.0': {}
 
   '@workos-inc/node@12.2.0': {}
+
+  '@xstate/effect@1.0.0-beta.0(@oxlint/plugins@1.92.0)(effect@4.1.2)(xstate@6.0.0-beta.1)':
+    dependencies:
+      effect: 4.1.2
+      xstate: 6.0.0-beta.1
+    optionalDependencies:
+      '@oxlint/plugins': 1.92.0
 
   '@yielded/effect-tsrs-darwin-arm64@0.2.3':
     optional: true
@@ -5355,6 +5391,8 @@ snapshots:
   ws@8.21.3: {}
 
   ws@8.22.1: {}
+
+  xstate@6.0.0-beta.1: {}
 
   y18n@5.0.8: {}
 

@@ -1,6 +1,6 @@
 # Lint scope
 
-`oxlint.config.ts` replaces the old `.oxlintrc.json`. It extends `ultracite/oxlint/core` 8.1.1, the config the rat-stack reference uses, and loads the plugins #205 names: `surveybeat`, `no-comments`, `foldkit` (scoped to the Foldkit app), `anti-slop`, `anti-slop-effect`, `effect-tests`, and `patterns`. 398 rules run at `error`; the ones that are not at `error` are listed below by name.
+`oxlint.config.ts` replaces the old `.oxlintrc.json`. It extends `ultracite/oxlint/core` 8.1.1, the config the rat-stack reference uses, and loads the plugins #205 names: `surveybeat`, `no-comments`, `foldkit` (scoped to the Foldkit app), `anti-slop`, `anti-slop-effect`, `effect-tests`, `patterns`, and `xstate-effect` (from `@xstate/effect/oxlint`). 398 rules run at `error`; the ones that are not at `error` are listed below by name.
 
 ## Adopted surface
 
@@ -9,7 +9,7 @@
 - Vendored anti-slop: `tools/oxlint/anti-slop/` (18 generic rules and 5 Effect rules, MIT, `UPSTREAM.md` records `dmmulroy/anti-slop` at `c44ef22ca116d0ba62a3ff663a0bd13a3f3fa40b`).
 - `effect-tests/no-manual-effect-runtime-in-tests` at `error`. The three `Effect.runSync` calls in `Themes.privacy.test.ts` were moved to `it.effect`, not suppressed.
 - The five pattern rules at `error`: `no-module-level-mutable-state`, `no-shared-pending-cache`, `no-sleep-in-loop`, `shared-waiters`, `acquire-release-constructs-in-acquire-body`. `MainWorker`'s request-scoped `Effect.cached` was replaced with the plain `authSettings` Effect; the remaining `apps/web/src/messages/**` module state is exempted by scope (see below).
-- Every adopted rule has a fixture: `tools/oxlint/fixtures/` holds a violating file per rule and `tools/oxlint/rules.test.ts` runs real oxlint over them, the same way `tools/oxlint-plugin-surveybeat/index.test.ts` does.
+- Every adopted rule has a fixture: `tools/oxlint/fixtures/` holds a violating file per rule and `tools/oxlint/rules.test.ts` runs real oxlint over them, the same way `tools/oxlint-plugin-surveybeat/index.test.ts` does. `xstate-inline.ts` and `xstate-declared.ts` are the pair for `xstate-effect/no-inline-effect`: the first discards an Effect in an inline `enq` action and spawns inline Effect logic, the second declares both in `setupEffect` and passes only their names.
 
 ## Scope exceptions
 
