@@ -1,3 +1,5 @@
+// @effect-diagnostics globalDate:off -- the view formats or compares an instant that arrived from the API against the browser clock; nothing here is stored on the server.
+
 import {
   EmailAddress,
   EmailSendProgress,

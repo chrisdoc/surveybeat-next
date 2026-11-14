@@ -1,3 +1,5 @@
+// @effect-diagnostics anyUnknownInErrorContext:off -- the SQL driver's failure type is unknown and orDie turns it into a defect, so the Effect never exposes it.
+
 import type { SqliteClient } from "@effect/sql-sqlite-do";
 import {
   DEFAULT_LOCALE,

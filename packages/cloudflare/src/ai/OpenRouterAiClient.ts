@@ -1,3 +1,5 @@
+// @effect-diagnostics asyncFunction:off -- one POST against a fetch handle the caller supplies; the async function is the adapter's edge, and the Effect starts at its caller.
+
 import { AiClient, AiNotConfigured, AiRejected, AiUnavailable, type AiRequest } from "@surveybeat/domain";
 import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";

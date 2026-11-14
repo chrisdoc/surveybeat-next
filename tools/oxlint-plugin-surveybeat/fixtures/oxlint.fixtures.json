@@ -1,8 +1,10 @@
 {
-  "jsPlugins": ["../index.js"],
+  "jsPlugins": ["../index.js", "../no-comments.js"],
   "rules": {
     "surveybeat/domain-boundary": "error",
     "surveybeat/no-literal-ui-text": "error",
-    "surveybeat/privacy-query": "error"
+    "surveybeat/privacy-query": "error",
+    "no-comments/no-comments": "error",
+    "no-comments/directive-reason": "error"
   }
 }

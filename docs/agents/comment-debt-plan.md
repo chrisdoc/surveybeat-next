@@ -31,6 +31,13 @@ The rule of thumb: if removing the comment would let a future change silently br
 - The privacy suite still passes, and no privacy invariant lives only in prose.
 - No `//` directive appears without a reason after `--`; no type assertion appears without a one-line `SAFETY:` statement.
 
+## Where the rule lives
+
+- `tools/oxlint-plugin-surveybeat/no-comments.js` is the plugin: `no-comments/no-comments` reports prose, `no-comments/directive-reason` reports a directive without `-- <why>`. Directives with a reason, a one-line `SAFETY:` comment, and JSDoc made only of type tags are allowed. Fixtures in `tools/oxlint-plugin-surveybeat/fixtures/packages/comments/` are linted through real oxlint by the plugin's own test.
+- `scripts/ledger/comment-debt.mjs` runs those two rules over the non-test files and compares each package's count with `scripts/ledger/comment-debt.json`. `pnpm check:comments` fails when a count rises or when the ledger is stale, and `pnpm check:comments --update` records a batch that shrank it. CI and the commit gate both run it.
+- Baseline on 2026-11-14: **1,420 prose comments, none of them directives without a reason** — `packages/domain` 569, `packages/cloudflare` 402, `apps/web` 339, `packages/emails` 32, `packages/api` 26, `packages/testing` 22, `infra` 21, `scripts` 6, the oxlint plugin 3. Step 2 (the privacy invariants in `Results` and `Redaction`) took it to **1,375**: `packages/domain` 569 -> 524, every other kind unchanged. Each removed comment points at the test that now holds its invariant.
+- The rules are deliberately not in `.oxlintrc.json` yet. At zero hits they move there at `error`, which is the last step of #206.
+
 ## Not in scope
 
 Generated files, `infra/tests/**` fixtures, and plain JavaScript JSDoc blocks made only of type tags. rat-stack keeps those.

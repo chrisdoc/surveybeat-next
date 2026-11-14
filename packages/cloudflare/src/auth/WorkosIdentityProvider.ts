@@ -1,3 +1,5 @@
+// @effect-diagnostics asyncFunction:off -- the WorkOS SDK is promise-based; this wraps one SDK call before it becomes an Effect.
+
 import {
   AuthUnavailable,
   type CodeExchange,

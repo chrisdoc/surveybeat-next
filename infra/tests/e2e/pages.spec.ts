@@ -1,3 +1,5 @@
+// @effect-diagnostics asyncFunction:off -- Playwright's API is promise-based and these specs never enter an Effect.
+
 import AxeBuilder from "@axe-core/playwright";
 import { expect, open, test } from "./fixtures.ts";
 

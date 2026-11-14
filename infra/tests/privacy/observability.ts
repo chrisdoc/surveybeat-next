@@ -1,3 +1,6 @@
+// @effect-diagnostics asyncFunction:off -- a standalone Node script: it reports to the shell and never builds an Effect program.
+// @effect-diagnostics globalFetch:off -- the script calls the deployed stage over the platform fetch; there is no HttpClient outside a Worker.
+
 /**
  * A small client for the Workers Observability query API (Workers Logs), used by the canary sweep.
  *

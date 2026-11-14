@@ -1,3 +1,5 @@
+// @effect-diagnostics asyncFunction:off -- the vitest runner awaits a plain Promise here; the test never enters an Effect.
+
 import { describe, expect, it } from "@effect/vitest";
 import { SESSION_COOKIE, STATE_COOKIE } from "./AuthHandlers.ts";
 import { Browser, ORIGIN, SignInWorld } from "./testing.ts";

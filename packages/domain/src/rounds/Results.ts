@@ -1,3 +1,5 @@
+// @effect-diagnostics globalRandom:off -- the shuffle is the deliberate unlinkability step (A4); its whole point is a non-deterministic order, not reproducible randomness.
+
 import { Effect, Schema } from "effect";
 import { TeamId } from "../people/Team.ts";
 import { AnonymityMode, PulseId } from "../pulses/Pulse.ts";
@@ -304,7 +306,6 @@ export const evaluateHighlight = (change: number, typicalChangeVal: number): Hig
   return { isLargerThanUsual: isLarger, direction };
 };
 
-/** Fisher-Yates non-deterministic shuffle for unlinkability of comments (R4). */
 export const shuffleComments = (comments: ReadonlyArray<CommentResult>): ReadonlyArray<CommentResult> => {
   const arr = [...comments];
   for (let i = arr.length - 1; i > 0; i--) {
@@ -319,11 +320,6 @@ export const shuffleComments = (comments: ReadonlyArray<CommentResult>): Readonl
   return arr;
 };
 
-/**
- * Contributors of a past Round's Dimension for its trend point: the stored value when present,
- * otherwise the largest contributor count among that Round's Questions of the Dimension
- * (a lower bound of the distinct count; enough to apply the minimum group size).
- */
 const pastDimContributors = (
   pastDim: HistoricalRoundDimensionData,
   past: HistoricalRoundData,
@@ -337,11 +333,6 @@ const pastDimContributors = (
   return counts.length === 0 ? {} : { contributors: Math.max(...counts) };
 };
 
-/**
- * Whether a past Round's Dimension score may be shown at `pastEffectiveN`. When N has been raised
- * since that Round, every Question its score averaged must still meet the raised N (ADR 0004);
- * if those Questions cannot be matched, the score stays hidden.
- */
 const pastDimMeetsN = (
   pastDim: HistoricalRoundDimensionData,
   past: HistoricalRoundData,
@@ -411,8 +402,6 @@ export const calculateRoundResult = (params: {
   const responseRate =
     eligibleMembersCount > 0 ? roundDecimals(submissionsCount / eligibleMembersCount, 4) : null;
 
-  // Rule R7: zero results while open, only response count.
-  // Rule R8: if round closed below N, response rate appears, answers/scores hidden.
   const isClosedOrLater = status === "closed" || status === "ready" || status === "shared";
   const shouldRevealResults = isClosedOrLater && meetsRoundN;
 
@@ -506,8 +495,6 @@ export const calculateRoundResult = (params: {
   }
 
   // 2. Calculate Dimension scores
-  // Rule R3: Computed ONLY from Questions that meet N themselves!
-  // Hidden if no Questions meet N.
   const dimensionsToEvaluate: ReadonlyArray<Dimension> = [
     "workload",
     "psychologicalSafety",
@@ -782,7 +769,6 @@ export const calculateRoundResult = (params: {
     }
 
     // Consecutive pairs of usable past dimension rounds:
-    // "a Dimension change is the mean of the per-Question changes over the Questions usable in both Rounds."
     const pastDimDifferences: Array<number> = [];
     for (let i = 1; i < usablePastDimRounds.length; i++) {
       const prev = usablePastDimRounds[i - 1];
@@ -905,8 +891,6 @@ export const calculateRoundResult = (params: {
   });
 
   // 5. Comments
-  // Rule R4: Gated on Round's total Submissions count >= N.
-  // Comments are unlinked from ratings or member identity and shuffled randomly.
   const rawComments: Array<CommentResult> = [];
   if (shouldRevealResults) {
     for (const sub of submissions) {
@@ -989,13 +973,6 @@ interface MaskableTrendPoint {
   readonly hasGap: boolean;
 }
 
-/**
- * Applies an effective N to the earlier Rounds' trend points (everything except the current Round's
- * point, which the caller rebuilds from the masked current aggregate). A point whose contributors are
- * unknown or below N loses its score. Earlier Rounds' own stored N was already applied when the trend
- * was built, so only the raised Organization N needs checking here. Returns the points and the
- * Rounds whose visible score was newly hidden.
- */
 const maskEarlierTrendPoints = <P extends MaskableTrendPoint>(
   points: ReadonlyArray<P>,
   currentRoundId: RoundId,
@@ -1011,16 +988,6 @@ const maskEarlierTrendPoints = <P extends MaskableTrendPoint>(
   return { points: masked, newlyMasked };
 };
 
-/**
- * When N is raised in Organization settings after a Result was computed,
- * apply the stricter effective N (Rule R9: max(stored N, current N)).
- * Lowering N never loosens past rounds.
- *
- * Everything derived from a now-hidden score is hidden with it: the trend points (the current
- * Round's point mirrors the masked aggregate), the change, and the Typical change (which is computed
- * from the earlier Rounds' scores and cannot be recomputed here, so it is dropped whenever one of
- * those scores is newly hidden).
- */
 export const enforceEffectiveNOnResult = (result: RoundResult, currentOrgN: number): RoundResult => {
   const effectiveN = Math.max(result.effectiveMinimumGroupSize, currentOrgN);
   if (effectiveN === result.effectiveMinimumGroupSize) {
@@ -1065,16 +1032,12 @@ export const enforceEffectiveNOnResult = (result: RoundResult, currentOrgN: numb
   // Mask dimensions
   const maskedDimensions = result.dimensions.map((d): DimensionResult => {
     const dimensionQuestions = result.questions.filter((q) => q.dimension === d.dimension);
-    // Earlier Rounds whose score of one of this Dimension's Questions is newly hidden: the
-    // Dimension's change and Typical change average those Question scores, so they are stale.
     const questionMasked = new Set<RoundId>();
     for (const q of dimensionQuestions) {
       for (const id of maskEarlierTrendPoints(q.trend, result.roundId, effectiveN).newlyMasked) {
         questionMasked.add(id);
       }
     }
-    // An earlier Dimension score is the mean of that Round's visible Question scores, so it may stay
-    // only if every Question it averaged still meets the effective N (same rule as `pastDimMeetsN`).
     const base = maskEarlierTrendPoints(d.trend, result.roundId, effectiveN);
     const newlyMasked = new Set<RoundId>(base.newlyMasked);
     const earlier = {

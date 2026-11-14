@@ -27,6 +27,12 @@ describe("redact", () => {
     expect(redact("Mary Ann Lee's project was great.", roster)).toBe("[name]'s project was great.");
   });
 
+  it("prefers the longest roster name, so a shorter name inside it never leaves the rest visible", () => {
+    const overlapping: Roster = ["Ann", "Mary Ann Lee"];
+    expect(redact("Mary Ann Lee led it.", overlapping)).toBe("[name] led it.");
+    expect(redact("Mary Ann Lee's project.", overlapping)).toBe("[name]'s project.");
+  });
+
   it("redacts ordinary words that are roster names: will, may", () => {
     expect(redact("This will happen soon.", roster)).toBe("This [name] happen soon.");
     expect(redact("We may need more time.", roster)).toBe("We [name] need more time.");

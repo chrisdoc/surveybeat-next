@@ -1,3 +1,6 @@
+// @effect-diagnostics globalDate:off -- the instant arrives as a method argument; Date.now is only the default at the RPC boundary.
+// @effect-diagnostics globalDateInEffect:off -- the handler formats an instant it was given; no clock is read inside the Effect.
+
 import * as Cloudflare from "@alchemy.run/cloudflare";
 import { SqliteClient } from "@effect/sql-sqlite-do";
 import { organizationActions } from "./organization/Actions.ts";
@@ -123,7 +126,7 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
 
     // Inner phase: runs once per object activation, before any method is exposed. It is returned,
     // not yielded: flattening it would run the object's setup when this outer phase runs.
-    // @effect-diagnostics-next-line returnEffectInGen:off
+    // @effect-diagnostics-next-line returnEffectInGen:off -- the object setup must be returned, not yielded: flattening it would run the setup when the outer phase runs, not once per activation.
     return Effect.gen(function* () {
       const state = yield* Cloudflare.DurableObjectState;
 

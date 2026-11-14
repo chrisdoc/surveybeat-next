@@ -1,3 +1,9 @@
+// @effect-diagnostics asyncFunction:off -- a standalone Node script: it reports to the shell and never builds an Effect program.
+// @effect-diagnostics globalConsole:off -- the script writes its report to stdout/stderr; it never runs an Effect program.
+// @effect-diagnostics globalFetch:off -- the script calls the deployed stage over the platform fetch; there is no HttpClient outside a Worker.
+// @effect-diagnostics globalTimers:off -- a plain setTimeout in a script that has no Effect runtime.
+// @effect-diagnostics newPromise:off -- the script waits on a child process or a timeout with a plain Promise; there is no Effect runtime in it.
+
 /**
  * Smoke test for a deployed stage: check session and sign-in.
  *

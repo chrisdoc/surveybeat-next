@@ -1,3 +1,5 @@
+// @effect-diagnostics globalDate:off -- the fixture supplies the instant; the test never reads the clock.
+
 import { assert, describe, it } from "@effect/vitest";
 import { ActionId } from "../actions/Action.ts";
 import { TeamId } from "../people/Team.ts";
