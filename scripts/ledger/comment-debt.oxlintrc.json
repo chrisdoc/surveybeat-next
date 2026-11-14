@@ -1,0 +1,23 @@
+{
+  "jsPlugins": ["../../tools/oxlint-plugin-surveybeat/no-comments.js"],
+  "rules": {
+    "no-comments/no-comments": "error",
+    "no-comments/directive-reason": "error"
+  },
+  "ignorePatterns": [
+    "**/dist/**",
+    "**/dist-types/**",
+    "**/node_modules/**",
+    ".alchemy/**",
+    "infra/tests/**",
+    "tools/oxlint-plugin-surveybeat/fixtures/**",
+    ".agents/**",
+    ".claude/**",
+    ".cursor/**",
+    ".pi/**",
+    ".entire/**",
+    ".factory/**",
+    ".opencode/**",
+    "**/*.test.ts"
+  ]
+}

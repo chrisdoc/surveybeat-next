@@ -1,0 +1,11 @@
+{
+  "apps/web:no-comments": 339,
+  "infra:no-comments": 21,
+  "packages/api:no-comments": 26,
+  "packages/cloudflare:no-comments": 402,
+  "packages/domain:no-comments": 569,
+  "packages/emails:no-comments": 32,
+  "packages/testing:no-comments": 22,
+  "scripts:no-comments": 6,
+  "tools/oxlint-plugin-surveybeat:no-comments": 3
+}

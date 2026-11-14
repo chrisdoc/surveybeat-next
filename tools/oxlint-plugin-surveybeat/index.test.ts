@@ -66,6 +66,34 @@ describe("surveybeat/no-literal-ui-text", () => {
   });
 });
 
+describe("no-comments/no-comments", () => {
+  it("fails on line and block prose", () => {
+    const diagnostics = lint("packages/comments/bad-prose.ts");
+    expect(diagnostics).toHaveLength(2);
+    expect(diagnostics.every((d) => d.code === "no-comments(no-comments)")).toBe(true);
+  });
+
+  it.each([
+    "packages/comments/good-directive.ts",
+    "packages/comments/good-safety.ts",
+    "packages/comments/good-jsdoc.ts",
+  ])("passes on %s", (file) => {
+    expect(lint(file)).toHaveLength(0);
+  });
+});
+
+describe("no-comments/directive-reason", () => {
+  it("fails on a directive without a reason", () => {
+    const diagnostics = lint("packages/comments/bad-directive.ts");
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0]?.code).toBe("no-comments(directive-reason)");
+  });
+
+  it("passes on a directive with a reason after --", () => {
+    expect(lint("packages/comments/good-directive.ts")).toHaveLength(0);
+  });
+});
+
 describe("surveybeat/privacy-query", () => {
   it.each([
     ["packages/bad-query-rowid.ts", "rowid"],

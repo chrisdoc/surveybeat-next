@@ -27,6 +27,7 @@ jobs:
       - name: Typecheck with Effect diagnostics
         run: pnpm typecheck
       - run: pnpm check:ledger
+      - run: pnpm check:comments
       - run: pnpm format:check
       - run: pnpm lint
       - run: pnpm --filter @surveybeat/web build
