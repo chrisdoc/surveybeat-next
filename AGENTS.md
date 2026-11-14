@@ -23,7 +23,7 @@ This repo has the floor from that guide. Strict TypeScript, oxlint, `oxfmt --che
 
 The fence is `.githooks/` and `scripts/fence/`. `pnpm install` sets `core.hooksPath` to `.githooks`. The pre-commit hook runs `pnpm check` and then `pnpm test`, and refuses the commit when a step fails. Fix the failure and commit again so the hook runs. Claude Code denies a `git` command that passes `--no-verify` or sets `core.hooksPath`, through `scripts/fence/vcs-command-policy.mjs`. The post-commit hook reports a commit that skipped the gate. CI also runs the privacy suite and the web build. The hook stops after `pnpm test`.
 
-Put a reason in a name, a type, a test, a commit message, or an ADR. `docs/agents/comment-debt-plan.md` tracks the comments already in the tree. The `no-comments` lint rule is not enabled yet.
+Put a reason in a name, a type, a test, a commit message, or an ADR. `pnpm lint` enforces it: `no-comments/no-comments` and `no-comments/directive-reason` run at `error` (test files and `infra/tests` excepted). `docs/agents/comment-debt-plan.md` records how the last 973 comments were relocated.
 
 ## Commands (from the repo root)
 

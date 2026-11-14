@@ -5,7 +5,6 @@ import { answerPath } from "./links.ts";
 import type { Messages } from "./messages/index.ts";
 import { colors, fonts, radius } from "./theme.ts";
 
-/** The serif main heading of every email. */
 export function DisplayHeading({ children }: { children: ReactNode }) {
   return (
     <Heading
@@ -37,7 +36,6 @@ export function BodyText({ children }: { children: ReactNode }) {
   );
 }
 
-/** The dark call-to-action button. */
 export function PrimaryButton({ href, children }: { href: string; children: ReactNode }) {
   return (
     <Button
@@ -58,7 +56,6 @@ export function PrimaryButton({ href, children }: { href: string; children: Reac
   );
 }
 
-/** The fallback link under a button. */
 export function FallbackLink({ intro, href }: { intro: string; href: string }) {
   return (
     <Text
@@ -75,7 +72,6 @@ export function FallbackLink({ intro, href }: { intro: string; href: string }) {
 
 const ratingValues = [1, 2, 3, 4, 5] as const;
 
-/** One-tap rating: five round links in a table, end labels below. */
 export function RatingRow({
   question,
   baseUrl,
@@ -155,7 +151,6 @@ export function RatingRow({
   );
 }
 
-/** The call to action under a divider. */
 export function ActionRow({ href, messages }: { href: string; messages: Messages }) {
   return (
     <Section
@@ -167,7 +162,6 @@ export function ActionRow({ href, messages }: { href: string; messages: Messages
   );
 }
 
-/** Team actions in progress: a separate bordered card, rows divided by a hairline. */
 export function ActionsCard({ actions, messages }: { actions: ReadonlyArray<string>; messages: Messages }) {
   if (actions.length === 0) return null;
   return (
@@ -211,7 +205,6 @@ export function ActionsCard({ actions, messages }: { actions: ReadonlyArray<stri
   );
 }
 
-/** The anonymity statement in the dark privacy block. */
 export function PrivacyPanel({ children }: { children: ReactNode }) {
   return (
     <Section
@@ -233,7 +226,6 @@ export function PrivacyPanel({ children }: { children: ReactNode }) {
   );
 }
 
-/** A small muted paragraph under the footer notices. */
 export function FooterNote({ children }: { children: ReactNode }) {
   return (
     <Text
@@ -245,7 +237,6 @@ export function FooterNote({ children }: { children: ReactNode }) {
   );
 }
 
-/** Small muted notices under the cards: personal link, change-delivery link, optional extras. */
 export function Notices({
   deliveryUrl,
   extra,

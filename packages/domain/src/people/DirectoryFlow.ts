@@ -25,17 +25,10 @@ import {
   type TeamSummary,
 } from "./Team.ts";
 
-/** What the Organization's Durable Object answers to a command once it has committed it, or why not. */
 export type CommandResult =
   | { readonly _tag: "Rejected"; readonly rejection: DirectoryRejection }
-  /** The follow-ups to run, with `QueueEmail` only for sends that are still pending. */
   | { readonly _tag: "Accepted"; readonly followUps: ReadonlyArray<FollowUp> };
 
-/**
- * The People, Teams, and Memberships of each Organization, as its Durable Object holds them
- * (ADR 0006). Every call authorizes the actor from that object's own data, in the same
- * transaction as the change, so a removed Person or an ended Membership is refused at once.
- */
 export interface OrganizationDirectoryShape {
   readonly run: (
     organizationId: OrganizationId,
@@ -56,19 +49,19 @@ export interface OrganizationDirectoryShape {
     organizationId: OrganizationId,
     actorId: PersonId,
   ) => Effect.Effect<Viewed<OrganizationSettings>>;
-  /** The most recent failed sends of the Organization, for its admins (ADR 0006). */
+
   readonly failedEmails: (
     organizationId: OrganizationId,
     actorId: PersonId,
   ) => Effect.Effect<Viewed<FailedEmails>>;
-  /** An admin's Resend of a failed send: a failed send becomes pending again, under the same id (ADR 0006). */
+
   readonly resendFailedEmail: (
     organizationId: OrganizationId,
     actorId: PersonId,
     sendId: SendId,
     now: number,
   ) => Effect.Effect<ResendResult>;
-  /** One send's status, for an admin polling after a Resend. */
+
   readonly emailStatus: (
     organizationId: OrganizationId,
     actorId: PersonId,
@@ -81,7 +74,6 @@ export class OrganizationDirectory extends Context.Service<
   OrganizationDirectoryShape
 >()("@surveybeat/domain/OrganizationDirectory") {}
 
-/** Hands a pending send to the email Queue consumer. Delivery is idempotent per send, so repeats are safe. */
 export class EmailOutbox extends Context.Service<
   EmailOutbox,
   { readonly queue: (organizationId: OrganizationId, sendId: SendId) => Effect.Effect<void> }
@@ -124,7 +116,6 @@ const fail = (rejection: DirectoryRejection): Effect.Effect<never, DirectoryErro
 const viewed = <A>(view: Viewed<A>): Effect.Effect<A, DirectoryError> =>
   view._tag === "Viewed" ? Effect.succeed(view.value) : fail(view.rejection);
 
-/** Runs one follow-up. Each is idempotent, and a failure leaves the rest for the retry to do. */
 const followUp = Effect.fnUntraced(function* (organizationId: OrganizationId, step: FollowUp) {
   const index = yield* PeopleIndex;
   const identityProvider = yield* IdentityProvider;
@@ -155,12 +146,6 @@ const followUp = Effect.fnUntraced(function* (organizationId: OrganizationId, st
   }
 });
 
-/**
- * Runs a command as the signed-in Person: the Durable Object authorizes and commits it, then the
- * global index, WorkOS, and the email queue are put in step. Removal reaches WorkOS last, after
- * the Durable Object (which the per-request check asks) and the index already refuse the Person.
- * When WorkOS cannot be reached this fails `AuthUnavailable`; repeating the request finishes it.
- */
 export const runDirectoryCommand = Effect.fnUntraced(function* (member: Member, command: DirectoryCommand) {
   const directory = yield* OrganizationDirectory;
   const organizationId = member.organization.id;
@@ -194,10 +179,6 @@ export const viewFailedEmails = (member: Member) =>
     Effect.flatMap(directory.failedEmails(member.organization.id, member.personId), viewed),
   );
 
-/**
- * An admin's Resend. The directory decides and moves the send to pending; only then is it handed to the email
- * queue, so a send is queued once per Resend.
- */
 export const resendFailedEmail = (member: Member, sendId: SendId) =>
   Effect.gen(function* () {
     const directory = yield* OrganizationDirectory;

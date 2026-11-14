@@ -1,10 +1,3 @@
-/**
- * rat-stack's no-comments policy (docs/agents/comment-debt-plan.md): prose in code is copied,
- * so a reason lives in a name, a test, a commit subject, or an ADR instead. Two rules:
- * `no-comments/no-comments` reports prose, `no-comments/directive-reason` reports a directive
- * without the reason after `--`. Both run in report-only mode until the ledger reaches zero.
- */
-
 const DIRECTIVE =
   /^(?:\s*)(?:@ts-[\w-]+|@effect-diagnostics(?:-next-line)?|(?:oxlint|eslint)-(?:disable|disable-next-line|disable-line)|@vite-ignore|prettier-ignore|c8 ignore|istanbul ignore)/;
 const REASON = /--\s*\S/;

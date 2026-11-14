@@ -13,7 +13,6 @@ import {
   settle,
 } from "./SendState.ts";
 
-/** One transactional send: who gets what, and how far it got. */
 export interface SendRecord {
   readonly id: SendId;
   readonly recipient: EmailAddress;
@@ -21,7 +20,6 @@ export interface SendRecord {
   readonly state: SendState;
 }
 
-/** What a delivery found when it claimed a send. */
 export type ClaimResult =
   | {
       readonly _tag: "Send";
@@ -33,23 +31,16 @@ export type ClaimResult =
   | { readonly _tag: "Finished"; readonly state: SendState }
   | { readonly _tag: "Missing" };
 
-/** What an admin's Resend found: the send was failed and is pending now, or it was not failed and is unchanged. */
 export type RequeueResult =
   | { readonly _tag: "Missing" }
   | { readonly _tag: "Requeued" }
   | { readonly _tag: "Unchanged"; readonly state: SendState };
 
-/**
- * Where send states live, with every transition applied atomically. The Organization Durable
- * Object implements it for Invitations and any other transactional email (ADR 0006).
- * `now` is passed in so a transition does not depend on the store's clock.
- */
 export interface SendStoreShape {
-  /** Idempotent: creating a send that exists returns its current state and changes nothing. */
   readonly create: (id: SendId, recipient: EmailAddress, email: StoredEmail) => Effect.Effect<SendState>;
   readonly get: (id: SendId) => Effect.Effect<Option.Option<SendRecord>>;
   readonly claim: (id: SendId, now: number) => Effect.Effect<ClaimResult>;
-  /** The state after the outcome, or the unchanged state when `attempt` no longer held the send. */
+
   readonly settle: (
     id: SendId,
     attempt: number,
@@ -57,7 +48,7 @@ export interface SendStoreShape {
     now: number,
   ) => Effect.Effect<Option.Option<SendState>>;
   readonly abandon: (id: SendId, now: number) => Effect.Effect<Option.Option<SendState>>;
-  /** An admin's Resend (ADR 0006): a failed send becomes pending again, under the same id. */
+
   readonly requeue: (id: SendId) => Effect.Effect<RequeueResult>;
   readonly recordDeliveryEvent: (
     id: SendId,
@@ -69,16 +60,14 @@ export interface SendStoreShape {
 
 export class SendStore extends Context.Service<SendStore, SendStoreShape>()("@surveybeat/domain/SendStore") {}
 
-/** Rows only. `transaction` must make a read followed by writes atomic. */
 export interface SendRepository {
   readonly get: (id: SendId) => Effect.Effect<Option.Option<SendRecord>>;
-  /** Does nothing when the send exists. */
+
   readonly insert: (record: SendRecord) => Effect.Effect<void>;
   readonly setState: (id: SendId, state: SendState) => Effect.Effect<void>;
   readonly transaction: <A>(effect: Effect.Effect<A>) => Effect.Effect<A>;
 }
 
-/** The transitions of `SendState.ts` on top of any repository. */
 export const makeSendStore = (repository: SendRepository, policy: SendPolicy): SendStoreShape => {
   const transition = (id: SendId, step: (state: SendState) => Option.Option<SendState>) =>
     repository.transaction(
@@ -129,7 +118,6 @@ export const makeSendStore = (repository: SendRepository, policy: SendPolicy): S
         }),
       ),
 
-    // A stale settle is not an error: the send keeps whatever its lease expiry decided.
     settle: (id, attempt, outcome, now) =>
       transition(id, (state) => settle(state, attempt, outcome, now, policy)),
 
@@ -152,7 +140,6 @@ export const makeSendStore = (repository: SendRepository, policy: SendPolicy): S
   };
 };
 
-/** An in-memory repository, for tests and for anything that needs no durability. */
 export const makeMemorySendRepository = Effect.gen(function* () {
   const rows = yield* Ref.make(new Map<SendId, SendRecord>());
   const lock = yield* Semaphore.make(1);

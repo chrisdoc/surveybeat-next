@@ -5,18 +5,12 @@ import { TeamId } from "../people/Team.ts";
 import { Dimension } from "../pulses/Question.ts";
 import { RoundId } from "../rounds/Round.ts";
 
-/** An Action committed by a Team in response to a Result (GLOSSARY.md). */
 export const ActionId = Schema.String.pipe(Schema.brand("ActionId"));
 export type ActionId = typeof ActionId.Type;
 
-/**
- * Statuses an Action can have.
- * Release 1 uses `committed`, `done`, and `dropped`. `proposed` is modelled but unused in R1.
- */
 export const ActionStatus = Schema.Literals(["proposed", "committed", "done", "dropped"]);
 export type ActionStatus = typeof ActionStatus.Type;
 
-/** Internal stored Action record in the DO sqlite database. */
 export const ActionRecord = Schema.Struct({
   id: ActionId,
   teamId: TeamId,
@@ -32,7 +26,6 @@ export const ActionRecord = Schema.Struct({
 });
 export type ActionRecord = typeof ActionRecord.Type;
 
-/** An Action as viewed by the team or API callers, including the owner's email address. */
 export const ActionItem = Schema.Struct({
   id: ActionId,
   teamId: TeamId,
@@ -49,14 +42,12 @@ export const ActionItem = Schema.Struct({
 });
 export type ActionItem = typeof ActionItem.Type;
 
-/** The list of Actions for a Team. Actions have no minimum group size. */
 export const ActionList = Schema.Struct({
   teamId: TeamId,
   actions: Schema.Array(ActionItem),
 });
 export type ActionList = typeof ActionList.Type;
 
-/** Payload to create an Action from a Result. */
 export const CreateAction = Schema.Struct({
   roundId: RoundId,
   title: Schema.NonEmptyString,
@@ -66,7 +57,6 @@ export const CreateAction = Schema.Struct({
 });
 export type CreateAction = typeof CreateAction.Type;
 
-/** Payload to update an Action. */
 export const UpdateAction = Schema.Struct({
   title: Schema.optional(Schema.NonEmptyString),
   ownerId: Schema.optional(PersonId),
@@ -102,12 +92,6 @@ export interface PreviousRoundInfo {
   readonly plannedOpenAt: number;
 }
 
-/**
- * Selects up to three Actions to show on the next Invitation email and the thank-you screen:
- * those still committed, plus those marked done since the previous Round.
- * Excludes proposed and dropped actions.
- * Actions list has no minimum group size.
- */
 export const selectActionsForRound = <A extends ActionSelectionInput>(
   actions: ReadonlyArray<A>,
   previousRound: PreviousRoundInfo | null,

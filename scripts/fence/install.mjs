@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 import { spawnSync } from "node:child_process";
 
 const probe = spawnSync("git", ["rev-parse", "--git-dir"], { stdio: "ignore" });

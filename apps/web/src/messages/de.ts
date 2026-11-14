@@ -1,7 +1,6 @@
 import type { Mismatched, Translation } from "./index.ts";
 import { answerDe } from "./answer.de.ts";
 
-/** German catalog (ADR 0018). Same keys, same order as `catalog.ts`; placeholders keep their English names. */
 export const de = {
   "app.title": "SurveyBeat",
   "app.loading": "Lädt…",
@@ -594,6 +593,5 @@ export const de = {
   "site.footer.language": "Sprache",
 } as const satisfies Translation;
 
-// Fails to compile, naming the key, when a German string's {placeholders} differ from English.
 const placeholdersMatch: [Mismatched<typeof de>] extends [never] ? true : Mismatched<typeof de> = true;
 void placeholdersMatch;

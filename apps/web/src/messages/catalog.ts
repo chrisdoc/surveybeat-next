@@ -1,10 +1,3 @@
-/**
- * Every user-facing string of both web entries, in English: the source of the keys.
- * `de.ts` holds the same keys in German and is checked against this file by its types.
- *
- * Keys are flat. Templates use `{placeholder}`. Plural forms are separate keys
- * named `<base>.<Intl.PluralRules category>`; `.other` is required.
- */
 import { answerCatalog } from "./answer.ts";
 
 export const catalog = {

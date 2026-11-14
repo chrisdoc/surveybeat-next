@@ -16,23 +16,16 @@ import type {
   TimeZone,
 } from "./Team.ts";
 
-/**
- * The People, Teams, and Memberships of one Organization, and the rules that change them.
- * Everything here is pure: the Organization Durable Object loads its state, asks `decide`, and
- * applies the changes in one transaction (ADR 0006); the in-memory fakes do the same. Records are
- * plain data (`null`, not `Option`) because they cross the Durable Object's RPC boundary.
- */
-
 export interface PersonRecord {
   readonly id: PersonId;
   readonly email: EmailAddress;
   readonly workosUserId: WorkosUserId | null;
   readonly organizationAdmin: boolean;
-  /** When the Person was removed from the Organization (epoch ms). Their history stays. */
+
   readonly removedAt: number | null;
-  /** The language the Person chose, or `null` to follow the browser (ADR 0018). */
+
   readonly locale: Locale | null;
-  /** The browser's language last seen at sign-in: what emails, which have no browser, follow. */
+
   readonly detectedLocale: Locale | null;
 }
 
@@ -48,31 +41,27 @@ export interface MembershipRecord {
   readonly personId: PersonId;
   readonly role: MembershipRole;
   readonly startedAt: number;
-  /** When it ended (epoch ms); `null` while active. Ended Memberships are kept as history. */
+
   readonly endedAt: number | null;
 }
 
 export interface DirectoryState {
   readonly organizationName: string;
   readonly minimumGroupSize: number;
-  /** Whether comments may be sent to the AI service (ADR 0015). Off by default. */
+
   readonly aiProcessing: boolean;
-  /** The language for People who chose none and whose browser language is unknown (ADR 0018). */
+
   readonly defaultLocale: Locale;
   readonly people: ReadonlyArray<PersonRecord>;
   readonly teams: ReadonlyArray<TeamRecord>;
   readonly memberships: ReadonlyArray<MembershipRecord>;
 }
 
-/**
- * Someone added by email. The ids are minted by the caller and used only when a new Person or
- * Membership is needed, so `decide` stays pure.
- */
 export interface NewMember {
   readonly email: EmailAddress;
   readonly personId: PersonId;
   readonly membershipId: MembershipId;
-  /** Where the "You've been added" email sends them. */
+
   readonly signInUrl: string;
 }
 
@@ -90,16 +79,13 @@ export type DirectoryCommand =
       readonly name: string;
       readonly timeZone: TimeZone;
     }
-  /** Adds by email in `role`. `lead` assigns a Lead, promoting a member who is in the Team already. */
   | {
       readonly _tag: "AddMember";
       readonly teamId: TeamId;
       readonly role: AssignableRole;
       readonly member: NewMember;
     }
-  /** Ends the Person's Membership in the Team, whatever its role. */
   | { readonly _tag: "RemoveMember"; readonly teamId: TeamId; readonly personId: PersonId }
-  /** Ends a Lead's lead Membership; they stay in the Team as a member. */
   | {
       readonly _tag: "RemoveLead";
       readonly teamId: TeamId;
@@ -108,24 +94,18 @@ export type DirectoryCommand =
     }
   | { readonly _tag: "RemovePerson"; readonly personId: PersonId }
   | { readonly _tag: "SetAdmin"; readonly personId: PersonId; readonly organizationAdmin: boolean }
-  /** Absent fields keep their current value. */
   | {
       readonly _tag: "UpdateSettings";
       readonly minimumGroupSize?: number | undefined;
       readonly aiProcessing?: boolean | undefined;
       readonly defaultLocale?: Locale | undefined;
     }
-  /**
-   * The actor's own language, for no one else (any active Person may). Absent fields keep their
-   * current value; `locale: null` clears the choice so the browser's language is followed again.
-   */
   | {
       readonly _tag: "UpdateOwnLanguage";
       readonly locale?: Locale | null | undefined;
       readonly detectedLocale?: Locale | undefined;
     };
 
-/** A change to the Organization's own data, applied atomically with the others of a decision. */
 export type DirectoryChange =
   | { readonly _tag: "PersonAdded"; readonly person: PersonRecord }
   | { readonly _tag: "PersonRestored"; readonly personId: PersonId }
@@ -147,7 +127,6 @@ export type DirectoryChange =
       readonly locale: Locale | null;
       readonly detectedLocale: Locale | null;
     }
-  /** Creates the send (idempotent per id) in the same transaction, through the send states. */
   | {
       readonly _tag: "EmailRequested";
       readonly sendId: SendId;
@@ -155,29 +134,19 @@ export type DirectoryChange =
       readonly email: TransactionalEmail;
     };
 
-/** A Person as the global index and WorkOS need to hear about them. */
 export interface PersonRef {
   readonly id: PersonId;
   readonly email: EmailAddress;
   readonly workosUserId: WorkosUserId | null;
 }
 
-/**
- * What must happen outside the Organization once its changes are committed. Each is idempotent,
- * and repeating the command repeats them, so a crash halfway is mended by a retry.
- */
 export type FollowUp =
-  /** Keep the D1 `person_index` row (sign-in routing) in step with an active Person. */
   | { readonly _tag: "IndexPerson"; readonly person: PersonRef }
-  /** A removed Person is no longer a sign-in candidate. */
   | { readonly _tag: "UnindexPerson"; readonly personId: PersonId }
-  /** So AuthKit stops putting the user back into this Organization at sign-in (ADR 0010). */
   | { readonly _tag: "DeactivateWorkosMembership"; readonly userId: WorkosUserId }
   | { readonly _tag: "SetWorkosRole"; readonly userId: WorkosUserId; readonly role: OrganizationRole }
-  /** Ask the Queue consumer to deliver the send, if it is still pending. */
   | { readonly _tag: "QueueEmail"; readonly sendId: SendId };
 
-/** Why a command or a view was refused. Plain data; the flow turns it into the API's errors. */
 export type DirectoryRejection =
   | { readonly _tag: "Forbidden" }
   | { readonly _tag: "TeamNotFound" }
@@ -197,15 +166,10 @@ export type Decision =
       readonly followUps: ReadonlyArray<FollowUp>;
     };
 
-/** A view, or why it was refused. */
 export type Viewed<A> =
   | { readonly _tag: "Viewed"; readonly value: A }
   | { readonly _tag: "Rejected"; readonly rejection: DirectoryRejection };
 
-/**
- * An admin's Resend: refused, or accepted with the send's status. `queue` says whether the caller must hand the
- * send to the email queue (only the Resend that moved it from failed to pending does).
- */
 export type ResendResult =
   | { readonly _tag: "Rejected"; readonly rejection: DirectoryRejection }
   | { readonly _tag: "Accepted"; readonly status: FailedEmailStatus; readonly queue: boolean };
@@ -227,7 +191,6 @@ const accept = (
   followUps,
 });
 
-/** The send id of the "You've been added" email for a Membership: one email per Membership. */
 export const addedEmailSendId = (membershipId: MembershipId): SendId => SendId.make(`added-${membershipId}`);
 
 const isActive = (membership: MembershipRecord) => membership.endedAt === null;
@@ -251,7 +214,6 @@ const refOf = (person: PersonRecord): PersonRef => ({
   workosUserId: person.workosUserId,
 });
 
-/** The actor for an active Person, from this state alone. None for a removed or unknown Person. */
 export const actorOf = (state: DirectoryState, personId: PersonId): Option.Option<Actor> => {
   const person = state.people.find((each) => each.id === personId && each.removedAt === null);
   if (person === undefined) return Option.none();
@@ -263,11 +225,6 @@ export const actorOf = (state: DirectoryState, personId: PersonId): Option.Optio
   return Option.some({ personId, organizationAdmin: person.organizationAdmin, roles });
 };
 
-/**
- * The language an email to this Person is written in (ADR 0018): their own choice, then the
- * browser language last seen at sign-in, then the Organization's default. A Person not (yet) in
- * the state, such as one being added, has neither, so the default.
- */
 export const emailLocaleOf = (state: DirectoryState, personId: PersonId): Locale => {
   const person = state.people.find((each) => each.id === personId);
   if (person === undefined) return state.defaultLocale;
@@ -283,12 +240,6 @@ const nameTaken = (state: DirectoryState, name: string, except?: TeamId) =>
     (team) => team.id !== except && team.name.toLocaleLowerCase("en") === name.toLocaleLowerCase("en"),
   );
 
-/**
- * Puts someone into a Team in `role`: finds their Person by email (restoring a removed one, whose
- * history stays) or creates one with email only (ADR 0002), starts the Membership, and asks for
- * the "You've been added to <Team> by <Lead>" email. Already in the Team in that role (or as Lead
- * when `member` is asked): nothing changes, and the follow-ups run again.
- */
 const putInTeam = (
   state: DirectoryState,
   adder: PersonRecord,
@@ -330,7 +281,6 @@ const putInTeam = (
     endedAt: null,
   };
   if (current !== undefined) {
-    // A member made Lead: one role per Membership, so the member one ends and a lead one starts.
     changes.push({ _tag: "MembershipEnded", membershipId: current.id, at: now });
     changes.push({ _tag: "MembershipStarted", membership });
     return accept(changes, [index]);
@@ -354,12 +304,6 @@ const putInTeam = (
   return accept(changes, [index, { _tag: "QueueEmail", sendId }]);
 };
 
-/**
- * Decides one command by `actorId`, from the Organization's current state. The permission table
- * is asked first, so a refusal never says whether a Team or Person exists to someone who may not
- * know. Then the rules: a Team always keeps a Lead, the Organization always keeps an admin, and
- * removing someone ends Memberships on that date but never deletes a Person or their history.
- */
 export const decide = (
   state: DirectoryState,
   actorId: PersonId,
@@ -408,7 +352,6 @@ export const decide = (
       const membership = activeMembershipOf(state, command.teamId, command.personId);
       if (membership === undefined) return reject({ _tag: "PersonNotFound" });
       if (membership.role === "lead") {
-        // Taking a Lead out of a Team is a Lead change, which only an admin makes.
         if (!can(allowed, "team.removeLead", resource)) return forbidden;
         if (leadsOf(state, command.teamId).length <= 1)
           return reject({ _tag: "LastLead", teamId: command.teamId });
@@ -448,7 +391,7 @@ export const decide = (
       if (person.workosUserId !== null) {
         followUps.push({ _tag: "DeactivateWorkosMembership", userId: person.workosUserId });
       }
-      // Removed already: nothing changes here, but the index and WorkOS are put in step again.
+
       if (person.removedAt !== null) return accept([], followUps);
 
       const memberships = state.memberships.filter(
@@ -470,7 +413,7 @@ export const decide = (
         membershipId: membership.id,
         at: now,
       }));
-      // A Person added back later starts as a plain member, never as the admin they were.
+
       if (person.organizationAdmin)
         changes.push({ _tag: "AdminSet", personId: person.id, organizationAdmin: false });
       changes.push({ _tag: "PersonRemoved", personId: person.id, at: now });
@@ -518,7 +461,6 @@ export const decide = (
     }
 
     case "UpdateOwnLanguage": {
-      // Any active Person may set their own language, and only their own: the actor is the target.
       return accept([
         {
           _tag: "PersonLanguageSet",
@@ -531,7 +473,6 @@ export const decide = (
   }
 };
 
-/** Applies a decision's changes to an in-memory state: what the Durable Object does in SQL. */
 export const applyChanges = (
   state: DirectoryState,
   changes: ReadonlyArray<DirectoryChange>,
@@ -587,17 +528,15 @@ export const applyChanges = (
     }
   }, state);
 
-/** A Team as a list shows it to `actor`, with how many people are actively in it. */
 export const teamSummaryOf = (team: TeamRecord, actor: Actor, memberCount?: number): TeamSummary => ({
   id: team.id,
   name: team.name,
   timeZone: team.timeZone,
   yourRole: actor.roles.get(team.id) ?? null,
-  // Only the Teams list counts people; other views leave the key out.
+
   ...(memberCount === undefined ? {} : { memberCount }),
 });
 
-/** The active memberships of one Team: ended memberships do not count. */
 const activeMembersOf = (state: DirectoryState, teamId: TeamId): number =>
   state.memberships.filter((membership) => membership.teamId === teamId && membership.endedAt === null)
     .length;
@@ -605,7 +544,6 @@ const activeMembersOf = (state: DirectoryState, teamId: TeamId): number =>
 const byName = (a: { readonly name: string }, b: { readonly name: string }) =>
   a.name.localeCompare(b.name, "en");
 
-/** The Teams the actor sees: every Team for an admin, otherwise the Teams they are in. */
 export const teamsView = (state: DirectoryState, actorId: PersonId): Viewed<ReadonlyArray<TeamSummary>> => {
   const actor = actorOf(state, actorId);
   if (Option.isNone(actor)) return forbidden;
@@ -623,7 +561,6 @@ export const teamsView = (state: DirectoryState, actorId: PersonId): Viewed<Read
 
 const ROLE_ORDER: Readonly<Record<MembershipRole, number>> = { lead: 0, member: 1, viewer: 2 };
 
-/** A Team's roster, for its Leads and for Organization admins (who need it to administer it). */
 export const teamView = (state: DirectoryState, actorId: PersonId, teamId: TeamId): Viewed<TeamDetail> => {
   const actor = actorOf(state, actorId);
   if (Option.isNone(actor)) return forbidden;
@@ -656,7 +593,6 @@ export const teamView = (state: DirectoryState, actorId: PersonId, teamId: TeamI
   };
 };
 
-/** The Organization settings: N, and the active People with their admin flag. Admins only. */
 export const settingsView = (state: DirectoryState, actorId: PersonId): Viewed<OrganizationSettings> => {
   const actor = actorOf(state, actorId);
   if (Option.isNone(actor)) return forbidden;
@@ -680,16 +616,11 @@ export const settingsView = (state: DirectoryState, actorId: PersonId): Viewed<O
   };
 };
 
-/**
- * Who may Resend a failed send or read a send's status: the Organization's admins only (ADR 0006). Same rule as
- * `failedEmailsView`, so no non-admin learns whether a send exists.
- */
 export const isEmailAdmin = (state: DirectoryState, actorId: PersonId): boolean => {
   const actor = actorOf(state, actorId);
   return Option.isSome(actor) && can(actor.value, "organization.updateSettings", { _tag: "Organization" });
 };
 
-/** One send's status for an admin. `status` is null when the Organization has no such send. */
 export const emailStatusView = (
   state: DirectoryState,
   actorId: PersonId,
@@ -700,10 +631,6 @@ export const emailStatusView = (
   return { _tag: "Viewed", value: status };
 };
 
-/**
- * The Organization's most recent failed sends, for its admins (never anyone else). `failed` is what the
- * Durable Object read: the rows already newest first, and only the fields an admin may see.
- */
 export const failedEmailsView = (
   state: DirectoryState,
   actorId: PersonId,

@@ -89,7 +89,6 @@ export const runSessionCall = <E>(
     Effect.provide(FetchHttpClient.layer),
   );
 
-/** The signed-out page: one centred card that says what SurveyBeat is, how to sign in, and what privacy holds. */
 export const signInView = <Message>(failed: boolean, h: HtmlBuilder<Message>): Html =>
   pageShell(
     {},

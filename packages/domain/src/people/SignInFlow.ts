@@ -21,40 +21,27 @@ import {
   type ProviderSession,
 } from "./SignInPorts.ts";
 
-/** The Person a session is signed in as. */
 export interface Member {
   readonly organization: OrganizationSummary;
   readonly personId: PersonId;
-  /** From the Organization's Durable Object, not the token's role claim, which can be minutes old. */
+
   readonly organizationAdmin: boolean;
   readonly locale: Locale | null;
   readonly detectedLocale: Locale | null;
   readonly organizationLocale: Locale;
 }
 
-/** A session that passed the per-request check, possibly refreshed on the way. */
 export interface CheckedSession {
   readonly session: ProviderSession;
-  /** Signed in to an Organization, with a Person that is still active there. */
+
   readonly member: Option.Option<Member>;
 }
 
-/** What an endpoint answers, and the session the response must leave in the cookie. */
 export interface SessionOutcome {
   readonly state: SessionState;
   readonly session: ProviderSession;
 }
 
-/**
- * The per-request session check (SPEC §6.1):
- * 1. verify the access token locally, refreshing it when it expired;
- * 2. our own deny check: the session is not revoked (D1), and when the token is scoped to an
- *    Organization, the user's Person there is still active (its Durable Object).
- * The JWT only proves who the caller is; step 2 is what makes revocation immediate even though an
- * access token stays valid until it expires. Only a revoked session is refused outright: a user
- * removed from the token's Organization keeps the session, with no member, so they get the picker
- * or "not part of an Organization" rather than a sign-in loop.
- */
 export const checkSession = Effect.fnUntraced(function* (sealed: Redacted.Redacted<string>) {
   const identityProvider = yield* IdentityProvider;
   const index = yield* PeopleIndex;
@@ -82,9 +69,7 @@ export const checkSession = Effect.fnUntraced(function* (sealed: Redacted.Redact
   if (Option.isNone(organization)) return { session, member: Option.none() } satisfies CheckedSession;
 
   const person = yield* people.activePerson(organization.value.id, session.identity.userId);
-  // Removed from the Organization (or never a Person there): the session is no longer good for it,
-  // but still is for the user. WorkOS keeps a refreshed session in its organization, so the token
-  // stays as it is and nothing trusts its organization: only `member` grants access.
+
   if (Option.isNone(person)) return { session, member: Option.none() } satisfies CheckedSession;
   return {
     session,
@@ -111,7 +96,7 @@ const candidatesOf = Effect.fnUntraced(function* (session: ProviderSession) {
   const [linked, unlinked] = yield* Effect.all(
     [
       index.linkedPersons(identity.userId),
-      // An unverified or non-ASCII email never links (ADR 0002), so it is not even looked up.
+
       identity.emailMatchable ? index.unlinkedPersons(identity.email) : Effect.succeed([]),
     ],
     { concurrency: "unbounded" },
@@ -119,11 +104,6 @@ const candidatesOf = Effect.fnUntraced(function* (session: ProviderSession) {
   return candidatesFor(identity, linked, unlinked);
 });
 
-/**
- * Enters an Organization as a candidate Person: links the Person by verified email if it is not
- * linked yet (the Durable Object first, since it is the authority), makes sure the WorkOS
- * membership exists, and refreshes the session into that organization. Every step is idempotent.
- */
 const enter = Effect.fnUntraced(function* (session: ProviderSession, candidate: PersonCandidate) {
   const identityProvider = yield* IdentityProvider;
   const index = yield* PeopleIndex;
@@ -157,12 +137,6 @@ const enter = Effect.fnUntraced(function* (session: ProviderSession, candidate: 
   return signedIn(refreshed, { organization: candidate.organization, ...person.value });
 });
 
-/**
- * Finishes creating a claimed Organization, then closes the claim so it is never finished again
- * (a creator removed later must not be made admin by it). Safe to run any number of times, from
- * any point a previous run stopped at: each step is idempotent, and their order means a crash
- * leaves nothing that a later run cannot complete.
- */
 const finishCreation = Effect.fnUntraced(function* (session: ProviderSession, claim: OrganizationClaim) {
   const identityProvider = yield* IdentityProvider;
   const index = yield* PeopleIndex;
@@ -175,8 +149,7 @@ const finishCreation = Effect.fnUntraced(function* (session: ProviderSession, cl
     email: identity.email,
     userId: identity.userId,
   });
-  // `createWithAdmin` does nothing once the Organization exists, so a creator removed since the
-  // claim stays removed: close the claim and refuse.
+
   const person = yield* people.activePerson(organization.id, identity.userId);
   if (Option.isNone(person)) {
     yield* index.completeClaim(identity.userId, yield* Clock.currentTimeMillis);
@@ -196,7 +169,6 @@ const finishCreation = Effect.fnUntraced(function* (session: ProviderSession, cl
   return signedIn(refreshed, { organization, ...person.value });
 });
 
-/** A creation this user may still finish: started, not completed, and still allowlisted. */
 const isUnfinished = (
   claim: Option.Option<ClaimStatus>,
   session: ProviderSession,
@@ -204,15 +176,6 @@ const isUnfinished = (
 ): claim is Option.Some<ClaimStatus> =>
   Option.isSome(claim) && !claim.value.completed && allowlist.allows(session.identity);
 
-/**
- * `GET /auth/session`: where the user stands. A user with exactly one Person enters (and is linked
- * on first sign-in); several get the Organization picker; none get "Create an Organization" or
- * "You're not part of an Organization yet".
- *
- * A GET with side effects (linking, WorkOS membership, finishing an open claim), on purpose: each
- * is idempotent and is only what this user is entitled to anyway, so a cross-site top-level GET
- * (which carries the `SameSite=Lax` cookie) can at most do early what their next visit would do.
- */
 export const sessionState = Effect.fnUntraced(function* (
   checked: CheckedSession,
   allowlist: OrganizationCreationAllowlist,
@@ -236,7 +199,6 @@ export const sessionState = Effect.fnUntraced(function* (
         },
       } satisfies SessionOutcome;
     case "CreateOrganization":
-      // One Organization per creator: a user whose claim is closed cannot create another.
       return {
         session,
         state: { _tag: Option.isSome(claim) ? "NotInOrganization" : "CreateOrganization" },
@@ -246,18 +208,11 @@ export const sessionState = Effect.fnUntraced(function* (
   }
 });
 
-/** Finishes an open claim; a closed one is only entered like any Organization, if still a Person there. */
 const finishOrEnter = (session: ProviderSession, claim: ClaimStatus) =>
   claim.completed
     ? enter(session, { organization: claim.organization, personId: claim.adminPersonId, linked: true })
     : finishCreation(session, claim);
 
-/**
- * `POST /auth/organization`: "Create an Organization" (name only). Only for a verified,
- * allowlisted email with no Organization in the session. Idempotent per WorkOS user: the first
- * claim wins, a retry finishes that same Organization, and a double submit after it was finished
- * enters it as its (still active) Person.
- */
 export const createOrganization = Effect.fnUntraced(function* (
   checked: CheckedSession,
   name: string,
@@ -282,7 +237,6 @@ export const createOrganization = Effect.fnUntraced(function* (
   return yield* finishOrEnter(session, claim);
 });
 
-/** `POST /auth/organization/choose`: the Organization picker. Only an offered Organization can be entered. */
 export const chooseOrganization = Effect.fnUntraced(function* (
   checked: CheckedSession,
   organizationId: OrganizationId,
@@ -294,12 +248,6 @@ export const chooseOrganization = Effect.fnUntraced(function* (
   return yield* enter(checked.session, candidate);
 });
 
-/**
- * `GET /auth/callback`: exchanges the code for a session. When WorkOS needs one of the user's
- * organizations picked, this takes one where they still have an active Person, so a membership
- * left over from a removal is not chosen; the first otherwise (the per-request check then treats
- * the session as having no Organization).
- */
 export const signInWithCode = Effect.fnUntraced(function* (code: string) {
   const identityProvider = yield* IdentityProvider;
   const index = yield* PeopleIndex;
@@ -327,12 +275,6 @@ export const signInWithCode = Effect.fnUntraced(function* (code: string) {
   );
 });
 
-/**
- * `POST /auth/logout`: denies the session at once (the access token would otherwise stay valid
- * for minutes), ends it at WorkOS so its refresh token stops working, and returns the WorkOS
- * logout URL, or none when there was no live session. The deny-list row is written first, so it
- * is in place even when WorkOS cannot be reached (`AuthUnavailable`).
- */
 export const signOut = Effect.fnUntraced(function* (sealed: Redacted.Redacted<string>, returnTo: string) {
   const identityProvider = yield* IdentityProvider;
   const index = yield* PeopleIndex;
@@ -354,6 +296,5 @@ export const signOut = Effect.fnUntraced(function* (sealed: Redacted.Redacted<st
   return Option.some(identityProvider.logoutUrl(session.value.sessionId, returnTo));
 });
 
-/** Whether a response must write a new cookie. */
 export const sealedChanged = (before: Redacted.Redacted<string>, after: ProviderSession): boolean =>
   Redacted.value(before) !== Redacted.value(after.sealed);

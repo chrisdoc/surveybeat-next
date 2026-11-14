@@ -7,14 +7,12 @@ import { Dimension, QuestionType, QuestionVersionId } from "../pulses/Question.t
 import { RoundId, RoundStatus } from "./Round.ts";
 import type { SubmissionAnswer } from "./Submission.ts";
 
-/** Single option in a rating or choice distribution. */
 export const DistributionOption = Schema.Struct({
   option: Schema.Union([Schema.String, Schema.Int]),
   count: Schema.Int,
 });
 export type DistributionOption = typeof DistributionOption.Type;
 
-/** One historical point on a Question's trend line over up to 12 Rounds. */
 export const TrendPoint = Schema.Struct({
   roundId: RoundId,
   plannedOpenDate: Schema.String,
@@ -24,29 +22,23 @@ export const TrendPoint = Schema.Struct({
 });
 export type TrendPoint = typeof TrendPoint.Type;
 
-/** One historical point on a Dimension's trend line over up to 12 Rounds. */
 export const DimensionTrendPoint = Schema.Struct({
   roundId: RoundId,
   plannedOpenDate: Schema.String,
   score: Schema.NullOr(Schema.Finite),
   usableQuestionCount: Schema.Int,
-  /**
-   * Contributors to the Dimension in that Round (see `DimensionResult.contributors`). Optional so
-   * payloads stored before this field existed still decode; absent means unknown.
-   */
+
   contributors: Schema.optionalKey(Schema.Int),
   hasGap: Schema.Boolean,
 });
 export type DimensionTrendPoint = typeof DimensionTrendPoint.Type;
 
-/** Highlight indicating a score change is larger than normal noise (Issue #4). */
 export const Highlight = Schema.Struct({
   isLargerThanUsual: Schema.Boolean,
   direction: Schema.NullOr(Schema.Literals(["rise", "drop"])),
 });
 export type Highlight = typeof Highlight.Type;
 
-/** Typical change status: baseline warm-up (needs 6 usable rounds) or ready. */
 export const TypicalChange = Schema.Struct({
   status: Schema.Literals(["buildingBaseline", "ready"]),
   completedUsableRounds: Schema.Int,
@@ -55,7 +47,6 @@ export const TypicalChange = Schema.Struct({
 });
 export type TypicalChange = typeof TypicalChange.Type;
 
-/** Change for a Question compared with the most recent earlier usable Round within 12. */
 export const QuestionChange = Schema.Struct({
   change: Schema.NullOr(Schema.Finite),
   previousRoundDate: Schema.NullOr(Schema.String),
@@ -64,7 +55,6 @@ export const QuestionChange = Schema.Struct({
 });
 export type QuestionChange = typeof QuestionChange.Type;
 
-/** Change for a Dimension compared with the most recent earlier usable Round within 12. */
 export const DimensionChange = Schema.Struct({
   change: Schema.NullOr(Schema.Finite),
   previousRoundDate: Schema.NullOr(Schema.String),
@@ -76,7 +66,6 @@ export const DimensionChange = Schema.Struct({
 });
 export type DimensionChange = typeof DimensionChange.Type;
 
-/** The computed result for one Question in a Round. */
 export const QuestionResult = Schema.Struct({
   questionVersionId: QuestionVersionId,
   position: Schema.Int,
@@ -93,17 +82,12 @@ export const QuestionResult = Schema.Struct({
 });
 export type QuestionResult = typeof QuestionResult.Type;
 
-/** The computed result for one Dimension in a Round. */
 export const DimensionResult = Schema.Struct({
   dimension: Dimension,
   score: Schema.NullOr(Schema.Finite),
   usableQuestionCount: Schema.Int,
   totalQuestionCount: Schema.Int,
-  /**
-   * Contributors to the Dimension: Submissions that gave a value to at least one of its usable
-   * Questions. Null when the Dimension is hidden by the minimum group size. Optional so payloads
-   * stored before this field existed still decode; absent means unknown.
-   */
+
   contributors: Schema.optionalKey(Schema.NullOr(Schema.Int)),
   meetsMinimumGroupSize: Schema.Boolean,
   change: Schema.NullOr(DimensionChange),
@@ -112,14 +96,12 @@ export const DimensionResult = Schema.Struct({
 });
 export type DimensionResult = typeof DimensionResult.Type;
 
-/** An anonymous, unlinked, redacted text comment from a Submission (long text or rating say-more). */
 export const CommentResult = Schema.Struct({
   questionVersionId: QuestionVersionId,
   text: Schema.String,
 });
 export type CommentResult = typeof CommentResult.Type;
 
-/** A Comment theme as shown (ADR 0016). `supportingComments` is Lead only; members never get it. */
 export const CommentTheme = Schema.Struct({
   label: Schema.String,
   sentence: Schema.String,
@@ -127,7 +109,6 @@ export const CommentTheme = Schema.Struct({
 });
 export type CommentTheme = typeof CommentTheme.Type;
 
-/** The Round's discussion guide (ADR 0019), Lead only. */
 export const DiscussionGuide = Schema.Struct({
   whatStoodOut: Schema.Array(Schema.String),
   whatPeopleRaised: Schema.Array(Schema.String),
@@ -136,29 +117,18 @@ export const DiscussionGuide = Schema.Struct({
 });
 export type DiscussionGuide = typeof DiscussionGuide.Type;
 
-/**
- * notRequested: AI off at close, closed before AI was on, or below N. preparing: call pending.
- * ready: stored. unavailable: gave up after 24 h.
- */
 export const ThemesStatus = Schema.Literals(["notRequested", "preparing", "ready", "unavailable"]);
 export type ThemesStatus = typeof ThemesStatus.Type;
 
-/**
- * The complete Result of a Round.
- * Gated by effective minimum group size rules (ADR 0004, Issue #3, Issue #4).
- */
 export const RoundResult = Schema.Struct({
   roundId: RoundId,
   pulseId: PulseId,
   teamId: TeamId,
   status: RoundStatus,
   plannedOpenDate: Schema.String,
-  /**
-   * Optional so stored payloads decode without it; the reads stamp it from the Round row, so a member
-   * who may see Results but not the Pulse page still gets a name for the breadcrumb.
-   */
+
   pulseName: Schema.optionalKey(Schema.String),
-  /** Release 1 has only anonymous Rounds, so Results stored before this field decode as anonymous. */
+
   anonymityMode: AnonymityMode.pipe(
     Schema.withDecodingDefaultKey(Effect.succeed<AnonymityMode>("anonymous")),
   ),
@@ -172,14 +142,14 @@ export const RoundResult = Schema.Struct({
   questions: Schema.Array(QuestionResult),
   dimensions: Schema.Array(DimensionResult),
   comments: Schema.Array(CommentResult),
-  /** Optional so stored payloads decode without them; the view sets them (ADR 0016, 0019). */
+
   themesStatus: Schema.optionalKey(ThemesStatus),
   themes: Schema.optionalKey(Schema.Array(CommentTheme)),
-  /** Lead only. */
+
   discussionGuide: Schema.optionalKey(Schema.NullOr(DiscussionGuide)),
-  /** Set while the Round is Ready: when the Review window ends and the Result is shared. */
+
   reviewEndsAt: Schema.optionalKey(Schema.Int),
-  /** Lead only: the Result could not be computed and no retry is pending (Issue #128). */
+
   couldNotCompute: Schema.optionalKey(Schema.Boolean),
 });
 export type RoundResult = typeof RoundResult.Type;
@@ -196,15 +166,11 @@ export class ResultsDelayed extends Schema.TaggedError<ResultsDelayed, { readonl
   { httpApiStatus: 503 },
 ) {}
 
-// --- Pure domain algorithms for Results calculation ---
-
-/** Round a number to a fixed number of decimals to prevent floating point inaccuracies. */
 export const roundDecimals = (value: number, decimals: number): number => {
   const factor = Math.pow(10, decimals);
   return Math.round((value + Number.EPSILON) * factor) / factor;
 };
 
-/** Computes the median of a non-empty array of numbers. */
 export const median = (values: ReadonlyArray<number>): number => {
   if (values.length === 0) return 0;
   const sorted = [...values].sort((a, b) => a - b);
@@ -238,7 +204,7 @@ export interface HistoricalRoundDimensionData {
   readonly dimension: Dimension;
   readonly score: number | null;
   readonly usableQuestionCount: number;
-  /** Dimension contributors of that Round, when known (older stored Results lack it). */
+
   readonly contributors?: number | null | undefined;
   readonly meetsMinimumGroupSize: boolean;
 }
@@ -253,7 +219,6 @@ export interface HistoricalRoundData {
   readonly dimensions: ReadonlyArray<HistoricalRoundDimensionData>;
 }
 
-/** Computes rating distribution (1..5) or choice distribution. */
 export const computeDistribution = (
   type: QuestionType,
   answers: ReadonlyArray<SubmissionAnswer>,
@@ -293,10 +258,6 @@ export const computeDistribution = (
   return [];
 };
 
-/**
- * Calculates Typical change and checks if the given change is a highlight.
- * Rule: |change| >= 2 * Typical change AND |change| >= 0.3. Floor is 0.3.
- */
 export const evaluateHighlight = (change: number, typicalChangeVal: number): Highlight => {
   const absChange = roundDecimals(Math.abs(change), 4);
   const threshold = roundDecimals(2 * typicalChangeVal, 4);
@@ -359,10 +320,6 @@ const pastDimMeetsN = (
   );
 };
 
-/**
- * Computes the complete RoundResult given the current round's questions,
- * submissions, eligible members, effective N, and the past 11 closed rounds history.
- */
 export const calculateRoundResult = (params: {
   readonly roundId: RoundId;
   readonly pulseId: PulseId;
@@ -405,7 +362,6 @@ export const calculateRoundResult = (params: {
   const isClosedOrLater = status === "closed" || status === "ready" || status === "shared";
   const shouldRevealResults = isClosedOrLater && meetsRoundN;
 
-  // Map answers by questionVersionId
   const answersByQuestion = new Map<string, Array<SubmissionAnswer>>();
   for (const q of questions) {
     answersByQuestion.set(q.id, []);
@@ -419,7 +375,6 @@ export const calculateRoundResult = (params: {
     }
   }
 
-  // 1. Calculate Question scores and distributions
   interface TempQuestionScore {
     readonly question: QuestionInput;
     readonly contributors: number;
@@ -480,7 +435,6 @@ export const calculateRoundResult = (params: {
         distribution: meetsN ? computeDistribution(q.type, choiceAnswers) : null,
       });
     } else {
-      // LongText
       const textAnswers = answers.filter((a) => a.comment !== null && a.comment.trim().length > 0);
       const contributors = textAnswers.length;
       const meetsN = contributors >= effectiveN;
@@ -494,7 +448,6 @@ export const calculateRoundResult = (params: {
     }
   }
 
-  // 2. Calculate Dimension scores
   const dimensionsToEvaluate: ReadonlyArray<Dimension> = [
     "workload",
     "psychologicalSafety",
@@ -558,14 +511,11 @@ export const calculateRoundResult = (params: {
     }
   }
 
-  // 3. Trends, Typical Changes, and Highlights for Questions
-  // History up to last 11 rounds plus current = up to 12 rounds total.
   const pastUpTo11 = pastRoundsHistory.slice(-11);
 
   const finalQuestions: Array<QuestionResult> = tempQuestionScores.map((tqs) => {
     const q = tqs.question;
 
-    // Build trend points: past rounds + current round
     const trendPoints: Array<TrendPoint> = [];
     for (const past of pastUpTo11) {
       const pastQ = past.questions.find((pq) => pq.questionVersionId === q.id);
@@ -585,7 +535,6 @@ export const calculateRoundResult = (params: {
       });
     }
 
-    // Add current round to trend
     trendPoints.push({
       roundId,
       plannedOpenDate,
@@ -611,7 +560,6 @@ export const calculateRoundResult = (params: {
       };
     }
 
-    // Identify past usable rounds for this question
     interface UsablePastQuestionRound {
       readonly roundId: RoundId;
       readonly plannedOpenDate: string;
@@ -636,7 +584,6 @@ export const calculateRoundResult = (params: {
       }
     }
 
-    // Consecutive pairs of usable past rounds
     const pastDifferences: Array<number> = [];
     for (let i = 1; i < pastUsableRounds.length; i++) {
       const prev = pastUsableRounds[i - 1];
@@ -660,7 +607,6 @@ export const calculateRoundResult = (params: {
         typicalChange: null,
       };
     } else {
-      // Last up to 11 past differences (from last 12 rounds)
       const diffsToUse = pastDifferences.slice(-11);
       typicalChangeVal = median(diffsToUse);
       typicalChangeObj = {
@@ -671,7 +617,6 @@ export const calculateRoundResult = (params: {
       };
     }
 
-    // Change since last usable round
     const mostRecentPastUsable = pastUsableRounds[pastUsableRounds.length - 1];
     let changeObj: QuestionChange | null = null;
 
@@ -704,11 +649,9 @@ export const calculateRoundResult = (params: {
     };
   });
 
-  // 4. Trends, Typical Changes, and Highlights for Dimensions
   const finalDimensions: Array<DimensionResult> = tempDimensionScores.map((tds) => {
     const dim = tds.dimension;
 
-    // Build dimension trend points
     const dimTrendPoints: Array<DimensionTrendPoint> = [];
     for (const past of pastUpTo11) {
       const pastDim = past.dimensions.find((pd) => pd.dimension === dim);
@@ -748,7 +691,6 @@ export const calculateRoundResult = (params: {
       };
     }
 
-    // Past rounds where dimension was usable
     interface UsablePastDimRound {
       readonly roundId: RoundId;
       readonly plannedOpenDate: string;
@@ -768,7 +710,6 @@ export const calculateRoundResult = (params: {
       }
     }
 
-    // Consecutive pairs of usable past dimension rounds:
     const pastDimDifferences: Array<number> = [];
     for (let i = 1; i < usablePastDimRounds.length; i++) {
       const prev = usablePastDimRounds[i - 1];
@@ -827,7 +768,6 @@ export const calculateRoundResult = (params: {
       };
     }
 
-    // Change since last usable round for dimension
     const mostRecentPastUsable = usablePastDimRounds[usablePastDimRounds.length - 1];
     let changeObj: DimensionChange | null = null;
 
@@ -890,7 +830,6 @@ export const calculateRoundResult = (params: {
     };
   });
 
-  // 5. Comments
   const rawComments: Array<CommentResult> = [];
   if (shouldRevealResults) {
     for (const sub of submissions) {
@@ -927,11 +866,6 @@ export const calculateRoundResult = (params: {
   };
 };
 
-/**
- * The stand-in Result for a closed Round whose Result is not stored (yet, or ever). It carries the counts
- * and the response rate, and no scores or comments. It never runs the aggregate computation, which is what
- * may have failed (Issue #128).
- */
 export const delayedRoundResult = (params: {
   readonly roundId: RoundId;
   readonly pulseId: PulseId;
@@ -965,7 +899,6 @@ export const delayedRoundResult = (params: {
   };
 };
 
-/** Minimal shape shared by Question and Dimension trend points. */
 interface MaskableTrendPoint {
   readonly roundId: RoundId;
   readonly score: number | null;
@@ -996,7 +929,6 @@ export const enforceEffectiveNOnResult = (result: RoundResult, currentOrgN: numb
 
   const meetsRoundN = result.submissionsCount >= effectiveN;
 
-  // Mask questions
   const maskedQuestions = result.questions.map((q): QuestionResult => {
     const meetsN = q.contributors >= effectiveN && meetsRoundN;
     const earlier = maskEarlierTrendPoints(q.trend, result.roundId, effectiveN);
@@ -1029,7 +961,6 @@ export const enforceEffectiveNOnResult = (result: RoundResult, currentOrgN: numb
     };
   });
 
-  // Mask dimensions
   const maskedDimensions = result.dimensions.map((d): DimensionResult => {
     const dimensionQuestions = result.questions.filter((q) => q.dimension === d.dimension);
     const questionMasked = new Set<RoundId>();
@@ -1093,9 +1024,7 @@ export const enforceEffectiveNOnResult = (result: RoundResult, currentOrgN: numb
     const sum = usableQs.reduce((acc, q) => acc + (q.score ?? 0), 0);
     const mean = roundDecimals(sum / usableQs.length, 2);
     const usableSetChanged = usableQs.length !== d.usableQuestionCount;
-    // Distinct contributors cannot be recounted without Submissions. When the usable Questions are
-    // unchanged the stored count still holds; otherwise use the largest remaining Question count
-    // (a lower bound, and every usable Question has at least N contributors).
+
     const contributors = usableSetChanged
       ? Math.max(...usableQs.map((q) => q.contributors))
       : (d.contributors ?? Math.max(...usableQs.map((q) => q.contributors)));
@@ -1117,7 +1046,6 @@ export const enforceEffectiveNOnResult = (result: RoundResult, currentOrgN: numb
     };
   });
 
-  // Mask comments if round fails effective N
   const maskedComments = meetsRoundN ? result.comments : [];
 
   return {

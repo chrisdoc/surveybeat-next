@@ -74,10 +74,6 @@ export const LoadedFailedEmails = defineTaggedUnion({
 });
 export type LoadedFailedEmails = typeof LoadedFailedEmails.Type;
 
-/**
- * An admin's Resend of one failed send, as its row shows it. `Resending` while the Resend is in flight; `Resent`
- * holds the send's state as last read and how many reads it took; `Failed` says why the Resend did not go through.
- */
 export const FailedEmailResend = Schema.Union([
   Schema.TaggedStruct("Resending", {}),
   Schema.TaggedStruct("Resent", {
@@ -89,11 +85,9 @@ export const FailedEmailResend = Schema.Union([
 ]);
 export type FailedEmailResend = typeof FailedEmailResend.Type;
 
-/** A resent send is checked this often, and the row stops checking after `FAILED_EMAIL_MAX_POLLS` reads (fifteen minutes). */
 export const FAILED_EMAIL_POLL_INTERVAL = "3 seconds";
 export const FAILED_EMAIL_MAX_POLLS = 300;
 
-/** Whether a row should read its resent send again: it is still queued or sending, and the row has not given up. */
 export const failedEmailKeepsPolling = (state: EmailSendProgress, polls: number): boolean =>
   (state._tag === "Queued" || state._tag === "Sending") && polls < FAILED_EMAIL_MAX_POLLS;
 
@@ -108,7 +102,6 @@ export const decodeEmail = Schema.decodeUnknownOption(EmailAddress);
 export const decodeSize = Schema.decodeUnknownOption(MinimumGroupSize);
 export const decodePerson = Schema.decodeUnknownOption(PersonId);
 
-/** The Person's language choice: `value` is `null` to follow the browser (ADR 0018). */
 export interface LanguageChoice<Message> {
   readonly value: Locale | null;
   readonly busy: boolean;
@@ -116,15 +109,13 @@ export interface LanguageChoice<Message> {
   readonly onChange: (value: string) => Message;
 }
 
-/** A top-level section of the signed-in app, as the navigation lists them. Team screens belong to `teams`. */
 export type NavSection = "teams" | "history" | "settings";
 
-/** What the header shows: the Organization, the section on screen, and the two header menus (phone navigation and account). */
 export interface ShellHeader<Message> {
   readonly organizationName: string;
   readonly organizationAdmin: boolean;
   readonly section: NavSection | null;
-  /** The Privacy page, whose footer link is marked current. */
+
   readonly privacyCurrent: boolean;
   readonly navMenu: Popover.Model;
   readonly accountMenu: Popover.Model;
@@ -210,7 +201,6 @@ const hamburgerIcon = <Message>(h: HtmlBuilder<Message>): Html =>
     ],
   );
 
-/** A header menu: a trigger button and a panel that is rendered only while the menu is open. */
 const headerMenu = <Message>(
   model: Popover.Model,
   toParentMessage: (message: Popover.Message) => Message,
@@ -246,7 +236,6 @@ export const shellView = <Message>(
     ? ["teams", "history", "settings"]
     : ["teams", "history"];
 
-  // The Language select sits in each open menu under its own id; the menus render only while open.
   const languageField = (id: string): Html =>
     selectField(
       {
@@ -275,7 +264,7 @@ export const shellView = <Message>(
       ],
       [
         h.span([h.Class("min-w-0 truncate")], [header.organizationName]),
-        // A text space so the accessible name reads "Acme Account menu", not "AcmeAccount menu".
+
         " ",
         h.span([h.Class("sr-only")], [message("account.menu")]),
         chevronIcon(h),
@@ -360,7 +349,6 @@ export const shellView = <Message>(
   );
 };
 
-/** One thing on the home page that needs the person's attention, with the link that acts on it. */
 export interface AttentionItem {
   readonly label: string;
   readonly text: string;
@@ -368,7 +356,6 @@ export interface AttentionItem {
   readonly href: string;
 }
 
-/** The home page's attention list: what is waiting, or one sentence and a link when nothing is. */
 const attentionView = <Message>(items: ReadonlyArray<AttentionItem>, h: HtmlBuilder<Message>): Html =>
   items.length === 0
     ? emptyState(
@@ -576,7 +563,6 @@ export const teamsScreenView = <Message>(
   return h.section([], children);
 };
 
-/** One step of the first-run checklist: what to do, where it happens, and whether it is done. */
 export interface ChecklistStep {
   readonly text: string;
   readonly detail?: string | undefined;
@@ -584,7 +570,6 @@ export interface ChecklistStep {
   readonly done: boolean;
 }
 
-/** The first-run checklist a Team shows until its first Round is shared: numbered steps, each a link. */
 const firstRunChecklistView = <Message>(steps: ReadonlyArray<ChecklistStep>, h: HtmlBuilder<Message>): Html =>
   h.section(
     [h.Class("mt-8 rounded-panel border border-line bg-surface p-6")],
@@ -688,7 +673,6 @@ export const teamScreenView = <Message>(
     );
   }
 
-  // The Team health overview is Results, so it follows the same right as the Results screen.
   if (detail.may.viewResults) {
     children.push(h.div([h.Class("mt-8")], [overview]));
   }
@@ -765,7 +749,6 @@ export const teamScreenView = <Message>(
     );
   }
 
-  // Roster
   children.push(h.div([h.Class("mt-8")], [subSectionTitle(message("team.roster"), h, 2)]));
   children.push(
     h.ul(
@@ -829,7 +812,6 @@ export const teamScreenView = <Message>(
     children.push(problemView(state.rosterFailure, h)!);
   }
 
-  // Add Member
   if (detail.may.manageMembers && !state.addMemberOpen) {
     children.push(
       h.div(
@@ -894,7 +876,6 @@ export const teamScreenView = <Message>(
     );
   }
 
-  // Assign Lead
   if (detail.may.manageLeads && !state.assignLeadOpen) {
     children.push(
       h.div(
@@ -962,13 +943,11 @@ export const teamScreenView = <Message>(
   return h.section([], children);
 };
 
-/** A send's failure reason, with its provider code when it has one. */
 const failedEmailReasonText = (reason: FailedEmail["reason"], code: string | null): string =>
   code === null
     ? failureReasonText(reason)
     : message("email.reasonCode", { reason: failureReasonText(reason), code });
 
-/** A resent send's state, as the row says it: queued, sending, sent, or not sent with its reason. */
 const failedEmailStatusText = (state: EmailSendProgress): string => {
   switch (state._tag) {
     case "Queued":
@@ -984,7 +963,6 @@ const failedEmailStatusText = (state: EmailSendProgress): string => {
   }
 };
 
-/** The Action cell of one failed send: the Resend button, and what the last Resend said about the send. */
 const failedEmailActionView = <Message>(
   email: FailedEmail,
   resend: FailedEmailResend | undefined,
@@ -1023,7 +1001,6 @@ const failedEmailActionView = <Message>(
   return children.length === 0 ? "" : h.div([h.Class("flex flex-col items-start gap-1 text-sm")], children);
 };
 
-/** The failed sends of the Organization, for admins: what each was, who it was for, why it failed, when, and Resend. */
 const failedEmailsView = <Message>(
   state: {
     readonly failedEmails: LoadedFailedEmails;
@@ -1124,7 +1101,6 @@ export const settingsScreenView = <Message>(
 
   const { settings } = state.settings;
 
-  // MinimumGroupSizeForm, opened from its button
   if (!state.sizeOpen) {
     children.push(
       h.div(
@@ -1192,7 +1168,6 @@ export const settingsScreenView = <Message>(
       ),
     );
 
-  // AiProcessing
   children.push(
     h.div(
       [h.Class(formPanelClass)],
@@ -1214,7 +1189,6 @@ export const settingsScreenView = <Message>(
     ),
   );
 
-  // DefaultLanguage
   children.push(
     h.div(
       [h.Class(formPanelClass)],
@@ -1240,7 +1214,6 @@ export const settingsScreenView = <Message>(
     ),
   );
 
-  // People
   children.push(h.div([h.Class("mt-8")], [subSectionTitle(message("settings.people"), h, 2)]));
   children.push(
     dataTable(
@@ -1263,7 +1236,6 @@ export const settingsScreenView = <Message>(
           h.details(
             [h.Class("relative")],
             [
-              // A native disclosure keeps the row menu keyboard-accessible without app state.
               h.summary(
                 [
                   h.Class(
@@ -1274,8 +1246,6 @@ export const settingsScreenView = <Message>(
               ),
               h.div(
                 [
-                  // Out of the row's flow: an open panel must not widen the table, which at a phone
-                  // width is the difference between a 393 px layout and a sideways scroll.
                   h.Class(
                     "absolute right-0 z-20 mt-2 flex min-w-[12rem] flex-col items-start gap-2 rounded-panel border border-line bg-surface p-3 shadow-lg",
                   ),

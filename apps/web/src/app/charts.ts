@@ -1,6 +1,5 @@
 import type { Html, HtmlBuilder } from "foldkit/html";
 
-/** One point on a line chart. `x` runs 0..1 along the plot; `joinsPrevious` draws the segment from the point before. */
 export interface ChartPoint {
   readonly x: number;
   readonly score: number | null;
@@ -8,7 +7,6 @@ export interface ChartPoint {
 }
 
 export interface ChartTick {
-  /** x (0..1) along the plot. */
   readonly x: number;
   readonly label: string;
 }
@@ -16,16 +14,16 @@ export interface ChartTick {
 export interface LineChartOptions {
   readonly points: ReadonlyArray<ChartPoint>;
   readonly ariaLabel: string;
-  /** viewBox width; the height is fixed at 120. */
+
   readonly width?: number;
   readonly dotRadius?: number;
-  /** Draws the last dot in brass. */
+
   readonly highlightLast?: boolean;
-  /** x positions 0..1 of faint vertical marker lines. */
+
   readonly guides?: ReadonlyArray<number>;
-  /** Date labels under the x-axis. Callers pass the first and last Round so they never collide. */
+
   readonly xTicks?: ReadonlyArray<ChartTick>;
-  /** The latest score, written beside its dot and suppressed when that dot sits near the right edge. */
+
   readonly latestLabel?: string;
   readonly className?: string;
 }
@@ -38,13 +36,11 @@ const LABEL_CLASS = "fill-muted";
 
 export const CHART_PAD = { left: 24, right: 16, top: 16, bottom: 24 } as const;
 
-/** Left offset of x (0..1) as a CSS percentage of the chart width, so HTML overlays line up with the plot. */
 export const plotPercent = (x: number, width = 360): string => {
   const chartWidth = width - CHART_PAD.left - CHART_PAD.right;
   return `${((CHART_PAD.left + x * chartWidth) / width) * 100}%`;
 };
 
-/** Hand-built SVG line chart. A null score is a gap: the line breaks and no dot is drawn. */
 export const lineChart = <Message>(options: LineChartOptions, h: HtmlBuilder<Message>): Html => {
   const width = options.width ?? 360;
   const dotRadius = options.dotRadius ?? 4;
@@ -60,7 +56,6 @@ export const lineChart = <Message>(options: LineChartOptions, h: HtmlBuilder<Mes
 
   const svgChildren: Array<Html> = [];
 
-  // Horizontal guide lines at 1.0, 3.0, 5.0
   for (const s of [1, 3, 5]) {
     const y = getY(s);
     svgChildren.push(
@@ -74,7 +69,6 @@ export const lineChart = <Message>(options: LineChartOptions, h: HtmlBuilder<Mes
     );
   }
 
-  // Vertical marker guides
   for (const x of options.guides ?? []) {
     svgChildren.push(
       h.line([
@@ -89,7 +83,6 @@ export const lineChart = <Message>(options: LineChartOptions, h: HtmlBuilder<Mes
     );
   }
 
-  // Draw lines between consecutive non-gap points
   for (let i = 1; i < points.length; i++) {
     const p1 = points[i - 1]!;
     const p2 = points[i]!;
@@ -107,7 +100,6 @@ export const lineChart = <Message>(options: LineChartOptions, h: HtmlBuilder<Mes
     }
   }
 
-  // Draw dot markers
   for (let i = 0; i < points.length; i++) {
     const p = points[i]!;
     if (p.score !== null) {
@@ -122,7 +114,6 @@ export const lineChart = <Message>(options: LineChartOptions, h: HtmlBuilder<Mes
     }
   }
 
-  // The 1–5 scale, named at its ends and middle
   for (const s of [1, 3, 5]) {
     svgChildren.push(
       h.text(
@@ -138,7 +129,6 @@ export const lineChart = <Message>(options: LineChartOptions, h: HtmlBuilder<Mes
     );
   }
 
-  // Date labels under the plot
   for (const tick of options.xTicks ?? []) {
     svgChildren.push(
       h.text(
@@ -154,7 +144,6 @@ export const lineChart = <Message>(options: LineChartOptions, h: HtmlBuilder<Mes
     );
   }
 
-  // The latest value beside its dot
   let lastPoint: ChartPoint | undefined;
   for (const p of points) {
     if (p.score !== null) lastPoint = p;

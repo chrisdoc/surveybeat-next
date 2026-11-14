@@ -18,7 +18,6 @@ export const darkOutlineButtonClass =
 export const dangerButtonClass =
   "rounded-control bg-danger px-4 py-2 text-sm font-semibold text-on-primary transition hover:opacity-90 disabled:opacity-50";
 
-/** A link-styled button for a destructive action: danger text, same hit area as a link. */
 export const dangerLinkButton =
   "inline-flex min-h-11 items-center px-1 text-sm font-semibold text-danger underline underline-offset-4 hover:opacity-90 disabled:opacity-50";
 
@@ -45,7 +44,6 @@ export const brandMark = <Message>(h: HtmlBuilder<Message>): Html =>
     ],
   );
 
-/** The page frame: the header (brand, then `header` content), the content column, and the footer with the Privacy link. `wide` makes room for a side column; `privacyCurrent` marks the Privacy link on the Privacy page. */
 export const pageShell = <Message>(
   config: {
     readonly header?: ReadonlyArray<Child> | undefined;
@@ -122,7 +120,6 @@ export interface Crumb {
   readonly href?: string | undefined;
 }
 
-/** The wayfinding above a title — `Team › Pulse › Round` — with the last crumb being the page itself. */
 export const breadcrumbs = <Message>(crumbs: ReadonlyArray<Crumb>, h: HtmlBuilder<Message>): Html =>
   h.div(
     [h.Role("navigation"), h.AriaLabel(message("breadcrumb.label"))],
@@ -152,7 +149,6 @@ export const breadcrumbs = <Message>(crumbs: ReadonlyArray<Crumb>, h: HtmlBuilde
     ],
   );
 
-/** `onDark` is for a heading inside a `darkPanel`, where `text-ink` would be ink on evergreen. */
 export const sectionTitle = <Message>(
   text: string,
   h: HtmlBuilder<Message>,
@@ -309,7 +305,7 @@ export const problemView = <Message>(failure: Failure | undefined, h: HtmlBuilde
 export const appButton = <Message>(
   config: {
     readonly text: string;
-    /** A decorative glyph shown before the text; the label stays the accessible name. */
+
     readonly icon?: string | undefined;
     readonly onClick?: Message | undefined;
     readonly isDisabled?: boolean | undefined;
@@ -341,7 +337,6 @@ export const appButton = <Message>(
     h,
   );
 
-/** A destructive action waiting for a yes: danger styling, Escape or Cancel closes it without changing anything. */
 export const confirmDialog = <Message>(
   config: {
     readonly title: string;
@@ -386,7 +381,6 @@ export const confirmDialog = <Message>(
     ],
   );
 
-/** Every IANA zone the browser knows, with the current one first so an unset Team still has a choice. */
 export const timeZoneOptions = (current: string): ReadonlyArray<readonly [string, string]> => {
   const known = Intl.supportedValuesOf("timeZone");
   const all = known.includes(current) ? known : [current, ...known];
@@ -523,7 +517,6 @@ export const checkboxField = <Message>(
     h,
   );
 
-/** The Sign out form. `inMenu` is the full-width button of the account menus; elsewhere it is the link-styled button under the content. */
 export const signOutView = <Message>(h: HtmlBuilder<Message>, inMenu = false): Html =>
   h.form(
     [h.Method("post"), h.Action("/auth/logout"), ...(inMenu ? [] : [h.Class("mt-10")])],
@@ -542,7 +535,6 @@ export const signOutView = <Message>(h: HtmlBuilder<Message>, inMenu = false): H
     ],
   );
 
-/** The Privacy page's content; signed in it sits in the app shell, otherwise in `privacyView`. */
 export const privacyContent = <Message>(h: HtmlBuilder<Message>): ReadonlyArray<Child> => [
   pageTitle(message("privacy.title"), h),
   h.p([h.Class("mt-4")], [h.a([h.Href(teamsHref()), h.Class(linkClass)], [message("privacy.back")])]),
@@ -570,6 +562,5 @@ export const privacyContent = <Message>(h: HtmlBuilder<Message>): ReadonlyArray<
   ),
 ];
 
-/** The Privacy page for a visitor who is not signed in. */
 export const privacyView = <Message>(h: HtmlBuilder<Message>): Html =>
   pageShell({ privacyCurrent: true }, privacyContent(h), h);

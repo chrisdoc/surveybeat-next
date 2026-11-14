@@ -5,20 +5,12 @@ import { EmailTemplates } from "./EmailTemplates.ts";
 import { type SendOutcome, type SendState, retryDelaySeconds } from "./SendState.ts";
 import { type ClaimResult, SendStore } from "./SendStore.ts";
 
-/** Shorter than the lease (`SendPolicy.leaseMillis`), so an attempt settles before its lease can expire. */
 export const sendTimeout = Duration.seconds(30);
 
-/** What the Queue consumer does with the message that asked for the send. */
 export type DeliveryResult =
-  /** Acknowledge. `state` is null when the send does not exist. */
   | { readonly _tag: "Done"; readonly state: SendState | null }
-  /** Redeliver the message after `seconds`. */
   | { readonly _tag: "RetryAfter"; readonly seconds: number };
 
-/**
- * Delivers one send at most once. Safe to run for every queue delivery, including duplicates:
- * the claim decides whether this delivery may send, and only a clear rejection is retried.
- */
 export const deliver = Effect.fn("deliver")(function* (id: SendId) {
   const store = yield* SendStore;
   const claimed = yield* store.claim(id, yield* Clock.currentTimeMillis);
@@ -47,7 +39,6 @@ const attempt = (claimed: Extract<ClaimResult, { _tag: "Send" }>) =>
     const templates = yield* EmailTemplates;
     const sender = yield* EmailSender;
 
-    // Nothing reached the provider, so a broken template is a clear, permanent rejection.
     const rendered = yield* templates.render(claimed.email).pipe(Effect.exit);
     if (rendered._tag === "Failure") return rejected("E_RENDER_FAILED", true);
 

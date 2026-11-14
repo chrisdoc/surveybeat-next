@@ -17,10 +17,6 @@ const readAnswers = (raw: string | null): Record<string, unknown> => {
   return typeof answers === "object" && answers !== null ? { ...answers } : {};
 };
 
-/**
- * Merges one Answer into the Round's kept answers and pushes the expiry to a year from now. Never throws:
- * `storage` is a getter because reading `window.localStorage` itself throws where storage is blocked.
- */
 export const keepAnswer = (
   storage: () => Pick<Storage, "getItem" | "setItem">,
   roundId: string,
@@ -35,7 +31,5 @@ export const keepAnswer = (
     const prior = answers[questionVersionId];
     answers[questionVersionId] = { ...(typeof prior === "object" && prior !== null ? prior : {}), ...answer };
     store.setItem(key, JSON.stringify({ expiresAt: now + keptAnswersLifetimeMs, answers }));
-  } catch {
-    // Storage can be unavailable (private mode, quota); answering must still work.
-  }
+  } catch {}
 };

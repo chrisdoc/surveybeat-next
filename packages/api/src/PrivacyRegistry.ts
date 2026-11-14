@@ -5,7 +5,6 @@ import * as Schema from "effect/Schema";
 import type { HttpApi, HttpApiGroup } from "effect/http-api";
 import type { SurveyBeatApi } from "./index.ts";
 
-/** `group.endpoint` for every endpoint of an HttpApi declaration. */
 export type EndpointKey<Api> =
   Api extends HttpApi.HttpApi<infer _Id, infer Groups>
     ? Groups extends HttpApiGroup.Constraint
@@ -16,7 +15,6 @@ export type EndpointKey<Api> =
 const between = (minimum: number, maximum: number) =>
   Schema.Int.pipe(Schema.check(Schema.isGreaterThanOrEqualTo(minimum), Schema.isLessThanOrEqualTo(maximum)));
 
-/** How many Questions a generated Round can have; every per-Question list below has this many slots. */
 export const SCENARIO_QUESTION_SLOTS = 5;
 
 const slots = <S extends Schema.Constraint>(item: S) =>
@@ -24,27 +22,23 @@ const slots = <S extends Schema.Constraint>(item: S) =>
     Schema.check(Schema.isMinLength(SCENARIO_QUESTION_SLOTS), Schema.isMaxLength(SCENARIO_QUESTION_SLOTS)),
   );
 
-/** One Question of a generated Round. `kind` picks the Question type; `dimension` is null for none. */
 const ScenarioQuestion = Schema.Struct({
   kind: Schema.Literals(["rating", "choice", "text"]),
   dimension: Schema.NullOr(Dimension),
 });
 
-/** What one generated Submission answered for one Question slot (`value` is read per the Question kind). */
 const ScenarioAnswer = Schema.Struct({
   answered: Schema.Boolean,
   value: between(0, 4),
   comment: Schema.NullOr(Schema.Literals(["", "   ", "fine", "too much work", "Ask Anna"])),
 });
 
-/** An earlier Round's score for one Dimension, in `Dimension` order. */
 const ScenarioDimension = Schema.Struct({
   score: Schema.NullOr(between(1, 5)),
   usableQuestionCount: between(0, 3),
   contributors: between(0, 14),
 });
 
-/** An earlier closed Round of the same Pulse, as the Result computation sees it. */
 const ScenarioHistoryRound = Schema.Struct({
   effectiveMinimumGroupSize: between(1, 8),
   submissionsCount: between(0, 14),
@@ -52,16 +46,6 @@ const ScenarioHistoryRound = Schema.Struct({
   dimensions: Schema.Tuple([ScenarioDimension, ScenarioDimension, ScenarioDimension, ScenarioDimension]),
 });
 
-/**
- * The raw material for one Round's Result: the Round's status, the minimum group size stored when
- * its Result was computed (`storedN`), the Organization's minimum group size now (`organizationN`,
- * which may have been raised since), its Team size, Questions, Submissions, and earlier Rounds. The
- * effective N is `max(storedN, organizationN)` (ADR 0004, Rule R9).
- *
- * `viewer` is who asks for the Result: a Lead sees the Lead-only fields, a member does not. `themes`
- * is the state of the Round's themes call: none (never requested), pending, ready, or failed
- * (ADR 0016, 0019).
- */
 export const RoundResultScenario = Schema.Struct({
   status: Schema.Literals(["open", "closed", "ready", "shared"]),
   storedN: between(1, 8),
@@ -77,21 +61,12 @@ export const RoundResultScenario = Schema.Struct({
 });
 export type RoundResultScenario = typeof RoundResultScenario.Type;
 
-/** Input generator for Result-bearing endpoints: Rounds with few and many Submissions, and raised N. */
 export const roundResultScenarios: Arbitrary.Arbitrary<RoundResultScenario> =
   Arbitrary.schema(RoundResultScenario);
 
-/** Result fields only a Team's Lead may receive (ADR 0004, ADR 0016, ADR 0019). */
 export const LeadOnlyField = Schema.Literals(["comments", "themes.supportingComments", "discussionGuide"]);
 export type LeadOnlyField = typeof LeadOnlyField.Type;
 
-/**
- * Whether an endpoint's response can contain Result data (scores, distributions, comments, trends:
- * anything derived from Submissions). Those endpoints get an input generator that produces Rounds,
- * and a property test checks the minimum group size rules R1–R11 (ADR 0004) for each of them. The
- * same test checks that a member's response carries none of the `leadOnly` fields, and that no
- * Comment theme or discussion guide appears below N.
- */
 export type EndpointPrivacy =
   | { readonly _tag: "NoResultData"; readonly why: string }
   | {
@@ -100,10 +75,6 @@ export type EndpointPrivacy =
       readonly leadOnly: ReadonlyArray<LeadOnlyField>;
     };
 
-/**
- * Every endpoint of `SurveyBeatApi`, classified. A new endpoint does not typecheck until it is
- * listed here, and `registry.privacy.test.ts` checks the same against the runtime declaration.
- */
 export const privacyRegistry: { readonly [K in EndpointKey<typeof SurveyBeatApi>]: EndpointPrivacy } = {
   "auth.login": { _tag: "NoResultData", why: "redirects to the AuthKit hosted sign-in page" },
   "auth.callback": { _tag: "NoResultData", why: "sets the session cookie and redirects to the app" },
@@ -286,11 +257,6 @@ export const privacyRegistry: { readonly [K in EndpointKey<typeof SurveyBeatApi>
   },
 };
 
-/**
- * The server-rendered pages, classified like the API endpoints but keyed by their own contract, so
- * the endpoint registry keeps its rule that every key is a declared endpoint. A new page route does
- * not typecheck until it is classified here.
- */
 export const pageRoutePrivacy: { readonly [K in PageRouteKey]: EndpointPrivacy } = {
   "pages.delivery": {
     _tag: "NoResultData",

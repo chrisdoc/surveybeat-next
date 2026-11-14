@@ -1,8 +1,3 @@
-/**
- * The English answer-page strings, kept apart from the app's catalog so the answer page ships only these
- * (ADR 0008 budget). `catalog.ts` spreads them in. The runtime `message` lives in `src/answer/answer-messages.ts`,
- * which keeps this module out of the German page's bundle.
- */
 export const answerCatalog = {
   "answer.mark": "SurveyBeat",
   "answer.title": "Your answer",
@@ -39,7 +34,6 @@ export const answerCatalog = {
 type AnswerCatalog = typeof answerCatalog;
 export type AnswerKey = keyof AnswerCatalog;
 
-/** Every answer key mapped to a translated string; each answer table must satisfy it. */
 export type AnswerTranslation = { readonly [K in AnswerKey]: string };
 
 type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
@@ -48,7 +42,6 @@ export type Placeholders<T extends string> = T extends `${string}{${infer Name}}
   ? Name | Placeholders<Rest>
   : never;
 
-/** Keys whose `{placeholders}` differ from English; `never` when the translation is consistent. */
 export type AnswerMismatched<T extends AnswerTranslation> = {
   [K in AnswerKey]: Same<Placeholders<AnswerCatalog[K]>, Placeholders<T[K]>> extends true ? never : K;
 }[AnswerKey];

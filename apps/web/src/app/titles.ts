@@ -4,7 +4,6 @@ import type { LoadedTeam } from "./directory.ts";
 import type { LoadedPulse, LoadedPulses } from "./pulses.ts";
 import type { AppRoute } from "./routes.ts";
 
-/** What a signed-in page title is built from: the route, the Organization, and the Team and Pulse data loaded so far. */
 export interface TitleSource {
   readonly route: AppRoute;
   readonly organizationName: string;
@@ -16,14 +15,12 @@ export interface TitleSource {
 
 const documentTitle = (screen: string, context: string): string => message("title.page", { screen, context });
 
-/** The Team of a loaded screen, when it is the Team the route names. A Team loaded for another screen is not used. */
 const teamNamed = (teamId: TeamId, team: TeamSummary | undefined): string | undefined =>
   team !== undefined && team.id === teamId ? team.name : undefined;
 
 const detailTeam = (loaded: LoadedTeam): TeamSummary | undefined =>
   loaded._tag === "Loaded" ? loaded.detail.team : undefined;
 
-/** The Team's name for the context of a screen: the first of `candidates` that is loaded and matches, else the Organization. */
 const teamContext = (
   teamId: TeamId,
   candidates: ReadonlyArray<TeamSummary | undefined>,
@@ -31,7 +28,6 @@ const teamContext = (
 ): string =>
   candidates.map((team) => teamNamed(teamId, team)).find((name) => name !== undefined) ?? organization;
 
-/** The window title of the signed-in screen on `source`: "Screen · Context — SurveyBeat" (WCAG 2.4.2). */
 export const screenTitle = (source: TitleSource): string => {
   const { organizationName: organization } = source;
   const route = source.route;

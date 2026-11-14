@@ -40,7 +40,7 @@ async function main() {
   if (targetUrls.length === 0) {
     const port = 4173;
     const distPath = resolve(import.meta.dirname, "../../apps/web/dist");
-    // One prerendered shell per locale: `/de/...` gets the German page, everything else the English one.
+
     const enHtml = readFileSync(resolve(distPath, "answer.html"), "utf8");
     const deHtml = readFileSync(resolve(distPath, "de/answer.html"), "utf8");
 
@@ -128,8 +128,7 @@ async function main() {
       const args = [
         targetUrl,
         "--output=json",
-        // Only the gated audits: the full category runs gatherers that inject their own scripts into the page while
-        // it loads, and their long tasks land in TBT (seen as `_lighthouse-eval.js` tasks of 250-420 ms).
+
         "--only-audits=first-contentful-paint,largest-contentful-paint,total-blocking-time",
         "--quiet",
         "--chrome-flags=--headless=new --no-sandbox --disable-gpu",
@@ -165,11 +164,6 @@ async function main() {
     return sorted[Math.floor(sorted.length / 2)] ?? 0;
   };
 
-  /**
-   * Audits one URL: one warm-up run that is discarded (cold Chrome and disk caches), then `RUNS` measured runs. Each
-   * metric is gated on its median, as Lighthouse CI recommends: one noisy run on a shared runner neither fails nor
-   * passes the gate, and the budgets themselves stay the same.
-   */
   const RUNS = 5;
   const auditUrl = async (targetUrl: string): Promise<AuditResult> => {
     console.log(`\nRunning Lighthouse audit on ${targetUrl} (1 warm-up, ${RUNS} measured runs)...`);

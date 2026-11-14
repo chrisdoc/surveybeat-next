@@ -8,90 +8,73 @@ import type { AuthUnavailable, OrganizationSummary, PersonCandidate, Unauthentic
 import type { PulseId } from "../pulses/Pulse.ts";
 import type { QuestionId } from "../pulses/Question.ts";
 
-/** A verified session from the identity provider, and the sealed cookie value that carries it. */
 export interface ProviderSession {
   readonly sealed: Redacted.Redacted<string>;
   readonly sessionId: SessionId;
   readonly identity: Identity;
-  /** The WorkOS organization the access token is scoped to, if any. */
+
   readonly workosOrganizationId: Option.Option<WorkosOrganizationId>;
-  /** The org-level WorkOS role slug in that organization (`admin`, `member`). */
+
   readonly role: Option.Option<string>;
 }
 
-/** What the local check of a sealed session found. Network trouble is `AuthUnavailable`, never one of these. */
 export type SessionCheck =
   | { readonly _tag: "Valid"; readonly session: ProviderSession }
-  /** The access token expired (about 5 minutes): refresh it. */
   | { readonly _tag: "Expired" }
-  /** Missing, tampered, or not a user token: sign in again. */
   | { readonly _tag: "Invalid" };
 
 export type OrganizationRole = "admin" | "member";
 
-/** What exchanging the callback's code gave. */
 export type CodeExchange =
   | { readonly _tag: "Authenticated"; readonly session: ProviderSession }
-  /** The user has several WorkOS memberships and must pick one before a session exists. */
   | {
       readonly _tag: "OrganizationSelectionRequired";
       readonly pendingAuthenticationToken: Redacted.Redacted<string>;
-      /** The user WorkOS authenticated, when it says. */
+
       readonly userId: Option.Option<WorkosUserId>;
       readonly organizations: ReadonlyArray<WorkosOrganizationId>;
     };
 
-/**
- * WorkOS AuthKit behind a domain interface. The adapter is `@workos-inc/node`'s workerd build;
- * tests use a fake. Every call that reaches WorkOS maps transient failures to `AuthUnavailable`.
- */
 export interface IdentityProviderShape {
-  /** The hosted AuthKit URL (email code, Google, Microsoft). */
   readonly authorizationUrl: (options: { readonly redirectUri: string; readonly state: string }) => string;
-  /** Exchanges the callback's code. Fails `Unauthenticated` for a bad or used code. */
+
   readonly authenticateWithCode: (
     code: string,
   ) => Effect.Effect<CodeExchange, Unauthenticated | AuthUnavailable>;
-  /** Finishes an exchange that needed an organization picked. */
+
   readonly authenticateWithOrganizationSelection: (
     pendingAuthenticationToken: Redacted.Redacted<string>,
     organization: WorkosOrganizationId,
   ) => Effect.Effect<ProviderSession, Unauthenticated | AuthUnavailable>;
-  /** Verifies the access token locally (JWKS), with no network call once the keys are cached. */
+
   readonly authenticate: (sealed: Redacted.Redacted<string>) => Effect.Effect<SessionCheck, AuthUnavailable>;
-  /** Rotates the refresh token, optionally switching organization. A terminal failure is `Unauthenticated`. */
+
   readonly refresh: (
     sealed: Redacted.Redacted<string>,
     organization: Option.Option<WorkosOrganizationId>,
   ) => Effect.Effect<ProviderSession, Unauthenticated | AuthUnavailable>;
-  /** Where to send the browser to end the WorkOS session too. */
+
   readonly logoutUrl: (sessionId: SessionId, returnTo: string) => string;
-  /** Ends the WorkOS session, so its refresh token stops working. Idempotent. */
+
   readonly revokeSession: (sessionId: SessionId) => Effect.Effect<void, AuthUnavailable>;
-  /** Idempotent per `externalId`: a retry returns the organization the first call created. */
+
   readonly createOrganization: (
     name: string,
     externalId: OrganizationId,
   ) => Effect.Effect<WorkosOrganizationId, AuthUnavailable>;
-  /**
-   * Idempotent: creates the membership, or reactivates an inactive one, with `role`. The
-   * Organization's Durable Object decides who is an admin, so an existing role is set to `role` too.
-   */
+
   readonly ensureMembership: (
     userId: WorkosUserId,
     organization: WorkosOrganizationId,
     role: OrganizationRole,
   ) => Effect.Effect<void, AuthUnavailable>;
-  /** Sets the role of an existing membership. Does nothing when the user has none (not signed in yet). */
+
   readonly setMembershipRole: (
     userId: WorkosUserId,
     organization: WorkosOrganizationId,
     role: OrganizationRole,
   ) => Effect.Effect<void, AuthUnavailable>;
-  /**
-   * Deactivates the membership, so AuthKit stops putting the user back into the organization at
-   * sign-in (ADR 0010). Idempotent; does nothing when there is none.
-   */
+
   readonly deactivateMembership: (
     userId: WorkosUserId,
     organization: WorkosOrganizationId,
@@ -102,26 +85,19 @@ export class IdentityProvider extends Context.Service<IdentityProvider, Identity
   "@surveybeat/domain/IdentityProvider",
 ) {}
 
-/** The Organization a WorkOS user claimed by creating it: one per user, whatever the retries. */
 export interface OrganizationClaim {
   readonly organization: OrganizationSummary;
   readonly adminPersonId: PersonId;
 }
 
-/** A claim as the index holds it. A completed claim is never finished again. */
 export interface ClaimStatus extends OrganizationClaim {
   readonly completed: boolean;
 }
 
-/**
- * The D1 global index (SPEC §6.2): what must be looked up before the Organization is known.
- * WorkOS user → Persons, email → not-yet-linked Persons, WorkOS organization → Organization, and
- * the revoked-session deny list. Emails are normalised. No survey content.
- */
 export interface PeopleIndexShape {
   readonly linkedPersons: (userId: WorkosUserId) => Effect.Effect<ReadonlyArray<PersonCandidate>>;
   readonly unlinkedPersons: (email: EmailAddress) => Effect.Effect<ReadonlyArray<PersonCandidate>>;
-  /** Idempotent. Records the Organization and, once known, its WorkOS organization. */
+
   readonly putOrganization: (
     organization: OrganizationSummary,
     workosOrganizationId: Option.Option<WorkosOrganizationId>,
@@ -132,28 +108,28 @@ export interface PeopleIndexShape {
   readonly workosOrganizationOf: (
     organizationId: OrganizationId,
   ) => Effect.Effect<Option.Option<WorkosOrganizationId>>;
-  /** Idempotent per (Organization, Person). */
+
   readonly putPerson: (person: {
     readonly organizationId: OrganizationId;
     readonly personId: PersonId;
     readonly email: EmailAddress;
     readonly userId: Option.Option<WorkosUserId>;
   }) => Effect.Effect<void>;
-  /** A removed Person is no longer a sign-in candidate. Idempotent. */
+
   readonly removePerson: (organizationId: OrganizationId, personId: PersonId) => Effect.Effect<void>;
-  /** Links an unlinked Person. Does nothing when the Person is already linked (to anyone). */
+
   readonly linkPerson: (
     organizationId: OrganizationId,
     personId: PersonId,
     userId: WorkosUserId,
   ) => Effect.Effect<void>;
-  /** The first claim for a user wins; every later call returns it unchanged. */
+
   readonly claimOrganization: (
     userId: WorkosUserId,
     proposed: OrganizationClaim,
   ) => Effect.Effect<ClaimStatus>;
   readonly claimOf: (userId: WorkosUserId) => Effect.Effect<Option.Option<ClaimStatus>>;
-  /** Closes the user's claim. Idempotent: the first completion time is kept. */
+
   readonly completeClaim: (userId: WorkosUserId, now: number) => Effect.Effect<void>;
   readonly revokeSession: (sessionId: SessionId, now: number) => Effect.Effect<void>;
   readonly isSessionRevoked: (sessionId: SessionId) => Effect.Effect<boolean>;
@@ -163,42 +139,33 @@ export class PeopleIndex extends Context.Service<PeopleIndex, PeopleIndexShape>(
   "@surveybeat/domain/PeopleIndex",
 ) {}
 
-/**
- * The People of each Organization, as its Durable Object holds them (ADR 0006). This is the
- * authority for "is this Person still here": the per-request check asks it, not the index.
- */
 export interface OrganizationPeopleShape {
-  /** Idempotent: creates the Organization with its first Person as Organization admin. */
   readonly createWithAdmin: (
     organization: OrganizationSummary,
     admin: { readonly personId: PersonId; readonly email: EmailAddress; readonly userId: WorkosUserId },
   ) => Effect.Effect<void>;
-  /**
-   * Links the Person to the user when the Person exists, is not removed, has exactly this
-   * (normalised) email, and is unlinked or already linked to this user. Returns whether it is linked.
-   */
+
   readonly linkPerson: (
     organizationId: OrganizationId,
     personId: PersonId,
     userId: WorkosUserId,
     email: EmailAddress,
   ) => Effect.Effect<boolean>;
-  /** The user's Person in this Organization, unless it is removed. */
+
   readonly activePerson: (
     organizationId: OrganizationId,
     userId: WorkosUserId,
   ) => Effect.Effect<Option.Option<ActivePerson>>;
 }
 
-/** An active Person, and whether the Organization's Durable Object holds them as an Organization admin. */
 export interface ActivePerson {
   readonly personId: PersonId;
   readonly organizationAdmin: boolean;
-  /** The Person's own language, or `null` to follow the browser (ADR 0018). */
+
   readonly locale: Locale | null;
-  /** The browser's language last seen at sign-in. */
+
   readonly detectedLocale: Locale | null;
-  /** The Organization's default language. */
+
   readonly organizationLocale: Locale;
 }
 
@@ -206,7 +173,6 @@ export class OrganizationPeople extends Context.Service<OrganizationPeople, Orga
   "@surveybeat/domain/OrganizationPeople",
 ) {}
 
-/** Fresh unguessable ids. The adapter uses Web Crypto. */
 export interface NewIdsShape {
   readonly organizationId: Effect.Effect<OrganizationId>;
   readonly personId: Effect.Effect<PersonId>;

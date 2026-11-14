@@ -14,7 +14,6 @@ import {
 } from "./Parts.tsx";
 import { colors } from "./theme.ts";
 
-/** Legacy rows carry their own URL; otherwise it is built from the token. */
 export const unsubscribeUrl = (email: ReminderEmailData): string =>
   (email.unsubscribeUrl ?? `${email.baseUrl}/api/reminders/unsubscribe?t=${email.token}`) +
   langQuery(email.locale);

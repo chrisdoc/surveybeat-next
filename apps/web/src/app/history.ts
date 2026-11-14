@@ -32,11 +32,9 @@ export const LoadedHistory = defineTaggedUnion({
 });
 export type LoadedHistory = typeof LoadedHistory.Type;
 
-/** The answer scale runs from 1 to 5; a kept value outside it was never a Rating the member could give. */
 const isScaleValue = (value: number): value is 1 | 2 | 3 | 4 | 5 =>
   Number.isInteger(value) && value >= 1 && value <= 5;
 
-/** The Question's own labels sit at 1 and 5; 2 to 4, and an end with no label, show the number alone. */
 const ratingText = (
   value: 1 | 2 | 3 | 4 | 5,
   lowLabel: string | undefined,
@@ -50,7 +48,6 @@ const ratingText = (
 const nonEmpty = (text: string | undefined): string | undefined =>
   text === undefined || text === "" ? undefined : text;
 
-/** The member's own Answer as shown: `main` is the value or LongText, `comment` the Rating's comment. */
 const yourAnswer = (
   type: HistoryQuestion["type"],
   answer: KeptAnswer | undefined,
@@ -81,7 +78,6 @@ const yourAnswerView = <Message>(
   roundAnswers: KeptAnswers[string] | undefined,
   h: HtmlBuilder<Message>,
 ): Html => {
-  // The Round's answers are on this device only if the answer page kept any for it.
   if (roundAnswers === undefined) return h.span([], [message("history.yours.notOnDevice")]);
   const { main, comment } = yourAnswer(question.type, roundAnswers[question.questionVersionId]);
   if (main === undefined && comment === undefined) return h.span([], [message("history.yours.none")]);
@@ -109,7 +105,6 @@ const teamResultNote = (teamResult: HistoryTeamResult): string | null => {
   return null;
 };
 
-/** One Round's Questions: the member's answer beside the Team's score. Local rather than `dataTable`, which takes text cells only. */
 const questionsTable = <Message>(
   round: HistoryRound,
   roundAnswers: KeptAnswers[string] | undefined,
@@ -176,7 +171,6 @@ const roundView = <Message>(round: HistoryRound, kept: KeptAnswers, h: HtmlBuild
   );
 };
 
-/** The signed-in Person's history of Rounds: their own answers from this device beside the Team's scores. */
 export const historyView = <Message>(
   state: LoadedHistory,
   actions: { readonly onClear: Message },

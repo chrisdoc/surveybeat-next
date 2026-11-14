@@ -6,18 +6,15 @@ import { TeamId } from "../people/Team.ts";
 import { PulseId, AnswerWindowDays, ReminderCount, AnonymityMode, Distribution } from "../pulses/Pulse.ts";
 import { QuestionVersionId } from "../pulses/Question.ts";
 
-/** One occurrence of a Pulse. */
 export const RoundId = Schema.String.pipe(Schema.brand("RoundId"));
 export type RoundId = typeof RoundId.Type;
 
-/** A scheduled job in the DO schedule table. */
 export const JobId = Schema.String.pipe(Schema.brand("JobId"));
 export type JobId = typeof JobId.Type;
 
 export const RoundStatus = Schema.Literals(["scheduled", "open", "closed", "ready", "shared", "cancelled"]);
 export type RoundStatus = typeof RoundStatus.Type;
 
-/** YYYY-MM-DD representing the cadence day of the week for this Round. */
 export const PlannedOpenDate = Schema.String.pipe(
   Schema.check(
     Schema.isPattern(/^\d{4}-\d{2}-\d{2}$/),
@@ -41,7 +38,6 @@ export type ScheduleJobType = typeof ScheduleJobType.Type;
 export const ScheduleJobStatus = Schema.Literals(["pending", "running", "completed", "cancelled"]);
 export type ScheduleJobStatus = typeof ScheduleJobStatus.Type;
 
-/** A Question version frozen in a Round when it opened. */
 export const RoundQuestion = Schema.Struct({
   roundId: RoundId,
   position: Schema.Int,
@@ -49,7 +45,6 @@ export const RoundQuestion = Schema.Struct({
 });
 export type RoundQuestion = typeof RoundQuestion.Type;
 
-/** A member eligible to answer frozen when the Round opened. */
 export const RoundMember = Schema.Struct({
   roundId: RoundId,
   personId: Schema.String,
@@ -58,7 +53,6 @@ export const RoundMember = Schema.Struct({
 });
 export type RoundMember = typeof RoundMember.Type;
 
-/** A failed Invitation shown in the Lead's view with Resend (ADR 0006). */
 export const FailedInvitation = Schema.Struct({
   personId: PersonId,
   email: EmailAddress,
@@ -67,7 +61,6 @@ export const FailedInvitation = Schema.Struct({
 });
 export type FailedInvitation = typeof FailedInvitation.Type;
 
-/** Summary of a Round in lists. */
 export const RoundSummary = Schema.Struct({
   id: RoundId,
   pulseId: PulseId,
@@ -82,7 +75,6 @@ export const RoundSummary = Schema.Struct({
 });
 export type RoundSummary = typeof RoundSummary.Type;
 
-/** Detail view of a Round: lifecycle state, frozen questions, effective N, failed invitations. Never Result data. */
 export const RoundDetail = Schema.Struct({
   id: RoundId,
   pulseId: PulseId,
@@ -105,7 +97,6 @@ export const RoundDetail = Schema.Struct({
 });
 export type RoundDetail = typeof RoundDetail.Type;
 
-/** The list of Rounds for a Pulse. */
 export const RoundList = Schema.Struct({
   pulseId: PulseId,
   paused: Schema.Boolean,

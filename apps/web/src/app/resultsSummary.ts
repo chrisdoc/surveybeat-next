@@ -3,11 +3,6 @@ import { message } from "../messages/locale.ts";
 
 const list = new Intl.ListFormat("en", { style: "long", type: "conjunction" });
 
-/**
- * The plain-language sentence that opens a Round's Results. It uses only what the page already shows:
- * the response count (shown even below the minimum group size) and Dimensions that are themselves above
- * the minimum (ADR 0004). Null while the Round is open or its Results are delayed.
- */
 export const resultsSummary = (result: RoundResult): string | null => {
   if (result.status === "open" || result.delayed) return null;
 

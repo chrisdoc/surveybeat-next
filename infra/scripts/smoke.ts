@@ -4,16 +4,6 @@
 // @effect-diagnostics globalTimers:off -- a plain setTimeout in a script that has no Effect runtime.
 // @effect-diagnostics newPromise:off -- the script waits on a child process or a timeout with a plain Promise; there is no Effect runtime in it.
 
-/**
- * Smoke test for a deployed stage: check session and sign-in.
- *
- *   node infra/scripts/smoke.ts https://pr-12.app.surveybeat.app [https://pr-12.submit.surveybeat.app]
- *
- * A new custom hostname needs DNS and a certificate first, so the first request is retried.
- * With `WORKOS_API_KEY` and `WORKOS_CLIENT_ID` set (CI passes the repository secrets), it also
- * checks that the key belongs to the client's WorkOS environment (SurveyBeat Staging for PR stages),
- * since a key from another environment deploys fine and only fails at the first real sign-in.
- */
 export {};
 
 const [mainUrl, submissionUrl] = process.argv.slice(2);
@@ -27,7 +17,6 @@ const DELAY_MS = 5000;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-/** Retries network errors and 5xx/404 (the edge has not converged yet), returns anything else. */
 const request = async (url: string, init?: RequestInit): Promise<Response> => {
   let last = "no attempt";
   for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
@@ -51,8 +40,6 @@ function fail(message: string): never {
   process.exit(1);
 }
 
-// Sign-in: the Worker can read its WorkOS secrets (an unauthenticated session check answers 401,
-// not 500), and retrying covers initial edge/certificate issuance convergence.
 const session = await request(`${mainUrl}/auth/session`);
 if (session.status !== 401) fail(`GET /auth/session without a cookie answered ${session.status}`);
 console.log(`GET /auth/session -> 401 (OK)`);
@@ -78,7 +65,6 @@ console.log(`GET /auth/login -> ${hostedUrl.origin}`);
 const apiKey = process.env["WORKOS_API_KEY"];
 const clientId = process.env["WORKOS_CLIENT_ID"];
 if (apiKey !== undefined && apiKey !== "" && clientId !== undefined && clientId !== "") {
-  // A made-up code: the right key gets `invalid_grant`, a key from another environment `invalid_client`.
   const exchange = await fetch("https://api.workos.com/user_management/authenticate", {
     method: "POST",
     headers: { "content-type": "application/json" },

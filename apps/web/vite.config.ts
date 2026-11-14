@@ -75,11 +75,9 @@ const prerenderAnswer = (): Plugin => {
 })();
 </script>`;
 
-      // The German shell is `de/answer.html`; every other answer shell is English.
       const table: AnswerTranslation = ctx.path.endsWith("de/answer.html") ? answerDe : answerCatalog;
       const message = answerMessages(table);
 
-      // Plain numbers here; main.ts fills the ends with the Question's own labels once the context arrives.
       const scale = [1, 2, 3, 4, 5]
         .map((value) => {
           const id = value === 1 ? ' id="q1low"' : value === 5 ? ' id="q1high"' : "";
@@ -119,7 +117,6 @@ const prerenderAnswer = (): Plugin => {
         .replace("<!--PRERENDER_BODY-->", body);
     },
     closeBundle() {
-      // `/a` and `/de/a` are served from copies of the prerendered shells; a failed copy fails the build.
       for (const [source, dir] of [
         ["answer.html", ""],
         ["de/answer.html", "de"],
@@ -134,11 +131,6 @@ const prerenderAnswer = (): Plugin => {
   };
 };
 
-/**
- * Lists every chunk an answer page imports statically as `<link rel="modulepreload">`, so the browser
- * fetches them in parallel instead of discovering each level of the import graph one round trip later.
- * The answer pages share their runtime chunk, which would otherwise add a level (ADR 0008, Lighthouse gate).
- */
 const preloadAnswerChunks = (): Plugin => ({
   name: "preload-answer-chunks",
   transformIndexHtml: {
@@ -161,7 +153,6 @@ const preloadAnswerChunks = (): Plugin => ({
   },
 });
 
-// Two entries in one project: the app (Foldkit) and the answer page (plain TypeScript, no framework).
 export default defineConfig({
   plugins: [tailwindcss(), foldkit(), prerenderAnswer(), preloadAnswerChunks()],
   build: {

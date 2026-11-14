@@ -1,9 +1,5 @@
 import type { AnswerMismatched, AnswerTranslation } from "./answer.ts";
 
-/**
- * German answer-page strings (ADR 0018). Same keys, same order as `answerCatalog`. Kept apart from `de.ts`
- * so the German answer page ships only these (ADR 0008 budget); `de.ts` spreads them in.
- */
 export const answerDe = {
   "answer.mark": "SurveyBeat",
   "answer.title": "Deine Antwort",
@@ -37,7 +33,6 @@ export const answerDe = {
   "answer.noscript": "JavaScript wird benötigt, um diesen Check-in anonym zu beantworten.",
 } as const satisfies AnswerTranslation;
 
-// Fails to compile, naming the key, when a German string's {placeholders} differ from English.
 const placeholdersMatch: [AnswerMismatched<typeof answerDe>] extends [never]
   ? true
   : AnswerMismatched<typeof answerDe> = true;

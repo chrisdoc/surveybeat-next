@@ -25,7 +25,6 @@ import { toggleButton } from "./results.ts";
 import { dimensionName } from "./pulses.ts";
 import { roundResultsHref } from "./routes.ts";
 
-/** How many of the newest shared Rounds the Team page lists. */
 const RECENT_ROUNDS = 5;
 
 export const LoadedOverview = defineTaggedUnion({
@@ -35,7 +34,6 @@ export const LoadedOverview = defineTaggedUnion({
 });
 export type LoadedOverview = typeof LoadedOverview.Type;
 
-/** The viewBox width of the overview charts; markers are positioned against the same width. */
 const OVERVIEW_WIDTH = 360;
 
 const plotBox = <Message>(children: ReadonlyArray<Html>, h: HtmlBuilder<Message>): Html =>
@@ -63,14 +61,12 @@ const markerText = (marker: ActionMarker): string =>
 const tooltipBaseClass =
   "pointer-events-none hidden absolute bottom-full z-10 mb-1 w-max max-w-[min(20rem,calc(100vw-2rem))] whitespace-normal rounded-control bg-evergreen px-2 py-1 text-xs text-on-primary group-hover:block group-focus-visible:block group-focus:block";
 
-/** Anchors the tooltip to the marker's left edge near the start of the axis, its right edge near the end, and centred otherwise. */
 const tooltipAnchor = (x: number): string => {
   if (x < 0.15) return "left-0";
   if (x > 0.85) return "right-0";
   return "left-1/2 -translate-x-1/2";
 };
 
-/** One Action marker: a focusable button whose title shows on hover and keyboard focus. */
 const markerButton = <Message>(marker: ActionMarker, x: number, h: HtmlBuilder<Message>): Html => {
   const text = markerText(marker);
   return h.button(
@@ -88,16 +84,11 @@ const markerButton = <Message>(marker: ActionMarker, x: number, h: HtmlBuilder<M
 };
 
 export interface OverviewXs {
-  /** x (0..1) of each shared Round on the shared time axis. */
   readonly rounds: ReadonlyMap<RoundId, number>;
-  /** x (0..1) of an epoch-ms time on the same axis, clamped to the plot. */
+
   readonly markerX: (at: number) => number;
 }
 
-/**
- * The shared time axis of the overview: the earliest and latest of every planned open date and Action
- * time map to 0 and 1. A single instant (one Round, no markers) sits at the middle.
- */
 export const overviewXs = (overview: TeamOverview): OverviewXs => {
   let tMin = Number.POSITIVE_INFINITY;
   let tMax = Number.NEGATIVE_INFINITY;
@@ -132,7 +123,6 @@ const legend = <Message>(h: HtmlBuilder<Message>): Html =>
     ],
   );
 
-/** Action markers drawn on the plot itself, on the same x-axis as the lines. */
 const markerOverlay = <Message>(
   markers: ReadonlyArray<ActionMarker>,
   xs: ReadonlyArray<number>,
@@ -157,7 +147,6 @@ const markerOverlay = <Message>(
     }),
   );
 
-/** The latest scored Dimension value, or null when every Round had too few answers. */
 const latestDimensionScore = (dimension: DimensionOverview): number | null => {
   for (let i = dimension.points.length - 1; i >= 0; i--) {
     const point = dimension.points[i]!;
@@ -166,10 +155,6 @@ const latestDimensionScore = (dimension: DimensionOverview): number | null => {
   return null;
 };
 
-/**
- * One line per Dimension; the Round x positions are shared, so each Dimension reuses them. The markers ride
- * on the first chart's plot — focusable there, decorative on the others so the tab order has them once.
- */
 const dimensionPanel = <Message>(
   dimension: DimensionOverview,
   rounds: ReadonlyArray<OverviewRound>,
@@ -229,7 +214,6 @@ const dimensionPanel = <Message>(
   );
 };
 
-/** Table view: one row per shared Round, one column per Dimension; a gap reads as "Too few answers". */
 const roundsTable = <Message>(overview: TeamOverview, h: HtmlBuilder<Message>): Html => {
   const scoresByDimension = overview.dimensions.map(
     (dimension) =>
@@ -261,7 +245,6 @@ const markersTable = <Message>(markers: ReadonlyArray<ActionMarker>, h: HtmlBuil
     h,
   );
 
-/** A Round named by its Pulse and date. */
 const roundName = (round: OverviewRound): string =>
   round.pulseName === undefined
     ? formatRoundDate(round.plannedOpenDate)
@@ -270,7 +253,6 @@ const roundName = (round: OverviewRound): string =>
         date: formatRoundDate(round.plannedOpenDate),
       });
 
-/** The newest shared Round, linked: the one-click way into Results for everyone who may read them. */
 const latestResults = <Message>(overview: TeamOverview, h: HtmlBuilder<Message>): Html | null => {
   const latest = overview.rounds[overview.rounds.length - 1];
   if (latest === undefined) return null;
@@ -288,7 +270,6 @@ const latestResults = <Message>(overview: TeamOverview, h: HtmlBuilder<Message>)
   );
 };
 
-/** The newest shared Rounds, newest first, each linking to its Results. Only shared Rounds reach this list. */
 const recentRounds = <Message>(overview: TeamOverview, h: HtmlBuilder<Message>): Html =>
   panel(
     [
@@ -318,7 +299,6 @@ const recentRounds = <Message>(overview: TeamOverview, h: HtmlBuilder<Message>):
     "mt-4 flex flex-col gap-1",
   );
 
-/** The Team health overview on the Team page: Dimension trend lines with Action markers, or tables. */
 export const teamOverviewView = <Message>(
   state: LoadedOverview,
   isTable: boolean,
@@ -330,7 +310,6 @@ export const teamOverviewView = <Message>(
   }
 
   if (state._tag === "Failed") {
-    // Organization admins outside the Team are refused; the page then simply shows no overview.
     if (state.failure === "Forbidden") return null;
     return problemView(state.failure, h);
   }
@@ -368,7 +347,7 @@ export const teamOverviewView = <Message>(
         dimensionPanel(dimension, overview.rounds, xByRound, overview.markers, markerXs, index === 0, h),
       );
     });
-    // No Dimension line to hang the markers on: keep them in their own row, aligned to the same axis.
+
     if (overview.dimensions.length === 0 && overview.markers.length > 0) {
       children.push(
         panel(

@@ -54,10 +54,6 @@ export const LoadedPulse = defineTaggedUnion({
 });
 export type LoadedPulse = typeof LoadedPulse.Type;
 
-/**
- * The last "Send me a test" (ADR 0021): the address it went to and its send, or why it did not go.
- * `status` is the send's state as last read; `statusUnavailable` means the last read failed and polling stopped.
- */
 export const TestSendResult = Schema.Union([
   Schema.TaggedStruct("Sent", {
     email: Schema.String,
@@ -69,19 +65,16 @@ export const TestSendResult = Schema.Union([
 ]);
 export type TestSendResult = typeof TestSendResult.Type;
 
-/** The editor checks a test send this often. */
 export const TEST_SEND_POLL_INTERVAL = "3 seconds";
-/** Queued for this long (server clock): the editor says the email service may not be processing sends. */
+
 export const TEST_SEND_STALLED_MILLIS = 5 * 60_000;
-/** The editor stops checking a test send that is still waiting after this long (server clock). */
+
 export const TEST_SEND_GIVE_UP_MILLIS = 15 * 60_000;
 
-/** Whether the editor should check this test send again: it is still queued or sending, and the editor has not given up. */
 export const testSendKeepsPolling = (status: TestSendStatus): boolean =>
   (status.state._tag === "Queued" || status.state._tag === "Sending") &&
   status.checkedAt - status.queuedAt < TEST_SEND_GIVE_UP_MILLIS;
 
-/** What the editor says about a test send, as a message key with its parameters (see `testSendNoticeText`). */
 export type TestSendNotice =
   | { readonly _tag: "Queued" }
   | { readonly _tag: "Retrying"; readonly code: string }
@@ -90,10 +83,6 @@ export type TestSendNotice =
   | { readonly _tag: "Sent" }
   | { readonly _tag: "Failed"; readonly reason: FailureReason; readonly code: string | null };
 
-/**
- * The notice for a test send's state. Queued for five minutes or more shows the stalled notice and drops
- * the last rejection code; the minutes come from `checkedAt - queuedAt` on the server clock.
- */
 export const testSendNotice = (status: TestSendStatus): TestSendNotice => {
   const { state } = status;
   switch (state._tag) {
@@ -113,7 +102,6 @@ export const testSendNotice = (status: TestSendStatus): TestSendNotice => {
   }
 };
 
-/** Why a send failed, in words that fit "Not sent: {reason}" and a table cell. Shared by the editor and the failed-emails list. */
 export const failureReasonText = (reason: FailureReason): string => {
   switch (reason) {
     case "unknown":
@@ -129,7 +117,6 @@ export const failureReasonText = (reason: FailureReason): string => {
   }
 };
 
-/** The words for a test send notice in the current language. */
 export const testSendNoticeText = (notice: TestSendNotice): string => {
   switch (notice._tag) {
     case "Queued":
@@ -437,7 +424,6 @@ export const questionFormView = <Message>(
     ].filter(Predicate.isNotNull),
   );
 
-/** The live state of a sent test: what the send is doing now, or that its state could not be read. */
 const testSendStatusView = <Message>(
   result: Extract<TestSendResult, { readonly _tag: "Sent" }>,
   h: HtmlBuilder<Message>,
@@ -535,7 +521,6 @@ export const pulseEditorView = <Message>(
   children.push(h.div([h.Class("mt-4")], [pageTitle(detail.settings.name, h)]));
   children.push(h.p([h.Class("mt-2 text-muted")], [detail.team.name]));
   if (detail.team.yourRole === "lead") {
-    // The Pulse and its Rounds are two tabs of one page pair; this one is current.
     const tabClass = "inline-flex min-h-11 items-center border-b-2 px-3 text-sm font-semibold";
     children.push(
       h.nav(
@@ -572,7 +557,6 @@ export const pulseEditorView = <Message>(
     ),
   );
 
-  // Warnings
   if (detail.warnings.length > 0) {
     children.push(
       h.ul(
@@ -587,7 +571,6 @@ export const pulseEditorView = <Message>(
     );
   }
 
-  // Questions
   children.push(h.div([h.Class("mt-8")], [subSectionTitle(message("pulse.questions"), h, 2)]));
   const orderLength = detail.questions.length;
   children.push(
@@ -699,7 +682,6 @@ export const pulseEditorView = <Message>(
     ),
   );
 
-  // Template Questions
   if (detail.templateQuestions.length > 0) {
     children.push(h.div([h.Class("mt-8")], [subSectionTitle(message("pulse.template.title"), h, 2)]));
     children.push(
@@ -736,7 +718,6 @@ export const pulseEditorView = <Message>(
     );
   }
 
-  // Write a Question
   if (state.writingQuestion) {
     children.push(
       questionFormView(
@@ -779,7 +760,6 @@ export const pulseEditorView = <Message>(
     );
   }
 
-  // Send me a test (ADR 0021): the Pulse's Invitation to the sender, and the answer page it leads to
   children.push(
     h.div(
       [h.Class("mt-8 flex flex-col gap-3")],
@@ -806,7 +786,6 @@ export const pulseEditorView = <Message>(
     ),
   );
 
-  // Settings form
   children.push(
     h.form(
       [

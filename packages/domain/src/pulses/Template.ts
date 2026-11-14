@@ -2,10 +2,6 @@ import { Schema } from "effect";
 import type { Locale } from "../people/Locale.ts";
 import { QuestionContent } from "./Question.ts";
 
-/**
- * Names one Question of a Template. A Pulse copies the Question when it is added, so changing a
- * Template's text in code never changes a Pulse (GLOSSARY: Template). A new meaning needs a new key.
- */
 export const TemplateQuestionKey = Schema.String.pipe(
   Schema.check(Schema.isPattern(/^[a-z][a-z0-9-]{0,39}$/)),
   Schema.brand("TemplateQuestionKey"),
@@ -25,13 +21,6 @@ export interface Template {
 
 const key = (value: string) => TemplateQuestionKey.make(value);
 
-/**
- * The weekly team health Template in each language Release 2 ships (ADR 0018). Its Questions are
- * grouped by Dimension; a new Pulse starts with all of them, in this order. The first is a rating,
- * so the Invitation email can offer one-tap answers (ADR 0007). Every language has the same keys,
- * Dimensions, types and options in the same order: only the wording differs, and a Pulse copies the
- * Lead's language when it is created. The keys are language-independent.
- */
 const WEEKLY_TEAM_HEALTH: { readonly [L in Locale]: Template } = {
   en: {
     name: "Weekly team health",
@@ -140,10 +129,8 @@ const WEEKLY_TEAM_HEALTH: { readonly [L in Locale]: Template } = {
   },
 };
 
-/** The weekly team health Template in `locale`: the same Questions, keys and order in every language. */
 export const weeklyTeamHealth = (locale: Locale): Template => WEEKLY_TEAM_HEALTH[locale];
 
-/** The Question with `questionKey` in `locale`, if the Template has one. */
 export const templateQuestion = (
   questionKey: TemplateQuestionKey,
   locale: Locale,

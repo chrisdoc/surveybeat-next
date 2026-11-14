@@ -40,14 +40,12 @@ export const LoadedRounds = defineTaggedUnion({
 });
 export type LoadedRounds = typeof LoadedRounds.Type;
 
-/** A destructive Lead action waiting for the Lead to confirm it. */
 export const RoundConfirm = Schema.Struct({
   kind: Schema.Literals(["close", "cancel"]),
   roundId: RoundId,
 });
 export type RoundConfirm = typeof RoundConfirm.Type;
 
-/** Only a Team's Lead gets the controls and the Results link; an Organization admin sees the list only. */
 export const isLead = (team: LoadedTeam): boolean =>
   team._tag === "Loaded" && team.detail.team.yourRole === "lead";
 
@@ -62,7 +60,6 @@ const roundDates = (round: RoundSummary): string =>
 const hasResults = (round: RoundSummary): boolean =>
   round.status === "closed" || round.status === "ready" || round.status === "shared";
 
-/** A Round's status colour: open now, ready to share, closed, shared, cancelled. */
 const statusVariant = (status: RoundStatus): BadgeVariant =>
   status === "open"
     ? "primary"

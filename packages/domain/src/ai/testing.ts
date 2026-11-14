@@ -9,10 +9,6 @@ import {
   type AiUnavailable,
 } from "./AiClient.ts";
 
-/**
- * A fake `AiClient` for tests: answers each call with the next scripted reply and records every
- * request it was given. Calling it more times than there are replies is a test bug, so it dies.
- */
 export const fakeAiClient = (
   responses: ReadonlyArray<Effect.Effect<unknown, AiNotConfigured | AiRejected | AiUnavailable>>,
 ) =>

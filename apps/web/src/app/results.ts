@@ -85,14 +85,11 @@ export type LoadedNote = typeof LoadedNote.Type;
 
 const smallHeading = "text-[13px] font-semibold text-muted";
 
-/** The outcome of the last "Copy as text" press on the discussion guide. */
 export const GuideCopy = Schema.Literals(["idle", "copied", "failed"]);
 export type GuideCopy = typeof GuideCopy.Type;
 
-/** "1-Round trend", "4-Round trend": the title says how many Rounds the trend really covers. */
 export const trendTitle = (rounds: number): string => pluralMessage("results.trendLength", rounds);
 
-/** The latest scored point, skipping Rounds whose answers were too few to show. */
 const latestScore = (points: ReadonlyArray<TrendPoint | DimensionTrendPoint>): number | null => {
   for (let i = points.length - 1; i >= 0; i--) {
     const point = points[i]!;
@@ -101,7 +98,6 @@ const latestScore = (points: ReadonlyArray<TrendPoint | DimensionTrendPoint>): n
   return null;
 };
 
-/** The trend line chart of a Dimension or Question. `unusual` marks the latest point in brass. */
 export const trendChart = <Message>(
   points: ReadonlyArray<TrendPoint | DimensionTrendPoint>,
   h: HtmlBuilder<Message>,
@@ -136,7 +132,6 @@ export const trendChart = <Message>(
   );
 };
 
-/** Accessible tabular view of trend data points. */
 export const trendTable = <Message>(
   points: ReadonlyArray<TrendPoint | DimensionTrendPoint>,
   h: HtmlBuilder<Message>,
@@ -154,7 +149,6 @@ export const trendTable = <Message>(
   );
 };
 
-/** Distribution bars, one row per option: the label on its own line, then a bar sized to the largest count. */
 export const distributionChart = <Message>(
   distribution: ReadonlyArray<DistributionOption>,
   h: HtmlBuilder<Message>,
@@ -194,7 +188,6 @@ export const distributionChart = <Message>(
   );
 };
 
-/** Accessible tabular view of distribution data. */
 export const distributionTable = <Message>(
   distribution: ReadonlyArray<DistributionOption>,
   h: HtmlBuilder<Message>,
@@ -227,7 +220,6 @@ const lineIcon = <Message>(paths: ReadonlyArray<string>, size: number, h: HtmlBu
 
 const SHIELD_PATH = "M9 2l6 2.4v4.4c0 3.6-2.6 6-6 7.2-3.4-1.2-6-3.6-6-7.2V4.4L9 2z";
 
-/** The line under a shown aggregate that says how many people it rests on. */
 const protectionLine = <Message>(count: number, minimum: number, h: HtmlBuilder<Message>): Html =>
   h.p(
     [h.Class("flex items-center gap-2 text-[13px] text-muted")],
@@ -242,7 +234,6 @@ const highlightArrows: Record<"rise" | "drop", string> = {
   drop: "M6 1v7M3 5l3 3 3-3",
 };
 
-/** The brass badge for a larger-than-usual change; its explanation comes from the Team's typical change. */
 const highlightBadge = <Message>(
   highlight: Highlight | null,
   typical: TypicalChange | null,
@@ -294,7 +285,7 @@ const highlightBadge = <Message>(
 const changeView = <Message>(change: QuestionChange | null, h: HtmlBuilder<Message>): Html => {
   if (change === null || change.change === null || change.previousRoundDate === null) return null;
   const d = formatRoundDate(change.previousRoundDate);
-  // Branch on the one-decimal value shown, so a change of 0.04 reads "No change" rather than "+0.0".
+
   const shown = Math.round(change.change * 10) / 10;
   if (shown > 0) {
     return h.span(
@@ -330,25 +321,18 @@ const scoreView = <Message>(text: string, h: HtmlBuilder<Message>): Html =>
     [text],
   );
 
-/** A score as "4.2 / 5": the scale belongs to the number, not to a legend somewhere else. */
 const scoreOfFive = (score: number): string => message("results.scoreOf5", { score: formatScore(score) });
 
-/** Whole days left in the Review window, or null when there is no end date or it has already passed. */
 const countdown = (reviewEndsAt: number | undefined): number | null => {
   if (reviewEndsAt === undefined) return null;
   const days = Math.ceil((reviewEndsAt - Date.now()) / 86_400_000);
   return days > 0 ? days : null;
 };
 
-/**
- * What the Round's anonymity mode promises about storage. A Record, so adding a mode (confidential,
- * Release 3) fails to compile until its statement is written.
- */
 const storageStatement: Record<AnonymityMode, () => string> = {
   anonymous: () => message("results.protects.anonymous"),
 };
 
-/** The side panel stating, in plain words, what protects people on this page. */
 const protectsPanel = <Message>(result: RoundResult, h: HtmlBuilder<Message>): Html =>
   panel(
     [
@@ -429,7 +413,6 @@ type GuideSection = {
   readonly ordered: boolean;
 };
 
-/** The guide's non-empty sections, in reading order. */
 const guideSections = (guide: DiscussionGuide): ReadonlyArray<GuideSection> =>
   [
     { heading: message("results.guide.whatStoodOut"), items: guide.whatStoodOut, ordered: false },
@@ -438,7 +421,6 @@ const guideSections = (guide: DiscussionGuide): ReadonlyArray<GuideSection> =>
     { heading: message("results.guide.questions"), items: guide.questions, ordered: true },
   ].filter((section) => section.items.length > 0);
 
-/** The discussion guide as plain text, for pasting into a meeting document. */
 export const discussionGuideText = (guide: DiscussionGuide): string =>
   [
     message("results.guide.title"),
@@ -458,7 +440,6 @@ const guideCopyStatus = <Message>(copy: GuideCopy, h: HtmlBuilder<Message>): Htm
   );
 };
 
-/** The Lead-only discussion guide panel (ADR 0019). */
 const discussionGuideView = <Message>(
   guide: DiscussionGuide,
   guideCopy: GuideCopy,
@@ -515,10 +496,6 @@ const themeCard = <Message>(theme: CommentTheme, h: HtmlBuilder<Message>): Html 
     ].filter(Predicate.isNotNull),
   );
 
-/**
- * What people raised (ADR 0016). Everyone sees the themes and the preparing state; only the Lead sees
- * why a Round has no themes.
- */
 const themesSection = <Message>(result: RoundResult, isLead: boolean, h: HtmlBuilder<Message>): Html => {
   const status = result.themesStatus ?? "notRequested";
   const themes = result.themes ?? [];
@@ -580,7 +557,6 @@ const noteSection = <Message>(
   isLead: boolean,
   h: HtmlBuilder<Message>,
 ): Html => {
-  // Nothing until the Note has loaded, so the page does not flash.
   if (state.roundNote._tag === "Loading") return null;
 
   if (state.roundNote._tag === "Failed") {
@@ -588,7 +564,7 @@ const noteSection = <Message>(
   }
 
   const note = state.roundNote.note;
-  // Members see the Note only when the Lead has written one.
+
   if (note === null && !isLead) return null;
 
   const body: Array<Html> = [sectionTitle(message("note.title"), h)];
@@ -738,8 +714,7 @@ export const resultsScreenView = <Message>(
   const isLead = state.teamDetail._tag === "Loaded" && state.teamDetail.detail.team.yourRole === "lead";
   const roster = state.teamDetail._tag === "Loaded" ? state.teamDetail.detail.roster : [];
   const reviewDate = result.reviewEndsAt !== undefined ? formatDate(new Date(result.reviewEndsAt)) : null;
-  // The server withholds a closed or ready Round's Questions from everyone but the Lead (Review window), so
-  // decide from the Result itself: no flash of the notice for a Lead while the Team is still loading.
+
   const isMemberReview =
     (result.status === "closed" || result.status === "ready") &&
     !result.delayed &&
@@ -837,7 +812,7 @@ export const resultsScreenView = <Message>(
         h,
       ),
     );
-    // Nothing was computed: a Note or an Action would refer to Results nobody can read yet.
+
     return resultsLayout(children, result, h);
   } else if (result.delayed) {
     children.push(
@@ -862,13 +837,11 @@ export const resultsScreenView = <Message>(
     isLead,
     h,
   );
-  // Like Actions, the Note belongs to a closed Round: the Lead writes it after the team conversation.
-  // A member sees no Note during the Review window.
+
   if (noteNode !== null && result.status !== "open" && !isMemberReview) {
     children.push(noteNode);
   }
 
-  // Actions section: shown for all closed rounds (ADR 0004: Actions list has no minimum group size)
   const actionsItems: Array<Html> = [];
 
   if (state.actions._tag === "Loading") {
@@ -1101,7 +1074,6 @@ export const resultsScreenView = <Message>(
     ],
   );
 
-  // Review window, Member view: only the notice and the Actions; no scores, themes, or summary
   if (isMemberReview) {
     children.push(
       panel(
@@ -1122,7 +1094,6 @@ export const resultsScreenView = <Message>(
     return resultsLayout(children, result, h);
   }
 
-  // Open round check: response count only
   if (result.status === "open") {
     children.push(
       h.div(
@@ -1139,7 +1110,6 @@ export const resultsScreenView = <Message>(
     return resultsLayout(children, result, h);
   }
 
-  // Sub-N check at Round level
   if (!result.meetsMinimumGroupSize) {
     children.push(
       h.div(
@@ -1163,7 +1133,6 @@ export const resultsScreenView = <Message>(
     return resultsLayout(children, result, h);
   }
 
-  // Dimensions
   if (result.dimensions.length > 0) {
     children.push(
       h.section(
@@ -1224,7 +1193,6 @@ export const resultsScreenView = <Message>(
     );
   }
 
-  // Questions
   if (result.questions.length > 0) {
     children.push(
       h.section(
@@ -1235,7 +1203,7 @@ export const resultsScreenView = <Message>(
             const qKey = `q-${q.questionVersionId}`;
             const isTable = state.showTable[qKey] ?? false;
             const shown = q.meetsMinimumGroupSize && q.score !== null;
-            // A LongText Question's answers read best under the Question itself, not in the Comments list.
+
             const answers =
               q.type._tag === "LongText"
                 ? result.comments.filter((c) => c.questionVersionId === q.questionVersionId)
@@ -1266,7 +1234,7 @@ export const resultsScreenView = <Message>(
                 changeView(q.change, h),
                 highlightBadge(q.change?.highlight ?? null, q.typicalChange, h),
                 baselineNote(q.typicalChange, h),
-                // Distribution
+
                 q.distribution !== null && q.distribution.length > 0
                   ? h.div(
                       [h.Class("mt-2 rounded-control bg-subtle p-4")],
@@ -1276,7 +1244,7 @@ export const resultsScreenView = <Message>(
                       ],
                     )
                   : null,
-                // Trend
+
                 q.trend.length > 0
                   ? h.div(
                       [h.Class("mt-2 rounded-control bg-subtle p-4")],
@@ -1322,10 +1290,8 @@ export const resultsScreenView = <Message>(
     );
   }
 
-  // Themes: shown after the Questions, before the Comments (ADR 0016)
   children.push(themesSection(result, isLead, h));
 
-  // Comments (Lead only, behind N): the LongText answers already sit under their Question.
   const longTextQuestions = new Set(
     result.questions.filter((q) => q.type._tag === "LongText").map((q) => q.questionVersionId),
   );
@@ -1357,7 +1323,6 @@ export const resultsScreenView = <Message>(
     );
   }
 
-  // Discussion guide: Lead only (ADR 0019), after the Comments and before the Actions
   const guide = result.discussionGuide;
   if (isLead && guide) {
     children.push(discussionGuideView(guide, state.guideCopy, callbacks.onCopyGuide, h));

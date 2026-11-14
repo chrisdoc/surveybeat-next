@@ -4,7 +4,6 @@ type Catalog = typeof catalog;
 export type MessageKey = keyof Catalog;
 export type Value = string | number;
 
-/** Every key of the catalog mapped to a translated string; `de.ts` must satisfy it. */
 export type Translation = { readonly [K in MessageKey]: string };
 
 type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
@@ -13,7 +12,6 @@ type Placeholders<T extends string> = T extends `${string}{${infer Name}}${infer
   ? Name | Placeholders<Rest>
   : never;
 
-/** Keys whose `{placeholders}` differ from English; `never` when the translation is consistent. */
 export type Mismatched<T extends Translation> = {
   [K in MessageKey]: Same<Placeholders<Catalog[K]>, Placeholders<T[K]>> extends true ? never : K;
 }[MessageKey];
@@ -45,21 +43,18 @@ export function fill(template: string, params: Readonly<Record<string, Value>>):
   return template.replace(/\{(\w+)\}/g, (_, name: string) => String(params[name] ?? ""));
 }
 
-/** Looks up a message; placeholders are checked against the template at compile time. */
 export function message<K extends KeysWithoutParams>(key: K): string;
 export function message<K extends KeysWithParams>(key: K, params: Params<K>): string;
 export function message(key: MessageKey, params: Readonly<Record<string, Value>> = {}): string {
   return fill(catalog[key], params);
 }
 
-/** Picks the plural form for `count` with `Intl.PluralRules`; `{count}` is filled in. */
 export function pluralMessage<B extends PluralKey>(base: B, count: number, params?: PluralParams<B>): string {
   const specific = `${base}.${getPluralRules().select(count)}`;
   const template = isMessageKey(specific) ? catalog[specific] : catalog[`${base}.other`];
   return fill(template, { ...params, count: new Intl.NumberFormat(LOCALE).format(count) });
 }
 
-/** Formats a date for display with `Intl.DateTimeFormat`. */
 export function formatDate(
   date: Date,
   options: Intl.DateTimeFormatOptions = { dateStyle: "medium" },

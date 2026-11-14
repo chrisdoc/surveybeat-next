@@ -1,5 +1,3 @@
-// SurveyBeat oxlint plugin (ADR 0008). Plain ESLint-style rules, loaded through `jsPlugins`.
-
 const PLATFORM = [/^cloudflare:/, /^alchemy$/, /^alchemy\//, /^@alchemy\.run\//];
 const REACT = [
   /^react$/,
@@ -17,7 +15,6 @@ const API_CLIENT = [
   /^effect\/unstable\/httpapi/,
 ];
 
-/** Which files are guarded, and what they must not import. */
 const ZONES = [
   { name: "packages/domain", path: "/packages/domain/", banned: [...PLATFORM, ...FOLDKIT] },
   { name: "packages/api", path: "/packages/api/", banned: [...PLATFORM, ...FOLDKIT] },
