@@ -21,7 +21,6 @@ import type { Organizations } from "./EmailDelivery.ts";
 
 export const RESEND_EMAIL_TEST_ROUTE = "/__test/resend-email";
 
-/** The Queue message for a Resend that moved its send to pending: what the Worker's flow sends after the Durable Object. */
 const enqueue = (queue: Cloudflare.Queues.WriteQueueClient, organizationId: string, result: ResendResult) =>
   result._tag === "Accepted" && result.queue
     ? Effect.flatMap(
@@ -33,13 +32,6 @@ const enqueue = (queue: Cloudflare.Queues.WriteQueueClient, organizationId: stri
       )
     : Effect.void;
 
-/**
- * Test stages only (`isTestStage`): an admin's Resend (issue 159) against a real Organization Durable Object and
- * the real email queue. A failed AddedToTeam email is resent twice back to back (a double click): both queue
- * it (the second re-queues a send still waiting), and the consumer delivers it once. Failed
- * Invitation emails show which may be resent: the current one is, a revoked one and one re-sent since are not.
- * A Lead, a member, and another Organization's admin are refused.
- */
 export const resendEmailTestRoutes = (
   organizations: Organizations,
   queue: Cloudflare.Queues.WriteQueueClient,
@@ -97,7 +89,6 @@ export const resendEmailTestRoutes = (
       );
     }
 
-    // A Round opens for the Team: one Invitation per member, each with its own send. Nothing queues them here.
     yield* organization.runPulseCommand(admin, { _tag: "CreatePulse", teamId, pulseId }, now);
     yield* organization.scheduleNextRound(pulseId, teamId, now);
     const roundsView = yield* organization.viewRounds(admin, teamId, pulseId);
@@ -116,15 +107,12 @@ export const resendEmailTestRoutes = (
       return found.sendId;
     };
 
-    // Ada's Invitation fails as the queue would fail it: the send is abandoned, and the Lead's view shows it.
     const adaSend = sendOf(member);
     yield* organization.abandonEmailSend(adaSend, now);
     yield* organization.failInvitation(roundId, member, "mailbox full", now);
-    // Bob's Invitation fails too, and then Bob is removed, which revokes it.
     const leaverSend = sendOf(leaver);
     yield* organization.abandonEmailSend(leaverSend, now);
     yield* organization.runDirectoryCommand(admin, { _tag: "RemovePerson", personId: leaver }, now);
-    // The Lead's Invitation fails and is re-sent: the new generation makes the first send stale.
     const leadSend = sendOf(lead);
     yield* organization.abandonEmailSend(leadSend, now);
     yield* organization.failInvitation(roundId, lead, "mailbox full", now);
@@ -135,11 +123,9 @@ export const resendEmailTestRoutes = (
     );
 
     const failedBefore = yield* organization.listFailedEmails(admin);
-    // Neither a revoked Invitation's send nor a send superseded by a re-sent Invitation may be resent.
     const revokedResend = yield* organization.resendFailedEmail(admin, leaverSend, now);
     const staleResend = yield* organization.resendFailedEmail(admin, leadSend, now);
 
-    // A failed AddedToTeam email to a unique address, which the Lead's and a member's Resend must not touch.
     const recipient = `resent-${run}@example.com`;
     const added = SendId.make(`added-${run}`);
     yield* organization.createEmailSend(added, EmailAddress.make(recipient), {
@@ -154,20 +140,17 @@ export const resendEmailTestRoutes = (
     const memberResend = yield* organization.resendFailedEmail(member, added, now);
     const stillFailed = yield* organization.getEmailSend(added);
 
-    // Another Organization's admin cannot reach this send: it is not in their Organization.
     const otherId = `resend-email-other-${run}`;
     const other = organizations.getByName(otherId);
     const otherAdmin = PersonId.make(`other-admin-${run}`);
     yield* other.createWithAdmin(otherId, "Globex", otherAdmin, "boss@example.com", `user_other_${run}`);
     const otherResend = yield* other.resendFailedEmail(otherAdmin, added, now);
 
-    // The admin's double click: both queue the send; delivery claims it once.
     const first = yield* organization.resendFailedEmail(admin, added, now);
     yield* enqueue(queue, organizationId, first);
     const second = yield* organization.resendFailedEmail(admin, added, now);
     yield* enqueue(queue, organizationId, second);
 
-    // Ada's current Invitation may be resent, and it goes back to pending for the Lead's view.
     const adaResend = yield* organization.resendFailedEmail(admin, adaSend, now);
     yield* enqueue(queue, organizationId, adaResend);
     const leadRoundView = yield* organization.viewRound(admin, teamId, roundId);
@@ -176,7 +159,6 @@ export const resendEmailTestRoutes = (
         ? leadRoundView.value.failedInvitations.map((each) => each.personId)
         : [];
 
-    // The first send goes through the real queue: the consumer renders it, sends it once, and records it sent.
     const sent = yield* organization.getEmailSend(added).pipe(
       Effect.repeat({
         until: (record) => record?.state._tag === "Sent",

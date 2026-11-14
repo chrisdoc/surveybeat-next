@@ -6,13 +6,6 @@ import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
 import type { WorkosConfig } from "./WorkosIdentityProvider.ts";
 
-/**
- * The Main Worker's sign-in bindings, declared on its `env`. `WORKOS_API_KEY` and `WORKOS_CLIENT_ID`
- * are read at deploy time from the environment (GitHub secrets in CI); `ORG_CREATION_ALLOWLIST`
- * comes from `infra/org-creation-allowlist.yaml` (`infra/alchemy.run.ts`). All are bound as Worker secrets. The cookie password is generated per
- * stage by Alchemy and kept in its state, so it survives redeploys and differs between stages.
- * The Invitation token key is generated the same way: Invitation tokens are derived from it and never stored.
- */
 export const authBindings = Effect.gen(function* () {
   return {
     WORKOS_API_KEY: Config.Redacted("WORKOS_API_KEY"),
@@ -23,13 +16,8 @@ export const authBindings = Effect.gen(function* () {
   };
 });
 
-/**
- * An unmeasured first guess, and the one place to change it: no WorkOS call holds a request longer
- * than this. A timeout is answered as `AuthUnavailable`, so the browser keeps its session and retries.
- */
 export const WORKOS_REQUEST_TIMEOUT = Duration.seconds(5);
 
-/** Reads the bindings back inside a request. A missing or short value is a deploy bug, so it dies. */
 export const authSettings = Effect.gen(function* () {
   const workos: WorkosConfig = {
     apiKey: yield* Config.Redacted("WORKOS_API_KEY"),

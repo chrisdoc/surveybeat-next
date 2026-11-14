@@ -7,11 +7,6 @@ import * as Layer from "effect/Layer";
 import * as Redacted from "effect/Redacted";
 import * as Schema from "effect/Schema";
 
-/**
- * The only model and the only routing ADR 0015 allows. Every request is pinned to the two
- * zero-retention endpoints in the EU and allows no fallback, so it fails closed rather than
- * leaving the EU or reaching an endpoint that keeps data.
- */
 const MODEL = "anthropic/claude-haiku-5.5";
 const EU_ENDPOINTS = ["google-vertex/europe", "amazon-bedrock/eu-west-1"] as const;
 const ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
@@ -43,7 +38,6 @@ export interface OpenRouterBody {
   readonly max_tokens: number;
 }
 
-/** The Chat Completions body for one request. Pure, so the exact shape can be asserted. */
 export const openRouterRequestBody = (request: AiRequest): OpenRouterBody => ({
   model: MODEL,
   provider: {
@@ -65,7 +59,6 @@ export const openRouterRequestBody = (request: AiRequest): OpenRouterBody => ({
   max_tokens: request.maxTokens,
 });
 
-/** Only the part of the reply we use. Anything else in the envelope is ignored. */
 const Envelope = Schema.Struct({
   choices: Schema.NonEmptyArray(
     Schema.Struct({
@@ -78,7 +71,6 @@ type Attempt =
   | { readonly kind: "response"; readonly response: Response }
   | { readonly kind: "failed"; readonly reason: "timeout" | "network" };
 
-/** One POST. Never throws: a timeout or network failure is an outcome, not an exception. */
 const attemptOnce = async (doFetch: typeof fetch, apiKey: string, body: OpenRouterBody): Promise<Attempt> => {
   try {
     const response = await doFetch(ENDPOINT, {
@@ -100,7 +92,6 @@ const attemptOnce = async (doFetch: typeof fetch, apiKey: string, body: OpenRout
   }
 };
 
-/** Waits `Retry-After` seconds when the provider gave them (capped), else 1, 2, 4 seconds. */
 const backoffMs = (attempt: number, retryAfter: string | null): number => {
   const seconds = retryAfter === null ? Number.NaN : Number(retryAfter);
   if (Number.isFinite(seconds) && seconds >= 0) {
@@ -109,7 +100,6 @@ const backoffMs = (attempt: number, retryAfter: string | null): number => {
   return 2 ** attempt * 1000;
 };
 
-/** Cancels an unread body so Workers can reuse the connection; never reads it. */
 const discardBody = (response: Response): Effect.Effect<void> =>
   Effect.promise(() => response.body?.cancel().catch(() => undefined) ?? Promise.resolve(undefined)).pipe(
     Effect.asVoid,
@@ -131,11 +121,6 @@ const parseReply = (response: Response) =>
     });
   });
 
-/**
- * The `AiClient` over OpenRouter. No key means `AiNotConfigured` with no network call. Retries
- * 408, 429, 502, 503, timeouts, and network errors up to three times; any other error status is
- * `AiRejected`. Bodies are never read on error and nothing is logged.
- */
 export const makeOpenRouterAiClient = (
   apiKey: Redacted.Redacted<string> | undefined,
   options: {
@@ -171,7 +156,6 @@ export const makeOpenRouterAiClient = (
           if (response.ok) {
             return yield* parseReply(response);
           }
-          // Release the connection without reading the body: an error body can echo comment text.
           yield* discardBody(response);
           if (RETRYABLE_STATUSES.has(response.status)) {
             if (isLast) {
@@ -186,10 +170,6 @@ export const makeOpenRouterAiClient = (
   });
 };
 
-/**
- * Reads `OPENROUTER_API_KEY` (a Worker secret). It defaults to empty, so a stage without the key
- * deploys and fails closed with `AiNotConfigured` when AI is used.
- */
 export const OpenRouterAiClientLive = Layer.effect(
   AiClient,
   Effect.gen(function* () {

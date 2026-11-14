@@ -131,7 +131,6 @@ const OrganizationAiRow = Schema.Struct({
   ai_processing: Schema.Int,
 });
 
-/** A Round the Person took part in, with its stored Result payload if one exists (ADR 0017). */
 const ParticipatedRoundRow = Schema.Struct({
   id: RoundId,
   team_id: TeamId,
@@ -243,7 +242,6 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
     };
   };
 
-  /** The date of each Team's next Round: the earliest one still scheduled or open. */
   const nextRoundDates = (): Effect.Effect<Readonly<Record<string, string>>> =>
     sql<{ team_id: string; next_date: string }>`SELECT team_id, MIN(planned_open_date) AS next_date
         FROM round WHERE status IN ('scheduled', 'open') GROUP BY team_id`.pipe(
@@ -251,7 +249,6 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
       Effect.orDie,
     );
 
-  /** Each Pulse of a Team, whether it is paused, and its next planned open date if one is scheduled or open. */
   const pulseFacts = (
     teamId: TeamId,
   ): Effect.Effect<Readonly<Record<string, { paused: boolean; nextRoundDate: string | null }>>> =>
@@ -390,7 +387,6 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
               ELSE review_ends_at + (${now} - closed_at) END
         WHERE id = ${roundId} AND status = 'closed'`.pipe(Effect.asVoid, Effect.orDie);
 
-  /** True when this call shared the Round; false when it was already shared, so a repeat is a no-op. */
   const shareRound = (roundId: RoundId, now: number): Effect.Effect<boolean> =>
     sql<{ id: RoundId }>`UPDATE round
         SET status = 'shared', updated_at = ${now}
@@ -400,7 +396,6 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
       Effect.orDie,
     );
 
-  /** Ready Rounds of a Pulse planned before `plannedOpenDate`, earliest first. */
   const getReadyRoundIdsForPulseBefore = (
     pulseId: PulseId,
     plannedOpenDate: string,
@@ -872,7 +867,6 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
     );
   };
 
-  /** Removes the stored Result, so a retried computation starts from nothing (Issue #128). */
   const deleteRoundResult = (roundId: RoundId): Effect.Effect<void> =>
     sql`DELETE FROM round_result WHERE round_id = ${roundId}`.pipe(Effect.asVoid, Effect.orDie);
 
@@ -1039,7 +1033,6 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
             ORDER BY r.planned_open_at DESC
             LIMIT ${limit}`;
 
-      // The query takes the latest `limit` Rounds (newest first); history is oldest first.
       const history: Array<HistoricalRoundData> = [];
       for (const row of [...rows].reverse()) {
         const item = decodeHistoricalPayload(row.payload);
@@ -1145,7 +1138,6 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
     getDueJobs,
     getEarliestPendingJobDueAt,
     hasPendingJob,
-    // Invitations
     insertInvitations,
     getInvitations,
     getInvitation,
@@ -1162,11 +1154,9 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
     recordParticipation,
     getPersonTimeZone,
     setPersonTimeZone,
-    // Submissions
     getSubmissionRoundContext,
     recordFirstAnswer,
     saveAnswer,
-    // Results
     saveRoundResult,
     deleteRoundResult,
     getRoundResult,
@@ -1176,7 +1166,6 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
     getSubmissionsForRound,
     getPastRoundsResultsForPulse,
     updateJobPayload,
-    // Comment themes and discussion guide
     requestThemes,
     getRoundThemes,
     recordThemesAttemptFailed,

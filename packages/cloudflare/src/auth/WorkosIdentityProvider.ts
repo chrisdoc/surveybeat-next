@@ -27,23 +27,18 @@ import * as Option from "effect/Option";
 import * as Redacted from "effect/Redacted";
 import { withProviderDeadline } from "./ProviderDeadline.ts";
 
-/** What the adapter needs per stage. All three come from Worker secrets (`AuthConfig.ts`). */
 export interface WorkosConfig {
   readonly apiKey: Redacted.Redacted<string>;
   readonly clientId: string;
-  /** Seals the session cookie (iron-webcrypto). At least 32 characters. */
   readonly cookiePassword: Redacted.Redacted<string>;
-  /** No WorkOS call may hold a request longer than this; a timeout becomes `AuthUnavailable`. */
   readonly requestTimeout: Duration.Duration;
 }
 
-/** The HTTP status a WorkOS SDK error carries, if any. */
 const statusOf = (error: unknown): number | undefined =>
   typeof error === "object" && error !== null && "status" in error && typeof error.status === "number"
     ? error.status
     : undefined;
 
-/** A 4xx other than 408 and 429 means the request itself was refused; anything else is transient. */
 const isRefusal = (error: unknown): boolean => {
   const status = statusOf(error);
   return status !== undefined && status >= 400 && status < 500 && status !== 408 && status !== 429;
@@ -51,7 +46,6 @@ const isRefusal = (error: unknown): boolean => {
 
 class MalformedCookie extends Data.TaggedError("MalformedCookie") {}
 
-/** `fetch` failures, timeouts, and `jose`'s JWKS errors: the identity provider is out of reach. */
 const isNetworkFailure = (error: unknown): boolean => {
   if (error instanceof TypeError) return true;
   if (typeof error !== "object" || error === null) return false;
@@ -62,13 +56,11 @@ const isNetworkFailure = (error: unknown): boolean => {
   return status !== undefined && (status >= 500 || status === 408 || status === 429);
 };
 
-/** Calls that only fail when WorkOS cannot be reached or misbehaves. */
 const callWith =
   (timeout: Duration.Duration) =>
   <A>(f: () => Promise<A>) =>
     withProviderDeadline(Effect.tryPromise({ try: f, catch: () => new AuthUnavailable() }), timeout);
 
-/** Calls where a refusal means the user must sign in again. */
 const authCallWith =
   (timeout: Duration.Duration) =>
   <A>(f: () => Promise<A>) =>
@@ -98,11 +90,6 @@ const toSession = (
   role: Option.fromNullishOr(claims.role),
 });
 
-/**
- * `IdentityProvider` on `@workos-inc/node`'s workerd build (fetch and Web Crypto, with
- * `iron-webcrypto` and `jose` inlined). Construct it once per isolate: the SDK caches the JWKS on
- * the client, so per-request checks stay local.
- */
 export const workosIdentityProvider = (config: WorkosConfig) => {
   const workos = new WorkOS(Redacted.value(config.apiKey), { clientId: config.clientId });
   const users = workos.userManagement;
@@ -112,7 +99,6 @@ export const workosIdentityProvider = (config: WorkosConfig) => {
 
   const load = (sealed: string) => users.loadSealedSession({ sessionData: sealed, cookiePassword });
 
-  /** Unseals and verifies a cookie we just sealed. Anything but success here is WorkOS misbehaving. */
   const verified = (sealed: string) =>
     call(() => load(sealed).authenticate()).pipe(
       Effect.flatMap((result) =>
@@ -134,8 +120,6 @@ export const workosIdentityProvider = (config: WorkosConfig) => {
           session: { sealSession: true, cookiePassword },
         });
       } catch (error) {
-        // A user with several WorkOS memberships may be asked to pick one. The sign-in flow picks
-        // (`signInWithCode`), since only it knows where the user is still a Person.
         if (
           error instanceof AuthenticationException &&
           error.code === "organization_selection_required" &&
@@ -160,7 +144,6 @@ export const workosIdentityProvider = (config: WorkosConfig) => {
       ),
     );
 
-  /** The user's membership in the organization, whatever its status. */
   const membershipOf = (userId: string, organizationId: string) =>
     call(() => users.listOrganizationMemberships({ userId, organizationId })).pipe(
       Effect.map((memberships) => memberships.data[0]),
@@ -189,8 +172,6 @@ export const workosIdentityProvider = (config: WorkosConfig) => {
       withProviderDeadline(
         Effect.tryPromise({
           try: () => load(Redacted.value(sealed)).authenticate(),
-          // A throw is either the JWKS being unreachable (keep the session, answer 503) or a cookie
-          // too malformed to unseal (sign in again). Only recognisable network failures are the former.
           catch: (error) => (isNetworkFailure(error) ? new AuthUnavailable() : new MalformedCookie()),
         }),
         config.requestTimeout,
@@ -213,8 +194,6 @@ export const workosIdentityProvider = (config: WorkosConfig) => {
         ),
       ).pipe(
         Effect.flatMap((result): Effect.Effect<ProviderSession, Unauthenticated | AuthUnavailable> => {
-          // Only a terminal failure (`invalid_grant`, a bad cookie) signs the user out. Timeouts,
-          // 429, and 5xx keep the session (the 30-second replay window makes retries converge).
           if (!result.authenticated) {
             return result.retryable ? Effect.fail(new AuthUnavailable()) : Effect.fail(new Unauthenticated());
           }
@@ -229,7 +208,6 @@ export const workosIdentityProvider = (config: WorkosConfig) => {
     revokeSession: (sessionId) =>
       call(() =>
         users.revokeSession({ sessionId }).catch((error: unknown) => {
-          // Already ended or unknown: what revoking wants.
           if (isRefusal(error)) return undefined;
           throw error;
         }),
@@ -249,7 +227,6 @@ export const workosIdentityProvider = (config: WorkosConfig) => {
             { idempotencyKey: `surveybeat-organization-${externalId}` },
           )
           .catch((error: unknown) => {
-            // Created by a concurrent request since we looked: read that one.
             if (error instanceof ConflictException) return undefined;
             throw error;
           }),
@@ -293,7 +270,6 @@ export const workosIdentityProvider = (config: WorkosConfig) => {
         if (existing?.status === "active" || existing?.status === "pending") {
           yield* call(() =>
             users.deactivateOrganizationMembership(existing.id).catch((error: unknown) => {
-              // Deactivated or deleted since we looked: what deactivating wants.
               if (isRefusal(error)) return undefined;
               throw error;
             }),

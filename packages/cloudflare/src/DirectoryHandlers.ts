@@ -20,13 +20,8 @@ import * as Effect from "effect/Effect";
 import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
 import { type AuthServices, currentMember, requestOrigin, requireSameOrigin } from "./auth/AuthHandlers.ts";
 
-/** Everything the directory endpoints need: sign-in's services, the Organization objects, the email queue. */
 export type DirectoryServices = AuthServices | OrganizationDirectory | EmailOutbox;
 
-/**
- * The "Open SurveyBeat" link in the "You've been added" email: this app's front page. Always
- * https, which the email requires; only local workerd serves plain http.
- */
 const signInUrl = Effect.map(requestOrigin, (origin) => {
   const url = new URL("/", origin);
   url.protocol = "https:";
@@ -44,7 +39,6 @@ const newMember = (email: EmailAddress) =>
     } satisfies NewMember;
   });
 
-/** A change: same origin only, as the signed-in Person, then 204. */
 const change = <R>(command: (member: Member) => Effect.Effect<DirectoryCommand, never, R>) =>
   Effect.gen(function* () {
     yield* requireSameOrigin;
@@ -52,7 +46,6 @@ const change = <R>(command: (member: Member) => Effect.Effect<DirectoryCommand, 
     yield* runDirectoryCommand(member, yield* command(member));
   });
 
-/** The `directory` group of `SurveyBeatApi`: Teams, Leads, members, and Organization settings. */
 export const directoryHandlers = <R>(
   services: Effect.Effect<Context.Context<DirectoryServices>, never, R>,
 ) => {

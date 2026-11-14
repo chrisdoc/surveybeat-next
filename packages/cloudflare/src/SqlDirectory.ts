@@ -47,11 +47,6 @@ const MembershipRow = Schema.Struct({
 const rows = <S extends Schema.Top & { readonly DecodingServices: never }>(schema: S) =>
   Schema.decodeUnknownEffect(Schema.Array(schema));
 
-/**
- * The directory tables of the Organization Durable Object (`migrations/0004_teams.sql`): the
- * whole state for `decide`, and the SQL for each change it returns. Run both inside one
- * transaction. A row that does not decode is a defect.
- */
 export const makeSqlDirectory = (sql: SqliteClient.SqliteClient, sends: SendStoreShape) => {
   const load: Effect.Effect<DirectoryState> = Effect.gen(function* () {
     const [organization] =

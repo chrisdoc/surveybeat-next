@@ -60,11 +60,6 @@ const PulseQuestionRow = Schema.Struct({ pulse_id: PulseId, question_version_id:
 const rows = <S extends Schema.Top & { readonly DecodingServices: never }>(schema: S) =>
   Schema.decodeUnknownEffect(Schema.Array(schema));
 
-/**
- * The question library and Pulse tables of the Organization Durable Object
- * (`migrations/0005_pulses.sql`): the whole state for `decidePulse`, and the SQL for each change
- * it returns. Run both inside one transaction. A row that does not decode is a defect.
- */
 export const makeSqlPulses = (sql: SqliteClient.SqliteClient) => {
   const load: Effect.Effect<PulseState> = Effect.gen(function* () {
     const questions = yield* sql`SELECT id, template_key, created_at FROM question`.pipe(
@@ -109,7 +104,6 @@ export const makeSqlPulses = (sql: SqliteClient.SqliteClient) => {
         },
         questions: asked.filter((each) => each.pulse_id === row.id).map((each) => each.question_version_id),
       })),
-      // No Answers are stored before slice 09, so no Question version has any.
       answered: [],
     } satisfies PulseState;
   }).pipe(Effect.orDie);

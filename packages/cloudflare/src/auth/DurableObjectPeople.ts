@@ -12,7 +12,6 @@ import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import type { Organizations } from "../EmailDelivery.ts";
 
-/** `OrganizationPeople` on the Organization Durable Objects: one object per Organization (ADR 0006). */
 export const durableObjectPeople = (organizations: Organizations) =>
   OrganizationPeople.of({
     createWithAdmin: (organization, admin) =>
@@ -44,7 +43,6 @@ export const durableObjectPeople = (organizations: Organizations) =>
         ),
   });
 
-/** `OrganizationDirectory` on the same objects: each decides and commits its own changes. */
 export const durableObjectDirectory = (organizations: Organizations) =>
   OrganizationDirectory.of({
     run: (organizationId, actorId, command, now) =>
@@ -61,7 +59,6 @@ export const durableObjectDirectory = (organizations: Organizations) =>
       organizations.getByName(organizationId).viewEmailStatus(actorId, sendId),
   });
 
-/** `OrganizationPulses` on the same objects: the question library and Pulses live with the directory. */
 export const durableObjectPulses = (organizations: Organizations) =>
   OrganizationPulses.of({
     run: (organizationId, actorId, command, now) =>
@@ -76,7 +73,6 @@ export const durableObjectPulses = (organizations: Organizations) =>
       organizations.getByName(organizationId).viewTestSend(actorId, teamId, pulseId, sendId, now),
   });
 
-/** `OrganizationRounds` on the same objects: the Round lifecycle engine and schedule table. */
 export const durableObjectRounds = (organizations: Organizations) =>
   OrganizationRounds.of({
     run: (organizationId, actorId, command, now) =>
@@ -92,7 +88,6 @@ export const durableObjectRounds = (organizations: Organizations) =>
     history: (organizationId, actorId) => organizations.getByName(organizationId).viewMemberHistory(actorId),
   });
 
-/** `OrganizationActions` on the same objects: actions committed from Results. */
 export const durableObjectActions = (organizations: Organizations) =>
   OrganizationActions.of({
     list: (organizationId, actorId, teamId) =>
@@ -103,7 +98,6 @@ export const durableObjectActions = (organizations: Organizations) =>
       organizations.getByName(organizationId).updateAction(actorId, teamId, actionId, payload, now),
   });
 
-/** `OrganizationNotes` on the same objects: the Lead's Note on each Round. */
 export const durableObjectNotes = (organizations: Organizations) =>
   OrganizationNotes.of({
     get: (organizationId, actorId, teamId, roundId) =>

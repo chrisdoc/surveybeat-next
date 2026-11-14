@@ -43,11 +43,6 @@ const toClaim = (row: typeof ClaimRow.Type): ClaimStatus => ({
   completed: row.completed_at !== null,
 });
 
-/**
- * `PeopleIndex` on the stage's D1 database (`d1-migrations/0003_people_index.sql`, `0004_…`). D1 has one
- * primary and read replication is off, so a write (a revoked session) is seen by the next read.
- * Built inside a handler, like the other D1 adapters.
- */
 export const d1PeopleIndex = (db: Cloudflare.D1.QueryDatabaseClient) =>
   Effect.gen(function* () {
     const runtime = yield* Effect.context<RuntimeContext>();

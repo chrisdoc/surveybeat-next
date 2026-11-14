@@ -17,11 +17,6 @@ import type { Organizations } from "./EmailDelivery.ts";
 
 export const PULSES_TEST_ROUTE = "/__test/pulses";
 
-/**
- * Test stages only (`isTestStage`): runs the Pulse editor against a real Organization Durable
- * Object, so `Organization.test.ts` checks the SQL of the question library and Pulses on local
- * workerd. An admin creates a Team and a Pulse, then edits it; the answer is what each step left.
- */
 export const pulseTestRoutes = (organizations: Organizations) =>
   Effect.gen(function* () {
     const request = yield* HttpServerRequest;

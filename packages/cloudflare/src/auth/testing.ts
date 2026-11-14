@@ -99,11 +99,6 @@ import { pulseHandlers } from "../PulseHandlers.ts";
 import { roundHandlers } from "../RoundHandlers.ts";
 import { authHandlers } from "./AuthHandlers.ts";
 
-/**
- * In-memory stand-ins for WorkOS, the D1 index, and the Organization Durable Objects, for the
- * sign-in API tests. Plain mutable state: each test builds a fresh `SignInWorld`.
- */
-
 interface FakeUser {
   readonly id: WorkosUserId;
   readonly email: string;
@@ -123,20 +118,14 @@ export class FakeWorkos {
   readonly sessions = new Map<string, FakeSession>();
   readonly organizations = new Map<OrganizationId, { id: WorkosOrganizationId; name: string }>();
   readonly memberships = new Map<string, OrganizationRole>();
-  /** Memberships deactivated by a removal (`user/org` keys): AuthKit no longer signs the user in there. */
   readonly inactiveMemberships = new Set<string>();
-  /** WorkOS sessions ended by `revokeSession`: their refresh token no longer works. */
   readonly revokedSessions = new Set<SessionId>();
   private readonly pending = new Map<string, WorkosUserId>();
   createOrganizationCalls = 0;
   ensureMembershipCalls = 0;
-  /** Fail the next N `createOrganization` calls as if WorkOS were down. */
   failCreateOrganization = 0;
-  /** Fail `revokeSession` as if WorkOS were down. */
   failRevokeSession = false;
-  /** Fail role changes and deactivations as if WorkOS were down. */
   failMembershipChanges = false;
-  /** Ask a user with several memberships to pick one at the code exchange, as AuthKit may. */
   requireOrganizationSelection = false;
   private counter = 0;
 
@@ -148,7 +137,6 @@ export class FakeWorkos {
     return code;
   }
 
-  /** Another sign-in for an existing user. */
   newCode(userId: WorkosUserId | undefined): string {
     if (userId === undefined || !this.users.has(userId)) throw new Error("no such user");
     const code = `code_${++this.counter}`;
@@ -181,7 +169,6 @@ export class FakeWorkos {
     };
   }
 
-  /** Lets the access token in this cookie run out, as five minutes would. */
   expire(sealed: string) {
     const session = this.sessions.get(sealed);
     if (session !== undefined) session.expired = true;
@@ -242,8 +229,6 @@ export class FakeWorkos {
         if (Option.isSome(target) && (!this.memberships.has(key) || this.inactiveMemberships.has(key))) {
           return Effect.fail(new Unauthenticated());
         }
-        // Refresh tokens rotate, but WorkOS replays a just-used one for 30 seconds so concurrent
-        // refreshes converge. The fake keeps the old cookie usable; `sessions.delete` ends it.
         return Effect.succeed(this.issue(session.userId, session.sessionId, target));
       }),
     logoutUrl: (sessionId, returnTo) =>
@@ -373,10 +358,6 @@ export class MemoryIndex {
   });
 }
 
-/**
- * What the fake knows of a send's resend. The fake keeps no Invitations, so an Invitation's, a reminder's, and a
- * legacy email's send is never resendable here; the other kinds follow the same rule as the Durable Object.
- */
 const fakeResendFacts = (
   organization: MemoryOrganization,
   sendId: SendId,
@@ -390,40 +371,29 @@ const fakeResendFacts = (
   testSend: organization.testSends.has(sendId),
 });
 
-/** One Organization's object: its directory state, its question library and Pulses, and its sends. */
 interface MemoryOrganization {
   state: DirectoryState;
   pulses: PulseState;
   actions: Map<ActionId, ActionRecord>;
-  /** Rounds seeded by tests (`SignInWorld.addRound`), each with the Team it belongs to. */
   rounds: Map<RoundId, TeamId>;
-  /** The Lead's Note per Round. */
   notes: Map<RoundId, RoundNote>;
-  /** Each send, with its state: the fake never delivers, so a test sets a state by hand. */
   readonly sends: Map<
     SendId,
     { readonly recipient: EmailAddress; readonly email: TransactionalEmail; readonly state: SendState }
   >;
-  /** Who sent each test of a Pulse, which Pulse, and when (ADR 0021). */
   readonly testSends: Map<
     SendId,
     { readonly personId: PersonId; readonly pulseId: PulseId; readonly sentAt: number }
   >;
-  /** When each Person sent a test of a Pulse, for the hourly limit (ADR 0021). */
   readonly testSendTimes: Map<PersonId, ReadonlyArray<number>>;
 }
 
-/**
- * The Organization Durable Objects in memory. The directory runs the domain's `decide` and
- * `applyChanges`, as the real object runs `decide` and applies the changes in SQL.
- */
 export class MemoryOrganizations {
   readonly organizations = new Map<OrganizationId, MemoryOrganization>();
 
   private organization(organizationId: OrganizationId): MemoryOrganization {
     const found = this.organizations.get(organizationId);
     if (found !== undefined) return found;
-    // The real object answers an empty directory for an id nothing created.
     return {
       state: {
         organizationName: "",
@@ -524,13 +494,11 @@ export class MemoryOrganizations {
         }
         return {
           _tag: "Accepted",
-          // The fake never delivers, so every send it holds is still pending.
           followUps: decision.followUps.filter(
             (step) => step._tag !== "QueueEmail" || organization.sends.has(step.sendId),
           ),
         };
       }),
-    // The fake has no Round dates, so every Team reads as having none scheduled.
     teams: (organizationId, actorId) =>
       Effect.sync(() => {
         const view = teamsView(this.organization(organizationId).state, actorId);
@@ -548,7 +516,6 @@ export class MemoryOrganizations {
     failedEmails: (organizationId, actorId) =>
       Effect.sync(() => {
         const organization = this.organization(organizationId);
-        // Newest first, the last 50, as the Durable Object's query reads them.
         const failed = [...organization.sends]
           .flatMap(([sendId, send]): ReadonlyArray<FailedEmail> => {
             if (send.state._tag !== "Failed") return [];
@@ -602,7 +569,6 @@ export class MemoryOrganizations {
       }),
   });
 
-  /** The question library and Pulses, decided and applied as the real object does in SQL. */
   readonly pulses = OrganizationPulses.of({
     run: (organizationId, actorId, command, now) =>
       Effect.sync((): PulseCommandResult => {
@@ -641,7 +607,6 @@ export class MemoryOrganizations {
         const organization = this.organization(organizationId);
         const test = organization.testSends.get(sendId);
         const send = organization.sends.get(sendId);
-        // The fake's send with no email row is queued, as the Durable Object reads it.
         const found: TestSendFound | null =
           test === undefined ? null : { ...test, state: send?.state ?? pending };
         return testSendView(organization.state, actorId, teamId, pulseId, found, now);
@@ -657,7 +622,6 @@ export class MemoryOrganizations {
           return { _tag: "Rejected", rejection: { _tag: "TestSendLimitReached", perHour: testSendsPerHour } };
         }
         organization.testSendTimes.set(actorId, [...recent, now]);
-        // The fake keeps the email as the real object stores it: no token, marked as a test.
         const first = organization.pulses.versions.find((version) => version.id === pulse.questions[0]);
         const testEmail: TransactionalEmail = {
           _tag: "TestInvitationEmail",
@@ -674,7 +638,6 @@ export class MemoryOrganizations {
                   highLabel: first.content.type.highLabel,
                 }
               : null,
-          // The fake has no Round, so no Actions to offer; the real object lists the Team's open ones.
           actions: [],
           aiProcessing: organization.state.aiProcessing,
         };
@@ -892,7 +855,6 @@ export class MemoryOrganizations {
     return this.organizations.get(organizationId)?.state.people.find((person) => person.id === personId);
   }
 
-  /** Changes a Person directly, as a test arranging the object's state would. */
   update(organizationId: OrganizationId, personId: PersonId, patch: Partial<PersonRecord>) {
     const organization = this.organizations.get(organizationId);
     if (organization === undefined) throw new Error(`no Organization ${organizationId}`);
@@ -904,13 +866,11 @@ export class MemoryOrganizations {
     };
   }
 
-  /** Marks a Person removed, without the follow-ups a real removal runs. */
   remove(organizationId: OrganizationId, personId: PersonId) {
     this.update(organizationId, personId, { removedAt: 1 });
   }
 }
 
-/** Sends handed to the email queue, in order. */
 export class MemoryOutbox {
   readonly queued: Array<{ readonly organizationId: OrganizationId; readonly sendId: SendId }> = [];
   readonly service = EmailOutbox.of({
@@ -918,7 +878,6 @@ export class MemoryOutbox {
   });
 }
 
-/** Everything a sign-in or directory test talks to, plus helpers to set up Organizations a Lead already filled. */
 export class SignInWorld {
   readonly workos = new FakeWorkos();
   readonly index = new MemoryIndex();
@@ -928,7 +887,6 @@ export class SignInWorld {
 
   constructor(readonly allowlist = "") {}
 
-  /** An Organization with its WorkOS organization, as creating it leaves it, with no People yet. */
   addOrganization(name: string): OrganizationSummary & { readonly workos: WorkosOrganizationId } {
     const id = OrganizationId.make(`organization-${++this.ids}`);
     const workos = WorkosOrganizationId.make(`org_existing_${this.ids}`);
@@ -955,7 +913,6 @@ export class SignInWorld {
     return { id, name, workos };
   }
 
-  /** A Round of a Team, as the Round lifecycle schedules it. The fake keeps no Pulses for Rounds, so tests seed them. */
   addRound(organizationId: OrganizationId, teamId: TeamId): RoundId {
     const roundId = RoundId.make(`round-${++this.ids}`);
     const organization = this.durable.organizations.get(organizationId);
@@ -964,7 +921,6 @@ export class SignInWorld {
     return roundId;
   }
 
-  /** A Person a Lead added by email, not signed in yet. */
   addPerson(organizationId: OrganizationId, email: string, organizationAdmin = false): PersonId {
     const personId = PersonId.make(`person-${++this.ids}`);
     const organization = this.durable.organizations.get(organizationId);
@@ -1039,7 +995,6 @@ export class SignInWorld {
 
 export const ORIGIN = "https://pr-1.app.surveybeat.app";
 
-/** A browser of one: keeps cookies between requests, never follows redirects. */
 export class Browser {
   readonly cookies = new Map<string, string>();
   constructor(private readonly handle: (request: Request) => Promise<Response>) {}
@@ -1072,7 +1027,6 @@ export class Browser {
       body: JSON.stringify(body),
     });
 
-  /** A same-origin JSON call, as the app makes it. */
   send = (method: string, path: string, body?: unknown, origin = ORIGIN) =>
     this.fetch(path, {
       method,
@@ -1080,14 +1034,12 @@ export class Browser {
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
 
-  /** Status and parsed body (null for an empty one). */
   async call(method: string, path: string, body?: unknown): Promise<{ status: number; body: unknown }> {
     const response = await this.send(method, path, body);
     const text = await response.text();
     return { status: response.status, body: text === "" ? null : JSON.parse(text) };
   }
 
-  /** Goes through AuthKit as the user the code belongs to. */
   async signIn(code: string): Promise<void> {
     const login = await this.get("/auth/login");
     const state = new URL(login.headers.get("location") ?? "").searchParams.get("state") ?? "";

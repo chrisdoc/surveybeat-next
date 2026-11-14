@@ -85,10 +85,8 @@ import Organization from "./Organization.ts";
 import { pageRoutes } from "./PageRoutes.ts";
 import { Jobs, JobsDlq, type JobMessage } from "./Queues.ts";
 
-/** `apps/web`'s build output. Absolute, so it does not depend on where Alchemy is started. */
 const assetsDirectory = new URL("../../../apps/web/dist", import.meta.url).pathname;
 
-/** HttpPlatform normally needs a FileSystem, which does not exist in a Worker isolate. */
 const HttpPlatformStub = Layer.succeed(HttpPlatform.HttpPlatform, {
   platform: "web",
   compression: {
@@ -99,7 +97,6 @@ const HttpPlatformStub = Layer.succeed(HttpPlatform.HttpPlatform, {
   fileWebResponse: () => Effect.die("HttpPlatform.fileWebResponse not supported"),
 });
 
-/** 32 random hex characters. */
 const randomId = () =>
   Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) => byte.toString(16).padStart(2, "0")).join(
     "",
@@ -107,10 +104,6 @@ const randomId = () =>
 
 const newOrganizationId = () => OrganizationId.make(randomId());
 
-/**
- * The Main Worker: the API (domain schemas, `@surveybeat/api` declaration, handlers backed by the
- * Organization Durable Object) plus the static assets built from `apps/web`.
- */
 export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
   "Main",
   Effect.gen(function* () {
@@ -119,12 +112,8 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
     const domain = mainWorkerDomainFor(stack.stage);
     return {
       main: import.meta.url,
-      // The API routes always reach the Worker. Any other path is a static asset.
       assets: {
         directory: assetsDirectory,
-        // The app is client-routed: /history, /settings and /teams/<id> have no file, so an unmatched
-        // path serves index.html and the app renders it. Without this a bookmark or a refresh on any
-        // screen answers 404, which is how /history behaves in production today.
         notFoundHandling: "single-page-application",
         runWorkerFirst: [
           "/auth/*",
@@ -146,7 +135,6 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
             : []),
         ],
       },
-      // The Organization Durable Object builds email links from this. Stages on workers.dev have none.
       env: {
         ...(yield* authBindings),
         OPENROUTER_API_KEY: Config.Redacted("OPENROUTER_API_KEY").pipe(Config.withDefault(Redacted.make(""))),
@@ -166,13 +154,10 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
       (stream) => Stream.runForEach(stream, () => Effect.log("JOB_PROCESSED")),
     );
 
-    // The dead-letter queue is not drained or alerted on by Cloudflare. Log the code only, never the message.
     yield* Cloudflare.Queues.consumeQueueMessages<JobMessage>(jobsDlq, (stream) =>
       Stream.runForEach(stream, () => Effect.logError("JOB_DEAD_LETTERED")),
     );
 
-    // Transactional email. Production sends through Cloudflare Email Sending; every other stage
-    // records the messages in D1 and binds no `send_email` at all (docs/infra.md).
     const { stage } = yield* Stack;
     const database = yield* Cloudflare.D1.QueryDatabase(yield* Database);
     const emailQueue = yield* EmailQueue;
@@ -181,7 +166,6 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
 
     yield* Cloudflare.Queues.consumeQueueMessages(
       emailQueue,
-      // Retries cover leases held by another delivery and rejections waiting for their next attempt.
       { batchSize: 10, maxRetries: 10, deadLetterQueue: emailDlq },
       (stream) =>
         Effect.gen(function* () {
@@ -201,7 +185,6 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
       Stream.runForEach(stream, (message) => handleDeadLetter(organizations, message)),
     );
 
-    // Bounces and complaints, from the event subscription on the sending subdomain (infra/alchemy.run.ts).
     if (sendsRealEmail(stage)) {
       yield* Cloudflare.Queues.consumeQueueMessages(
         yield* EmailEvents,
@@ -211,7 +194,6 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
       );
     }
 
-    // Sign-in. The WorkOS client is built once per isolate (it caches the JWKS), the D1 index per request.
     const settings = yield* Effect.cached(authSettings);
     const identityProvider = yield* Effect.cached(
       Effect.map(settings, ({ workos }) => workosIdentityProvider(workos)),
@@ -224,8 +206,6 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
     const notes = durableObjectNotes(organizations);
     const emailWrites = yield* Cloudflare.Queues.WriteQueue(emailQueue);
 
-    // Daily Cron repairs missing alarms across all Organizations (ADR 0006). One page of the index
-    // per run: the read and the Durable Object calls stay bounded as Organizations are added.
     yield* Cloudflare.Workers.cron("0 0 * * *", () =>
       Effect.gen(function* () {
         const day = Math.floor((yield* Clock.currentTimeMillis) / 86_400_000);
@@ -246,7 +226,6 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
     const services = Effect.gen(function* () {
       const runtime = yield* Effect.context<RuntimeContext>();
       const outbox = EmailOutbox.of({
-        // A failed enqueue leaves the send pending; repeating the request queues it again.
         queue: (organizationId, sendId) =>
           Schema.encodeEffect(EmailSendRequested)({ organizationId, sendId }).pipe(
             Effect.flatMap((message) => emailWrites.send(message)),

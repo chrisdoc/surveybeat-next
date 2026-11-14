@@ -17,10 +17,8 @@ import * as Effect from "effect/Effect";
 import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
 import { type AuthServices, currentMember, requireSameOrigin } from "./auth/AuthHandlers.ts";
 
-/** Everything the Pulse editor endpoints need: sign-in's services, the Organization objects, and the email queue. */
 export type PulseServices = AuthServices | OrganizationPulses | EmailOutbox;
 
-/** A change to one Pulse: same origin only, as the signed-in Person, then the Pulse as it is now. */
 const change = <R>(teamId: TeamId, pulseId: PulseId, command: Effect.Effect<PulseCommand, never, R>) =>
   Effect.gen(function* () {
     yield* requireSameOrigin;
@@ -29,7 +27,6 @@ const change = <R>(teamId: TeamId, pulseId: PulseId, command: Effect.Effect<Puls
     return yield* viewPulse(member, teamId, pulseId);
   });
 
-/** The `pulses` group of `SurveyBeatApi`: a Team's Pulses and the Pulse editor. */
 export const pulseHandlers = <R>(services: Effect.Effect<Context.Context<PulseServices>, never, R>) => {
   const provide = <A, E, R2>(effect: Effect.Effect<A, E, R2>) =>
     Effect.flatMap(services, (context) => Effect.provideContext(effect, context));

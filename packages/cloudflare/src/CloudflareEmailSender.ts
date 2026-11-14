@@ -6,7 +6,6 @@ import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import { FROM } from "./Email.ts";
 
-/** Refusals that another attempt cannot fix. */
 const PERMANENT = new Set([
   "E_RECIPIENT_SUPPRESSED",
   "E_SENDER_NOT_VERIFIED",
@@ -18,7 +17,6 @@ const PERMANENT = new Set([
   "E_CONTENT_TOO_LARGE",
 ]);
 
-/** Codes that do not say whether the message went out. */
 const AMBIGUOUS = new Set(["E_INTERNAL_SERVER_ERROR"]);
 
 const codeOf = (error: unknown): string | undefined => {
@@ -28,10 +26,6 @@ const codeOf = (error: unknown): string | undefined => {
   return "cause" in error ? codeOf(error.cause) : undefined;
 };
 
-/**
- * Maps what `env.EMAIL.send()` threw. A coded error is a clear rejection (the message was not
- * accepted). Anything else, such as a dropped connection, may have been sent: its outcome is unknown.
- */
 export const classifySendError = (error: unknown): EmailRejected | EmailOutcomeUnknown => {
   const code = codeOf(error);
   if (code === undefined) return new EmailOutcomeUnknown({ code: "E_UNCLASSIFIED" });
@@ -41,7 +35,6 @@ export const classifySendError = (error: unknown): EmailRejected | EmailOutcomeU
 
 const decodeResult = Schema.decodeUnknownOption(Schema.Struct({ messageId: Schema.NonEmptyString }));
 
-/** `EmailSender` on Cloudflare Email Sending, from `notify.surveybeat.app`. Built inside a handler. */
 export const cloudflareEmailSender = (client: Cloudflare.Email.SendClient) =>
   Effect.gen(function* () {
     const runtime = yield* Effect.context<RuntimeContext>();
@@ -58,7 +51,6 @@ export const cloudflareEmailSender = (client: Cloudflare.Email.SendClient) =>
           })
           .pipe(
             Effect.mapError((error) => classifySendError(error.cause)),
-            // A call that resolves without a message id (as a misbound queue does) may have sent nothing.
             Effect.flatMap((result) =>
               Option.match(decodeResult(result), {
                 onNone: () => Effect.fail(new EmailOutcomeUnknown({ code: "E_NO_MESSAGE_ID" })),

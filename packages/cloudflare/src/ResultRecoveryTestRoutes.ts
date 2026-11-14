@@ -28,13 +28,11 @@ const HOUR_MS = 60 * MINUTE_MS;
 const DAY_MS = 24 * HOUR_MS;
 
 const AttemptsPayload = Schema.fromJsonString(Schema.Struct({ attempts: Schema.Int }));
-/** The failed attempts a compute job has recorded in its payload (0 when none). */
 const attemptsOf = (payload: string | null): number =>
   payload === null ? 0 : Schema.decodeSync(AttemptsPayload)(payload).attempts;
 
 const minutesOf = (ms: number): number => ms / MINUTE_MS;
 
-/** What a viewer sees of a Result: its status, whether it is delayed, and whether it says it could not be computed. */
 const viewState = (view: RoundResult | null) => ({
   status: view?.status ?? null,
   delayed: view?.delayed ?? null,
@@ -42,7 +40,6 @@ const viewState = (view: RoundResult | null) => ({
   couldNotComputeKey: view !== null && "couldNotCompute" in view,
 });
 
-/** "Accepted", or the rejection's tag with the Round status it names, if any. */
 const rejectionOf = (result: RoundCommandResult) =>
   result._tag === "Accepted"
     ? { outcome: "Accepted", status: null }
@@ -51,7 +48,6 @@ const rejectionOf = (result: RoundCommandResult) =>
         status: "status" in result.rejection ? result.rejection.status : null,
       };
 
-/** The Round's compute job the first one listed (the job the close created), with its payload. */
 const firstComputeJob = (cast: Cast) =>
   Effect.gen(function* () {
     const listed = yield* jobsOfType(cast, "compute");
@@ -62,10 +58,6 @@ const firstComputeJob = (cast: Cast) =>
     return job;
   });
 
-/**
- * Closes the Round with every compute attempt failing, then runs the compute job at each of its due times until it
- * gives up. Returns the attempt times, in minutes after close: the first is the close itself.
- */
 const closeAndGiveUp = (cast: Cast) =>
   Effect.gen(function* () {
     yield* cast.organization.injectComputeFailures(cast.roundId, 1000);
@@ -81,35 +73,15 @@ const closeAndGiveUp = (cast: Cast) =>
     return offsets;
   });
 
-/** The last attempt time of a give-up, as an epoch: when the Lead retries after it. */
 const afterGiveUp = (cast: Cast, offsets: ReadonlyArray<number>) =>
   cast.closeDue + (offsets[offsets.length - 1] ?? 0) * MINUTE_MS + HOUR_MS;
 
-/**
- * Test stages only (`isTestStage`): Result recovery (Issue #128) on a real Organization Durable Object and local
- * workerd. Each scenario uses its own Organization with a Lead, two members, an admin, N = 3, AI off, and a Review
- * window of 3 days. Compute failures are injected before any write, and time is driven by running jobs at their
- * due times.
- * - a: two failures, then success. The Round stays Closed with a retry due 5 minutes later; a doubled alarm before
- *   that time changes nothing; the retry after 5 minutes fails and is due 10 minutes later; the next succeeds, so
- *   the Round is Ready and its Review window ends 3 days after the successful compute.
- * - b: every attempt fails. The attempts follow the backoff schedule and stop within 24 hours of close. The Round stays
- *   Closed, the Lead sees it could not be computed, and a member sees only that it is delayed.
- * - c: after the give-up, members and admins are Forbidden to retry; the Lead retries twice at once. The first click
- *   computes the Result; the second changes nothing.
- * - d: a Round that gives up again. The Lead's retry fails once, so the Lead is told it is still being retried, and
- *   the next attempt succeeds.
- * - e: a retry of a Round that has nothing to retry. While the Round is Open, and after it is Cancelled, the Lead's
- *   retry is rejected with the Round's status. A Lead of another Team, naming that Team, gets RoundNotFound; this
- *   Round's own Lead naming a Team they have no role in is Forbidden. None of these creates a compute job.
- */
 export const resultRecoveryTestRoutes = (organizations: Organizations) =>
   Effect.gen(function* () {
     const request = yield* HttpServerRequest;
     const run = new URL(request.url, "http://localhost").searchParams.get("run") ?? "";
     const now = yield* Clock.currentTimeMillis;
 
-    // a: two failures, then success.
     const retried = yield* openedRound(organizations, `recovery-${run}-a`, 3, now);
     yield* retried.organization.injectComputeFailures(retried.roundId, 2);
     yield* retried.organization.runScheduleJob(retried.closeJobId, retried.closeDue);
@@ -119,7 +91,6 @@ export const resultRecoveryTestRoutes = (organizations: Organizations) =>
     const leadAtClose = viewState(yield* viewOf(retried, retried.lead));
     const memberAtClose = viewState(yield* viewOf(retried, retried.member));
 
-    // A doubled alarm, before the retry is due, changes nothing.
     yield* retried.organization.runScheduleJob(computeAtClose.id, retried.closeDue);
     yield* retried.organization.runScheduleJob(computeAtClose.id, retried.closeDue);
     yield* retried.organization.runDueJobs(retried.closeDue);
@@ -130,7 +101,6 @@ export const resultRecoveryTestRoutes = (organizations: Organizations) =>
       dueUnchanged: afterDoubled.dueAt === computeDueAfterFirst,
     };
 
-    // The retry 5 minutes after close fails again: the next is due 10 minutes later.
     yield* retried.organization.runScheduleJob(computeAtClose.id, computeDueAfterFirst);
     const secondRetry = yield* firstComputeJob(retried);
     const afterSecondFailure = {
@@ -139,7 +109,6 @@ export const resultRecoveryTestRoutes = (organizations: Organizations) =>
       dueMinutesLater: minutesOf(secondRetry.dueAt - computeDueAfterFirst),
     };
 
-    // The retry 10 minutes later succeeds: the Round is Ready, and its Review window ends 3 days after that compute.
     const computedAt = secondRetry.dueAt;
     yield* retried.organization.runScheduleJob(secondRetry.id, computedAt);
     const readyRound = yield* retried.organization.getRound(retried.roundId);
@@ -163,7 +132,6 @@ export const resultRecoveryTestRoutes = (organizations: Organizations) =>
       leadAfterSuccess: viewState(yield* viewOf(retried, retried.lead)),
     };
 
-    // b: every attempt fails, until the job gives up within 24 hours of close.
     const given = yield* openedRound(organizations, `recovery-${run}-b`, 3, now);
     const giveUpOffsets = yield* closeAndGiveUp(given);
     const giveUpSummary = {
@@ -175,7 +143,6 @@ export const resultRecoveryTestRoutes = (organizations: Organizations) =>
       memberView: viewState(yield* viewOf(given, given.member)),
     };
 
-    // c: after the give-up, only the Lead retries, and a doubled click computes the Result once.
     const retryAt = afterGiveUp(given, giveUpOffsets);
     const memberRetry = commandOutcome(
       yield* given.organization.runRoundCommand(
@@ -220,7 +187,6 @@ export const resultRecoveryTestRoutes = (organizations: Organizations) =>
       leadView: viewState(yield* viewOf(given, given.lead)),
     };
 
-    // d: a Round gives up, the Lead's retry fails once, and the next attempt succeeds.
     const again = yield* openedRound(organizations, `recovery-${run}-d`, 3, now);
     const againOffsets = yield* closeAndGiveUp(again);
     const againRetryAt = afterGiveUp(again, againOffsets);
@@ -256,7 +222,6 @@ export const resultRecoveryTestRoutes = (organizations: Organizations) =>
       leadAfterSuccess: viewState(yield* viewOf(again, again.lead)),
     };
 
-    // e: nothing to retry: an Open Round, another Team's Round, and a Cancelled Round.
     const idle = yield* openedRound(organizations, `recovery-${run}-e`, 3, now);
     const retryAs = (person: typeof idle.lead, teamId: TeamId) =>
       Effect.map(
@@ -268,7 +233,6 @@ export const resultRecoveryTestRoutes = (organizations: Organizations) =>
         rejectionOf,
       );
     const whileOpen = yield* retryAs(idle.lead, idle.teamId);
-    // The member of this Team leads another Team.
     const otherTeamId = TeamId.make(`team-recovery-${run}-e-design`);
     yield* idle.organization.runDirectoryCommand(
       idle.admin,

@@ -34,12 +34,6 @@ import { durableObjectDirectory, durableObjectPeople } from "./DurableObjectPeop
 
 export const PEOPLE_TEST_ROUTE = "/__test/people";
 
-/**
- * Test stages only (`isTestStage`): runs the Person rules against a real Organization Durable
- * Object and the stage's D1 index, for `Organization.test.ts` on local workerd. Only WorkOS is a
- * stand-in, which records the membership calls it gets: an admin adds Eve and Ada by email, both
- * sign in with that verified email and are linked, then Ada is removed.
- */
 export const peopleTestRoutes = (organizations: Organizations, database: Cloudflare.D1.QueryDatabaseClient) =>
   Effect.gen(function* () {
     const request = yield* HttpServerRequest;
@@ -54,7 +48,6 @@ export const peopleTestRoutes = (organizations: Organizations, database: Cloudfl
     const ada = WorkosUserId.make(`user_ada_${run}`);
     const email = EmailAddress.make("Admin@Example.com");
 
-    // Slice 03's checks: the creator is active, idempotently, and cannot be taken over.
     yield* people.createWithAdmin(organization, { personId: admin, email, userId: adminUser });
     yield* people.createWithAdmin(organization, { personId: admin, email, userId: adminUser });
     yield* index.putOrganization(organization, Option.some(workosOrganization));
@@ -120,7 +113,6 @@ export const peopleTestRoutes = (organizations: Organizations, database: Cloudfl
     });
     const teamId = TeamId.make(`team-${run}`);
 
-    /** First sign-in with no Organization in the session, as `GET /auth/session` runs it. */
     const signIn = (userId: WorkosUserId, address: string) =>
       sessionState(
         {
@@ -160,7 +152,6 @@ export const peopleTestRoutes = (organizations: Organizations, database: Cloudfl
         adaSignInAgain: yield* signIn(ada, "ada@example.com"),
       };
       const view = yield* (yield* OrganizationDirectory).team(organization.id, admin, teamId);
-      // Start times vary by run; who is in the Team in which role does not.
       const roster =
         view._tag === "Viewed"
           ? view.value.roster.map(({ personId, email, role }) => ({ personId, email, role }))

@@ -36,11 +36,6 @@ export const organizationSubmissions = ({
           dirState.minimumGroupSize,
         );
       }),
-    /**
-     * The answer page's context for a test Invitation (ADR 0021). Read-only: no Round, no Submission,
-     * and no Invitation row. Built from the Pulse's saved Questions and settings; `null` when the Pulse
-     * is gone or has no Questions.
-     */
     getTestSubmissionContext: (pulseId: string, expiresAt: number) =>
       Effect.gen(function* () {
         const [dirState, pulseState] = yield* both;
@@ -64,7 +59,6 @@ export const organizationSubmissions = ({
           aiProcessing: dirState.aiProcessing,
         });
       }),
-    /** What the Lead would be shown for test answers: redacted as the real path does, and written nowhere (ADR 0021). */
     previewTestAnswers: (answers: ReadonlyArray<SubmissionAnswer>) =>
       directory.load.pipe(Effect.map((dirState) => previewAnswers(answers, dirState.people))),
     recordFirstAnswer: (
