@@ -1,5 +1,5 @@
-import { describe, expect, it } from "@effect/vitest";
-import { Option } from "effect";
+import { describe, expect, it, prop } from "@effect/vitest";
+import { Option, Schema } from "effect";
 import {
   abandon,
   claim,
@@ -8,6 +8,7 @@ import {
   requeue,
   retryDelaySeconds,
   type SendState,
+  SendState as SendStateSchema,
   settle,
 } from "./SendState.ts";
 
@@ -152,4 +153,89 @@ describe("retryDelaySeconds", () => {
   it("doubles from 30 seconds up to 10 minutes", () => {
     expect([1, 2, 3, 4, 5, 6].map(retryDelaySeconds)).toEqual([30, 60, 120, 240, 480, 600]);
   });
+});
+
+const Policy = Schema.Struct({ leaseMillis: Schema.Int, maxAttempts: Schema.Int });
+
+const Outcome = Schema.Union([
+  Schema.TaggedStruct("Accepted", { messageId: Schema.String }),
+  Schema.TaggedStruct("Rejected", { code: Schema.String, permanent: Schema.Boolean }),
+  Schema.TaggedStruct("Unknown", { code: Schema.String }),
+]);
+
+describe("send state properties", () => {
+  prop(
+    "claim sends, waits for a live lease, or finishes, and never sends a settled send again",
+    { state: SendStateSchema, now: Schema.Int, policy: Policy },
+    ({ state, now, policy }) => {
+      const decision = claim(state, now, policy);
+      switch (state._tag) {
+        case "Pending":
+          return (
+            decision._tag === "Send" &&
+            decision.state.attempt === state.attempts + 1 &&
+            decision.state.leaseExpiresAt === now + policy.leaseMillis
+          );
+        case "Sending":
+          return now < state.leaseExpiresAt
+            ? decision._tag === "Wait" && decision.until === state.leaseExpiresAt
+            : decision._tag === "Finished" &&
+                decision.changed &&
+                decision.state._tag === "Failed" &&
+                decision.state.reason === "unknown";
+        case "Sent":
+          return (
+            decision._tag === "Finished" &&
+            !decision.changed &&
+            decision.state._tag === "Sent" &&
+            decision.state.messageId === state.messageId
+          );
+        case "Failed":
+          return (
+            decision._tag === "Finished" &&
+            !decision.changed &&
+            decision.state._tag === "Failed" &&
+            decision.state.failedAt === state.failedAt
+          );
+      }
+    },
+  );
+
+  prop(
+    "settle records only the attempt that holds the send, and only a clear rejection returns it to pending",
+    { state: SendStateSchema, attempt: Schema.Int, outcome: Outcome, now: Schema.Int, policy: Policy },
+    ({ state, attempt, outcome, now, policy }) => {
+      const settled = settle(state, attempt, outcome, now, policy);
+      if (state._tag !== "Sending" || state.attempt !== attempt) return Option.isNone(settled);
+      if (Option.isNone(settled)) return false;
+      const next = settled.value;
+      switch (outcome._tag) {
+        case "Accepted":
+          return next._tag === "Sent" && next.messageId === outcome.messageId && next.sentAt === now;
+        case "Rejected":
+          return outcome.permanent || attempt >= policy.maxAttempts
+            ? next._tag === "Failed" && next.reason === "rejected" && next.code === outcome.code
+            : next._tag === "Pending" && next.attempts === attempt && next.lastCode === outcome.code;
+        case "Unknown":
+          return next._tag === "Failed" && next.reason === "unknown" && next.code === outcome.code;
+      }
+    },
+  );
+
+  prop(
+    "requeue moves a failed send back to pending and leaves every other state alone",
+    { state: SendStateSchema },
+    ({ state }) => {
+      const requeued = requeue(state);
+      if (state._tag === "Failed") {
+        return (
+          Option.isSome(requeued) &&
+          requeued.value._tag === "Pending" &&
+          requeued.value.attempts === 0 &&
+          requeued.value.lastCode === null
+        );
+      }
+      return Option.isNone(requeued);
+    },
+  );
 });

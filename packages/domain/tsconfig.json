@@ -10,7 +10,7 @@
         "name": "@effect/language-service",
         // Debt from the effect 4.1.2 pin: these are the exact unstable APIs this package calls.
         // Delete an entry when the pin moves and the module becomes stable.
-        "allowedUnstableApis": ["@effect/vitest#it"]
+        "allowedUnstableApis": ["@effect/vitest#it", "@effect/vitest#prop"]
       }
     ]
   },

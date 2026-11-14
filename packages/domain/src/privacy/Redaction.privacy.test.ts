@@ -1,5 +1,58 @@
+import { prop } from "@effect/vitest";
+import { Schema } from "effect";
 import { describe, expect, it } from "vitest";
 import { redact, type Roster } from "./Redaction.ts";
+
+const ROSTER_NAMES = ["Alice", "Bob", "Charlie", "Daphne", "Edward"] as const;
+
+const Part = Schema.Struct({
+  kind: Schema.Literals(["word", "lower", "upper", "possessive", "parenthesised"]),
+  index: Schema.Int,
+  word: Schema.Literals([
+    "the",
+    "quick",
+    "brown",
+    "fox",
+    "jumped",
+    "over",
+    "lazy",
+    "dog",
+    "meeting",
+    "today",
+    "review",
+    "shared",
+    "code",
+    "project",
+  ]),
+});
+
+const Digit = Schema.Literals(["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]);
+const AreaDigit = Schema.Literals(["2", "3", "4", "5", "6", "7", "8", "9"]);
+
+const GermanNumber = Schema.Struct({
+  prefix: Schema.Literals(["+49 ", "+49", "0049 ", "+49 (0)", "0"]),
+  mobile: Schema.Boolean,
+  area: Schema.Array(AreaDigit),
+  subscriber: Schema.Array(Digit),
+  separators: Schema.Array(Schema.Literals([" ", "-", "/", " / ", ""])),
+});
+
+const digits = (values: ReadonlyArray<string>, atLeast: number, atMost: number): string =>
+  values.join("").slice(0, atMost).padEnd(atLeast, "5");
+
+const germanNumber = (number: typeof GermanNumber.Type): string => {
+  const area = digits(number.area, 2, 3);
+  const national = number.mobile ? `1${"567"[area.charCodeAt(0) % 3]}${area.slice(0, 1)}` : area;
+  const subscriber = digits(number.subscriber, 6, 8);
+  const separatorOf = (index: number) => number.separators[index % number.separators.length] ?? " ";
+  let groups = "";
+  for (let index = 0, group = 0; index < subscriber.length; group += 1) {
+    const size = 2 + (group % 2);
+    groups += `${separatorOf(group)}${subscriber.slice(index, index + size)}`;
+    index += size;
+  }
+  return `${number.prefix}${national}${groups}`;
+};
 
 describe("redact", () => {
   const roster: Roster = [
@@ -95,68 +148,41 @@ describe("redact", () => {
     expect(result).not.toContain("Anna");
   });
 
-  it("property test: no roster name survives in random sentences", () => {
-    const names = ["Alice", "Bob", "Charlie", "Daphne", "Edward"];
-    const testRoster: Roster = names;
-
-    const words = [
-      "the",
-      "quick",
-      "brown",
-      "fox",
-      "jumped",
-      "over",
-      "lazy",
-      "dog",
-      "meeting",
-      "today",
-      "review",
-      "shared",
-      "code",
-      "project",
-    ];
-
-    // Seeded-style pseudo random generator
-    let seed = 42;
-    const rnd = () => {
-      seed = (seed * 9301 + 49297) % 233280;
-      return seed / 233280;
-    };
-
-    for (let i = 0; i < 50; i++) {
-      const sentenceLength = Math.floor(rnd() * 15) + 5;
-      const sentenceWords: Array<string> = [];
-
-      for (let j = 0; j < sentenceLength; j++) {
-        if (rnd() < 0.3) {
-          // Insert a roster name with possible punctuation or possessive
-          const name = names[Math.floor(rnd() * names.length)]!;
-          const variant = rnd();
-          if (variant < 0.25) sentenceWords.push(name.toLowerCase());
-          else if (variant < 0.5) sentenceWords.push(name.toUpperCase());
-          else if (variant < 0.75) sentenceWords.push(`${name}'s`);
-          else sentenceWords.push(`(${name})`);
-        } else {
-          sentenceWords.push(words[Math.floor(rnd() * words.length)]!);
-        }
-      }
-
-      const sentence = sentenceWords.join(" ") + ".";
-      const redacted = redact(sentence, testRoster);
-
-      // Verify no whole word in redacted text matches any of the roster names
+  prop(
+    "no roster name survives a sentence, whatever case, possessive or punctuation wraps it",
+    { parts: Schema.Array(Part) },
+    ({ parts }) => {
+      const roster: Roster = [...ROSTER_NAMES];
+      const text =
+        parts
+          .slice(0, 40)
+          .map((part, position) => {
+            const name = ROSTER_NAMES[Math.abs(part.index + position) % ROSTER_NAMES.length] ?? "Alice";
+            switch (part.kind) {
+              case "word":
+                return part.word;
+              case "lower":
+                return name.toLowerCase();
+              case "upper":
+                return name.toUpperCase();
+              case "possessive":
+                return `${name}'s`;
+              case "parenthesised":
+                return `(${name})`;
+            }
+          })
+          .join(" ") + ".";
+      const redacted = redact(text, roster);
       const segmenter = new Intl.Segmenter("en", { granularity: "word" });
-      for (const seg of segmenter.segment(redacted)) {
-        if (seg.isWordLike) {
-          let word = seg.segment.toLowerCase();
-          if (word.endsWith("'s") || word.endsWith("’s")) word = word.slice(0, -2);
-          for (const name of names) {
-            expect(word).not.toBe(name.toLowerCase());
-          }
-        }
+      for (const segment of segmenter.segment(redacted)) {
+        if (!segment.isWordLike) continue;
+        let word = segment.segment.toLowerCase();
+        if (word.endsWith("'s") || word.endsWith("\u2019s")) word = word.slice(0, -2);
+        if (ROSTER_NAMES.some((name) => name.toLowerCase() === word)) return false;
       }
-    }
-  });
+      return true;
+    },
+  );
 });
 
 describe("redact German phone numbers", () => {
@@ -297,54 +323,26 @@ describe("redact German phone numbers", () => {
     expect(redact("10 000 000 Euro, ruf 0170 1234567 an", [])).toBe("10 000 000 Euro, ruf [phone] an");
   });
 
-  it("property test: generated German numbers are redacted and dates are kept", () => {
-    // Seeded-style pseudo random generator
-    let seed = 7;
-    const rnd = () => {
-      seed = (seed * 9301 + 49297) % 233280;
-      return seed / 233280;
-    };
-    const pick = <T>(items: ReadonlyArray<T>): T => items[Math.floor(rnd() * items.length)]!;
-    const digits = (count: number): string =>
-      Array.from({ length: count }, () => String(Math.floor(rnd() * 10))).join("");
-    const pad = (value: number): string => String(value).padStart(2, "0");
+  prop(
+    "a generated German number is redacted, whatever its prefix, grouping and separators",
+    { number: GermanNumber },
+    ({ number }) => {
+      const phone = germanNumber(number);
+      return redact(sentence(phone), []) === redacted;
+    },
+  );
 
-    const prefixes = ["+49 ", "+49", "0049 ", "+49 (0)", "0"];
-    const separators = [" ", "-", "/", " / ", ""];
-    const areaDigits = ["2", "3", "4", "5", "6", "7", "8", "9"];
-
-    const germanNumber = (): string => {
-      const code =
-        rnd() < 0.4
-          ? `1${pick(["5", "6", "7"])}${digits(1)}`
-          : `${pick(areaDigits)}${digits(1 + Math.floor(rnd() * 3))}`;
-      const subscriber = digits(6 + Math.floor(rnd() * 3));
-      let groups = "";
-      for (let i = 0; i < subscriber.length;) {
-        const size = 2 + Math.floor(rnd() * 2);
-        groups += pick(separators) + subscriber.slice(i, i + size);
-        i += size;
-      }
-      return `${pick(prefixes)}${code}${groups}`;
-    };
-
-    for (let i = 0; i < 200; i++) {
-      const number = germanNumber();
-      expect(redact(sentence(number), [])).toBe(redacted);
-    }
-
-    for (let i = 0; i < 200; i++) {
-      const day = 1 + Math.floor(rnd() * 28);
-      const month = 1 + Math.floor(rnd() * 12);
-      const year = 1990 + Math.floor(rnd() * 110);
-      const date = pick([
-        `${pad(day)}.${pad(month)}.${year}`,
-        `${pad(day)}.${pad(month)}.${pad(year % 100)}`,
-        `${year}-${pad(month)}-${pad(day)}`,
-        `${year}`,
-      ]);
+  prop(
+    "a generated date is kept, in both the long and the short format",
+    { day: Schema.Int, month: Schema.Int, year: Schema.Int, short: Schema.Boolean },
+    ({ day, month, year, short }) => {
+      const pad = (value: number) => String(value).padStart(2, "0");
+      const validDay = (((day % 28) + 28) % 28) + 1;
+      const validMonth = (((month % 12) + 12) % 12) + 1;
+      const validYear = 1990 + (((year % 110) + 110) % 110);
+      const date = short ? pad(validYear % 100) : `${pad(validDay)}.${pad(validMonth)}.${validYear}`;
       const text = `Am ${date} um 10:30 Uhr danke.`;
-      expect(redact(text, [])).toBe(text);
-    }
-  });
+      return redact(text, []) === text;
+    },
+  );
 });
