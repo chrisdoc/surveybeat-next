@@ -33,7 +33,6 @@ import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 import { HttpServerRequest } from "effect/http/HttpServerRequest";
 import * as Etag from "effect/http/Etag";
-import * as HttpPlatform from "effect/http/HttpPlatform";
 import * as HttpRouter from "effect/http/HttpRouter";
 import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
 import { actionHandlers } from "./ActionHandlers.ts";
@@ -84,25 +83,9 @@ import { THEMES_TEST_ROUTE, themesTestRoutes } from "./ThemesTestRoutes.ts";
 import Organization from "./Organization.ts";
 import { pageRoutes } from "./PageRoutes.ts";
 import { Jobs, JobsDlq, type JobMessage } from "./Queues.ts";
+import { httpPlatformStub, mainWorkerAssets, randomHex32 } from "./WorkerWiring.ts";
 
-const assetsDirectory = new URL("../../../apps/web/dist", import.meta.url).pathname;
-
-const HttpPlatformStub = Layer.succeed(HttpPlatform.HttpPlatform, {
-  platform: "web",
-  compression: {
-    algorithms: new Set<"gzip">(),
-    compressResponse: (response) => Effect.succeed(response),
-  },
-  fileResponse: () => Effect.die("HttpPlatform.fileResponse not supported"),
-  fileWebResponse: () => Effect.die("HttpPlatform.fileWebResponse not supported"),
-});
-
-const randomId = () =>
-  Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) => byte.toString(16).padStart(2, "0")).join(
-    "",
-  );
-
-const newOrganizationId = () => OrganizationId.make(randomId());
+const newOrganizationId = () => OrganizationId.make(randomHex32());
 
 export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
   "Main",
@@ -112,29 +95,7 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
     const domain = mainWorkerDomainFor(stack.stage);
     return {
       main: import.meta.url,
-      assets: {
-        directory: assetsDirectory,
-        notFoundHandling: "single-page-application",
-        runWorkerFirst: [
-          "/auth/*",
-          "/api/*",
-          "/delivery",
-          "/delivery/*",
-          ...(isTestStage(stack.stage)
-            ? [
-                TEST_ROUTES,
-                PEOPLE_TEST_ROUTE,
-                PULSES_TEST_ROUTE,
-                ROUNDS_TEST_ROUTE,
-                THEMES_TEST_ROUTE,
-                REVIEW_TEST_ROUTE,
-                RESULT_RECOVERY_TEST_ROUTE,
-                TEST_INVITATION_TEST_ROUTE,
-                RESEND_EMAIL_TEST_ROUTE,
-              ]
-            : []),
-        ],
-      },
+      assets: mainWorkerAssets(stack.stage),
       env: {
         ...(yield* authBindings),
         OPENROUTER_API_KEY: Config.Redacted("OPENROUTER_API_KEY").pipe(Config.withDefault(Redacted.make(""))),
@@ -247,11 +208,11 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
           NewIds,
           NewIds.of({
             organizationId: Effect.sync(newOrganizationId),
-            personId: Effect.sync(() => PersonId.make(randomId())),
-            teamId: Effect.sync(() => TeamId.make(randomId())),
-            membershipId: Effect.sync(() => MembershipId.make(randomId())),
-            pulseId: Effect.sync(() => PulseId.make(randomId())),
-            questionId: Effect.sync(() => QuestionId.make(randomId())),
+            personId: Effect.sync(() => PersonId.make(randomHex32())),
+            teamId: Effect.sync(() => TeamId.make(randomHex32())),
+            membershipId: Effect.sync(() => MembershipId.make(randomHex32())),
+            pulseId: Effect.sync(() => PulseId.make(randomHex32())),
+            questionId: Effect.sync(() => QuestionId.make(randomHex32())),
           }),
         ),
       );
@@ -268,7 +229,7 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
           actionHandlers(services),
           noteHandlers(services),
         ]),
-        Layer.provide([Etag.layer, HttpPlatformStub, Path.layer]),
+        Layer.provide([Etag.layer, httpPlatformStub, Path.layer]),
       ),
     );
 
