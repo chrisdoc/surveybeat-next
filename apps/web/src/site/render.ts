@@ -2,10 +2,8 @@ import type { Locale } from "@surveybeat/domain";
 import type { KeysWithoutParams } from "../messages/index.ts";
 import { messagesFor } from "../messages/locale.ts";
 
-/** Where each locale's page is served. `en` is the default at the root. */
 const pathFor = (locale: Locale): string => (locale === "en" ? "/" : `/${locale}/`);
 
-/** The Site Worker redirects this to the stage's app, which shows sign-in when signed out. */
 const APP_PATH = "/app";
 
 const escape = (text: string): string =>
@@ -25,7 +23,6 @@ const brandMark = (size: number): string =>
 
 const FAVICON = `data:image/svg+xml,${encodeURIComponent(brandMark(28).replace(' aria-hidden="true"', ' xmlns="http://www.w3.org/2000/svg"'))}`;
 
-/** Line icons for the privacy cards, drawn on a 24px grid in the current colour. */
 const icons = {
   storage:
     '<rect x="4" y="10" width="16" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/><path d="M12 14.5v2.5"/>',

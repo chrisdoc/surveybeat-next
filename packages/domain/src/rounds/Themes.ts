@@ -2,13 +2,13 @@ import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
+import { isUnhandled, setup, transition, types } from "xstate";
 import { AiClient, type AiInput, type AiRequest, RedactedText } from "../ai/AiClient.ts";
 import { redact, type Roster } from "../privacy/Redaction.ts";
 import { DiscussionGuide, enforceEffectiveNOnResult, type RoundResult } from "./Results.ts";
 import { nextRetryAt } from "./Retry.ts";
 import type { RoundStatus } from "./Round.ts";
 
-/** What round_themes stores once (never recomputed). */
 export const StoredThemes = Schema.Struct({
   themes: Schema.Array(
     Schema.Struct({ label: Schema.String, sentence: Schema.String, supportingComments: Schema.Int }),
@@ -17,7 +17,6 @@ export const StoredThemes = Schema.Struct({
 });
 export type StoredThemes = typeof StoredThemes.Type;
 
-/** The object's record of the one themes call for a Round. */
 export type RoundThemesRecord =
   | { readonly status: "pending"; readonly requestedAt: number; readonly attempts: number }
   | { readonly status: "ready"; readonly themes: StoredThemes }
@@ -27,18 +26,12 @@ export const MAX_THEMES = 5;
 export const MIN_SUPPORTING_COMMENTS = 2;
 export const QUOTE_RUN_WORDS = 6;
 
-/** ADR 0016/0019: only when AI processing is on and the Round meets N. */
 export const shouldRequestThemes = (result: RoundResult, aiProcessing: boolean): boolean =>
   aiProcessing &&
   result.meetsMinimumGroupSize &&
   !result.delayed &&
   (result.status === "closed" || result.status === "ready" || result.status === "shared");
 
-/**
- * Builds the only thing sent to the model. Comments come from the stored Result (already redacted
- * at store time, ADR 0009), in the stored (shuffled) order: index i = result.comments[i].
- * Action titles are redacted here with `redact(title, roster)`.
- */
 export const buildThemesInput = (
   result: RoundResult,
   openActionTitles: ReadonlyArray<string>,
@@ -77,11 +70,6 @@ export const buildThemesInput = (
 
 export const THEMES_SCHEMA_NAME = "comment_themes_and_guide";
 
-/**
- * Strict JSON schema sent as response_format (ADR 0015). Every object: type object, all properties
- * required, additionalProperties false. Limits are stated in descriptions and enforced in
- * `checkThemesReply`, because provider strict mode rejects maxItems, minimum and minLength.
- */
 export const themesJsonSchema: Record<string, unknown> = {
   type: "object",
   additionalProperties: false,
@@ -164,11 +152,6 @@ export const themesRequest = (input: AiInput): AiRequest => ({
   maxTokens: 2000,
 });
 
-/**
- * Lowercased words of `text` with diacritics removed, split on anything that is not a letter or a
- * number. Word-based, so scripts written without spaces are not covered (SurveyBeat ships English and
- * German, ADR 0018).
- */
 const wordsOf = (text: string): ReadonlyArray<string> =>
   text
     .normalize("NFKD")
@@ -177,7 +160,6 @@ const wordsOf = (text: string): ReadonlyArray<string> =>
     .split(/[^\p{L}\p{N}]+/u)
     .filter((word) => word.length > 0);
 
-/** Every window of QUOTE_RUN_WORDS consecutive words, joined by a space. */
 const runsOf = (text: string): Set<string> => {
   const words = wordsOf(text);
   const runs = new Set<string>();
@@ -187,7 +169,6 @@ const runsOf = (text: string): Set<string> => {
   return runs;
 };
 
-/** True when `text` repeats QUOTE_RUN_WORDS or more consecutive words of any comment (ADR 0016). */
 export const repeatsCommentWords = (text: string, comments: ReadonlyArray<string>): boolean => {
   const commentRuns = new Set(comments.flatMap((comment) => [...runsOf(comment)]));
   return [...runsOf(text)].some((run) => commentRuns.has(run));
@@ -210,15 +191,6 @@ const decodeEnvelope = Schema.decodeUnknownOption(ReplyEnvelope);
 const decodeThemeReply = Schema.decodeUnknownOption(ThemeReply);
 const decodeGuide = Schema.decodeUnknownOption(DiscussionGuide);
 
-/**
- * ADR 0016/0019 checks on the model's reply. Fails only when the top level is not an object with a
- * `themes` array. Otherwise the reply is cleaned, never repaired:
- * - only the first MAX_THEMES entries are considered; an entry that does not decode is dropped;
- * - supportingComments counts distinct in-range comment indexes; fewer than 2 drops the theme;
- * - a label or sentence that repeats a 6-word run of any comment drops the theme;
- * - the guide must decode as DiscussionGuide, and no string in it may repeat a 6-word run; otherwise
- *   the whole guide is null.
- */
 export const checkThemesReply = (
   reply: unknown,
   comments: ReadonlyArray<string>,
@@ -235,7 +207,7 @@ export const checkThemesReply = (
       decoded.supportingCommentIndexes.filter((index) => index >= 0 && index < comments.length),
     ).size;
     if (supporters < MIN_SUPPORTING_COMMENTS) return [];
-    // Checked together too, so a quote split between the label and the sentence is caught.
+
     if (repeatsCommentWords(`${decoded.label} ${decoded.sentence}`, comments)) {
       return [];
     }
@@ -257,11 +229,78 @@ export type ThemesJobDecision =
   | { readonly _tag: "RetryAt"; readonly dueAt: number; readonly attempts: number }
   | { readonly _tag: "GiveUp" };
 
-/**
- * One attempt of the Round's single themes call. AiNotConfigured gives up, since nothing will change.
- * AiRejected, AiUnavailable and ThemesReplyInvalid retry at the backoff time, or give up once the
- * window is over. Never logs the reply or an error body.
- */
+type ThemesEvent =
+  | { readonly type: "Store"; readonly themes: StoredThemes }
+  | { readonly type: "Reject" }
+  | { readonly type: "Unavailable" }
+  | { readonly type: "Invalid" }
+  | { readonly type: "NotConfigured" };
+
+export const themesRetryMachine = setup({
+  schemas: {
+    context: types<{
+      attempts: number;
+      requestedAt: number;
+      now: number;
+      decision: ThemesJobDecision | null;
+    }>(),
+    events: {
+      Store: types<{ themes: StoredThemes }>(),
+      Reject: types<Record<string, never>>(),
+      Unavailable: types<Record<string, never>>(),
+      Invalid: types<Record<string, never>>(),
+      NotConfigured: types<Record<string, never>>(),
+    },
+  },
+}).createMachine({
+  id: "ThemesRetry",
+  context: { attempts: 0, requestedAt: 0, now: 0, decision: null },
+  initial: "pending",
+  states: {
+    pending: {
+      on: {
+        Store: ({ event }) => ({
+          target: "ready",
+          context: { decision: { _tag: "Store", themes: event.themes } },
+        }),
+        Reject: ({ context }) => retryOrGiveUp(context),
+        Unavailable: ({ context }) => retryOrGiveUp(context),
+        Invalid: ({ context }) => retryOrGiveUp(context),
+        NotConfigured: () => ({ target: "failed", context: { decision: { _tag: "GiveUp" } } }),
+      },
+    },
+    ready: {},
+    failed: {},
+  },
+});
+
+const retryOrGiveUp = (context: { attempts: number; requestedAt: number; now: number }) => {
+  const failedAttempts = context.attempts + 1;
+  const dueAt = nextRetryAt(context.requestedAt, failedAttempts, context.now);
+  return dueAt === null
+    ? { target: "failed", context: { decision: { _tag: "GiveUp" } as const } }
+    : {
+        context: {
+          attempts: failedAttempts,
+          decision: { _tag: "RetryAt", dueAt, attempts: failedAttempts } as const,
+        },
+      };
+};
+
+const themesDecision = (
+  params: { readonly requestedAt: number; readonly attempts: number; readonly now: number },
+  event: ThemesEvent,
+): ThemesJobDecision => {
+  const snapshot = themesRetryMachine.resolveState({
+    value: "pending",
+    context: { attempts: params.attempts, requestedAt: params.requestedAt, now: params.now, decision: null },
+  });
+  const [next, effects] = transition(themesRetryMachine, snapshot, event);
+  const decision = isUnhandled(snapshot, [next, effects]) ? null : next.context.decision;
+  if (decision === null) throw new Error("Themes retry refused " + event.type);
+  return decision;
+};
+
 export const runThemesAttempt = (params: {
   readonly input: AiInput;
   readonly requestedAt: number;
@@ -269,35 +308,23 @@ export const runThemesAttempt = (params: {
   readonly now: number;
 }): Effect.Effect<ThemesJobDecision, never, AiClient> => {
   const comments = params.input.comments.map((c) => c.text);
-  const retry = (): ThemesJobDecision => {
-    const failedAttempts = params.attempts + 1;
-    const dueAt = nextRetryAt(params.requestedAt, failedAttempts, params.now);
-    return dueAt === null ? { _tag: "GiveUp" } : { _tag: "RetryAt", dueAt, attempts: failedAttempts };
-  };
 
   return AiClient.use((client) => client.complete(themesRequest(params.input))).pipe(
     Effect.flatMap((reply) => checkThemesReply(reply, comments)),
-    Effect.map((themes): ThemesJobDecision => ({ _tag: "Store", themes })),
+    Effect.map((themes): ThemesJobDecision => themesDecision(params, { type: "Store", themes })),
     Effect.catchTags({
-      AiNotConfigured: (): Effect.Effect<ThemesJobDecision> => Effect.succeed({ _tag: "GiveUp" }),
-      AiRejected: (): Effect.Effect<ThemesJobDecision> => Effect.succeed(retry()),
-      AiUnavailable: (): Effect.Effect<ThemesJobDecision> => Effect.succeed(retry()),
-      ThemesReplyInvalid: (): Effect.Effect<ThemesJobDecision> => Effect.succeed(retry()),
+      AiNotConfigured: (): Effect.Effect<ThemesJobDecision> =>
+        Effect.succeed(themesDecision(params, { type: "NotConfigured" })),
+      AiRejected: (): Effect.Effect<ThemesJobDecision> =>
+        Effect.succeed(themesDecision(params, { type: "Reject" })),
+      AiUnavailable: (): Effect.Effect<ThemesJobDecision> =>
+        Effect.succeed(themesDecision(params, { type: "Unavailable" })),
+      ThemesReplyInvalid: (): Effect.Effect<ThemesJobDecision> =>
+        Effect.succeed(themesDecision(params, { type: "Invalid" })),
     }),
   );
 };
 
-/**
- * The Result as one viewer may see it (ADR 0004, 0016, 0019). Single source of truth used by the
- * Organization object and the privacy tests.
- *
- * The Round's current row decides the status and the Review window end, not the stored payload. Until
- * the Round is Shared, only the Lead sees its Result (the Review window, see Issue #106).
- *
- * A stored delayed Result is one whose computation gave up (Issue #128), so the Lead is told it could not be
- * computed. While a compute retry is pending, nothing is stored and `resultPending` is true: that is delayed,
- * not failed.
- */
 export const viewRoundResult = (params: {
   readonly stored: RoundResult;
   readonly organizationN: number;
@@ -306,7 +333,6 @@ export const viewRoundResult = (params: {
   readonly round: { readonly status: RoundStatus; readonly reviewEndsAt: number | null };
   readonly resultPending?: boolean;
 }): RoundResult => {
-  // Theme fields come only from the themes record, never from whatever the stored Result carries.
   const {
     themes: _themes,
     themesStatus: _themesStatus,

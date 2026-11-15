@@ -1,3 +1,5 @@
+// @effect-diagnostics asyncFunction:off -- React Email's render returns a Promise; the templates hold no Effect.
+
 import {
   EmailTemplates,
   InvitationTokens,
@@ -12,10 +14,8 @@ import * as InvitationEmail from "./InvitationEmail.tsx";
 import * as ReminderEmail from "./ReminderEmail.tsx";
 import * as ResultsReadyEmail from "./ResultsReadyEmail.tsx";
 
-/** A subject is one header line: names with line breaks must not start another header. */
 const oneLine = (subject: string) => subject.replace(/\s*[\r\n]+\s*/g, " ");
 
-/** Renders the HTML and plain-text parts. Adding a `RenderableEmail` variant fails to compile here. */
 export const renderEmail = async (email: RenderableEmail): Promise<RenderedEmail> => {
   switch (email._tag) {
     case "AddedToTeam":
@@ -49,10 +49,6 @@ export const renderEmail = async (email: RenderableEmail): Promise<RenderedEmail
   }
 };
 
-/**
- * The domain's `EmailTemplates`, rendered with React Email. The token an Invitation or reminder
- * refers to is derived here, just before rendering, so it is never stored. A render failure is a defect.
- */
 export const EmailTemplatesLive = Layer.effect(
   EmailTemplates,
   Effect.gen(function* () {

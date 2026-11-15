@@ -164,39 +164,45 @@ describe("Themes Privacy & Rule Table Invariants (ADR 0004, 0016, 0019)", () => 
     }
   });
 
-  it("Invariant T2: no stored theme has fewer than 2 supporting comments", () => {
-    const random = seededRandom(20260518);
-    for (let trial = 0; trial < 300; trial++) {
-      const reply = generatedReply(random, COMMENTS.length);
-      const result = Effect.runSync(checkThemesReply(reply, COMMENTS));
-      for (const theme of result.themes) {
-        expect(theme.supportingComments).toBeGreaterThanOrEqual(2);
-      }
-    }
-  });
-
-  it("Invariant T3: no theme label, theme sentence, or guide string repeats 6 words of a comment", () => {
-    const random = seededRandom(7);
-    for (let trial = 0; trial < 300; trial++) {
-      const reply = generatedReply(random, COMMENTS.length);
-      const result = Effect.runSync(checkThemesReply(reply, COMMENTS));
-      for (const theme of result.themes) {
-        expect(hasCommentRun(theme.label, COMMENTS)).toBe(false);
-        expect(hasCommentRun(theme.sentence, COMMENTS)).toBe(false);
-      }
-      if (result.guide !== null) {
-        const guideStrings = [
-          ...result.guide.whatStoodOut,
-          ...result.guide.whatPeopleRaised,
-          ...result.guide.actionsToCheckOn,
-          ...result.guide.questions,
-        ];
-        for (const text of guideStrings) {
-          expect(hasCommentRun(text, COMMENTS)).toBe(false);
+  it.effect("Invariant T2: no stored theme has fewer than 2 supporting comments", () =>
+    Effect.gen(function* () {
+      const random = seededRandom(20260518);
+      for (let trial = 0; trial < 300; trial++) {
+        const reply = generatedReply(random, COMMENTS.length);
+        const result = yield* checkThemesReply(reply, COMMENTS);
+        for (const theme of result.themes) {
+          expect(theme.supportingComments).toBeGreaterThanOrEqual(2);
         }
       }
-    }
-  });
+    }),
+  );
+
+  it.effect(
+    "Invariant T3: no theme label, theme sentence, or guide string repeats 6 words of a comment",
+    () =>
+      Effect.gen(function* () {
+        const random = seededRandom(7);
+        for (let trial = 0; trial < 300; trial++) {
+          const reply = generatedReply(random, COMMENTS.length);
+          const result = yield* checkThemesReply(reply, COMMENTS);
+          for (const theme of result.themes) {
+            expect(hasCommentRun(theme.label, COMMENTS)).toBe(false);
+            expect(hasCommentRun(theme.sentence, COMMENTS)).toBe(false);
+          }
+          if (result.guide !== null) {
+            const guideStrings = [
+              ...result.guide.whatStoodOut,
+              ...result.guide.whatPeopleRaised,
+              ...result.guide.actionsToCheckOn,
+              ...result.guide.questions,
+            ];
+            for (const text of guideStrings) {
+              expect(hasCommentRun(text, COMMENTS)).toBe(false);
+            }
+          }
+        }
+      }),
+  );
 
   it("Invariant T4: members get only label and sentence, never counts", () => {
     const view = viewRoundResult({
@@ -245,14 +251,16 @@ describe("Themes Privacy & Rule Table Invariants (ADR 0004, 0016, 0019)", () => 
     }
   });
 
-  it("Invariant G3: a guide that repeats 6 words of a comment is dropped whole", () => {
-    const quoting: DiscussionGuide = {
-      ...guide,
-      whatPeopleRaised: ["Nobody protects the afternoons for real project work"],
-    };
-    const stored = Effect.runSync(checkThemesReply({ themes: [], guide: quoting }, COMMENTS));
-    expect(stored.guide).toBeNull();
-  });
+  it.effect("Invariant G3: a guide that repeats 6 words of a comment is dropped whole", () =>
+    Effect.gen(function* () {
+      const quoting: DiscussionGuide = {
+        ...guide,
+        whatPeopleRaised: ["Nobody protects the afternoons for real project work"],
+      };
+      const stored = yield* checkThemesReply({ themes: [], guide: quoting }, COMMENTS);
+      expect(stored.guide).toBeNull();
+    }),
+  );
 
   it("Invariant G4: the model input never carries an Action owner, an id, or a time from the Result", () => {
     const roster: Roster = [{ name: "Owen Ridgeway", email: "owen.person@example.org" }];

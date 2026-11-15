@@ -1,8 +1,3 @@
-/**
- * Every user-facing string of the emails, in English: the source of the keys and placeholders. German
- * lives in `de.ts`, checked against these keys at compile time. Same conventions as `apps/web/src/messages`:
- * flat keys, `{placeholder}` templates.
- */
 export const catalog = {
   "layout.brand": "SurveyBeat",
   "layout.signature": "SurveyBeat helps teams check in on how they are doing, a few questions at a time.",
@@ -38,11 +33,11 @@ export const catalog = {
   "reminder.unsubscribe": "Turn off reminders for this Pulse",
 
   "resultsReady.subject": "Results are in: {pulse}",
-  "resultsReady.preview": "The results for {pulse} are ready to view.",
+  "resultsReady.preview": "The Results for {pulse} are ready to view.",
   "resultsReady.heading": "Results are in for {pulse}",
   "resultsReady.body":
     "The check-in has closed with a {responseRate}% response rate. See what changed and how the team is doing.",
-  "resultsReady.action": "View results",
+  "resultsReady.action": "View Results",
   "resultsReady.link": "If the button does not work, open this link:",
   "resultsReady.reason": "You received this email because you are a member of {team}.",
 

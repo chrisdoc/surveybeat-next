@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "tsBuildInfoFile": "dist/.tsbuildinfo",
+    "types": ["node"],
+    "plugins": [
+      {
+        "name": "@effect/language-service",
+        "allowedUnstableApis": ["@effect/vitest#it"]
+      }
+    ]
+  },
+  "include": ["src"]
+}

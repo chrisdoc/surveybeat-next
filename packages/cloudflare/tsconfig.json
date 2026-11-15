@@ -4,7 +4,41 @@
     "rootDir": "src",
     "outDir": "dist",
     "tsBuildInfoFile": "dist/.tsbuildinfo",
-    "types": ["node"]
+    "types": ["node"],
+    "plugins": [
+      {
+        "name": "@effect/language-service",
+        // Debt from the effect 4.1.2 pin: these are the exact unstable APIs this package calls.
+        // The Worker is the one place the HTTP, SQL and reactivity modules are used at all.
+        // Delete an entry when the pin moves and the module becomes stable.
+        "allowedUnstableApis": [
+          "@effect/sql-sqlite-do/SqliteClient#SqliteClient",
+          "@effect/sql-sqlite-do/SqliteClient#make",
+          "@effect/vitest#it",
+          "effect/Path#layer",
+          "effect/http-api/HttpApiBuilder#group",
+          "effect/http-api/HttpApiBuilder#layer",
+          "effect/http/Etag#layer",
+          "effect/http/HttpEffect#appendPreResponseHandler",
+          "effect/http/HttpPlatform#HttpPlatform",
+          "effect/http/HttpRouter#toHttpEffect",
+          "effect/http/HttpRouter#toWebHandler",
+          "effect/http/HttpServer#layerServices",
+          "effect/http/HttpServerRequest#HttpServerRequest",
+          "effect/http/HttpServerRequest#toURL",
+          "effect/http/HttpServerResponse#HttpServerResponse",
+          "effect/http/HttpServerResponse#empty",
+          "effect/http/HttpServerResponse#expireCookie",
+          "effect/http/HttpServerResponse#html",
+          "effect/http/HttpServerResponse#json",
+          "effect/http/HttpServerResponse#redirect",
+          "effect/http/HttpServerResponse#setCookie",
+          "effect/http/HttpServerResponse#setHeaders",
+          "effect/http/HttpServerResponse#text",
+          "effect/reactivity/Reactivity#layer"
+        ]
+      }
+    ]
   },
   "include": ["src"],
   "references": [{ "path": "../domain" }, { "path": "../api" }, { "path": "../emails" }]

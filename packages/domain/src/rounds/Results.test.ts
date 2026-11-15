@@ -847,3 +847,105 @@ describe("delayedRoundResult: the stand-in for a Result that is not computed (Is
     assert.strictEqual(none.responseRate, null);
   });
 });
+
+describe("Raised Organization N hides a past Round's Dimension (ADR 0004)", () => {
+  const past = (
+    id: string,
+    dimensionContributors: number | undefined,
+    submissionsCount: number,
+    contributors: number,
+  ): HistoricalRoundData => ({
+    roundId: RoundId.make(id),
+    plannedOpenDate: `2026-10-0${id.slice(-1)}`,
+    closedAt: 1730000000000,
+    effectiveMinimumGroupSize: 4,
+    submissionsCount,
+    questions: [{ questionVersionId: Q1, score: 3, contributors, meetsMinimumGroupSize: true }],
+    dimensions: [
+      {
+        dimension: "workload",
+        score: 3,
+        usableQuestionCount: 1,
+        ...(dimensionContributors === undefined ? {} : { contributors: dimensionContributors }),
+        meetsMinimumGroupSize: true,
+      },
+    ],
+  });
+
+  const compute = (pastRoundsHistory: Array<HistoricalRoundData>, effectiveN: number) =>
+    calculateRoundResult({
+      roundId: ROUND_1,
+      pulseId: PULSE_ID,
+      teamId: TEAM_ID,
+      status: "closed",
+      plannedOpenDate: "2026-11-02",
+      anonymityMode: "anonymous",
+      closedAt: 1730592000000,
+      effectiveMinimumGroupSize: effectiveN,
+      eligibleMembersCount: 10,
+      questions: testQuestions,
+      submissions: Array.from({ length: 6 }, (_, i) => ({
+        id: `s${i}`,
+        answers: [{ questionVersionId: Q1, value: 4, comment: null }],
+      })),
+      pastRoundsHistory,
+    });
+
+  const workloadTrend = (result: ReturnType<typeof calculateRoundResult>) =>
+    result.dimensions.find((d) => d.dimension === "workload")?.trend.map((p) => p.score);
+
+  it("keeps a past score only when its Submissions, its contributors and every Question it averaged meet the raised N", () => {
+    const result = compute(
+      [past("past-1", 6, 6, 6), past("past-2", 5, 5, 5), past("past-3", 6, 6, 5), past("past-4", 5, 6, 5)],
+      6,
+    );
+
+    assert.deepStrictEqual(workloadTrend(result), [3, null, null, null, 4]);
+  });
+
+  it("takes a past Dimension's contributors from its largest Question count when the stored count is absent", () => {
+    const result = compute([past("past-1", undefined, 5, 5)], 4);
+
+    const point = result.dimensions.find((d) => d.dimension === "workload")?.trend[0];
+    assert.strictEqual(point?.score, 3);
+    assert.strictEqual(point?.contributors, 5);
+  });
+});
+
+describe("Raised N reports a lower-bound contributor count after the usable set shrinks", () => {
+  it("uses the largest remaining Question count, never the old distinct count", () => {
+    const result = calculateRoundResult({
+      roundId: ROUND_1,
+      pulseId: PULSE_ID,
+      teamId: TEAM_ID,
+      status: "closed",
+      plannedOpenDate: "2026-11-02",
+      anonymityMode: "anonymous",
+      closedAt: 1730592000000,
+      effectiveMinimumGroupSize: 4,
+      eligibleMembersCount: 12,
+      questions: testQuestions,
+      submissions: [
+        ...Array.from({ length: 4 }, (_, i) => ({
+          id: `q1-${i}`,
+          answers: [{ questionVersionId: Q1, value: 4, comment: null }],
+        })),
+        ...Array.from({ length: 5 }, (_, i) => ({
+          id: `q2-${i}`,
+          answers: [{ questionVersionId: Q2, value: 2, comment: null }],
+        })),
+      ],
+      pastRoundsHistory: [],
+    });
+
+    const before = result.dimensions.find((d) => d.dimension === "workload");
+    assert.strictEqual(before?.usableQuestionCount, 2);
+    assert.strictEqual(before?.contributors, 9);
+
+    const masked = enforceEffectiveNOnResult(result, 5);
+    const after = masked.dimensions.find((d) => d.dimension === "workload");
+    assert.strictEqual(after?.usableQuestionCount, 1);
+    assert.strictEqual(after?.contributors, 5);
+    assert.isAtLeast(after?.contributors ?? 0, masked.effectiveMinimumGroupSize);
+  });
+});

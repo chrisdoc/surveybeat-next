@@ -4,10 +4,6 @@ import { QuestionType, QuestionVersionId } from "../pulses/Question.ts";
 import { enforceEffectiveNOnResult, type QuestionInput, type RoundResult } from "./Results.ts";
 import { RoundId, type RoundStatus } from "./Round.ts";
 
-/**
- * One Question of a Round in the member's history. `teamScore` is the Team's score for it, only when
- * the Round is shown and the Question is a Rating that meets the minimum group size (ADR 0004).
- */
 export const HistoryQuestion = Schema.Struct({
   questionVersionId: QuestionVersionId,
   position: Schema.Int,
@@ -17,14 +13,9 @@ export const HistoryQuestion = Schema.Struct({
 });
 export type HistoryQuestion = typeof HistoryQuestion.Type;
 
-/**
- * Why a Round's Team scores are or are not shown: not shared (or not visible to the member), below
- * the minimum group size, or shown.
- */
 export const HistoryTeamResult = Schema.Literals(["shown", "notShared", "belowMinimumGroupSize"]);
 export type HistoryTeamResult = typeof HistoryTeamResult.Type;
 
-/** One Round the signed-in Person took part in. Carries no Submission data (ADR 0017). */
 export const HistoryRound = Schema.Struct({
   roundId: RoundId,
   teamId: TeamId,
@@ -36,13 +27,11 @@ export const HistoryRound = Schema.Struct({
 });
 export type HistoryRound = typeof HistoryRound.Type;
 
-/** The signed-in Person's Rounds, newest first. */
 export const MemberHistory = Schema.Struct({
   rounds: Schema.Array(HistoryRound),
 });
 export type MemberHistory = typeof MemberHistory.Type;
 
-/** What the history needs about one Round the Person took part in. */
 export interface MemberHistoryRoundInput {
   readonly roundId: RoundId;
   readonly teamId: TeamId;
@@ -72,7 +61,6 @@ const historyRound = (input: MemberHistoryRoundInput, minimumGroupSize: number):
     questions: questions.map((question) => toHistoryQuestion(question, null)),
   });
 
-  // The Round's own status decides, not the stored payload, which can lag behind sharing.
   if (input.status !== "shared" || !input.canViewResults || input.result === null) {
     return noScores("notShared");
   }
@@ -102,11 +90,6 @@ const toHistoryQuestion = (question: QuestionInput, teamScore: number | null): H
   teamScore,
 });
 
-/**
- * Builds the signed-in Person's history. Each Round's Team scores follow the same rules as the
- * Round's Result: shown only when shared, visible to the member, and at least N under the stricter
- * of the stored and the current minimum group size (ADR 0004, ADR 0017).
- */
 export const buildMemberHistory = (params: {
   readonly rounds: ReadonlyArray<MemberHistoryRoundInput>;
   readonly minimumGroupSize: number;

@@ -1,5 +1,7 @@
-import { assert, describe, it } from "@effect/vitest";
-import { Clock, Duration, Effect } from "effect";
+import { assert, describe, expect, it, prop } from "@effect/vitest";
+import { createEffectActor } from "@xstate/effect";
+import { sendAndAwait } from "@xstate/effect/test";
+import { Clock, Duration, Effect, Schema } from "effect";
 import { TestClock } from "effect/testing";
 import {
   calculateReminders,
@@ -7,9 +9,15 @@ import {
   calculateRoundInstants,
   localToUtc,
   nextEightWeeksCadenceDates,
+  roundCommandRejection,
+  roundMachine,
+  roundStatusAfter,
+  type RoundCommand,
+  type RoundCommandTag,
   type RoundRecord,
 } from "./Lifecycle.ts";
-import { RoundId } from "./Round.ts";
+import { RoundId, RoundStatus as RoundStatusSchema, type RoundStatus } from "./Round.ts";
+import { PersonId } from "../people/Identity.ts";
 import { PulseId, SendTime } from "../pulses/Pulse.ts";
 import { TeamId } from "../people/Team.ts";
 
@@ -426,4 +434,164 @@ describe("Lifecycle scheduling and time engine", () => {
       "Night delivery waits until 08:00 tomorrow",
     );
   });
+});
+
+const ROUND_TAGS: ReadonlyArray<RoundCommandTag> = [
+  "CloseRoundEarly",
+  "ShareResults",
+  "RetryResult",
+  "CancelRound",
+  "ResendInvitation",
+];
+
+const CommandTag = Schema.Literals([
+  "SkipWeek",
+  "UnskipWeek",
+  "PausePulse",
+  "ResumePulse",
+  "CloseRoundEarly",
+  "ShareResults",
+  "RetryResult",
+  "CancelRound",
+  "ResendInvitation",
+]);
+
+const commandOf = (tag: RoundCommandTag): RoundCommand => {
+  const teamId = TeamId.make("team-1");
+  const pulseId = PulseId.make("pulse-1");
+  const roundId = RoundId.make("round-1");
+  const personId = PersonId.make("person-1");
+  switch (tag) {
+    case "SkipWeek":
+      return { _tag: "SkipWeek", teamId, pulseId, plannedOpenDate: "2026-11-09" };
+    case "UnskipWeek":
+      return { _tag: "UnskipWeek", teamId, pulseId, plannedOpenDate: "2026-11-09" };
+    case "PausePulse":
+      return { _tag: "PausePulse", teamId, pulseId };
+    case "ResumePulse":
+      return { _tag: "ResumePulse", teamId, pulseId };
+    case "CloseRoundEarly":
+      return { _tag: "CloseRoundEarly", teamId, roundId };
+    case "ShareResults":
+      return { _tag: "ShareResults", teamId, roundId };
+    case "RetryResult":
+      return { _tag: "RetryResult", teamId, roundId };
+    case "CancelRound":
+      return { _tag: "CancelRound", teamId, roundId };
+    case "ResendInvitation":
+      return { _tag: "ResendInvitation", teamId, roundId, personId };
+  }
+};
+
+const MODEL: Record<RoundStatus, Partial<Record<RoundCommandTag, RoundStatus>>> = {
+  scheduled: { CancelRound: "cancelled" },
+  open: { CloseRoundEarly: "closed", CancelRound: "cancelled", ResendInvitation: "open" },
+  closed: { RetryResult: "closed" },
+  ready: { RetryResult: "ready", ShareResults: "shared" },
+  shared: { RetryResult: "shared", ShareResults: "shared" },
+  cancelled: {},
+};
+
+const modelNext = (status: RoundStatus, tag: RoundCommandTag): RoundStatus | undefined =>
+  ROUND_TAGS.includes(tag) ? MODEL[status][tag] : status;
+
+describe("the Round lifecycle table", () => {
+  prop(
+    "allows exactly the commands the model allows in that status, and refuses the rest",
+    { status: RoundStatusSchema, tag: CommandTag },
+    ({ status, tag }) => {
+      const rejection = roundCommandRejection(status, commandOf(tag));
+      const next = modelNext(status, tag);
+      if (next === undefined) return rejection !== null;
+      return rejection === null && roundStatusAfter(status, commandOf(tag)) === next;
+    },
+  );
+
+  prop(
+    "walks a command sequence to the status the model predicts, refusing the illegal steps",
+    { start: RoundStatusSchema, tags: Schema.Array(CommandTag) },
+    ({ start, tags }) => {
+      let status: RoundStatus = start;
+      for (const tag of tags.slice(0, 25)) {
+        const command = commandOf(tag);
+        const rejection = roundCommandRejection(status, command);
+        const next = modelNext(status, tag);
+        if (next === undefined) {
+          if (rejection === null) return false;
+          continue;
+        }
+        if (rejection !== null) return false;
+        const after = roundStatusAfter(status, command);
+        if (after !== next) return false;
+        status = after;
+      }
+      return true;
+    },
+  );
+});
+
+describe("the Round machine", () => {
+  const roundId = RoundId.make("round-1");
+
+  it.each([
+    ["scheduled", "CloseRoundEarly", "RoundNotOpen"],
+    ["closed", "ShareResults", "InvalidRoundState"],
+    ["open", "RetryResult", "InvalidRoundState"],
+    ["shared", "CancelRound", "InvalidRoundState"],
+  ] as const)("refuses %s in %s with %s", (status, tag, rejection) => {
+    const command = commandOf(tag);
+    expect(roundCommandRejection(status, command)).toEqual(
+      rejection === "RoundNotOpen" ? { _tag: "RoundNotOpen" } : { _tag: "InvalidRoundState", status },
+    );
+    expect(roundStatusAfter(status, command)).toBe(status);
+  });
+
+  it.effect("cancels a scheduled Round and then refuses every transition out of cancelled", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const actor = yield* createEffectActor(roundMachine, {
+          snapshot: roundMachine.resolveState({
+            value: "scheduled",
+            context: { status: "scheduled", rejection: null },
+          }),
+        });
+        yield* sendAndAwait(actor, {
+          type: "CancelRound",
+          teamId: TeamId.make("team-1"),
+          roundId,
+        });
+        expect(actor.getSnapshot().value).toBe("cancelled");
+        expect(actor.getSnapshot().context.rejection).toBeNull();
+
+        yield* sendAndAwait(actor, {
+          type: "ShareResults",
+          teamId: TeamId.make("team-1"),
+          roundId,
+        });
+        expect(actor.getSnapshot().value).toBe("cancelled");
+        expect(actor.getSnapshot().context.rejection).toEqual({
+          _tag: "InvalidRoundState",
+          status: "cancelled",
+        });
+      }),
+    ),
+  );
+
+  it.effect("closes an open Round early and refuses to close it twice", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const actor = yield* createEffectActor(roundMachine, {
+          snapshot: roundMachine.resolveState({
+            value: "open",
+            context: { status: "open", rejection: null },
+          }),
+        });
+        yield* sendAndAwait(actor, { type: "CloseRoundEarly", teamId: TeamId.make("team-1"), roundId });
+        expect(actor.getSnapshot().value).toBe("closed");
+        yield* sendAndAwait(actor, { type: "CloseRoundEarly", teamId: TeamId.make("team-1"), roundId });
+        expect(actor.getSnapshot().value).toBe("closed");
+        expect(actor.getSnapshot().context.rejection).toEqual({ _tag: "RoundNotOpen" });
+      }),
+    ),
+  );
 });

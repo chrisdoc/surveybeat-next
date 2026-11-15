@@ -24,6 +24,16 @@
     ],
     "PreToolUse": [
       {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh -c 'root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0; exec node \"$root/scripts/fence/vcs-command-policy.mjs\"'",
+            "timeout": 15
+          }
+        ]
+      },
+      {
         "matcher": "Agent",
         "hooks": [
           {

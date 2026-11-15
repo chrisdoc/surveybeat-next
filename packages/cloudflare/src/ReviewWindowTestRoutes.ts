@@ -21,7 +21,6 @@ const DAY_MS = 86_400_000;
 
 type OrganizationStub = ReturnType<Organizations["getByName"]>;
 
-/** Sets the Pulse's Review window in days, keeping its other settings (test stages only). */
 export const setReviewWindowDays = (
   organization: OrganizationStub,
   admin: PersonId,
@@ -45,7 +44,6 @@ export const setReviewWindowDays = (
     );
   });
 
-/** The people and Pulse of one scenario: a Lead, two members, and an admin, with one Pulse in one Team. */
 interface People {
   readonly organization: OrganizationStub;
   readonly admin: PersonId;
@@ -56,17 +54,12 @@ interface People {
   readonly pulseId: PulseId;
 }
 
-/** The People, and one Round of their Pulse (the one the scenario drives). */
 export interface Cast extends People {
   readonly roundId: RoundId;
   readonly closeJobId: string;
   readonly closeDue: number;
 }
 
-/**
- * One Organization with a Lead, two members, and N = 3, AI processing off, and one Pulse with the Review window
- * `windowDays`. Creating the Pulse schedules its first Round.
- */
 const setUpPulse = (organizations: Organizations, label: string, windowDays: number, now: number) =>
   Effect.gen(function* () {
     const organizationId = `review-${label}`;
@@ -144,7 +137,6 @@ const setUpPulse = (organizations: Organizations, label: string, windowDays: num
     return people;
   });
 
-/** The Round of a Pulse with `status`, or the first one listed when none is given (the Pulse's first Round). */
 const roundOf = (people: People, status: string | null) =>
   Effect.gen(function* () {
     const listed = yield* people.organization.viewRounds(people.admin, people.teamId, people.pulseId);
@@ -154,10 +146,6 @@ const roundOf = (people: People, status: string | null) =>
     return RoundId.make(match.id);
   });
 
-/**
- * Opens a Round, has the three people answer (so it meets N), and returns its close job. Each answer is keyed
- * by `tag`, so two Rounds of one Pulse never share an edit id.
- */
 const openAndAnswer = (people: People, roundId: RoundId, tag: string) =>
   Effect.gen(function* () {
     const { organization, lead, member, otherMember } = people;
@@ -187,14 +175,12 @@ const openAndAnswer = (people: People, roundId: RoundId, tag: string) =>
     return cast;
   });
 
-/** A Pulse's first Round, opened and answered, not yet closed. */
 export const openedRound = (organizations: Organizations, label: string, windowDays: number, now: number) =>
   Effect.gen(function* () {
     const people = yield* setUpPulse(organizations, label, windowDays, now);
     return yield* openAndAnswer(people, yield* roundOf(people, null), label);
   });
 
-/** A Pulse's first Round, opened, answered, and closed: Ready with a window above 0, Shared with 0. */
 const closedRound = (organizations: Organizations, label: string, windowDays: number, now: number) =>
   Effect.gen(function* () {
     const cast = yield* openedRound(organizations, label, windowDays, now);
@@ -202,13 +188,11 @@ const closedRound = (organizations: Organizations, label: string, windowDays: nu
     return cast;
   });
 
-/** The Round's jobs of one type, as the schedule table holds them. */
 export const jobsOfType = (cast: Cast, type: string) =>
   Effect.map(cast.organization.getJobsForRound(cast.roundId), (jobs) =>
     jobs.filter((job) => job.type === type),
   );
 
-/** Who has a results-ready email scheduled for this Round, by role name, sorted. */
 const resultsReadyFor = (cast: Cast) =>
   Effect.map(cast.organization.getJobsForRound(cast.roundId), (jobs) => {
     const prefix = `results-ready-${cast.roundId}-`;
@@ -240,7 +224,6 @@ const hasNote = (cast: Cast, person: PersonId) =>
 export const statusOf = (cast: Cast) =>
   Effect.map(cast.organization.getRound(cast.roundId), (round) => round?.status ?? null);
 
-/** "Accepted", or the rejection's tag. */
 export const commandOutcome = (result: RoundCommandResult) =>
   result._tag === "Accepted" ? "Accepted" : result.rejection._tag;
 
@@ -254,7 +237,6 @@ const shareCommand = (cast: Cast, actor: PersonId, now: number) =>
     commandOutcome,
   );
 
-/** What a viewer sees of a Result: its status, which Result sections it carries, and whether its Review window end is the share job's due time. */
 const viewSummary = (view: RoundResult | null, shareDue: number | undefined) => ({
   status: view?.status ?? null,
   seesQuestions: (view?.questions.length ?? 0) > 0,
@@ -264,23 +246,12 @@ const viewSummary = (view: RoundResult | null, shareDue: number | undefined) => 
   reviewEndsAtIsShareDue: shareDue !== undefined && view?.reviewEndsAt === shareDue,
 });
 
-/**
- * Test stages only (`isTestStage`): the Review window (issue 106) on a real Organization Durable Object and
- * local workerd. Three Organizations, each with a Lead, two members, N = 3, and AI off:
- * - window 0: the Round is shared at close (R1 behaviour): no share job, every Person gets a results-ready email.
- * - window 3, shared by hand: the Round is Ready at close; the share job is due three days later; only the
- *   Lead has a results-ready email; members see no Result data; the Lead shares it twice (both Accepted);
- *   a member and an admin are Forbidden; afterwards the share job is cancelled and the members have emails.
- * - window 3, shared by the window's end: changing the Pulse's window after close does not move the share job;
- *   running the share job twice and then the due jobs shares the Round once.
- */
 export const reviewTestRoutes = (organizations: Organizations) =>
   Effect.gen(function* () {
     const request = yield* HttpServerRequest;
     const run = new URL(request.url, "http://localhost").searchParams.get("run") ?? "";
     const now = yield* Clock.currentTimeMillis;
 
-    // Window 0: shared at once.
     const zero = yield* closedRound(organizations, `${run}-zero`, 0, now);
     const zeroView = yield* viewOf(zero, zero.member);
     const zeroSummary = {
@@ -290,16 +261,13 @@ export const reviewTestRoutes = (organizations: Organizations) =>
       memberSeesQuestions: (zeroView?.questions.length ?? 0) > 0,
     };
 
-    // Window 3, shared by the Lead.
     const manual = yield* closedRound(organizations, `${run}-manual`, 3, now);
     const manualShare = (yield* jobsOfType(manual, "share"))[0];
     if (manualShare === undefined) return yield* Effect.die(new Error("no share job"));
-    // Read before any share command runs, so the summary shows the Round as it was at close.
     const roundBefore = yield* statusOf(manual);
     const resultsReadyBefore = yield* resultsReadyFor(manual);
     const leadBefore = yield* viewOf(manual, manual.lead);
     const memberBefore = yield* viewOf(manual, manual.member);
-    // The Lead's Note: the Lead sees it during the Review window, a member only once the Round is Shared.
     yield* manual.organization.saveRoundNote(
       manual.lead,
       manual.teamId,
@@ -337,9 +305,7 @@ export const reviewTestRoutes = (organizations: Organizations) =>
       memberSeesNoteAfter,
     };
 
-    // Window 3, shared when the window ends: a later change to the Pulse does not move the share job.
     const auto = yield* closedRound(organizations, `${run}-auto`, 3, now);
-    // Changed at the close, the Organization's clock: an earlier `now` would re-plan the next Round into the past.
     yield* setReviewWindowDays(auto.organization, auto.admin, auto.teamId, auto.pulseId, 7, auto.closeDue);
     const autoShare = (yield* jobsOfType(auto, "share"))[0];
     if (autoShare === undefined) return yield* Effect.die(new Error("no share job"));
@@ -359,7 +325,6 @@ export const reviewTestRoutes = (organizations: Organizations) =>
       memberSeesQuestionsAfter: (autoView?.questions.length ?? 0) > 0,
     };
 
-    // Cascade: Round A is Ready, then the Pulse's next Round B is also Ready. The Lead shares B, which shares A too.
     const cascade = yield* closedRound(organizations, `${run}-cascade`, 7, now);
     const roundA = cascade.roundId;
     const roundB = yield* roundOf(cascade, "scheduled");
@@ -386,7 +351,6 @@ export const reviewTestRoutes = (organizations: Organizations) =>
       roundB: yield* roundSummary(roundBCast),
     };
 
-    // Close early: a Lead closes an Open Round of a window-2 Pulse; the share job is due two days after closing.
     const early = yield* openedRound(organizations, `${run}-early`, 2, now);
     const openedRoundRecord = yield* early.organization.getRound(early.roundId);
     const openedAt = openedRoundRecord?.openedAt ?? null;

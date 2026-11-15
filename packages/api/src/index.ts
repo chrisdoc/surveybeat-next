@@ -41,6 +41,9 @@ import {
   ActionNotFound,
   CreateAction,
   FailedEmails,
+  FailedEmailNotFound,
+  FailedEmailStatus,
+  EmailNotResendable,
   OwnerNotInTeam,
   RoundNoteView,
   SaveNote,
@@ -64,21 +67,31 @@ import {
 import { Schema } from "effect";
 import { HttpApi, HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from "effect/http-api";
 
-/** The name a creator gives a new Organization: trimmed, 1 to 100 characters. */
+export {
+  DELIVERY_PAGE_PATH,
+  decodePageBody,
+  PageBody,
+  pageRouteKeys,
+  type PageRouteKey,
+  UNSUBSCRIBE_PAGE_PATH,
+} from "./PageRoutes.ts";
+
 export const OrganizationName = Schema.String.pipe(
   Schema.check(Schema.isTrimmed(), Schema.isMinLength(1), Schema.isMaxLength(100)),
 );
 
-/**
- * Sign-in (WorkOS AuthKit, SPEC §6.1). `login`, `callback`, and `logout` answer with redirects
- * and cookies, so browsers navigate to them; the app calls the other three.
- */
 export class AuthApiGroup extends HttpApiGroup.make("auth")
   .add(
     HttpApiEndpoint.get("login", "/login", { success: HttpApiSchema.Empty(302) }),
-    HttpApiEndpoint.get("callback", "/callback", {
-      query: { code: Schema.optional(Schema.String), state: Schema.optional(Schema.String) },
-      success: HttpApiSchema.Empty(302),
+    HttpApiEndpoint.post("sendSignInCode", "/email-code", {
+      payload: Schema.Struct({ email: EmailAddress }),
+      success: HttpApiSchema.Empty(204),
+      error: [Forbidden, AuthUnavailable],
+    }),
+    HttpApiEndpoint.post("verifySignInCode", "/email-code/verify", {
+      payload: Schema.Struct({ email: EmailAddress, code: Schema.String }),
+      success: Schema.Struct({ verified: Schema.Boolean }),
+      error: [Forbidden, AuthUnavailable],
     }),
     HttpApiEndpoint.post("logout", "/logout", {
       success: HttpApiSchema.Empty(303),
@@ -101,10 +114,6 @@ export class AuthApiGroup extends HttpApiGroup.make("auth")
   )
   .prefix("/auth") {}
 
-/**
- * Every directory call needs a session in an Organization (`Forbidden` also covers "not in one"),
- * and any of them may meet a rule. `AuthUnavailable`: WorkOS could not be reached; repeat the call.
- */
 const directoryErrors = [
   Unauthenticated,
   Forbidden,
@@ -127,16 +136,12 @@ const directoryErrors = [
   LastAdmin,
   TeamNameTaken,
   PersonWasRemoved,
+  FailedEmailNotFound,
+  EmailNotResendable,
 ] as const;
 const teamParams = { teamId: TeamId };
 const memberParams = { teamId: TeamId, personId: PersonId };
 
-/**
- * Teams, Leads, members, and Organization settings, for the signed-in Person's Organization
- * (never one named in the URL). The permission table in `@surveybeat/domain` decides each call
- * from the Organization's Durable Object. No endpoint returns Result data. Changes answer 204 and
- * the app reads the view again, since a change can end the caller's own access to it.
- */
 export class DirectoryApiGroup extends HttpApiGroup.make("directory")
   .add(
     HttpApiEndpoint.get("listTeams", "/teams", {
@@ -180,9 +185,21 @@ export class DirectoryApiGroup extends HttpApiGroup.make("directory")
       success: OrganizationSettings,
       error: directoryErrors,
     }),
-    // Organization admins only. Never a body, a token, or a Submission: the kind, the recipient, and the reason.
+
     HttpApiEndpoint.get("listFailedEmails", "/organization/failed-emails", {
       success: FailedEmails,
+      error: directoryErrors,
+    }),
+
+    HttpApiEndpoint.post("resendFailedEmail", "/organization/failed-emails/:sendId/resend", {
+      params: { sendId: SendId },
+      success: FailedEmailStatus,
+      error: directoryErrors,
+    }),
+
+    HttpApiEndpoint.get("getEmailStatus", "/organization/failed-emails/:sendId", {
+      params: { sendId: SendId },
+      success: FailedEmailStatus,
       error: directoryErrors,
     }),
     HttpApiEndpoint.patch("updateSettings", "/organization", {
@@ -234,11 +251,6 @@ const pulseParams = { teamId: TeamId, pulseId: PulseId };
 const testSendParams = { teamId: TeamId, pulseId: PulseId, sendId: SendId };
 const questionParams = { teamId: TeamId, pulseId: PulseId, questionId: QuestionId };
 
-/**
- * The Pulse editor: a Team's Pulses, their settings, and their Questions, for the Team's Leads and
- * Organization admins (the permission table decides). Every change answers with the Pulse as the
- * editor shows it, with its estimated answer time and warnings. No endpoint returns Result data.
- */
 export class PulsesApiGroup extends HttpApiGroup.make("pulses")
   .add(
     HttpApiEndpoint.get("listPulses", "/teams/:teamId/pulses", {
@@ -290,7 +302,7 @@ export class PulsesApiGroup extends HttpApiGroup.make("pulses")
       success: TestInvitationSent,
       error: pulseErrors,
     }),
-    // The sender's own test send, polled by the editor until it settles (ADR 0021). Only that Person may read it.
+
     HttpApiEndpoint.get("getTestInvitation", "/teams/:teamId/pulses/:pulseId/test-invitations/:sendId", {
       params: testSendParams,
       success: TestSendStatus,
@@ -312,12 +324,6 @@ const roundErrors = [
   InvitationNotFound,
 ] as const;
 
-/**
- * Rounds and lifecycle controls: listing Rounds for a Pulse, viewing a Round, skipping weeks,
- * pausing and resuming Pulses, closing early, and cancelling. Authorized through the permission table.
- * `getResults` and `getTeamOverview` return Team Result data, and `getMyHistory` returns the Team's
- * scores for the caller's own Rounds, each only when it meets N. Everything else returns no Result data.
- */
 export class RoundsApiGroup extends HttpApiGroup.make("rounds")
   .add(
     HttpApiEndpoint.get("listRounds", "/teams/:teamId/pulses/:pulseId/rounds", {
@@ -387,7 +393,7 @@ export class RoundsApiGroup extends HttpApiGroup.make("rounds")
       success: TeamOverview,
       error: roundErrors,
     }),
-    // Takes no input: the server never learns which Submission is the caller's (ADR 0017).
+
     HttpApiEndpoint.get("getMyHistory", "/me/history", {
       success: MemberHistory,
       error: roundErrors,
@@ -406,11 +412,6 @@ const actionErrors = [
   PersonNotFound,
 ] as const;
 
-/**
- * Team Actions: commitments made from Results (slice 13).
- * Lead creates and updates actions; team members can view.
- * The Actions list has no minimum group size.
- */
 export class ActionsApiGroup extends HttpApiGroup.make("actions")
   .add(
     HttpApiEndpoint.get("listActions", "/teams/:teamId/actions", {
@@ -435,10 +436,6 @@ export class ActionsApiGroup extends HttpApiGroup.make("actions")
 
 const noteErrors = [Unauthenticated, Forbidden, AuthUnavailable, TeamNotFound, RoundNotFound] as const;
 
-/**
- * The Lead's Note on a Round (R2 04). The Lead writes it; the Team reads it. Organization admins
- * outside the Team get 403 on both (ADR 0003). Free text, so no minimum group size applies.
- */
 export class NotesApiGroup extends HttpApiGroup.make("notes")
   .add(
     HttpApiEndpoint.get("getRoundNote", "/teams/:teamId/rounds/:roundId/note", {
@@ -455,7 +452,6 @@ export class NotesApiGroup extends HttpApiGroup.make("notes")
   )
   .prefix("/api") {}
 
-/** The HttpApi declaration shared by the server and the clients. */
 export class SurveyBeatApi extends HttpApi.make("surveybeat")
   .add(AuthApiGroup)
   .add(DirectoryApiGroup)

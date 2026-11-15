@@ -15,7 +15,6 @@ const decodeNote = (row: typeof NoteRow.Type): RoundNote => ({
   updatedAt: row.updated_at,
 });
 
-/** The Lead's Note on a Round (`migrations/0014_round_notes.sql`): one row per Round, at most. */
 export const makeSqlNotes = (sql: SqliteClient.SqliteClient) => {
   const getNote = (roundId: RoundId): Effect.Effect<RoundNote | null> =>
     sql`SELECT round_id, text, updated_at FROM round_note WHERE round_id = ${roundId}`.pipe(

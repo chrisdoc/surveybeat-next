@@ -40,14 +40,10 @@ export interface RoundContextData {
   readonly state: string;
   readonly hasAnswered: boolean;
   readonly aiProcessing: boolean;
-  /** A test Invitation (ADR 0021): nothing the page sends is saved, and the page says so. */
+
   readonly test: boolean;
 }
 
-/**
- * What the lead will and will not see (SPEC 5.2). When the Organization processes comments with AI, the
- * answer page says so right after it (ADR 0015).
- */
 export function anonymityStatement(context: RoundContextData, message: AnswerMessage): string {
   const anonymity = message("answer.anonymity", { n: context.minimumGroupSize });
   return context.aiProcessing ? `${anonymity} ${message("answer.aiNotice")}` : anonymity;
@@ -61,9 +57,9 @@ export function parseRoundContext(data: unknown): RoundContextData | null {
   if (!("closeTime" in data) || typeof data.closeTime !== "number") return null;
   if (!("state" in data) || typeof data.state !== "string") return null;
   if (!("hasAnswered" in data) || typeof data.hasAnswered !== "boolean") return null;
-  // Absent means off: the flag is new, and a context without it is a context for an Organization without AI processing.
+
   const aiProcessing = "aiProcessing" in data && data.aiProcessing === true;
-  // Absent means a real Invitation: only a test token's context carries the flag.
+
   const test = "test" in data && data.test === true;
   if (!("questions" in data) || !Array.isArray(data.questions)) return null;
 

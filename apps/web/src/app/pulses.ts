@@ -17,16 +17,17 @@ import {
 import { Option, Predicate, Schema } from "effect";
 import type { Html, HtmlBuilder } from "foldkit/html";
 import { defineTaggedUnion } from "foldkit/schema";
-import { message, pluralMessage } from "../messages/locale.ts";
+import { formatDuration, formatRoundDate, message, pluralMessage } from "../messages/locale.ts";
 import { Failure } from "./api.ts";
 import {
   appButton,
+  badge,
   buttonClass,
   checkboxField,
   type Child,
   emptyState,
+  dangerLinkButton,
   linkButton,
-  linkClass,
   pageTitle,
   problemView,
   secondaryButtonClass,
@@ -34,8 +35,10 @@ import {
   subSectionTitle,
   textField,
   textareaField,
+  breadcrumbs,
+  linkClass,
 } from "./components.ts";
-import { pulseHref, pulsesHref, roundsHref, teamHref } from "./routes.ts";
+import { pulseHref, roundsHref, teamHref } from "./routes.ts";
 
 export const LoadedPulses = defineTaggedUnion({
   Loading: {},
@@ -51,10 +54,6 @@ export const LoadedPulse = defineTaggedUnion({
 });
 export type LoadedPulse = typeof LoadedPulse.Type;
 
-/**
- * The last "Send me a test" (ADR 0021): the address it went to and its send, or why it did not go.
- * `status` is the send's state as last read; `statusUnavailable` means the last read failed and polling stopped.
- */
 export const TestSendResult = Schema.Union([
   Schema.TaggedStruct("Sent", {
     email: Schema.String,
@@ -66,19 +65,16 @@ export const TestSendResult = Schema.Union([
 ]);
 export type TestSendResult = typeof TestSendResult.Type;
 
-/** The editor checks a test send this often. */
 export const TEST_SEND_POLL_INTERVAL = "3 seconds";
-/** Queued for this long (server clock): the editor says the email service may not be processing sends. */
+
 export const TEST_SEND_STALLED_MILLIS = 5 * 60_000;
-/** The editor stops checking a test send that is still waiting after this long (server clock). */
+
 export const TEST_SEND_GIVE_UP_MILLIS = 15 * 60_000;
 
-/** Whether the editor should check this test send again: it is still queued or sending, and the editor has not given up. */
 export const testSendKeepsPolling = (status: TestSendStatus): boolean =>
   (status.state._tag === "Queued" || status.state._tag === "Sending") &&
   status.checkedAt - status.queuedAt < TEST_SEND_GIVE_UP_MILLIS;
 
-/** What the editor says about a test send, as a message key with its parameters (see `testSendNoticeText`). */
 export type TestSendNotice =
   | { readonly _tag: "Queued" }
   | { readonly _tag: "Retrying"; readonly code: string }
@@ -87,10 +83,6 @@ export type TestSendNotice =
   | { readonly _tag: "Sent" }
   | { readonly _tag: "Failed"; readonly reason: FailureReason; readonly code: string | null };
 
-/**
- * The notice for a test send's state. Queued for five minutes or more shows the stalled notice and drops
- * the last rejection code; the minutes come from `checkedAt - queuedAt` on the server clock.
- */
 export const testSendNotice = (status: TestSendStatus): TestSendNotice => {
   const { state } = status;
   switch (state._tag) {
@@ -110,7 +102,6 @@ export const testSendNotice = (status: TestSendStatus): TestSendNotice => {
   }
 };
 
-/** Why a send failed, in words that fit "Not sent: {reason}" and a table cell. Shared by the editor and the failed-emails list. */
 export const failureReasonText = (reason: FailureReason): string => {
   switch (reason) {
     case "unknown":
@@ -126,7 +117,6 @@ export const failureReasonText = (reason: FailureReason): string => {
   }
 };
 
-/** The words for a test send notice in the current language. */
 export const testSendNoticeText = (notice: TestSendNotice): string => {
   switch (notice._tag) {
     case "Queued":
@@ -225,7 +215,7 @@ export const pulsesScreenView = <Message>(
   );
 
   if (pulses.pulses.length === 0) {
-    children.push(emptyState(message("pulses.empty"), h));
+    children.push(emptyState({ title: message("pulses.empty.title"), body: message("pulses.empty") }, h));
   } else {
     children.push(
       h.ul(
@@ -242,18 +232,40 @@ export const pulsesScreenView = <Message>(
                   ),
                 ],
                 [
-                  h.span([], [pulse.name]),
                   h.span(
-                    [h.Class("text-sm font-normal text-muted")],
+                    [h.Class("flex min-w-0 flex-wrap items-center gap-2")],
                     [
-                      message("pulses.summary", {
-                        day: message(`weekday.${pulse.cadence.day}`),
-                        time: pulse.cadence.time,
-                        questions: pluralMessage("pulse.questionCount", pulse.questionCount),
-                        seconds: pulse.estimatedSeconds,
-                      }),
-                    ],
+                      h.span([h.Class("min-w-0 break-words")], [pulse.name]),
+                      pulse.paused === true ? badge("neutral", [message("pulses.paused")], h) : null,
+                    ].filter(Predicate.isNotNull),
                   ),
+                  h.span(
+                    [h.Class("flex flex-col gap-1 text-sm font-normal text-muted sm:items-end")],
+                    [
+                      h.span(
+                        [],
+                        [
+                          message("pulses.summary", {
+                            day: message(`weekday.${pulse.cadence.day}`),
+                            time: pulse.cadence.time,
+                            questions: pluralMessage("pulse.questionCount", pulse.questionCount),
+                            duration: formatDuration(pulse.estimatedSeconds),
+                          }),
+                        ],
+                      ),
+                      pulse.nextRoundDate === undefined
+                        ? null
+                        : h.span(
+                            [],
+                            [
+                              pulse.nextRoundDate === null
+                                ? message("pulses.noRound")
+                                : message("pulses.nextRound", { date: formatRoundDate(pulse.nextRoundDate) }),
+                            ],
+                          ),
+                    ].filter(Predicate.isNotNull),
+                  ),
+                  h.span([h.AriaHidden(true), h.Class("text-xl text-muted")], ["›"]),
                 ],
               ),
             ],
@@ -412,7 +424,6 @@ export const questionFormView = <Message>(
     ].filter(Predicate.isNotNull),
   );
 
-/** The live state of a sent test: what the send is doing now, or that its state could not be read. */
 const testSendStatusView = <Message>(
   result: Extract<TestSendResult, { readonly _tag: "Sent" }>,
   h: HtmlBuilder<Message>,
@@ -486,8 +497,15 @@ export const pulseEditorView = <Message>(
   },
   h: HtmlBuilder<Message>,
 ): Html => {
+  const pulse = state.pulse._tag === "Loaded" ? state.pulse.detail : undefined;
   const children: Array<Child> = [
-    h.a([h.Href(pulsesHref(state.teamId)), h.Class(linkClass)], [message("pulse.back")]),
+    breadcrumbs(
+      [
+        { label: pulse?.team.name ?? message("title.team"), href: teamHref(state.teamId) },
+        { label: pulse?.settings.name ?? message("title.pulse") },
+      ],
+      h,
+    ),
   ];
 
   if (state.pulse._tag === "Failed") {
@@ -503,10 +521,27 @@ export const pulseEditorView = <Message>(
   children.push(h.div([h.Class("mt-4")], [pageTitle(detail.settings.name, h)]));
   children.push(h.p([h.Class("mt-2 text-muted")], [detail.team.name]));
   if (detail.team.yourRole === "lead") {
+    const tabClass = "inline-flex min-h-11 items-center border-b-2 px-3 text-sm font-semibold";
     children.push(
-      h.a(
-        [h.Href(roundsHref(state.teamId, detail.id)), h.Class(`mt-3 inline-block ${linkClass}`)],
-        [message("pulse.rounds")],
+      h.nav(
+        [h.Class("mt-4 flex gap-1 border-b border-line")],
+        [
+          h.a(
+            [
+              h.Href(pulseHref(state.teamId, detail.id)),
+              h.AriaCurrent("page"),
+              h.Class(`${tabClass} border-primary text-ink`),
+            ],
+            [message("pulse.tabs.pulse")],
+          ),
+          h.a(
+            [
+              h.Href(roundsHref(state.teamId, detail.id)),
+              h.Class(`${tabClass} border-transparent text-muted hover:text-ink`),
+            ],
+            [message("pulse.tabs.rounds")],
+          ),
+        ],
       ),
     );
   }
@@ -516,13 +551,12 @@ export const pulseEditorView = <Message>(
       [
         message("pulse.estimate", {
           questions: pluralMessage("pulse.questionCount", detail.questions.length),
-          seconds: detail.estimatedSeconds,
+          duration: formatDuration(detail.estimatedSeconds),
         }),
       ],
     ),
   );
 
-  // Warnings
   if (detail.warnings.length > 0) {
     children.push(
       h.ul(
@@ -537,7 +571,6 @@ export const pulseEditorView = <Message>(
     );
   }
 
-  // Questions
   children.push(h.div([h.Class("mt-8")], [subSectionTitle(message("pulse.questions"), h, 2)]));
   const orderLength = detail.questions.length;
   children.push(
@@ -559,7 +592,7 @@ export const pulseEditorView = <Message>(
                 message("pulse.question.meta", {
                   type: typeName(question.type),
                   dimension: dimensionName(question.dimension),
-                  seconds: question.estimatedSeconds,
+                  duration: formatDuration(question.estimatedSeconds),
                 }),
               ],
             ),
@@ -569,6 +602,7 @@ export const pulseEditorView = <Message>(
                 appButton(
                   {
                     text: message("pulse.question.up"),
+                    icon: "↑",
                     isDisabled: state.actionBusy || index === 0,
                     className: linkButton,
                     onClick: actions.onMoveQuestion(index, -1),
@@ -578,6 +612,7 @@ export const pulseEditorView = <Message>(
                 appButton(
                   {
                     text: message("pulse.question.down"),
+                    icon: "↓",
                     isDisabled: state.actionBusy || index === orderLength - 1,
                     className: linkButton,
                     onClick: actions.onMoveQuestion(index, 1),
@@ -589,6 +624,7 @@ export const pulseEditorView = <Message>(
                   : appButton(
                       {
                         text: message("pulse.question.edit"),
+                        icon: "✎",
                         isDisabled: state.actionBusy,
                         className: linkButton,
                         onClick: actions.onToggleEditQuestion(
@@ -600,8 +636,9 @@ export const pulseEditorView = <Message>(
                 appButton(
                   {
                     text: message("pulse.question.remove"),
+                    icon: "✕",
                     isDisabled: state.actionBusy,
-                    className: linkButton,
+                    className: dangerLinkButton,
                     onClick: actions.onRemoveQuestion(question.questionId),
                   },
                   h,
@@ -645,7 +682,6 @@ export const pulseEditorView = <Message>(
     ),
   );
 
-  // Template Questions
   if (detail.templateQuestions.length > 0) {
     children.push(h.div([h.Class("mt-8")], [subSectionTitle(message("pulse.template.title"), h, 2)]));
     children.push(
@@ -682,7 +718,6 @@ export const pulseEditorView = <Message>(
     );
   }
 
-  // Write a Question
   if (state.writingQuestion) {
     children.push(
       questionFormView(
@@ -725,7 +760,6 @@ export const pulseEditorView = <Message>(
     );
   }
 
-  // Send me a test (ADR 0021): the Pulse's Invitation to the sender, and the answer page it leads to
   children.push(
     h.div(
       [h.Class("mt-8 flex flex-col gap-3")],
@@ -752,7 +786,6 @@ export const pulseEditorView = <Message>(
     ),
   );
 
-  // Settings form
   children.push(
     h.form(
       [

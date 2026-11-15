@@ -5,15 +5,10 @@ import { HttpServerRequest } from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import { type Organizations, queueEmail } from "./EmailDelivery.ts";
 
-/** Stages that `@alchemy.run/test` creates (`test_$USER…`). No other stage gets these routes. */
 export const isTestStage = (stage: string): boolean => stage.startsWith("test_");
 
 export const TEST_ROUTES = "/__test/email";
 
-/**
- * Test-only routes for the email adapter test on local workerd (ADR 0008): `POST` queues an
- * "added to team" email to `ada@example.com`; `GET` reads the send back with what was captured.
- */
 export const emailTestRoutes = (
   organizations: Organizations,
   queue: Cloudflare.Queues.WriteQueueClient,
@@ -22,6 +17,14 @@ export const emailTestRoutes = (
   Effect.gen(function* () {
     const request = yield* HttpServerRequest;
     const params = new URL(request.url, "http://localhost").searchParams;
+    const recipient = params.get("recipient");
+    if (recipient !== null) {
+      const captured = yield* db
+        .prepare("SELECT text FROM captured_email WHERE recipient = ? ORDER BY captured_at DESC LIMIT 1")
+        .bind(recipient)
+        .all<{ text: string }>();
+      return yield* HttpServerResponse.json({ text: captured.results[0]?.text ?? null });
+    }
     const organizationId = OrganizationId.make(params.get("organization") ?? "");
     const sendId = SendId.make(params.get("send") ?? "");
     if (request.method === "POST") {

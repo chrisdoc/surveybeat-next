@@ -1,9 +1,9 @@
 import { Button, Checkbox, Input, Select, Textarea } from "@foldkit/ui";
-import { Predicate } from "effect";
+import { Option } from "effect";
 import type { Html, HtmlBuilder } from "foldkit/html";
 import { message } from "../messages/locale.ts";
 import { type Failure, failureMessage } from "./api.ts";
-import { teamsHref } from "./routes.ts";
+import { privacyHref, teamsHref } from "./routes.ts";
 
 export type Child = Html | string;
 
@@ -15,6 +15,12 @@ export const mintButtonClass =
   "inline-flex min-h-11 items-center justify-center rounded-control bg-mint px-5 py-2 font-semibold text-evergreen hover:bg-mint-text disabled:opacity-50";
 export const darkOutlineButtonClass =
   "inline-flex min-h-11 items-center justify-center rounded-control border border-mint-text px-4 py-2 font-semibold text-white hover:bg-evergreen-raised disabled:opacity-50";
+export const dangerButtonClass =
+  "rounded-control bg-danger px-4 py-2 text-sm font-semibold text-on-primary transition hover:opacity-90 disabled:opacity-50";
+
+export const dangerLinkButton =
+  "inline-flex min-h-11 items-center px-1 text-sm font-semibold text-danger underline underline-offset-4 hover:opacity-90 disabled:opacity-50";
+
 export const linkButton =
   "inline-flex min-h-11 items-center px-1 text-sm font-semibold text-primary underline underline-offset-4 hover:text-primary-hover disabled:opacity-50";
 export const linkClass = "font-semibold text-primary underline underline-offset-4 hover:text-primary-hover";
@@ -38,61 +44,64 @@ export const brandMark = <Message>(h: HtmlBuilder<Message>): Html =>
     ],
   );
 
-export const navLink = <Message>(href: string, text: string, h: HtmlBuilder<Message>): Html =>
-  h.a(
-    [h.Href(href), h.Class("inline-flex min-h-11 items-center font-medium text-muted hover:text-ink")],
-    [text],
-  );
-
-/** Header bar plus the content column; `wide` makes room for a side column. */
 export const pageShell = <Message>(
   config: {
-    readonly organizationName?: string | undefined;
-    readonly nav?: ReadonlyArray<Child> | undefined;
+    readonly header?: ReadonlyArray<Child> | undefined;
     readonly wide?: boolean | undefined;
+    readonly privacyCurrent?: boolean | undefined;
   },
   children: ReadonlyArray<Child>,
   h: HtmlBuilder<Message>,
-): Html =>
-  h.div(
-    [h.Class("min-h-screen bg-stone text-ink")],
+): Html => {
+  const width = config.wide === true ? "max-w-[1120px]" : "max-w-[720px]";
+  const privacyCurrent = config.privacyCurrent === true;
+  return h.div(
+    [h.Class("flex min-h-screen flex-col bg-stone text-ink")],
     [
       h.header(
         [h.Class("border-b border-line bg-surface")],
         [
           h.div(
-            [h.Class("mx-auto flex max-w-[1120px] flex-wrap items-center gap-x-5 gap-y-1 px-6 py-2 sm:px-8")],
+            [h.Class("mx-auto flex min-w-0 max-w-[1120px] items-center gap-x-5 px-6 py-2 sm:px-8")],
             [
               h.span(
-                [h.Class("flex items-center gap-2.5")],
+                [h.Class("flex shrink-0 items-center gap-2.5")],
                 [
                   brandMark(h),
                   h.span([h.Class("text-[17px] font-bold tracking-tight")], [message("app.title")]),
                 ],
               ),
-              config.organizationName !== undefined
-                ? h.span(
-                    [h.Class("border-l border-line pl-5 text-[15px] font-semibold")],
-                    [config.organizationName],
-                  )
-                : null,
-              config.nav !== undefined && config.nav.length > 0
-                ? h.nav([h.Class("ml-auto flex flex-wrap gap-x-6 text-[15px]")], config.nav)
-                : null,
-            ].filter(Predicate.isNotNull),
+              ...(config.header ?? []),
+            ],
           ),
         ],
       ),
-      h.main(
+      h.main([h.Class(`mx-auto w-full flex-1 px-6 pt-8 pb-20 sm:px-8 sm:pt-12 ${width}`)], children),
+      h.footer(
+        [h.Class("border-t border-line bg-surface")],
         [
-          h.Class(
-            `mx-auto px-6 pt-8 pb-20 sm:px-8 sm:pt-12 ${config.wide === true ? "max-w-[1120px]" : "max-w-[720px] sm:mx-auto"}`,
+          h.div(
+            [h.Class(`mx-auto flex w-full px-6 py-2 text-sm sm:px-8 ${width}`)],
+            [
+              h.a(
+                [
+                  h.Href(privacyHref()),
+                  h.Class(
+                    privacyCurrent
+                      ? "inline-flex min-h-11 items-center font-semibold text-ink underline underline-offset-4"
+                      : "inline-flex min-h-11 items-center font-medium text-muted hover:text-ink",
+                  ),
+                  ...(privacyCurrent ? [h.AriaCurrent("page")] : []),
+                ],
+                [message("nav.privacy")],
+              ),
+            ],
           ),
         ],
-        children,
       ),
     ],
   );
+};
 
 export const screenView = <Message>(
   title: string,
@@ -106,7 +115,40 @@ export const pageTitle = <Message>(text: string, h: HtmlBuilder<Message>): Html 
     [text],
   );
 
-/** `onDark` is for a heading inside a `darkPanel`, where `text-ink` would be ink on evergreen. */
+export interface Crumb {
+  readonly label: string;
+  readonly href?: string | undefined;
+}
+
+export const breadcrumbs = <Message>(crumbs: ReadonlyArray<Crumb>, h: HtmlBuilder<Message>): Html =>
+  h.div(
+    [h.Role("navigation"), h.AriaLabel(message("breadcrumb.label"))],
+    [
+      h.ul(
+        [h.Class("flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted")],
+        crumbs.map((crumb, index) => {
+          const isLast = index === crumbs.length - 1;
+          const label =
+            isLast || crumb.href === undefined
+              ? h.span(
+                  [...(isLast ? [h.AriaCurrent("page"), h.Class("font-semibold text-ink")] : [])],
+                  [crumb.label],
+                )
+              : h.a([h.Href(crumb.href), h.Class(linkClass)], [crumb.label]);
+          return h.li(
+            [h.Class("flex items-center gap-x-2")],
+            [
+              ...(index === 0
+                ? []
+                : [h.span([h.AriaHidden(true), h.Class("text-line")], [message("breadcrumb.separator")])]),
+              label,
+            ],
+          );
+        }),
+      ),
+    ],
+  );
+
 export const sectionTitle = <Message>(
   text: string,
   h: HtmlBuilder<Message>,
@@ -160,22 +202,42 @@ export const alertView = <Message>(text: string, h: HtmlBuilder<Message>): Html 
     [text],
   );
 
-export const emptyState = <Message>(text: string, h: HtmlBuilder<Message>): Html =>
-  h.p(
+export const emptyState = <Message>(
+  config: {
+    readonly title: string;
+    readonly body: string;
+    readonly action?: { readonly text: string; readonly href: string } | undefined;
+  },
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
     [
       h.Class(
-        "mt-3 rounded-control border border-dashed border-line bg-subtle px-4 py-6 text-center text-muted",
+        "mt-3 flex flex-col items-start gap-2 rounded-control border border-dashed border-line bg-subtle p-6",
       ),
     ],
-    [text],
+    [
+      h.p([h.Class("font-semibold")], [config.title]),
+      h.p([h.Class("text-sm text-muted")], [config.body]),
+      ...(config.action === undefined
+        ? []
+        : [
+            h.a(
+              [h.Href(config.action.href), h.Class(`inline-flex min-h-11 items-center ${linkClass}`)],
+              [config.action.text],
+            ),
+          ]),
+    ],
   );
 
-export type BadgeVariant = "neutral" | "primary" | "brass";
+export type BadgeVariant = "neutral" | "primary" | "brass" | "success" | "danger";
 
 const badgeClasses: Record<BadgeVariant, string> = {
   neutral: "bg-line-soft text-muted",
   primary: "bg-primary-soft text-primary-hover",
   brass: "bg-brass-soft text-brass",
+  success: "bg-mint text-evergreen",
+  danger: "bg-danger-soft text-danger",
 };
 
 export const badge = <Message>(
@@ -194,7 +256,7 @@ export const badge = <Message>(
 
 export const dataTable = <Message>(
   headers: ReadonlyArray<string>,
-  rows: ReadonlyArray<ReadonlyArray<string>>,
+  rows: ReadonlyArray<ReadonlyArray<Child>>,
   h: HtmlBuilder<Message>,
 ): Html =>
   h.table(
@@ -243,6 +305,8 @@ export const problemView = <Message>(failure: Failure | undefined, h: HtmlBuilde
 export const appButton = <Message>(
   config: {
     readonly text: string;
+
+    readonly icon?: string | undefined;
     readonly onClick?: Message | undefined;
     readonly isDisabled?: boolean | undefined;
     readonly type?: "button" | "submit" | "reset" | undefined;
@@ -259,7 +323,12 @@ export const appButton = <Message>(
             ...(config.isDisabled ? [h.Disabled(true)] : []),
             h.Class(config.className ?? buttonClass),
           ],
-          [config.text],
+          [
+            ...(config.icon === undefined
+              ? []
+              : [h.span([h.AriaHidden(true), h.Class("mr-1.5")], [config.icon])]),
+            config.text,
+          ],
         ),
       type: config.type ?? "button",
       ...(config.onClick !== undefined ? { onClick: config.onClick } : {}),
@@ -267,6 +336,56 @@ export const appButton = <Message>(
     },
     h,
   );
+
+export const confirmDialog = <Message>(
+  config: {
+    readonly title: string;
+    readonly body: string;
+    readonly confirmText: string;
+    readonly cancelText: string;
+    readonly onConfirm: Message;
+    readonly onCancel: Message;
+    readonly isBusy?: boolean | undefined;
+  },
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [
+      h.Role("alertdialog"),
+      h.AriaModal(true),
+      h.AriaLabel(config.title),
+      h.Class("flex flex-col gap-3 rounded-control border border-danger bg-danger-soft p-4"),
+      h.OnKeyDownPreventDefault((key) => (key === "Escape" ? Option.some(config.onCancel) : Option.none())),
+    ],
+    [
+      h.p([h.Class("font-semibold text-danger")], [config.title]),
+      h.p([h.Class("text-sm text-ink")], [config.body]),
+      h.div(
+        [h.Class("flex flex-wrap gap-3")],
+        [
+          appButton(
+            {
+              text: config.confirmText,
+              onClick: config.onConfirm,
+              isDisabled: config.isBusy === true,
+              className: dangerButtonClass,
+            },
+            h,
+          ),
+          appButton(
+            { text: config.cancelText, onClick: config.onCancel, className: secondaryButtonClass },
+            h,
+          ),
+        ],
+      ),
+    ],
+  );
+
+export const timeZoneOptions = (current: string): ReadonlyArray<readonly [string, string]> => {
+  const known = Intl.supportedValuesOf("timeZone");
+  const all = known.includes(current) ? known : [current, ...known];
+  return all.map((zone): readonly [string, string] => [zone, zone]);
+};
 
 export const textField = <Message>(
   config: {
@@ -398,45 +517,50 @@ export const checkboxField = <Message>(
     h,
   );
 
-export const signOutView = <Message>(h: HtmlBuilder<Message>): Html =>
+export const signOutView = <Message>(h: HtmlBuilder<Message>, inMenu = false): Html =>
   h.form(
-    [h.Method("post"), h.Action("/auth/logout"), h.Class("mt-10")],
+    [h.Method("post"), h.Action("/auth/logout"), ...(inMenu ? [] : [h.Class("mt-10")])],
     [
       Button.view(
         {
           type: "submit",
-          toView: ({ button }) => h.button([...button, h.Class(linkButton)], [message("signOut.action")]),
+          toView: ({ button }) =>
+            h.button(
+              [...button, h.Class(inMenu ? `${secondaryButtonClass} w-full` : linkButton)],
+              [message("signOut.action")],
+            ),
         },
         h,
       ),
     ],
   );
 
-export const privacyView = <Message>(h: HtmlBuilder<Message>): Html =>
-  screenView(
-    message("privacy.title"),
+export const privacyContent = <Message>(h: HtmlBuilder<Message>): ReadonlyArray<Child> => [
+  pageTitle(message("privacy.title"), h),
+  h.p([h.Class("mt-4")], [h.a([h.Href(teamsHref()), h.Class(linkClass)], [message("privacy.back")])]),
+  panel(
     [
-      h.p([h.Class("mt-4")], [h.a([h.Href(teamsHref()), h.Class(linkClass)], [message("privacy.back")])]),
-      panel(
-        [
-          h.div(
-            [h.Class("flex flex-col gap-6 leading-relaxed text-muted")],
-            (
-              [
-                ["privacy.anonymity.title", "privacy.anonymity.body"],
-                ["privacy.comments.title", "privacy.comments.body"],
-                ["privacy.restore.title", "privacy.restore.body"],
-                ["privacy.editKey.title", "privacy.editKey.body"],
-                ["privacy.restoreTrigger.title", "privacy.restoreTrigger.body"],
-              ] as const
-            ).map(([title, body]) =>
-              h.div([], [subSectionTitle(message(title), h, 2), h.p([h.Class("mt-1")], [message(body)])]),
-            ),
-          ),
-        ],
-        h,
-        "mt-6",
+      h.div(
+        [h.Class("flex flex-col gap-6 leading-relaxed text-muted")],
+        (
+          [
+            ["privacy.groupSize.title", "privacy.groupSize.body"],
+            ["privacy.aiProcessing.title", "privacy.aiProcessing.body"],
+            ["privacy.anonymity.title", "privacy.anonymity.body"],
+            ["privacy.comments.title", "privacy.comments.body"],
+            ["privacy.restore.title", "privacy.restore.body"],
+            ["privacy.editKey.title", "privacy.editKey.body"],
+            ["privacy.restoreTrigger.title", "privacy.restoreTrigger.body"],
+          ] as const
+        ).map(([title, body]) =>
+          h.div([], [subSectionTitle(message(title), h, 2), h.p([h.Class("mt-1")], [message(body)])]),
+        ),
       ),
     ],
     h,
-  );
+    "mt-6",
+  ),
+];
+
+export const privacyView = <Message>(h: HtmlBuilder<Message>): Html =>
+  pageShell({ privacyCurrent: true }, privacyContent(h), h);

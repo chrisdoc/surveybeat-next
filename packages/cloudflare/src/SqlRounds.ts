@@ -131,7 +131,6 @@ const OrganizationAiRow = Schema.Struct({
   ai_processing: Schema.Int,
 });
 
-/** A Round the Person took part in, with its stored Result payload if one exists (ADR 0017). */
 const ParticipatedRoundRow = Schema.Struct({
   id: RoundId,
   team_id: TeamId,
@@ -159,16 +158,10 @@ const ActionSummaryRow = Schema.Struct({
 const rows = <S extends Schema.Top & { readonly DecodingServices: never }>(schema: S) =>
   Schema.decodeUnknownEffect(Schema.Array(schema));
 
-/** Fills `size` bytes. Production passes {@link secureRandomBytes}; the privacy suite passes a seeded source. */
 export type RandomBytes = (size: number) => Uint8Array;
 
-/** Web Crypto, the only source the Organization object may use for keys (ADR 0005). */
 export const secureRandomBytes: RandomBytes = (size) => crypto.getRandomValues(new Uint8Array(size));
 
-/**
- * `randomBytes` has no default on purpose: Submission ids must be unpredictable in production, and the
- * A4 harness (`@surveybeat/testing` Unlinkability) must be able to seed them so its runs are repeatable.
- */
 export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: RandomBytes) => {
   const toRoundRecord = (row: typeof RoundRow.Type): RoundRecord => ({
     id: row.id,
@@ -243,12 +236,35 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
         dimension: d.dimension,
         score: d.score,
         usableQuestionCount: d.usableQuestionCount,
-        // Results stored before the count was kept lack it.
         ...(d.contributors === undefined ? {} : { contributors: d.contributors }),
         meetsMinimumGroupSize: d.meetsMinimumGroupSize,
       })),
     };
   };
+
+  const nextRoundDates = (): Effect.Effect<Readonly<Record<string, string>>> =>
+    sql<{ team_id: string; next_date: string }>`SELECT team_id, MIN(planned_open_date) AS next_date
+        FROM round WHERE status IN ('scheduled', 'open') GROUP BY team_id`.pipe(
+      Effect.map((all) => Object.fromEntries(all.map((row) => [row.team_id, row.next_date]))),
+      Effect.orDie,
+    );
+
+  const pulseFacts = (
+    teamId: TeamId,
+  ): Effect.Effect<Readonly<Record<string, { paused: boolean; nextRoundDate: string | null }>>> =>
+    sql<{ pulse_id: string; paused_at: number | null; next_date: string | null }>`SELECT p.id AS pulse_id,
+          p.paused_at AS paused_at,
+          MIN(CASE WHEN r.status IN ('scheduled', 'open') THEN r.planned_open_date END) AS next_date
+        FROM pulse p LEFT JOIN round r ON r.pulse_id = p.id
+        WHERE p.team_id = ${teamId}
+        GROUP BY p.id`.pipe(
+      Effect.map((all) =>
+        Object.fromEntries(
+          all.map((row) => [row.pulse_id, { paused: row.paused_at !== null, nextRoundDate: row.next_date }]),
+        ),
+      ),
+      Effect.orDie,
+    );
 
   const getRound = (roundId: RoundId): Effect.Effect<RoundRecord | null> =>
     sql`SELECT * FROM round WHERE id = ${roundId}`.pipe(
@@ -364,10 +380,6 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
             review_ends_at = ${reviewEndsAt}, updated_at = ${closedAt}
         WHERE id = ${roundId} AND status = 'open'`.pipe(Effect.asVoid, Effect.orDie);
 
-  /**
-   * The Review window starts when the Result exists (Issue #128): its end moves by the time the Result took to
-   * compute after close. A Round whose Result is computed at close keeps its end unchanged.
-   */
   const markRoundReady = (roundId: RoundId, now: number): Effect.Effect<void> =>
     sql`UPDATE round
         SET status = 'ready', updated_at = ${now},
@@ -375,7 +387,6 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
               ELSE review_ends_at + (${now} - closed_at) END
         WHERE id = ${roundId} AND status = 'closed'`.pipe(Effect.asVoid, Effect.orDie);
 
-  /** True when this call shared the Round; false when it was already shared, so a repeat is a no-op. */
   const shareRound = (roundId: RoundId, now: number): Effect.Effect<boolean> =>
     sql<{ id: RoundId }>`UPDATE round
         SET status = 'shared', updated_at = ${now}
@@ -385,7 +396,6 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
       Effect.orDie,
     );
 
-  /** Ready Rounds of a Pulse planned before `plannedOpenDate`, earliest first. */
   const getReadyRoundIdsForPulseBefore = (
     pulseId: PulseId,
     plannedOpenDate: string,
@@ -413,7 +423,6 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
       )
       .pipe(Effect.asVoid, Effect.orDie);
 
-  // Pulse pause / skip methods
   const pausePulse = (pulseId: PulseId, now: number): Effect.Effect<void> =>
     sql`UPDATE pulse SET paused_at = ${now} WHERE id = ${pulseId}`.pipe(Effect.asVoid, Effect.orDie);
 
@@ -448,7 +457,6 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
       Effect.orDie,
     );
 
-  // Schedule Job methods
   const insertJob = (job: ScheduleJobRecord): Effect.Effect<void> =>
     sql`INSERT INTO schedule_job (id, round_id, type, due_at, status, payload, created_at, completed_at)
         VALUES (${job.id}, ${job.roundId}, ${job.type}, ${job.dueAt}, ${job.status}, ${job.payload}, ${job.createdAt}, ${job.completedAt})
@@ -518,7 +526,6 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
       Effect.orDie,
     );
 
-  // Invitation methods
   const insertInvitations = (invitations: ReadonlyArray<InvitationRecord>): Effect.Effect<void> =>
     Effect.forEach(
       invitations,
@@ -716,14 +723,7 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
           return { submissionId, shownToLead: lastRedactedComment };
         }),
       )
-      .pipe(
-        Effect.catch((err: unknown) => {
-          if (err instanceof AlreadyAnswered || err instanceof RoundNotOpen) {
-            return Effect.fail(err);
-          }
-          return Effect.die(err);
-        }),
-      );
+      .pipe(Effect.catchTag("SqlError", (error) => Effect.die(error)));
 
   const saveAnswer = (
     editKeyHash: string,
@@ -758,14 +758,7 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
           return { saved: true, shownToLead: lastRedactedComment };
         }),
       )
-      .pipe(
-        Effect.catch((err: unknown) => {
-          if (err instanceof SubmissionNotFound || err instanceof RoundNotOpen) {
-            return Effect.fail(err);
-          }
-          return Effect.die(err);
-        }),
-      );
+      .pipe(Effect.catchTag("SqlError", (error) => Effect.die(error)));
 
   const getSubmissionRoundContext = (
     roundId: RoundId,
@@ -874,16 +867,18 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
     );
   };
 
-  /** Removes the stored Result, so a retried computation starts from nothing (Issue #128). */
   const deleteRoundResult = (roundId: RoundId): Effect.Effect<void> =>
     sql`DELETE FROM round_result WHERE round_id = ${roundId}`.pipe(Effect.asVoid, Effect.orDie);
 
   const getRoundResult = (roundId: RoundId): Effect.Effect<RoundResult | null> =>
-    sql<{ payload: string }>`SELECT payload FROM round_result WHERE round_id = ${roundId}`.pipe(
+    sql<{ payload: string; pulse_name: string }>`SELECT rr.payload, r.pulse_name
+        FROM round_result rr JOIN round r ON r.id = rr.round_id
+       WHERE rr.round_id = ${roundId}`.pipe(
       Effect.map((rows) => {
         const row = rows[0];
         if (row === undefined) return null;
-        return decodeRoundResultPayload(row.payload);
+        const result = decodeRoundResultPayload(row.payload);
+        return result === null ? null : { ...result, pulseName: row.pulse_name };
       }),
       Effect.orDie,
     );
@@ -891,20 +886,17 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
   const getSharedRoundResultsForTeam = (teamId: TeamId): Effect.Effect<ReadonlyArray<RoundResult>> =>
     sql<{
       payload: string;
-    }>`SELECT rr.payload FROM round_result rr JOIN round r ON r.id = rr.round_id WHERE r.team_id = ${teamId} AND r.status = 'shared' ORDER BY r.planned_open_at ASC, r.id ASC`.pipe(
+      pulse_name: string;
+    }>`SELECT rr.payload, r.pulse_name FROM round_result rr JOIN round r ON r.id = rr.round_id WHERE r.team_id = ${teamId} AND r.status = 'shared' ORDER BY r.planned_open_at ASC, r.id ASC`.pipe(
       Effect.map((rows) =>
         rows.flatMap((row) => {
           const result = decodeRoundResultPayload(row.payload);
-          return result === null ? [] : [result];
+          return result === null ? [] : [{ ...result, pulseName: row.pulse_name }];
         }),
       ),
       Effect.orDie,
     );
 
-  /**
-   * The Rounds a Person took part in, newest first, from Participation records only. Never reads a
-   * Submission or an Answer: the Person's own answers never leave their browser (ADR 0017).
-   */
   const getParticipatedRounds = (personId: PersonId) =>
     sql`SELECT r.id, r.team_id, t.name AS team_name, r.pulse_name, r.planned_open_date, r.status, rr.payload
         FROM participation p
@@ -1041,7 +1033,6 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
             ORDER BY r.planned_open_at DESC
             LIMIT ${limit}`;
 
-      // The query takes the latest `limit` Rounds (newest first); history is oldest first.
       const history: Array<HistoricalRoundData> = [];
       for (const row of [...rows].reverse()) {
         const item = decodeHistoricalPayload(row.payload);
@@ -1055,7 +1046,6 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
   const updateJobPayload = (jobId: JobId, payload: string): Effect.Effect<void> =>
     sql`UPDATE schedule_job SET payload = ${payload} WHERE id = ${jobId}`.pipe(Effect.asVoid, Effect.orDie);
 
-  // Comment themes and discussion guide (ADR 0016, ADR 0019): one row per Round, stored once.
   const requestThemes = (roundId: RoundId, now: number): Effect.Effect<boolean> =>
     sql<{ round_id: string }>`INSERT INTO round_themes (round_id, status, requested_at, attempts)
         VALUES (${roundId}, 'pending', ${now}, 0)
@@ -1085,7 +1075,6 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
         const failed: RoundThemesRecord = { status: "failed" };
         return failed;
       }
-      // A payload that fails to decode is a defect with a fixed message: its text is AI output and never logged.
       const themes = yield* decodeStoredThemes(row.payload ?? "").pipe(
         Effect.mapError(() => new Error("round_themes payload invalid")),
         Effect.orDie,
@@ -1120,6 +1109,8 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
     getRound,
     getParticipatedRounds,
     getRoundsForPulse,
+    nextRoundDates,
+    pulseFacts,
     getRoundQuestions,
     findScheduledRound,
     findOpenRound,
@@ -1147,7 +1138,6 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
     getDueJobs,
     getEarliestPendingJobDueAt,
     hasPendingJob,
-    // Invitations
     insertInvitations,
     getInvitations,
     getInvitation,
@@ -1164,11 +1154,9 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
     recordParticipation,
     getPersonTimeZone,
     setPersonTimeZone,
-    // Submissions
     getSubmissionRoundContext,
     recordFirstAnswer,
     saveAnswer,
-    // Results
     saveRoundResult,
     deleteRoundResult,
     getRoundResult,
@@ -1178,7 +1166,6 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
     getSubmissionsForRound,
     getPastRoundsResultsForPulse,
     updateJobPayload,
-    // Comment themes and discussion guide
     requestThemes,
     getRoundThemes,
     recordThemesAttemptFailed,

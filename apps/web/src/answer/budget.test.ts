@@ -1,3 +1,6 @@
+// @effect-diagnostics globalConsole:off -- the budget check prints its measurements to the test log; it never runs an Effect program.
+// @effect-diagnostics nodeBuiltinImport:off -- this file reads the repository from disk or spawns a process outside a Worker; the Effect FileSystem and ChildProcess services do not exist there.
+
 import { execSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";

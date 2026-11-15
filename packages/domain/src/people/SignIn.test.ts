@@ -5,13 +5,13 @@ import {
   normaliseEmail,
   OrganizationCreationAllowlist,
   PersonId,
-  WorkosUserId,
+  AuthUserId,
 } from "./Identity.ts";
 import { OrganizationId } from "./Organization.ts";
 import { candidatesFor, decideSignIn, type PersonCandidate } from "./SignIn.ts";
 
 const identity = (emailVerified: boolean, email = "ada@example.com"): Identity =>
-  identityOf(WorkosUserId.make("user_1"), email, emailVerified);
+  identityOf(AuthUserId.make("user_1"), email, emailVerified);
 
 /** U+212A KELVIN SIGN: lower-cases (and NFKC-normalises) to an ASCII `k`. */
 const KELVIN = "\u212a";

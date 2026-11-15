@@ -1,12 +1,18 @@
-import { describe, expect, it } from "@effect/vitest";
-import { Option } from "effect";
+import { describe, expect, it, prop } from "@effect/vitest";
+import { createEffectActor } from "@xstate/effect";
+import { sendAndAwait } from "@xstate/effect/test";
+import { Effect, Option, Schema } from "effect";
+import { isUnhandled, transition } from "xstate";
 import {
   abandon,
   claim,
   pending,
   recordDeliveryEvent,
+  requeue,
   retryDelaySeconds,
+  sendMachine,
   type SendState,
+  SendState as SendStateSchema,
   settle,
 } from "./SendState.ts";
 
@@ -132,8 +138,233 @@ describe("recordDeliveryEvent", () => {
   });
 });
 
+describe("requeue", () => {
+  it("sends a failed send again: pending, with no attempts and no last code", () => {
+    const failed: SendState = { _tag: "Failed", reason: "rejected", code: "E_X", failedAt: 1 };
+    expect(requeue(failed)).toEqual(Option.some({ _tag: "Pending", attempts: 0, lastCode: null }));
+  });
+
+  it.each([
+    ["pending", pending],
+    ["sending", sending(1)],
+    ["sent", sent],
+  ] as const)("leaves a %s send alone", (_name, state) => {
+    expect(requeue(state)).toEqual(Option.none());
+  });
+});
+
 describe("retryDelaySeconds", () => {
   it("doubles from 30 seconds up to 10 minutes", () => {
     expect([1, 2, 3, 4, 5, 6].map(retryDelaySeconds)).toEqual([30, 60, 120, 240, 480, 600]);
   });
+});
+
+const Policy = Schema.Struct({ leaseMillis: Schema.Int, maxAttempts: Schema.Int });
+
+const Outcome = Schema.Union([
+  Schema.TaggedStruct("Accepted", { messageId: Schema.String }),
+  Schema.TaggedStruct("Rejected", { code: Schema.String, permanent: Schema.Boolean }),
+  Schema.TaggedStruct("Unknown", { code: Schema.String }),
+]);
+
+describe("send state properties", () => {
+  prop(
+    "claim sends, waits for a live lease, or finishes, and never sends a settled send again",
+    { state: SendStateSchema, now: Schema.Int, policy: Policy },
+    ({ state, now, policy }) => {
+      const decision = claim(state, now, policy);
+      switch (state._tag) {
+        case "Pending":
+          return (
+            decision._tag === "Send" &&
+            decision.state.attempt === state.attempts + 1 &&
+            decision.state.leaseExpiresAt === now + policy.leaseMillis
+          );
+        case "Sending":
+          return now < state.leaseExpiresAt
+            ? decision._tag === "Wait" && decision.until === state.leaseExpiresAt
+            : decision._tag === "Finished" &&
+                decision.changed &&
+                decision.state._tag === "Failed" &&
+                decision.state.reason === "unknown";
+        case "Sent":
+          return (
+            decision._tag === "Finished" &&
+            !decision.changed &&
+            decision.state._tag === "Sent" &&
+            decision.state.messageId === state.messageId
+          );
+        case "Failed":
+          return (
+            decision._tag === "Finished" &&
+            !decision.changed &&
+            decision.state._tag === "Failed" &&
+            decision.state.failedAt === state.failedAt
+          );
+      }
+    },
+  );
+
+  prop(
+    "settle records only the attempt that holds the send, and only a clear rejection returns it to pending",
+    { state: SendStateSchema, attempt: Schema.Int, outcome: Outcome, now: Schema.Int, policy: Policy },
+    ({ state, attempt, outcome, now, policy }) => {
+      const settled = settle(state, attempt, outcome, now, policy);
+      if (state._tag !== "Sending" || state.attempt !== attempt) return Option.isNone(settled);
+      if (Option.isNone(settled)) return false;
+      const next = settled.value;
+      switch (outcome._tag) {
+        case "Accepted":
+          return next._tag === "Sent" && next.messageId === outcome.messageId && next.sentAt === now;
+        case "Rejected":
+          return outcome.permanent || attempt >= policy.maxAttempts
+            ? next._tag === "Failed" && next.reason === "rejected" && next.code === outcome.code
+            : next._tag === "Pending" && next.attempts === attempt && next.lastCode === outcome.code;
+        case "Unknown":
+          return next._tag === "Failed" && next.reason === "unknown" && next.code === outcome.code;
+      }
+    },
+  );
+
+  prop(
+    "requeue moves a failed send back to pending and leaves every other state alone",
+    { state: SendStateSchema },
+    ({ state }) => {
+      const requeued = requeue(state);
+      if (state._tag === "Failed") {
+        return (
+          Option.isSome(requeued) &&
+          requeued.value._tag === "Pending" &&
+          requeued.value.attempts === 0 &&
+          requeued.value.lastCode === null
+        );
+      }
+      return Option.isNone(requeued);
+    },
+  );
+});
+
+const machineAt = (state: SendState) =>
+  sendMachine.resolveState({
+    value:
+      state._tag === "Pending"
+        ? "pending"
+        : state._tag === "Sending"
+          ? "sending"
+          : state._tag === "Sent"
+            ? "sent"
+            : "failed",
+    context: { state },
+  });
+
+const refuses = (state: SendState, event: Parameters<typeof transition<typeof sendMachine>>[2]): boolean => {
+  const snapshot = machineAt(state);
+  return isUnhandled(snapshot, transition(sendMachine, snapshot, event));
+};
+
+const live: SendState = sending(1, 2_000);
+const dead: SendState = { _tag: "Failed", reason: "abandoned", code: null, failedAt: 10 };
+
+describe("send machine", () => {
+  it.each([
+    [pending, { type: "Settle", attempt: 1, outcome: { _tag: "Accepted", messageId: "m" }, now: 1, policy }],
+    [pending, { type: "Delivery", kind: "bounced", code: null, now: 1 }],
+    [pending, { type: "Requeue" }],
+    [live, { type: "Requeue" }],
+    [live, { type: "Delivery", kind: "bounced", code: null, now: 1 }],
+    [live, { type: "Settle", attempt: 9, outcome: { _tag: "Accepted", messageId: "m" }, now: 1, policy }],
+    [sent, { type: "Abandon", now: 1 }],
+    [sent, { type: "Requeue" }],
+    [sent, { type: "Settle", attempt: 1, outcome: { _tag: "Accepted", messageId: "m" }, now: 1, policy }],
+    [dead, { type: "Claim", now: 1, policy }],
+    [dead, { type: "Abandon", now: 1 }],
+    [dead, { type: "Settle", attempt: 1, outcome: { _tag: "Accepted", messageId: "m" }, now: 1, policy }],
+    [dead, { type: "Delivery", kind: "bounced", code: null, now: 1 }],
+  ] as const)("refuses %#", (state, event) => {
+    expect(refuses(state, event)).toBe(true);
+  });
+
+  it.effect("takes a send from Pending to Sent", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const actor = yield* createEffectActor(sendMachine);
+        expect(actor.getSnapshot().value).toBe("pending");
+        yield* sendAndAwait(actor, { type: "Claim", now: 1_000, policy });
+        expect(actor.getSnapshot().value).toBe("sending");
+        yield* sendAndAwait(actor, {
+          type: "Settle",
+          attempt: 1,
+          outcome: { _tag: "Accepted", messageId: "m-1" },
+          now: 1_500,
+          policy,
+        });
+        expect(actor.getSnapshot().value).toBe("sent");
+        expect(actor.getSnapshot().context.state).toEqual({ _tag: "Sent", messageId: "m-1", sentAt: 1_500 });
+      }),
+    ),
+  );
+
+  it.effect("retries a clear rejection and gives up when the attempts run out", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const actor = yield* createEffectActor(sendMachine);
+        const rejected = { _tag: "Rejected", code: "E_DELIVERY_FAILED", permanent: false } as const;
+        yield* sendAndAwait(actor, { type: "Claim", now: 1_000, policy });
+        yield* sendAndAwait(actor, { type: "Settle", attempt: 1, outcome: rejected, now: 1_100, policy });
+        expect(actor.getSnapshot().value).toBe("pending");
+        expect(actor.getSnapshot().context.state).toEqual({
+          _tag: "Pending",
+          attempts: 1,
+          lastCode: "E_DELIVERY_FAILED",
+        });
+        yield* sendAndAwait(actor, { type: "Claim", now: 1_200, policy });
+        yield* sendAndAwait(actor, { type: "Settle", attempt: 2, outcome: rejected, now: 1_250, policy });
+        yield* sendAndAwait(actor, { type: "Claim", now: 1_260, policy });
+        yield* sendAndAwait(actor, { type: "Settle", attempt: 3, outcome: rejected, now: 1_300, policy });
+        expect(actor.getSnapshot().value).toBe("failed");
+        expect(actor.getSnapshot().context.state).toEqual({
+          _tag: "Failed",
+          reason: "rejected",
+          code: "E_DELIVERY_FAILED",
+          failedAt: 1_300,
+        });
+        yield* sendAndAwait(actor, { type: "Requeue" });
+        expect(actor.getSnapshot().value).toBe("pending");
+      }),
+    ),
+  );
+
+  it.effect("fails an ambiguous result and records a bounce after delivery", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const actor = yield* createEffectActor(sendMachine);
+        yield* sendAndAwait(actor, { type: "Claim", now: 1_000, policy });
+        yield* sendAndAwait(actor, {
+          type: "Settle",
+          attempt: 1,
+          outcome: { _tag: "Unknown", code: "E_TIMEOUT" },
+          now: 1_100,
+          policy,
+        });
+        expect(actor.getSnapshot().context.state).toEqual({
+          _tag: "Failed",
+          reason: "unknown",
+          code: "E_TIMEOUT",
+          failedAt: 1_100,
+        });
+
+        const delivered = yield* createEffectActor(sendMachine, {
+          snapshot: sendMachine.resolveState({ value: "sent", context: { state: sent } }),
+        });
+        yield* sendAndAwait(delivered, { type: "Delivery", kind: "bounced", code: "E_BOUNCE", now: 2_000 });
+        expect(delivered.getSnapshot().value).toBe("failed");
+        expect(delivered.getSnapshot().context.state).toEqual({
+          _tag: "Failed",
+          reason: "bounced",
+          code: "E_BOUNCE",
+          failedAt: 2_000,
+        });
+      }),
+    ),
+  );
 });

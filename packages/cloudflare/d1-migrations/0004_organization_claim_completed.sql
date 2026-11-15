@@ -7,5 +7,5 @@ UPDATE organization_claim SET completed_at = unixepoch() * 1000
  WHERE EXISTS (
    SELECT 1 FROM person_index p
     WHERE p.organization_id = organization_claim.organization_id
-      AND p.workos_user_id = organization_claim.workos_user_id
+      AND p.auth_user_id = organization_claim.auth_user_id
  );

@@ -3,6 +3,7 @@ export * from "./Organization.ts";
 export * from "./SignIn.ts";
 export * from "./SignInFlow.ts";
 export * from "./SignInPorts.ts";
+export * from "./SessionIdentity.ts";
 export * from "./Directory.ts";
 export * from "./Permissions.ts";
 export * from "./Team.ts";

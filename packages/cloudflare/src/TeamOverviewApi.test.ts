@@ -1,3 +1,5 @@
+// @effect-diagnostics asyncFunction:off -- the vitest runner awaits a plain Promise here; the test never enters an Effect.
+
 import { describe, expect, it } from "@effect/vitest";
 import { Browser, SignInWorld } from "./auth/testing.ts";
 
@@ -8,7 +10,7 @@ const setup = async () => {
 
   const as = async (email: string) => {
     const browser = new Browser(world.handler());
-    await browser.signIn(world.workos.addUser(email));
+    browser.signIn(world.sessions.login(email));
     await browser.session();
     return browser;
   };

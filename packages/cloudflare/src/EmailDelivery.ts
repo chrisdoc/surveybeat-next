@@ -32,7 +32,6 @@ import type Organization from "./Organization.ts";
 export type Organizations = Effect.Success<typeof Organization>;
 type OrganizationStub = ReturnType<Organizations["getByName"]>;
 
-/** The domain's `SendStore` for one Organization, backed by its Durable Object. */
 export const organizationSendStore = (organization: OrganizationStub) =>
   SendStore.of({
     create: (id, recipient, email) => organization.createEmailSend(id, recipient, email),
@@ -41,15 +40,11 @@ export const organizationSendStore = (organization: OrganizationStub) =>
     settle: (id, attempt, outcome, now) =>
       organization.settleEmailSend(id, attempt, outcome, now).pipe(Effect.map(Option.fromNullishOr)),
     abandon: (id, now) => organization.abandonEmailSend(id, now).pipe(Effect.map(Option.fromNullishOr)),
+    requeue: (id) => organization.requeueEmailSend(id),
     recordDeliveryEvent: (id, kind, code, now) =>
       organization.recordEmailDeliveryEvent(id, kind, code, now).pipe(Effect.map(Option.fromNullishOr)),
   });
 
-/**
- * Derives Invitation tokens with the stage's `INVITATION_TOKEN_KEY` (`auth/AuthConfig.ts`). The Queue
- * consumer needs them only to render an email, so no token is ever persisted. A missing key is a
- * deploy bug, so it dies.
- */
 export const InvitationTokensLive = Layer.effect(
   InvitationTokens,
   Effect.gen(function* () {
@@ -62,10 +57,6 @@ export const InvitationTokensLive = Layer.effect(
   }).pipe(Effect.orDie),
 );
 
-/**
- * Creates a send and asks the consumer to deliver it. Idempotent per `sendId`. If the enqueue
- * fails the send stays pending, and the caller (the Organization's alarm, slice 08) retries.
- */
 export const queueEmail = (
   organizations: Organizations,
   queue: Cloudflare.Queues.WriteQueueClient,
@@ -89,7 +80,6 @@ export const queueEmail = (
 
 const decodeRequest = Schema.decodeUnknownOption(EmailSendRequested);
 
-/** Records which send a provider message id belongs to, for its later delivery events. */
 const indexMessage = (db: Cloudflare.D1.QueryDatabaseClient, request: EmailSendRequested, state: SendState) =>
   state._tag === "Sent"
     ? db
@@ -101,7 +91,6 @@ const indexMessage = (db: Cloudflare.D1.QueryDatabaseClient, request: EmailSendR
         .pipe(Effect.asVoid)
     : Effect.void;
 
-/** Logs only codes and ids, never an address or any content. */
 const logOutcome = (sendId: SendId, state: SendState | null) => {
   if (state === null) return Effect.logWarning("EMAIL_SEND_MISSING", { sendId });
   if (state._tag === "Failed") {
@@ -110,10 +99,6 @@ const logOutcome = (sendId: SendId, state: SendState | null) => {
   return Effect.void;
 };
 
-/**
- * One delivery of one queue message. Duplicates are expected: `deliver` sends at most once, and
- * the message is retried only when the send is waiting for a lease or a retry after a rejection.
- */
 export const handleSendMessage = (
   organizations: Organizations,
   db: Cloudflare.D1.QueryDatabaseClient,
@@ -150,7 +135,6 @@ export const handleSendMessage = (
             .failInvitation(inv.roundId, inv.personId, result.state.reason);
         }
       } else {
-        // A test Invitation's token is indexed apart from real ones, and only once its email went out (ADR 0021).
         const test = yield* organizations.getByName(organizationId).getTestSendBySendId(sendId);
         if (test !== null && result.state._tag !== "Failed") {
           yield* db
@@ -160,7 +144,6 @@ export const handleSendMessage = (
             .bind(test.tokenHash, organizationId, test.pulseId, test.sentAt + testInvitationLifetimeMs)
             .run()
             .pipe(Effect.asVoid);
-          // Expired test tokens and Edit keys are forgotten whenever a new test goes out.
           for (const table of ["test_invitation_index", "test_submission_index"] as const) {
             yield* db
               .prepare(`DELETE FROM ${table} WHERE expires_at <= ?`)
@@ -175,7 +158,6 @@ export const handleSendMessage = (
     message.ack();
   });
 
-/** The queue gave up on a message: fail its send rather than leave it pending (never silently). */
 export const handleDeadLetter = (organizations: Organizations, message: Cloudflare.Queues.Message<unknown>) =>
   Effect.gen(function* () {
     const request = decodeRequest(message.body);
@@ -191,11 +173,6 @@ export const handleDeadLetter = (organizations: Organizations, message: Cloudfla
     message.ack();
   });
 
-/**
- * A Cloudflare Email Sending event, as published to a Queue
- * (https://developers.cloudflare.com/email-service/reference/event-subscriptions/).
- * Only the fields SurveyBeat reads; the rest are ignored.
- */
 const EmailSendingEvent = Schema.Struct({
   type: Schema.String,
   payload: Schema.Struct({
@@ -223,7 +200,6 @@ export interface DeliveryEvent {
   readonly code: string | null;
 }
 
-/** Parses an event at the boundary. None for anything that is not an Email Sending message event. */
 export const parseDeliveryEvent = (body: unknown): Option.Option<DeliveryEvent> =>
   Schema.decodeUnknownOption(EmailSendingEvent)(body).pipe(
     Option.flatMap((event) => {
@@ -246,7 +222,6 @@ const decodeRoute = Schema.decodeUnknownOption(
   Schema.Struct({ organization_id: OrganizationId, send_id: SendId }),
 );
 
-/** A bounce or complaint for a message we sent fails its send, for the Lead's view. */
 export const handleDeliveryEvent = (
   organizations: Organizations,
   db: Cloudflare.D1.QueryDatabaseClient,

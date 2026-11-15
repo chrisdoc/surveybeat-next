@@ -14,7 +14,7 @@ import {
   teamsView,
   teamView,
 } from "./Directory.ts";
-import { PersonId, WorkosUserId } from "./Identity.ts";
+import { PersonId, AuthUserId } from "./Identity.ts";
 import { MembershipId, MinimumGroupSize, TeamId, TimeZone } from "./Team.ts";
 
 const ADMIN = PersonId.make("admin");
@@ -29,7 +29,7 @@ const initial: DirectoryState = {
     {
       id: ADMIN,
       email: EmailAddress.make("admin@example.com"),
-      workosUserId: WorkosUserId.make("user_admin"),
+      authUserId: AuthUserId.make("user_admin"),
       organizationAdmin: true,
       removedAt: null,
       locale: null,
@@ -110,7 +110,7 @@ describe("adding members by email", () => {
     if (decision._tag !== "Accepted") throw new Error("rejected");
 
     const ada = world.state.people.find((person) => person.email === "ada@example.com");
-    expect(ada).toMatchObject({ workosUserId: null, organizationAdmin: false, removedAt: null });
+    expect(ada).toMatchObject({ authUserId: null, organizationAdmin: false, removedAt: null });
     expect(world.roster(platform)).toEqual(["lead grace@example.com", "member ada@example.com"]);
     expect(decision.changes).toContainEqual({
       _tag: "EmailRequested",
@@ -277,11 +277,11 @@ describe("removing", () => {
     const history = world.state.memberships.filter((membership) => membership.personId === ada);
     expect(history.map((membership) => membership.endedAt)).toEqual([1_001 * DAY, 1_001 * DAY]);
     expect(Option.isNone(actorOf(world.state, ada))).toBe(true);
-    // Never signed in: only the index needs to forget them, WorkOS has no membership.
+    // The index forgets them; the Organization owns everything else.
     expect(removed.followUps).toEqual([{ _tag: "UnindexPerson", personId: ada }]);
   });
 
-  it("deactivates the WorkOS membership of a signed-in Person, and repeats the follow-ups on a retry", () => {
+  it("removes a signed-in Person, and repeats the follow-ups on a retry", () => {
     const world = new World();
     world.state = {
       ...world.state,
@@ -290,7 +290,7 @@ describe("removing", () => {
         {
           id: PersonId.make("ada"),
           email: EmailAddress.make("ada@example.com"),
-          workosUserId: WorkosUserId.make("user_ada"),
+          authUserId: AuthUserId.make("user_ada"),
           organizationAdmin: false,
           removedAt: null,
           locale: null,
@@ -298,10 +298,7 @@ describe("removing", () => {
         },
       ],
     };
-    const followUps = [
-      { _tag: "UnindexPerson", personId: "ada" },
-      { _tag: "DeactivateWorkosMembership", userId: "user_ada" },
-    ];
+    const followUps = [{ _tag: "UnindexPerson", personId: "ada" }];
     expect(world.ok(ADMIN, { _tag: "RemovePerson", personId: PersonId.make("ada") }).followUps).toEqual(
       followUps,
     );
@@ -382,19 +379,6 @@ describe("Organization admins", () => {
     expect(teamView(world.state, grace, platform)).toMatchObject({ value: { may: { manageLeads: true } } });
   });
 
-  it("puts the WorkOS role in step for a signed-in Person only", () => {
-    const world = new World();
-    world.createTeam("Platform", "grace@example.com");
-    const grace = world.personWith("grace@example.com");
-    expect(world.ok(ADMIN, { _tag: "SetAdmin", personId: grace, organizationAdmin: true }).followUps).toEqual(
-      [],
-    );
-    world.ok(grace, { _tag: "SetAdmin", personId: ADMIN, organizationAdmin: false });
-    expect(world.ok(grace, { _tag: "SetAdmin", personId: ADMIN, organizationAdmin: true }).followUps).toEqual(
-      [{ _tag: "SetWorkosRole", userId: "user_admin", role: "admin" }],
-    );
-  });
-
   it("sees every Team and administers it, but holds no role and no Results there", () => {
     const world = new World();
     const platform = world.createTeam("Platform", "grace@example.com");
@@ -449,7 +433,9 @@ describe("views for non-admins", () => {
     const grace = world.personWith("grace@example.com");
     const ada = world.personWith("ada@example.com");
 
-    expect(teamsView(world.state, grace)).toMatchObject({ value: [{ name: "Platform", yourRole: "lead" }] });
+    expect(teamsView(world.state, grace)).toMatchObject({
+      value: [{ name: "Platform", yourRole: "lead", memberCount: 2 }],
+    });
     expect(teamView(world.state, grace, platform)).toMatchObject({
       value: {
         may: {
@@ -461,7 +447,9 @@ describe("views for non-admins", () => {
         },
       },
     });
-    expect(teamsView(world.state, ada)).toMatchObject({ value: [{ name: "Platform", yourRole: "member" }] });
+    expect(teamsView(world.state, ada)).toMatchObject({
+      value: [{ name: "Platform", yourRole: "member", memberCount: 2 }],
+    });
     expect(teamView(world.state, ada, platform)).toEqual({
       _tag: "Rejected",
       rejection: { _tag: "Forbidden" },
@@ -611,7 +599,7 @@ describe("languages (ADR 0018)", () => {
     const ada = (locale: "en" | "de" | null, detectedLocale: "en" | "de" | null) => ({
       id: PersonId.make("ada"),
       email: EmailAddress.make("ada@example.com"),
-      workosUserId: null,
+      authUserId: null,
       organizationAdmin: false,
       removedAt: null,
       locale,

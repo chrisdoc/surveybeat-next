@@ -1,3 +1,5 @@
+// @effect-diagnostics globalRandom:off -- the test measures the production shuffle, whose order is non-deterministic by design.
+
 import { assert, describe, it } from "@effect/vitest";
 import { type DirectoryState, type MembershipRecord, type PersonRecord } from "../people/Directory.ts";
 import { EmailAddress } from "../email/Email.ts";
@@ -240,7 +242,7 @@ describe("Results Privacy & Minimum Group Size Invariants (ADR 0004, Issue #3)",
     ): PersonRecord => ({
       id: PersonId.make(id),
       email: EmailAddress.make(`${id}@example.com`),
-      workosUserId: null,
+      authUserId: null,
       organizationAdmin,
       removedAt,
       locale: null,

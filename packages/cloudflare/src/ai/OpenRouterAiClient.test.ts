@@ -1,3 +1,6 @@
+// @effect-diagnostics anyUnknownInErrorContext:off -- the decoder's failure type is unknown by construction; the assertion is about the decoded value.
+// @effect-diagnostics asyncFunction:off -- the vitest runner awaits a plain Promise here; the test never enters an Effect.
+
 import { describe, expect, it } from "@effect/vitest";
 import { AiNotConfigured, AiRejected, AiUnavailable, RedactedText, type AiRequest } from "@surveybeat/domain";
 import * as Effect from "effect/Effect";

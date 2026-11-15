@@ -9,6 +9,8 @@
     "tools/oxlint-plugin-surveybeat/fixtures/**",
     ".agents/**",
     ".claude/**",
+    ".cursor/**",
+    ".pi/**",
     ".entire/**",
     ".factory/**",
     ".opencode/**"

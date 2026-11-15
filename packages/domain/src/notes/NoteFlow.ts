@@ -64,10 +64,6 @@ export const getRoundNote = (
     return yield* unwrap(result);
   });
 
-/**
- * Writes the Lead's Note. The Note is not run through Redaction (ADR 0009): the Lead writes it
- * under their own name, so it is not a Comment.
- */
 export const saveRoundNote = (
   member: Member,
   teamId: TeamId,

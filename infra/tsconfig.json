@@ -4,7 +4,15 @@
     "rootDir": ".",
     "outDir": "dist",
     "tsBuildInfoFile": "dist/.tsbuildinfo",
-    "types": ["node"]
+    "types": ["node"],
+    "plugins": [
+      {
+        "name": "@effect/language-service",
+        // Debt from the effect 4.1.2 pin: these are the exact unstable APIs these scripts call.
+        // Delete an entry when the pin moves and the module becomes stable.
+        "allowedUnstableApis": ["@effect/vitest#it"]
+      }
+    ]
   },
   "include": [
     "alchemy.run.ts",

@@ -33,6 +33,7 @@ import {
   GetTeamOverviewCmd,
   GrantAdmin,
   initialModel,
+  ListActionsCmd,
   ListFailedEmails,
   ListPulses,
   ListRoundsCmd,
@@ -273,6 +274,21 @@ describe("App Stories", () => {
             outcome: { _tag: "Success", teams: [teamSummary] },
           }),
         ),
+        Story.Command.resolve(
+          ListPulses,
+          Message.GotPulses({
+            outcome: {
+              _tag: "Success",
+              pulses: { team: teamSummary, pulses: [] },
+            },
+          }),
+        ),
+        Story.Command.resolve(
+          ListActionsCmd,
+          Message.GotActions({
+            outcome: { _tag: "Success", list: { teamId, actions: [] } },
+          }),
+        ),
         Story.model((m) => {
           expect(m.teams._tag).toBe("Loaded");
           if (m.teams._tag === "Loaded") {
@@ -374,6 +390,15 @@ describe("App Stories", () => {
             outcome: { _tag: "Failure", failure: "Forbidden" },
           }),
         ),
+        Story.Command.resolve(
+          ListPulses,
+          Message.GotPulses({
+            outcome: {
+              _tag: "Success",
+              pulses: { team: detail.team, pulses: [] },
+            },
+          }),
+        ),
         Story.model((m) => {
           expect(m.teamDetail._tag).toBe("Loaded");
           expect(m.renameName).toBe("Old Name");
@@ -420,8 +445,9 @@ describe("App Stories", () => {
             outcome: { _tag: "Success", detail },
           }),
         ),
-        // Remove member
+        // Remove member: asking first, then confirming
         Story.message(Message.RemoveMemberClicked({ personId })),
+        Story.message(Message.ConfirmRemove()),
         Story.Command.expectHas(RemoveMember),
         Story.Command.resolve(RemoveMember, Message.RemovedMember({ outcome: { _tag: "Success" } })),
         Story.Command.expectHas(GetTeam),
@@ -527,6 +553,7 @@ describe("App Stories", () => {
         ),
         // Remove person
         Story.message(Message.RemovePersonClicked({ personId })),
+        Story.message(Message.ConfirmRemove()),
         Story.Command.expectHas(RemovePerson),
         Story.Command.resolve(RemovePerson, Message.RemovedPerson({ outcome: { _tag: "Success" } })),
         Story.Command.expectHas(GetSettings),

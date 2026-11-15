@@ -1,0 +1,25 @@
+{
+  "jsPlugins": ["../../tools/oxlint-plugin-surveybeat/no-comments.js"],
+  "rules": {
+    "no-comments/no-comments": "error",
+    "no-comments/directive-reason": "error"
+  },
+  "ignorePatterns": [
+    "**/*.test.ts",
+    "**/dist-types/**",
+    "**/dist/**",
+    "**/node_modules/**",
+    ".agents/**",
+    ".alchemy/**",
+    ".claude/**",
+    ".cursor/**",
+    ".entire/**",
+    ".factory/**",
+    ".opencode/**",
+    ".pi/**",
+    "infra/tests/**",
+    "tools/oxlint-plugin-surveybeat/fixtures/**",
+    "tools/oxlint/anti-slop/**",
+    "tools/oxlint/fixtures/**"
+  ]
+}

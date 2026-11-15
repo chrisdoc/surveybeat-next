@@ -9,9 +9,11 @@ import type { Html, HtmlBuilder } from "foldkit/html";
 import { defineTaggedUnion } from "foldkit/schema";
 import { formatRoundDate, formatScore, message } from "../messages/locale.ts";
 import { Failure } from "./api.ts";
+import { teamsHref } from "./routes.ts";
 import {
   appButton,
   emptyState,
+  linkClass,
   pageTitle,
   panel,
   problemView,
@@ -19,6 +21,7 @@ import {
   subSectionTitle,
 } from "./components.ts";
 import { type KeptAnswer, KeptAnswers } from "./keptAnswers.ts";
+import { roundResultsHref } from "./routes.ts";
 
 const noticeClass = "mt-4 rounded-control bg-subtle px-4 py-3 text-sm text-muted";
 
@@ -29,11 +32,9 @@ export const LoadedHistory = defineTaggedUnion({
 });
 export type LoadedHistory = typeof LoadedHistory.Type;
 
-/** The answer scale runs from 1 to 5; a kept value outside it was never a Rating the member could give. */
 const isScaleValue = (value: number): value is 1 | 2 | 3 | 4 | 5 =>
   Number.isInteger(value) && value >= 1 && value <= 5;
 
-/** The Question's own labels sit at 1 and 5; 2 to 4, and an end with no label, show the number alone. */
 const ratingText = (
   value: 1 | 2 | 3 | 4 | 5,
   lowLabel: string | undefined,
@@ -47,7 +48,6 @@ const ratingText = (
 const nonEmpty = (text: string | undefined): string | undefined =>
   text === undefined || text === "" ? undefined : text;
 
-/** The member's own Answer as shown: `main` is the value or LongText, `comment` the Rating's comment. */
 const yourAnswer = (
   type: HistoryQuestion["type"],
   answer: KeptAnswer | undefined,
@@ -78,7 +78,6 @@ const yourAnswerView = <Message>(
   roundAnswers: KeptAnswers[string] | undefined,
   h: HtmlBuilder<Message>,
 ): Html => {
-  // The Round's answers are on this device only if the answer page kept any for it.
   if (roundAnswers === undefined) return h.span([], [message("history.yours.notOnDevice")]);
   const { main, comment } = yourAnswer(question.type, roundAnswers[question.questionVersionId]);
   if (main === undefined && comment === undefined) return h.span([], [message("history.yours.none")]);
@@ -106,7 +105,6 @@ const teamResultNote = (teamResult: HistoryTeamResult): string | null => {
   return null;
 };
 
-/** One Round's Questions: the member's answer beside the Team's score. Local rather than `dataTable`, which takes text cells only. */
 const questionsTable = <Message>(
   round: HistoryRound,
   roundAnswers: KeptAnswers[string] | undefined,
@@ -155,6 +153,17 @@ const roundView = <Message>(round: HistoryRound, kept: KeptAnswers, h: HtmlBuild
       subSectionTitle(round.pulseName, h, 2),
       h.p([h.Class("text-sm text-muted")], [message("history.round.meta", { team: round.teamName, date })]),
       ...(note === null ? [] : [h.p([h.Class("text-sm text-muted")], [note])]),
+      ...(round.teamResult === "shown"
+        ? [
+            h.a(
+              [
+                h.Href(roundResultsHref(round.teamId, round.roundId)),
+                h.Class(`inline-flex min-h-11 items-center ${linkClass}`),
+              ],
+              [message("history.viewResults")],
+            ),
+          ]
+        : []),
       questionsTable(round, kept[round.roundId], h),
     ],
     h,
@@ -162,7 +171,6 @@ const roundView = <Message>(round: HistoryRound, kept: KeptAnswers, h: HtmlBuild
   );
 };
 
-/** The signed-in Person's history of Rounds: their own answers from this device beside the Team's scores. */
 export const historyView = <Message>(
   state: LoadedHistory,
   actions: { readonly onClear: Message },
@@ -195,7 +203,16 @@ export const historyView = <Message>(
   }
 
   if (history.rounds.length === 0) {
-    children.push(emptyState(message("history.empty"), h));
+    children.push(
+      emptyState(
+        {
+          title: message("history.empty.title"),
+          body: message("history.empty"),
+          action: { text: message("history.empty.action"), href: teamsHref() },
+        },
+        h,
+      ),
+    );
   } else {
     children.push(
       h.div(

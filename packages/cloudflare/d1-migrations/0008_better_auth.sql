@@ -1,0 +1,62 @@
+-- Better Auth's own tables (ADR 0022): who signed in, and the session each cookie names. They sit
+-- beside the people index rather than inside it, so the `auth_` prefix keeps them apart from
+-- `person_index`, `organization_index` and `organization_claim`. Columns and indexes are Better
+-- Auth 1.7.11's SQLite schema for packages/auth's model names; the Organization object still holds
+-- the Persons, so no survey content is here.
+
+CREATE TABLE auth_user (
+  id TEXT NOT NULL PRIMARY KEY,
+  name TEXT NOT NULL,
+  email TEXT NOT NULL UNIQUE,
+  emailVerified INTEGER NOT NULL,
+  image TEXT,
+  createdAt DATE NOT NULL,
+  updatedAt DATE NOT NULL
+);
+
+CREATE TABLE auth_session (
+  id TEXT NOT NULL PRIMARY KEY,
+  expiresAt DATE NOT NULL,
+  token TEXT NOT NULL UNIQUE,
+  createdAt DATE NOT NULL,
+  updatedAt DATE NOT NULL,
+  ipAddress TEXT,
+  userAgent TEXT,
+  userId TEXT NOT NULL REFERENCES auth_user (id) ON DELETE CASCADE
+);
+
+CREATE TABLE auth_account (
+  id TEXT NOT NULL PRIMARY KEY,
+  accountId TEXT NOT NULL,
+  providerId TEXT NOT NULL,
+  userId TEXT NOT NULL REFERENCES auth_user (id) ON DELETE CASCADE,
+  accessToken TEXT,
+  refreshToken TEXT,
+  idToken TEXT,
+  accessTokenExpiresAt DATE,
+  refreshTokenExpiresAt DATE,
+  scope TEXT,
+  password TEXT,
+  createdAt DATE NOT NULL,
+  updatedAt DATE NOT NULL
+);
+
+CREATE TABLE auth_verification (
+  id TEXT NOT NULL PRIMARY KEY,
+  identifier TEXT NOT NULL,
+  value TEXT NOT NULL,
+  expiresAt DATE NOT NULL,
+  createdAt DATE NOT NULL,
+  updatedAt DATE NOT NULL
+);
+
+-- Which Organization this session is working in (ADR 0023). One session spans Organizations, so
+-- the choice is kept here instead of in the cookie, and deleting the session takes it with it.
+CREATE TABLE auth_session_organization (
+  session_id TEXT NOT NULL PRIMARY KEY REFERENCES auth_session (id) ON DELETE CASCADE,
+  organization_id TEXT NOT NULL
+) WITHOUT ROWID;
+
+CREATE INDEX auth_session_userId_idx ON auth_session (userId);
+CREATE INDEX auth_account_userId_idx ON auth_account (userId);
+CREATE INDEX auth_verification_identifier_idx ON auth_verification (identifier);

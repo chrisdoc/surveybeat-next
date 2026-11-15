@@ -25,10 +25,6 @@ const decodeRow = Schema.decodeUnknownEffect(Row);
 const encodeState = Schema.encodeEffect(StateJson);
 const encodeContent = Schema.encodeEffect(ContentJson);
 
-/**
- * The `email_send` table of the Organization Durable Object. Rows hold only what the domain's
- * `SendStore` decides; every transition is in `@surveybeat/domain`. A corrupt row is a defect.
- */
 export const makeSqlSendRepository = (sql: SqliteClient.SqliteClient): SendRepository => ({
   get: (id) =>
     sql`SELECT id, recipient, content, state FROM email_send WHERE id = ${id}`.pipe(

@@ -6,6 +6,8 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "effect": "catalog:"
+    "@xstate/effect": "catalog:",
+    "effect": "catalog:",
+    "xstate": "catalog:"
   }
 }

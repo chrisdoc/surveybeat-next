@@ -1,3 +1,8 @@
+// @effect-diagnostics asyncFunction:off -- ADR 0008 keeps the answer entry free of Effect; fetch, timers and their Promises are the page's own async work.
+// @effect-diagnostics globalDate:off -- the page stamps the edit key it already holds; it never compares or stores the time.
+// @effect-diagnostics globalFetch:off -- ADR 0008 keeps the answer entry free of Effect, so the page calls the platform fetch directly.
+// @effect-diagnostics globalTimers:off -- the page debounces its own input with setTimeout; it has no Effect runtime.
+
 import type { AnswerMessage } from "./answer-messages.ts";
 import { keepAnswer } from "./kept-answers.ts";
 import { anonymityStatement, type QuestionData, parseRoundContext } from "./round-context.ts";
@@ -99,7 +104,6 @@ function showError(msg: string): void {
   }
 }
 
-/** A save that succeeds after a failed one clears the stale error. */
 function clearError(): void {
   const err = document.getElementById("err");
   if (err instanceof HTMLElement) {
@@ -129,7 +133,6 @@ function showStateMessage(msg: string): void {
   hideFormScreens();
 }
 
-/** For failures before the form can work (no token, failed exchange, unreadable context): the form is hidden. */
 function showFatalError(msg: string): void {
   showError(msg);
   hideFormScreens();
@@ -140,7 +143,6 @@ async function run(message: AnswerMessage): Promise<void> {
 
   const saveBtn = document.getElementById("save");
 
-  // Read preselected value
   let preselectedV = typeof window.__sb_v === "number" ? window.__sb_v : undefined;
   if (preselectedV === undefined && window.location.hash.length > 1) {
     const params = new URLSearchParams(window.location.hash.slice(1));
@@ -160,7 +162,6 @@ async function run(message: AnswerMessage): Promise<void> {
     }
   }
 
-  // Strip fragment so token does not linger in history (ADR 0005)
   if (window.location.hash.length > 0) {
     window.history.replaceState(null, "", window.location.pathname + window.location.search);
   }
@@ -191,7 +192,6 @@ async function run(message: AnswerMessage): Promise<void> {
     return;
   }
 
-  // A test Invitation (ADR 0021) says so before the Question shows. Nothing it sends is saved.
   if (context.test) {
     const testBanner = document.getElementById("test-banner");
     if (testBanner instanceof HTMLElement) {
@@ -200,13 +200,11 @@ async function run(message: AnswerMessage): Promise<void> {
     }
   }
 
-  // What the lead will and will not see needs the Team's N, so it waits for the context.
   const anonEl = document.getElementById("anon");
   if (anonEl instanceof HTMLElement) {
     anonEl.textContent = anonymityStatement(context, message);
   }
 
-  // Trigger dynamic schema validation after first paint (keeps Effect Schema off critical path)
   const scheduleValidation = () => {
     void import("./schema-validate.ts").then((mod) => {
       mod.validateRoundContext(rawContext);
@@ -214,14 +212,13 @@ async function run(message: AnswerMessage): Promise<void> {
   };
   setTimeout(scheduleValidation, 8000);
 
-  // Check state
   if (context.state !== "open") {
     showStateMessage(message("answer.state.closed"));
     return;
   }
 
   const roundStorageKey = `sb_edit_${context.roundId}`;
-  // A test keeps its Edit key in memory only, and the browser stores nothing for it (ADR 0021).
+
   let editKey = context.test ? "" : (window.localStorage.getItem(roundStorageKey) ?? "");
 
   if (context.hasAnswered) {
@@ -229,10 +226,8 @@ async function run(message: AnswerMessage): Promise<void> {
       showStateMessage(message("answer.state.otherBrowser"));
       return;
     }
-    // Member has edit key on this device; proceed to allow editing/reviewing answers
   }
 
-  // Populate Screen 1
   const pulseEl = document.getElementById("pulse");
   if (pulseEl instanceof HTMLElement) {
     pulseEl.textContent = context.pulseName;
@@ -244,7 +239,7 @@ async function run(message: AnswerMessage): Promise<void> {
     if (q1text instanceof HTMLElement) {
       q1text.textContent = q1.text;
     }
-    // The ends of the scale carry the Question's own labels; the prerendered page shows plain numbers until now.
+
     const lowLabel = q1.type._tag === "Rating" ? q1.type.lowLabel : undefined;
     const highLabel = q1.type._tag === "Rating" ? q1.type.highLabel : undefined;
     const q1low = document.getElementById("q1low");
@@ -284,12 +279,11 @@ async function run(message: AnswerMessage): Promise<void> {
       });
       clearError();
 
-      // A test's answers stay out of the browser's kept answers, so member history never shows them (ADR 0017).
       if (q1 && !context.test) {
         keepAnswer(() => window.localStorage, context.roundId, q1.id, { value: ratingVal }, Date.now());
       }
       firstSaved = true;
-      // Invariant: after the first save, no request carries the token (ADR 0005)
+
       window.sessionStorage.removeItem("sb_token");
       window.__sb_token = undefined;
 
@@ -308,7 +302,6 @@ async function run(message: AnswerMessage): Promise<void> {
     }
   };
 
-  // Screen 1 form submit
   const f1 = document.getElementById("f1");
   if (f1 instanceof HTMLFormElement) {
     f1.addEventListener("submit", (e) => {
@@ -320,7 +313,6 @@ async function run(message: AnswerMessage): Promise<void> {
     });
   }
 
-  // Value change on Screen 1 also confirms first save (ADR 0007)
   const q1Radios = document.querySelectorAll('input[name="q1"]');
   q1Radios.forEach((r) => {
     if (r instanceof HTMLInputElement) {
@@ -407,7 +399,7 @@ async function run(message: AnswerMessage): Promise<void> {
       const section = document.createElement("section");
       section.setAttribute("data-question-screen", String(idx + 2));
       section.className = "question-block";
-      // On mobile, hide screens past the first remaining question
+
       if (!isDesktop && idx > 0) {
         section.hidden = true;
       }
@@ -464,7 +456,6 @@ async function run(message: AnswerMessage): Promise<void> {
 
       section.appendChild(fieldset);
 
-      // Comments: Rating with comment=true, or LongText
       const hasComment = (q.type._tag === "Rating" && q.type.comment === true) || q.type._tag === "LongText";
 
       if (hasComment) {
@@ -518,7 +509,6 @@ async function run(message: AnswerMessage): Promise<void> {
         section.appendChild(commentDiv);
       }
 
-      // Navigation buttons
       const isLast = idx === questions.length - 1;
       const nextBtn = document.createElement("button");
       nextBtn.type = "button";
@@ -545,7 +535,6 @@ async function run(message: AnswerMessage): Promise<void> {
       container.appendChild(section);
     });
 
-    // Desktop finish button
     const finishBtn = document.createElement("button");
     finishBtn.type = "button";
     finishBtn.className = "desktop-finish-btn";
@@ -555,7 +544,6 @@ async function run(message: AnswerMessage): Promise<void> {
     });
     container.appendChild(finishBtn);
 
-    // Focus the first remaining question legend
     const firstLegend = questionSections[0]?.querySelector("legend");
     if (firstLegend instanceof HTMLElement) {
       firstLegend.focus();
@@ -567,7 +555,7 @@ async function run(message: AnswerMessage): Promise<void> {
     body: { value?: number; comment?: string },
   ): Promise<unknown> => {
     mark("answer-save-start");
-    // Invariant: Subsequent answers carry editKey, NEVER token (ADR 0005)
+
     const result = await postJson(`${submitOrigin}/answer`, {
       editKey,
       questionVersionId,
@@ -582,7 +570,6 @@ async function run(message: AnswerMessage): Promise<void> {
   };
 }
 
-/** Runs the answer page with one locale's messages. Each entry module (en.ts, de.ts) calls this once. */
 export function start(message: AnswerMessage): void {
   void run(message);
 }

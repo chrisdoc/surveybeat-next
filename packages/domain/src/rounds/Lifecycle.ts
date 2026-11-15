@@ -1,11 +1,13 @@
+// @effect-diagnostics globalDate:off -- every instant here arrives as an argument; these functions only parse and format it in a fixed time zone.
+
 import type { PersonId } from "../people/Identity.ts";
 import { actorOf, type DirectoryState } from "../people/Directory.ts";
 import { type Actor, can, type TeamAction } from "../people/Permissions.ts";
 import type { TeamId } from "../people/Team.ts";
 import type { PulseId, SendTime, Weekday } from "../pulses/Pulse.ts";
+import { isUnhandled, setup, transition, types } from "xstate";
 import type { JobId, RoundId, RoundStatus, ScheduleJobStatus, ScheduleJobType } from "./Round.ts";
 
-/** A member eligible to answer frozen when the Round opens. */
 export interface FrozenRoundMember {
   readonly roundId: RoundId;
   readonly personId: PersonId;
@@ -13,7 +15,6 @@ export interface FrozenRoundMember {
   readonly sendAt: number;
 }
 
-/** One Round of a Pulse in state storage. */
 export interface RoundRecord {
   readonly id: RoundId;
   readonly pulseId: PulseId;
@@ -24,7 +25,7 @@ export interface RoundRecord {
   readonly openedAt: number | null;
   readonly plannedCloseAt: number;
   readonly closedAt: number | null;
-  /** When the Review window ends (fixed at close); null for Rounds closed before it existed. */
+
   readonly reviewEndsAt: number | null;
   readonly effectiveMinimumGroupSize: number | null;
   readonly pulseName: string;
@@ -36,7 +37,6 @@ export interface RoundRecord {
   readonly updatedAt: number;
 }
 
-/** A due job in the DO schedule table. */
 export interface ScheduleJobRecord {
   readonly id: JobId;
   readonly roundId: RoundId;
@@ -48,7 +48,6 @@ export interface ScheduleJobRecord {
   readonly completedAt: number | null;
 }
 
-/** Pure time conversion: convert local date and time in an IANA time zone to UTC epoch ms. */
 export const localToUtc = (
   year: number,
   month: number,
@@ -93,7 +92,6 @@ export const localToUtc = (
   const offsetBefore = toAsUtc(getLocal(dayBeforeUtc)) - dayBeforeUtc;
   const offsetAfter = toAsUtc(getLocal(dayAfterUtc)) - dayAfterUtc;
 
-  // In an overlap, earlier UTC instant wins (so larger offset first).
   const offsets = [offsetBefore, offsetAfter].sort((a, b) => b - a);
 
   for (const offset of offsets) {
@@ -103,7 +101,6 @@ export const localToUtc = (
     }
   }
 
-  // Spring-forward gap: time moves forward by the gap.
   const gap = Math.abs(offsetAfter - offsetBefore);
   const adjustedTargetAsUtc = targetLocalAsUtc + gap;
   return adjustedTargetAsUtc - offsetAfter;
@@ -137,9 +134,6 @@ export const parseSendTime = (sendTime: SendTime): { hour: number; minute: numbe
   return { hour, minute };
 };
 
-/**
- * Returns the next date (YYYY-MM-DD) matching `weekday` on or strictly after the given calendar date.
- */
 export const nextWeekdayDate = (
   fromYear: number,
   fromMonth: number,
@@ -159,9 +153,6 @@ export const nextWeekdayDate = (
   return formatDateIso(nextDate.getUTCFullYear(), nextDate.getUTCMonth() + 1, nextDate.getUTCDate());
 };
 
-/**
- * The next 8 occurrence dates of a cadence weekday starting after `nowMs`.
- */
 export const nextEightWeeksCadenceDates = (
   nowMs: number,
   weekday: Weekday,
@@ -193,9 +184,6 @@ export const nextEightWeeksCadenceDates = (
   return result;
 };
 
-/**
- * Calculates open instant, latest send instant, and close instant for a Round.
- */
 export const calculateRoundInstants = (
   targetDateStr: string,
   sendTime: SendTime,
@@ -231,13 +219,6 @@ export const calculateRoundInstants = (
   };
 };
 
-/**
- * Calculates reminders for a member within their answer window.
- * - one reminder: day W-1
- * - two reminders: day 1 and day W-1 (only one if they fall on the same day)
- * - W = 1: one reminder 6 hours after send
- * Skipped if within 2 hours of close.
- */
 export const calculateReminders = (
   sendInstant: number,
   answerWindowDays: number,
@@ -259,15 +240,10 @@ export const calculateReminders = (
     }
   }
 
-  // A reminder is skipped if it would fall within 2 hours of close.
   const cutoff = closeInstant - 2 * 3600_000;
   return candidates.filter((time) => time < cutoff);
 };
 
-/**
- * Calculates delivery time for results-ready email (Issue #46):
- * right away if current local time is between 08:00 and 20:00, otherwise at their next 08:00.
- */
 export const calculateResultsReadyDeliveryTime = (nowMs: number, timeZone: string): number => {
   const dtf = new Intl.DateTimeFormat("en-US", {
     timeZone,
@@ -289,17 +265,14 @@ export const calculateResultsReadyDeliveryTime = (nowMs: number, timeZone: strin
   const month = parseInt(parts.month ?? "0", 10);
   const day = parseInt(parts.day ?? "0", 10);
 
-  // Between 08:00 and 20:00 local time: send right away (nowMs)
   if (h >= 8 && h < 20) {
     return nowMs;
   }
 
-  // Before 08:00: next 08:00 is today at 08:00
   if (h < 8) {
     return localToUtc(year, month, day, 8, 0, timeZone);
   }
 
-  // At or after 20:00: next 08:00 is tomorrow at 08:00
   const tomorrowUtc = Date.UTC(year, month - 1, day) + 86_400_000;
   const tomDate = new Date(tomorrowUtc);
   return localToUtc(
@@ -372,7 +345,6 @@ export type RoundRejection =
   | { readonly _tag: "WeekOutOfRange" }
   | { readonly _tag: "InvitationNotFound" };
 
-/** An HMAC key from `importInvitationTokenKey`. The domain has no DOM or Workers types; the runtime provides the real one. */
 export interface InvitationTokenKey {
   readonly type: string;
 }
@@ -417,25 +389,17 @@ const base64url = (bytes: Uint8Array): string => {
   return result;
 };
 
-/** Which Invitation a token belongs to. `generation` is the Invitation's `resend_count`: Resend bumps it. */
 export interface InvitationTokenRef {
   readonly roundId: string;
   readonly personId: string;
   readonly generation: number;
 }
 
-/** Imports the per-stage secret as an HMAC key. The secret never leaves the Worker environment. */
 export const importInvitationTokenKey = (secret: string): Promise<InvitationTokenKey> =>
   crypto.subtle.importKey("raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, [
     "sign",
   ]);
 
-/**
- * The 128-bit unguessable base64url token of an Invitation (ADR 0005, issue 42). It is derived, not
- * stored: only its hash is persisted, and whoever needs the token (the Queue consumer rendering the
- * email) derives it again from the key and the reference. A Resend bumps `generation`, so the old
- * link stops working exactly as before.
- */
 export const deriveInvitationToken = (key: InvitationTokenKey, ref: InvitationTokenRef): Promise<string> =>
   crypto.subtle
     .sign(
@@ -445,18 +409,12 @@ export const deriveInvitationToken = (key: InvitationTokenKey, ref: InvitationTo
     )
     .then((mac: ArrayBuffer) => base64url(new Uint8Array(mac).slice(0, 16)));
 
-/** Which test Invitation a token belongs to. `testId` is random per send (ADR 0021). */
 export interface TestInvitationTokenRef {
   readonly pulseId: string;
   readonly personId: string;
   readonly testId: string;
 }
 
-/**
- * The 128-bit base64url token of a test Invitation (ADR 0021, issue 136). It has its own label, so it
- * can never equal an Invitation token, and it is derived with the same key, never stored. Only its hash
- * is persisted, in `test_invitation_index`.
- */
 export const deriveTestInvitationToken = (
   key: InvitationTokenKey,
   ref: TestInvitationTokenRef,
@@ -469,7 +427,6 @@ export const deriveTestInvitationToken = (
     )
     .then((mac: ArrayBuffer) => base64url(new Uint8Array(mac).slice(0, 16)));
 
-/** Computes the hex-encoded SHA-256 hash of a token for storage and lookup. */
 export const hashToken = (token: string): Promise<string> =>
   crypto.subtle
     .digest("SHA-256", new TextEncoder().encode(token))
@@ -483,7 +440,191 @@ export type RoundDecision<A> =
 
 const reject = (rejection: RoundRejection) => ({ _tag: "Rejected", rejection }) as const;
 
-/** Authorizes `action` on the Team via the permission table. */
+export type RoundCommandTag = RoundCommand["_tag"];
+
+type RoundEvent =
+  | {
+      readonly type: "SkipWeek";
+      readonly teamId: TeamId;
+      readonly pulseId: PulseId;
+      readonly plannedOpenDate: string;
+    }
+  | {
+      readonly type: "UnskipWeek";
+      readonly teamId: TeamId;
+      readonly pulseId: PulseId;
+      readonly plannedOpenDate: string;
+    }
+  | { readonly type: "PausePulse"; readonly teamId: TeamId; readonly pulseId: PulseId }
+  | { readonly type: "ResumePulse"; readonly teamId: TeamId; readonly pulseId: PulseId }
+  | { readonly type: "CloseRoundEarly"; readonly teamId: TeamId; readonly roundId: RoundId }
+  | { readonly type: "ShareResults"; readonly teamId: TeamId; readonly roundId: RoundId }
+  | { readonly type: "RetryResult"; readonly teamId: TeamId; readonly roundId: RoundId }
+  | { readonly type: "CancelRound"; readonly teamId: TeamId; readonly roundId: RoundId }
+  | {
+      readonly type: "ResendInvitation";
+      readonly teamId: TeamId;
+      readonly roundId: RoundId;
+      readonly personId: PersonId;
+    };
+
+const roundEvent = (command: RoundCommand): RoundEvent => {
+  switch (command._tag) {
+    case "SkipWeek":
+    case "UnskipWeek":
+      return {
+        type: command._tag,
+        teamId: command.teamId,
+        pulseId: command.pulseId,
+        plannedOpenDate: command.plannedOpenDate,
+      };
+    case "PausePulse":
+    case "ResumePulse":
+      return { type: command._tag, teamId: command.teamId, pulseId: command.pulseId };
+    case "CloseRoundEarly":
+    case "ShareResults":
+    case "RetryResult":
+    case "CancelRound":
+      return { type: command._tag, teamId: command.teamId, roundId: command.roundId };
+    case "ResendInvitation":
+      return {
+        type: command._tag,
+        teamId: command.teamId,
+        roundId: command.roundId,
+        personId: command.personId,
+      };
+  }
+};
+
+const roundIdEvent = types<{ teamId: TeamId; roundId: RoundId }>();
+
+const accept = (status: RoundStatus) => ({ target: status, context: { status, rejection: null } });
+
+const refuse = (status: RoundStatus) => ({
+  context: { rejection: { _tag: "InvalidRoundState", status } as const },
+});
+
+const refuseClosed = { context: { rejection: { _tag: "RoundNotOpen" } as const } };
+
+export const roundMachine = setup({
+  schemas: {
+    context: types<{ status: RoundStatus; rejection: RoundRejection | null }>(),
+    events: {
+      SkipWeek: types<{ teamId: TeamId; pulseId: PulseId; plannedOpenDate: string }>(),
+      UnskipWeek: types<{ teamId: TeamId; pulseId: PulseId; plannedOpenDate: string }>(),
+      PausePulse: types<{ teamId: TeamId; pulseId: PulseId }>(),
+      ResumePulse: types<{ teamId: TeamId; pulseId: PulseId }>(),
+      CloseRoundEarly: roundIdEvent,
+      ShareResults: roundIdEvent,
+      RetryResult: roundIdEvent,
+      CancelRound: roundIdEvent,
+      ResendInvitation: types<{ teamId: TeamId; roundId: RoundId; personId: PersonId }>(),
+    },
+  },
+}).createMachine({
+  id: "Round",
+  context: { status: "scheduled", rejection: null },
+  initial: "scheduled",
+  states: {
+    scheduled: {
+      on: {
+        SkipWeek: () => accept("scheduled"),
+        UnskipWeek: () => accept("scheduled"),
+        PausePulse: () => accept("scheduled"),
+        ResumePulse: () => accept("scheduled"),
+        CloseRoundEarly: () => refuseClosed,
+        ShareResults: () => refuse("scheduled"),
+        RetryResult: () => refuse("scheduled"),
+        CancelRound: () => accept("cancelled"),
+        ResendInvitation: () => refuseClosed,
+      },
+    },
+    open: {
+      on: {
+        SkipWeek: () => accept("open"),
+        UnskipWeek: () => accept("open"),
+        PausePulse: () => accept("open"),
+        ResumePulse: () => accept("open"),
+        CloseRoundEarly: () => accept("closed"),
+        ShareResults: () => refuse("open"),
+        RetryResult: () => refuse("open"),
+        CancelRound: () => accept("cancelled"),
+        ResendInvitation: () => accept("open"),
+      },
+    },
+    closed: {
+      on: {
+        SkipWeek: () => accept("closed"),
+        UnskipWeek: () => accept("closed"),
+        PausePulse: () => accept("closed"),
+        ResumePulse: () => accept("closed"),
+        CloseRoundEarly: () => refuseClosed,
+        ShareResults: () => refuse("closed"),
+        RetryResult: () => accept("closed"),
+        CancelRound: () => refuse("closed"),
+        ResendInvitation: () => refuseClosed,
+      },
+    },
+    ready: {
+      on: {
+        SkipWeek: () => accept("ready"),
+        UnskipWeek: () => accept("ready"),
+        PausePulse: () => accept("ready"),
+        ResumePulse: () => accept("ready"),
+        CloseRoundEarly: () => refuseClosed,
+        ShareResults: () => accept("shared"),
+        RetryResult: () => accept("ready"),
+        CancelRound: () => refuse("ready"),
+        ResendInvitation: () => refuseClosed,
+      },
+    },
+    shared: {
+      on: {
+        SkipWeek: () => accept("shared"),
+        UnskipWeek: () => accept("shared"),
+        PausePulse: () => accept("shared"),
+        ResumePulse: () => accept("shared"),
+        CloseRoundEarly: () => refuseClosed,
+        ShareResults: () => accept("shared"),
+        RetryResult: () => accept("shared"),
+        CancelRound: () => refuse("shared"),
+        ResendInvitation: () => refuseClosed,
+      },
+    },
+    cancelled: {
+      on: {
+        SkipWeek: () => accept("cancelled"),
+        UnskipWeek: () => accept("cancelled"),
+        PausePulse: () => accept("cancelled"),
+        ResumePulse: () => accept("cancelled"),
+        CloseRoundEarly: () => refuseClosed,
+        ShareResults: () => refuse("cancelled"),
+        RetryResult: () => refuse("cancelled"),
+        CancelRound: () => refuse("cancelled"),
+        ResendInvitation: () => refuseClosed,
+      },
+    },
+  },
+});
+
+const roundSnapshot = (status: RoundStatus) =>
+  roundMachine.resolveState({ value: status, context: { status, rejection: null } });
+
+const roundStep = (status: RoundStatus, command: RoundCommand) => {
+  const snapshot = roundSnapshot(status);
+  const [next, effects] = transition(roundMachine, snapshot, roundEvent(command));
+  if (isUnhandled(snapshot, [next, effects])) {
+    throw new Error("Round has no transition for " + command._tag + " in " + status);
+  }
+  return next.context;
+};
+
+export const roundCommandRejection = (status: RoundStatus, command: RoundCommand): RoundRejection | null =>
+  roundStep(status, command).rejection;
+
+export const roundStatusAfter = (status: RoundStatus, command: RoundCommand): RoundStatus =>
+  roundStep(status, command).status;
+
 export const authorizeRoundAction = (
   directory: DirectoryState,
   actorId: PersonId,

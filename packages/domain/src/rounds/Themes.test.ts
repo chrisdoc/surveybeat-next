@@ -1,5 +1,8 @@
 import { describe, expect, it } from "@effect/vitest";
+import { createEffectActor } from "@xstate/effect";
+import { sendAndAwait } from "@xstate/effect/test";
 import * as Effect from "effect/Effect";
+import { isUnhandled, transition } from "xstate";
 import { AiNotConfigured, AiUnavailable, type AiInput } from "../ai/AiClient.ts";
 import { fakeAiClient } from "../ai/testing.ts";
 import { PulseId } from "../pulses/Pulse.ts";
@@ -16,6 +19,7 @@ import {
   type RoundThemesRecord,
   shouldRequestThemes,
   ThemesReplyInvalid,
+  themesRetryMachine,
   type ThemesJobDecision,
   viewRoundResult,
 } from "./Themes.ts";
@@ -741,5 +745,96 @@ describe("viewRoundResult: a Result that could not be computed (Issue #128)", ()
       round: { status: "ready", reviewEndsAt: REQUESTED_AT + 3 * 24 * HOUR },
     });
     expect(lead).not.toHaveProperty("couldNotCompute");
+  });
+});
+
+describe("the themes retry machine", () => {
+  const at = (attempts: number, now: number) =>
+    themesRetryMachine.resolveState({
+      value: "pending",
+      context: { attempts, requestedAt: REQUESTED_AT, now, decision: null },
+    });
+
+  it.effect("retries an unavailable model and gives up once the window closes", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const actor = yield* createEffectActor(themesRetryMachine, { snapshot: at(0, REQUESTED_AT) });
+        yield* sendAndAwait(actor, { type: "Unavailable" });
+        expect(actor.getSnapshot().value).toBe("pending");
+        expect(actor.getSnapshot().context.decision).toEqual({
+          _tag: "RetryAt",
+          dueAt: REQUESTED_AT + 5 * MINUTE,
+          attempts: 1,
+        });
+
+        const late = yield* createEffectActor(themesRetryMachine, {
+          snapshot: at(3, REQUESTED_AT + RETRY_WINDOW_MS),
+        });
+        yield* sendAndAwait(late, { type: "Invalid" });
+        expect(late.getSnapshot().value).toBe("failed");
+        expect(late.getSnapshot().context.decision).toEqual({ _tag: "GiveUp" });
+      }),
+    ),
+  );
+
+  it.effect("stores a valid reply and fails immediately when the model is not configured", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const stored = yield* createEffectActor(themesRetryMachine, { snapshot: at(0, REQUESTED_AT) });
+        yield* sendAndAwait(stored, { type: "Store", themes: { themes: [], guide: null } });
+        expect(stored.getSnapshot().value).toBe("ready");
+        expect(stored.getSnapshot().context.decision).toEqual({
+          _tag: "Store",
+          themes: { themes: [], guide: null },
+        });
+
+        const missing = yield* createEffectActor(themesRetryMachine, { snapshot: at(2, REQUESTED_AT) });
+        yield* sendAndAwait(missing, { type: "NotConfigured" });
+        expect(missing.getSnapshot().value).toBe("failed");
+        expect(missing.getSnapshot().context.decision).toEqual({ _tag: "GiveUp" });
+      }),
+    ),
+  );
+
+  it.each(["Store", "Reject", "Unavailable", "Invalid", "NotConfigured"] as const)(
+    "refuses %s once it has finished",
+    (event) => {
+      const finished = themesRetryMachine.resolveState({
+        value: "ready",
+        context: { attempts: 1, requestedAt: REQUESTED_AT, now: REQUESTED_AT, decision: null },
+      });
+      expect(
+        isUnhandled(
+          finished,
+          transition(themesRetryMachine, finished, { type: event, themes: { themes: [], guide: null } }),
+        ),
+      ).toBe(true);
+    },
+  );
+});
+
+describe("the themes retry machine", () => {
+  const snapshotAt = (value: "ready" | "failed") =>
+    themesRetryMachine.resolveState({
+      value,
+      context: { attempts: 0, requestedAt: REQUESTED_AT, now: REQUESTED_AT, decision: null },
+    });
+
+  const events = [
+    { type: "Store", themes: { themes: [], guide: null } },
+    { type: "Reject" },
+    { type: "Unavailable" },
+    { type: "Invalid" },
+    { type: "NotConfigured" },
+  ] as const;
+
+  it.each(["ready", "failed"] as const)("refuses every event once it is %s", (value) => {
+    const snapshot = snapshotAt(value);
+    for (const event of events) {
+      expect(
+        isUnhandled(snapshot, transition(themesRetryMachine, snapshot, event)),
+        `${event.type} in ${value}`,
+      ).toBe(true);
+    }
   });
 });

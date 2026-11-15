@@ -1,3 +1,5 @@
+// @effect-diagnostics nodeBuiltinImport:off -- this file reads the repository from disk or spawns a process outside a Worker; the Effect FileSystem and ChildProcess services do not exist there.
+
 import { SqliteClient } from "@effect/sql-sqlite-do";
 import { assert, describe, it } from "@effect/vitest";
 import { EmailAddress, PersonId, type SendStoreShape } from "@surveybeat/domain";
@@ -59,7 +61,7 @@ describe("the Organization's directory tables (ADR 0018)", () => {
           person: {
             id: ada,
             email: EmailAddress.make("ada@example.com"),
-            workosUserId: null,
+            authUserId: null,
             organizationAdmin: false,
             removedAt: null,
             locale: null,

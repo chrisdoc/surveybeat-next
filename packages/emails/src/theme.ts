@@ -1,8 +1,3 @@
-/**
- * Email palette. Light values are inline so clients without media queries show them; the dark values
- * live in `darkColors` and are applied through the `sb-*` classes in `Layout.tsx`. The light values
- * must match the app theme (a drift test compares them).
- */
 export const colors = {
   page: "#F3F4F1",
   card: "#FFFFFF",
@@ -35,7 +30,6 @@ export const darkColors = {
   ratingText: "#E8F0ED",
 } as const;
 
-/** No web font is loaded: Figtree is used only where the client has it. */
 export const fonts = {
   sans: "Figtree, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
   display: "'Iowan Old Style', 'Palatino Linotype', Georgia, serif",

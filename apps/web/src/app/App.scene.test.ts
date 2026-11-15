@@ -1,7 +1,11 @@
+// @effect-diagnostics globalDate:off -- the view formats or compares an instant that arrived from the API against the browser clock; nothing here is stored on the server.
+
 import {
   ActionId,
   type ActionItem,
   EmailAddress,
+  type EmailSendProgress,
+  type FailedEmailStatus,
   type HistoryRound,
   type Locale,
   MinimumGroupSize,
@@ -22,12 +26,14 @@ import {
   TemplateQuestionKey,
   TimeZone,
 } from "@surveybeat/domain";
+import { Popover } from "@foldkit/ui";
 import { Option, Schema } from "effect";
 import * as Scene from "foldkit/scene";
 import { setup } from "foldkit/test/vitest";
 import { fromString } from "foldkit/url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  type Model,
   AddMember,
   AddQuestionCmd,
   AssignLead,
@@ -50,12 +56,14 @@ import {
   ListTeams,
   LoadSession,
   localeOf,
+  PollFailedEmailCmd,
   PollTestSendCmd,
   Message,
   Navigate,
   PausePulseCmd,
   RemoveMember,
   RemoveQuestionCmd,
+  ResendFailedEmailCmd,
   ResendInvitationCmd,
   ResumePulseCmd,
   RetryResultCmd,
@@ -73,7 +81,8 @@ import {
   UpdateTeam,
   view,
 } from "./App.ts";
-import { formatDate, message, setLocale } from "../messages/locale.ts";
+import { formatDate, formatRoundDate, message, setLocale } from "../messages/locale.ts";
+import type { FailedEmailResend } from "./directory.ts";
 import type { KeptAnswers } from "./keptAnswers.ts";
 import type { SessionModel } from "./session.ts";
 
@@ -90,6 +99,8 @@ const decodeTimeZone = Schema.decodeSync(TimeZone);
 const decodeEmail = Schema.decodeSync(EmailAddress);
 const decodeSize = Schema.decodeSync(MinimumGroupSize);
 const decodeSendTime = Schema.decodeSync(SendTime);
+const decodeRoundId = Schema.decodeSync(RoundId);
+const decodeActionId = Schema.decodeSync(ActionId);
 const decodeSendId = Schema.decodeSync(SendId);
 
 const makeUrl = (str: string) => Option.getOrThrow(fromString(str));
@@ -104,6 +115,12 @@ afterEach(() => {
   setLocale("en");
 });
 
+/** Opens the header's account menu, where the Language choice and Sign out are. */
+const openAccountMenu = (organization: string, menu = "Account menu") => [
+  Scene.click(Scene.role("button", { name: `${organization} ${menu}` })),
+  Scene.Mount.resolve(Popover.AnchorPopover, Popover.Message.CompletedAnchorPopover()),
+];
+
 const signedInAdmin: SessionModel = {
   _tag: "SignedIn",
   organization: { id: decodeOrgId("org-1"), name: "Acme" },
@@ -115,15 +132,44 @@ const signedInAdmin: SessionModel = {
 
 describe("App Scenes", () => {
   describe("Sign-in states", () => {
-    it("renders signed out screen with sign-in button", () => {
+    it("renders signed out screen with the email-code form", () => {
       Scene.scene(
         { update, view },
         Scene.given({
           ...initialModel(makeUrl("https://app.surveybeat.com/")),
-          session: { _tag: "SignedOut", failed: false },
+          session: {
+            _tag: "SignedOut",
+            failed: false,
+            stage: "email",
+            email: "",
+            code: "",
+            busy: false,
+            notice: null,
+          },
         }),
         Scene.expect(Scene.role("heading", { name: "Sign in to SurveyBeat" })).toExist(),
-        Scene.expect(Scene.role("button", { name: "Sign in" })).toExist(),
+        Scene.expect(Scene.role("textbox", { name: "Your email" })).toExist(),
+        Scene.expect(Scene.role("button", { name: "Email me a code" })).toExist(),
+      );
+    });
+
+    it("asks for the code once the email is submitted", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(makeUrl("https://app.surveybeat.com/")),
+          session: {
+            _tag: "SignedOut",
+            failed: false,
+            stage: "code",
+            email: "ada@example.com",
+            code: "",
+            busy: false,
+            notice: "We sent a 6-digit code to ada@example.com. It expires in 5 minutes.",
+          },
+        }),
+        Scene.expect(Scene.role("textbox", { name: "Sign-in code" })).toExist(),
+        Scene.expect(Scene.role("button", { name: "Sign in with this code" })).toExist(),
       );
     });
 
@@ -132,7 +178,15 @@ describe("App Scenes", () => {
         { update, view },
         Scene.given({
           ...initialModel(makeUrl("https://app.surveybeat.com/?signin=failed")),
-          session: { _tag: "SignedOut", failed: true },
+          session: {
+            _tag: "SignedOut",
+            failed: true,
+            stage: "email",
+            email: "",
+            code: "",
+            busy: false,
+            notice: null,
+          },
         }),
         Scene.expect(Scene.text("Signing in did not work. Please try again.")).toExist(),
       );
@@ -169,7 +223,7 @@ describe("App Scenes", () => {
             outcome: { _tag: "Success", teams: [] },
           }),
         ),
-        Scene.expect(Scene.role("heading", { name: "Teams" })).toExist(),
+        Scene.expect(Scene.role("heading", { name: "What needs my attention" })).toExist(),
       );
     });
 
@@ -227,7 +281,138 @@ describe("App Scenes", () => {
     });
   });
 
+  describe("Home page", () => {
+    const teamId = decodeTeamId("team-1");
+    const pulseId = decodePulseId("pulse-1");
+    const roundId = decodeRoundId("round-1");
+    const actionId = decodeActionId("action-1");
+    const teamSummary = {
+      id: teamId,
+      name: "Engineering",
+      timeZone: decodeTimeZone("Europe/Berlin"),
+      yourRole: "lead" as const,
+    };
+    const pulse = {
+      id: pulseId,
+      name: "Weekly check-in",
+      cadence: { _tag: "Weekly" as const, day: "monday" as const, time: decodeSendTime("09:00") },
+      questionCount: 3,
+      estimatedSeconds: 90,
+    };
+    const round = (status: "closed" | "open" | "shared") => ({
+      id: roundId,
+      pulseId,
+      teamId,
+      status,
+      plannedOpenDate: "2026-11-09",
+      plannedOpenAt: Date.parse("2026-11-09T09:00:00Z"),
+      openedAt: status === "open" ? Date.parse("2026-11-09T09:00:00Z") : null,
+      plannedCloseAt: Date.parse("2026-11-13T09:00:00Z"),
+      closedAt: status === "open" ? null : Date.parse("2026-11-13T09:00:00Z"),
+      pulseName: "Weekly check-in",
+    });
+    const action = (status: "committed" | "done") => ({
+      id: actionId,
+      teamId,
+      roundId,
+      title: "Fix standups",
+      ownerId: decodePersonId("person-1"),
+      ownerEmail: decodeEmail("alice@acme.com"),
+      dueDate: "2026-11-20",
+      dimension: null,
+      status,
+      createdAt: Date.parse("2026-11-01T09:00:00Z"),
+      updatedAt: Date.parse("2026-11-01T09:00:00Z"),
+      doneAt: status === "done" ? Date.parse("2026-11-02T09:00:00Z") : null,
+    });
+    const home = (status: "closed" | "open" | "shared", actionStatus: "committed" | "done") => ({
+      teams: { _tag: "Loaded" as const, teams: [teamSummary] },
+      homePulses: { [teamId]: { team: teamSummary, pulses: [pulse] } },
+      homeRounds: { [pulseId]: { pulseId, paused: false, rounds: [round(status)] } },
+      homeActions: { [teamId]: [action(actionStatus)] },
+    });
+
+    it("tells a Lead what waits: Results to share, an open Round, an Action due", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(makeUrl("https://app.surveybeat.com/")),
+          session: signedInAdmin,
+          ...home("closed", "committed"),
+        }),
+        Scene.expect(Scene.role("heading", { name: "What needs my attention" })).toExist(),
+        Scene.expect(Scene.text("Results ready to share")).toExist(),
+        Scene.expect(Scene.text("Action due")).toExist(),
+        Scene.expect(Scene.role("link", { name: "Fix standups" })).toExist(),
+        Scene.expect(Scene.text("Nothing needs your attention")).toBeAbsent(),
+      );
+    });
+
+    it("shows an open Round as the thing to act on", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(makeUrl("https://app.surveybeat.com/")),
+          session: signedInAdmin,
+          ...home("open", "done"),
+        }),
+        Scene.expect(Scene.text("Round open")).toExist(),
+        Scene.expect(Scene.text("Results ready to share")).toBeAbsent(),
+        Scene.expect(Scene.text("Action due")).toBeAbsent(),
+      );
+    });
+
+    it("says nothing needs attention when the Round is shared and the Action is done", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(makeUrl("https://app.surveybeat.com/")),
+          session: signedInAdmin,
+          ...home("shared", "done"),
+        }),
+        Scene.expect(Scene.text("Nothing needs your attention")).toExist(),
+        Scene.expect(Scene.role("link", { name: "See your history" })).toExist(),
+        Scene.expect(Scene.text("Results ready to share")).toBeAbsent(),
+      );
+    });
+
+    it("offers a member nothing to act on", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(makeUrl("https://app.surveybeat.com/")),
+          session: signedInAdmin,
+          teams: {
+            _tag: "Loaded",
+            teams: [{ ...teamSummary, yourRole: "member" as const }],
+          },
+        }),
+        Scene.expect(Scene.text("Nothing needs your attention")).toExist(),
+        Scene.expect(Scene.role("link", { name: "See your history" })).toExist(),
+        Scene.expect(Scene.text("Round open")).toBeAbsent(),
+      );
+    });
+  });
+
   describe("Teams screen", () => {
+    it("opens the Create Team form from its button and closes it without doing anything", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(makeUrl("https://app.surveybeat.com/")),
+          session: signedInAdmin,
+          teams: { _tag: "Loaded", teams: [] },
+        }),
+        Scene.expect(Scene.role("heading", { name: "Create a Team" })).toBeAbsent(),
+        Scene.expect(Scene.text("No Team yet")).toExist(),
+        Scene.expect(Scene.text("You're not in any Team yet.")).toExist(),
+        Scene.click(Scene.role("button", { name: "Create Team" })),
+        Scene.expect(Scene.role("heading", { name: "Create a Team" })).toExist(),
+        Scene.click(Scene.role("button", { name: "Cancel" })),
+        Scene.expect(Scene.role("heading", { name: "Create a Team" })).toBeAbsent(),
+      );
+    });
+
     it("renders teams list and creates team via form", () => {
       const teamId = decodeTeamId("team-1");
       const teamSummary = {
@@ -235,6 +420,8 @@ describe("App Scenes", () => {
         name: "Engineering",
         timeZone: decodeTimeZone("Europe/Berlin"),
         yourRole: "lead" as const,
+        memberCount: 3,
+        nextRoundDate: "2026-11-16",
       };
 
       Scene.scene(
@@ -245,9 +432,14 @@ describe("App Scenes", () => {
           teams: { _tag: "Loaded", teams: [teamSummary] },
         }),
         Scene.expect(Scene.text("Engineering")).toExist(),
+        // The row carries the facts: role badge, size, and the next Round.
+        Scene.expect(Scene.text("Lead")).toExist(),
+        Scene.expect(Scene.text("3 people · Next Round Nov 16, 2026")).toExist(),
+        Scene.expect(Scene.role("heading", { name: "Create a Team" })).toBeAbsent(),
+        Scene.click(Scene.role("button", { name: "Create Team" })),
         Scene.expect(Scene.role("heading", { name: "Create a Team" })).toExist(),
         Scene.type(Scene.label("Team name"), "Design"),
-        Scene.type(Scene.label("Time zone"), "UTC"),
+        Scene.change(Scene.label("Time zone"), "UTC"),
         Scene.type(Scene.label("Lead's email"), "lead@acme.com"),
         Scene.click(Scene.role("button", { name: "Create Team" })),
         Scene.Command.expectHas(CreateTeam),
@@ -322,6 +514,7 @@ describe("App Scenes", () => {
         Scene.expect(Scene.text("alice@acme.com")).toExist(),
         Scene.expect(Scene.role("button", { name: "Remove" })).toExist(),
         // Rename team
+        Scene.click(Scene.role("button", { name: "Rename Team" })),
         Scene.type(Scene.label("Team name"), "Renamed Team"),
         Scene.click(Scene.role("button", { name: "Save" })),
         Scene.Command.expectHas(UpdateTeam),
@@ -338,6 +531,7 @@ describe("App Scenes", () => {
         ),
         Scene.expect(Scene.role("heading", { name: "Renamed Team" })).toExist(),
         // Add member
+        Scene.click(Scene.role("button", { name: "Add member" })),
         Scene.type(Scene.label("Add a member by email"), "bob@acme.com"),
         Scene.click(Scene.role("button", { name: "Add member" })),
         Scene.Command.expectHas(AddMember),
@@ -345,13 +539,17 @@ describe("App Scenes", () => {
         Scene.Command.expectHas(GetTeam),
         Scene.Command.resolve(GetTeam, Message.GotTeam({ outcome: { _tag: "Success", detail } })),
         // Assign lead
+        Scene.click(Scene.role("button", { name: "Assign Lead" })),
         Scene.type(Scene.label("Assign a Lead by email"), "carol@acme.com"),
         Scene.click(Scene.role("button", { name: "Assign Lead" })),
         Scene.Command.expectHas(AssignLead),
         Scene.Command.resolve(AssignLead, Message.AssignedLead({ outcome: { _tag: "Success" } })),
         Scene.Command.expectHas(GetTeam),
         Scene.Command.resolve(GetTeam, Message.GotTeam({ outcome: { _tag: "Success", detail } })),
-        // Remove member
+        // Remove member: the first press asks, the second one does it
+        Scene.click(Scene.role("button", { name: "Remove" })),
+        Scene.expect(Scene.role("alertdialog", { name: "Remove?" })).toExist(),
+        Scene.expect(Scene.text("Remove alice@acme.com from this Team?")).toExist(),
         Scene.click(Scene.role("button", { name: "Remove" })),
         Scene.Command.expectHas(RemoveMember),
         Scene.Command.resolve(RemoveMember, Message.RemovedMember({ outcome: { _tag: "Success" } })),
@@ -363,6 +561,189 @@ describe("App Scenes", () => {
           }),
         ),
       );
+    });
+
+    it("asks before removing a member, and Escape or Cancel leave the roster alone", () => {
+      const teamId = decodeTeamId("team-1");
+      const personId = decodePersonId("person-1");
+      const detail = {
+        team: {
+          id: teamId,
+          name: "Old Team Name",
+          timeZone: decodeTimeZone("UTC"),
+          yourRole: "lead" as const,
+        },
+        roster: [
+          {
+            personId,
+            email: decodeEmail("alice@acme.com"),
+            role: "member" as const,
+            since: 1700000000000,
+          },
+        ],
+        may: {
+          update: true,
+          manageLeads: true,
+          manageMembers: true,
+          managePulses: true,
+          viewResults: true,
+        },
+      };
+
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}`)),
+          session: signedInAdmin,
+          teamDetail: { _tag: "Loaded", detail },
+        }),
+        Scene.click(Scene.role("button", { name: "Remove" })),
+        Scene.expect(Scene.role("alertdialog", { name: "Remove?" })).toExist(),
+        Scene.keydown(Scene.role("alertdialog", { name: "Remove?" }), "Escape"),
+        Scene.expect(Scene.role("alertdialog", { name: "Remove?" })).toBeAbsent(),
+        Scene.expect(Scene.text("alice@acme.com")).toExist(),
+        Scene.Command.expectNone(),
+        Scene.click(Scene.role("button", { name: "Remove" })),
+        Scene.click(Scene.role("button", { name: "Cancel" })),
+        Scene.expect(Scene.role("alertdialog", { name: "Remove?" })).toBeAbsent(),
+        Scene.expect(Scene.text("alice@acme.com")).toExist(),
+        Scene.Command.expectNone(),
+      );
+    });
+
+    describe("First-run checklist", () => {
+      const teamId = decodeTeamId("team-1");
+      const pulseId = Schema.decodeSync(PulseId)("pulse-1");
+      const roundId = Schema.decodeSync(RoundId)("round-1");
+      const detail = {
+        team: {
+          id: teamId,
+          name: "Acme",
+          timeZone: decodeTimeZone("UTC"),
+          yourRole: "lead" as const,
+        },
+        roster: [
+          {
+            personId: decodePersonId("person-1"),
+            email: decodeEmail("alice@acme.com"),
+            role: "member" as const,
+            since: 1700000000000,
+          },
+        ],
+        may: {
+          update: true,
+          manageLeads: true,
+          manageMembers: true,
+          managePulses: true,
+          viewResults: true,
+        },
+      };
+      const pulse = {
+        id: pulseId,
+        name: "Weekly check-in",
+        cadence: { _tag: "Weekly" as const, day: "monday" as const, time: decodeSendTime("09:00") },
+        questionCount: 3,
+        estimatedSeconds: 90,
+      };
+
+      it("walks a new Team through members, Pulse, test and first Round", () => {
+        Scene.scene(
+          { update, view },
+          Scene.given({
+            ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}`)),
+            session: signedInAdmin,
+            teamDetail: { _tag: "Loaded", detail },
+            pulses: {
+              _tag: "Loaded",
+              pulses: { team: detail.team, pulses: [] },
+            },
+          }),
+          Scene.expect(Scene.role("heading", { name: "Get to your first Round" })).toExist(),
+          Scene.expect(Scene.text("Add your Team")).toExist(),
+          Scene.expect(Scene.text("1 so far")).toExist(),
+          Scene.expect(Scene.text("Create a Pulse")).toExist(),
+          Scene.expect(Scene.text("Send yourself a test")).toExist(),
+          Scene.expect(Scene.text("First Round")).toExist(),
+          Scene.expect(Scene.text("Done")).toExist(),
+          Scene.expect(Scene.text("To do")).toExist(),
+        );
+      });
+
+      it("marks the test done and names the first Round once one is scheduled", () => {
+        const plannedOpenDate = "2026-11-09";
+        Scene.scene(
+          { update, view },
+          Scene.given({
+            ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}`)),
+            session: signedInAdmin,
+            teamDetail: { _tag: "Loaded", detail },
+            pulses: {
+              _tag: "Loaded",
+              pulses: { team: detail.team, pulses: [pulse] },
+            },
+            rounds: {
+              _tag: "Loaded",
+              list: {
+                pulseId,
+                paused: false,
+                rounds: [
+                  {
+                    id: roundId,
+                    pulseId,
+                    teamId,
+                    status: "scheduled" as const,
+                    plannedOpenDate,
+                    plannedOpenAt: Date.parse("2026-11-09T09:00:00Z"),
+                    openedAt: null,
+                    plannedCloseAt: Date.parse("2026-11-13T09:00:00Z"),
+                    closedAt: null,
+                    pulseName: "Weekly check-in",
+                  },
+                ],
+              },
+            },
+          }),
+          Scene.expect(Scene.text(`First Round on ${formatRoundDate(plannedOpenDate)}`)).toExist(),
+          Scene.expect(Scene.role("heading", { name: "Get to your first Round" })).toExist(),
+        );
+      });
+
+      it("disappears once a Round has been shared", () => {
+        Scene.scene(
+          { update, view },
+          Scene.given({
+            ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}`)),
+            session: signedInAdmin,
+            teamDetail: { _tag: "Loaded", detail },
+            pulses: {
+              _tag: "Loaded",
+              pulses: { team: detail.team, pulses: [pulse] },
+            },
+            rounds: {
+              _tag: "Loaded",
+              list: {
+                pulseId,
+                paused: false,
+                rounds: [
+                  {
+                    id: roundId,
+                    pulseId,
+                    teamId,
+                    status: "closed" as const,
+                    plannedOpenDate: "2026-11-02",
+                    plannedOpenAt: Date.parse("2026-11-02T09:00:00Z"),
+                    openedAt: Date.parse("2026-11-02T09:00:00Z"),
+                    plannedCloseAt: Date.parse("2026-11-06T09:00:00Z"),
+                    closedAt: Date.parse("2026-11-06T09:00:00Z"),
+                    pulseName: "Weekly check-in",
+                  },
+                ],
+              },
+            },
+          }),
+          Scene.expect(Scene.role("heading", { name: "Get to your first Round" })).toBeAbsent(),
+        );
+      });
     });
 
     describe("Team health overview", () => {
@@ -377,9 +758,9 @@ describe("App Scenes", () => {
       const overview: TeamOverview = {
         teamId,
         rounds: [
-          { roundId: roundA, plannedOpenDate: "2026-10-26" },
-          { roundId: roundB, plannedOpenDate: "2026-11-02" },
-          { roundId: roundC, plannedOpenDate: "2026-11-09" },
+          { roundId: roundA, plannedOpenDate: "2026-10-26", pulseName: "Weekly check-in" },
+          { roundId: roundB, plannedOpenDate: "2026-11-02", pulseName: "Weekly check-in" },
+          { roundId: roundC, plannedOpenDate: "2026-11-09", pulseName: "Weekly check-in" },
         ],
         dimensions: [
           {
@@ -514,7 +895,46 @@ describe("App Scenes", () => {
           Message.UrlChanged({ url: teamUrl }),
         );
         expect(result.model.teamOverview).toEqual({ _tag: "Loading" });
-        expect(result.commands?.map((command) => command.name)).toEqual(["GetTeam", "GetTeamOverviewCmd"]);
+        expect(result.commands?.map((command) => command.name)).toEqual([
+          "GetTeam",
+          "GetTeamOverviewCmd",
+          "ListPulses",
+        ]);
+      });
+
+      it("links the newest shared Round from the Team page and lists the recent ones", () => {
+        Scene.scene(
+          { update, view },
+          Scene.given({
+            ...initialModel(teamUrl),
+            session: signedInAdmin,
+            teamDetail: { _tag: "Loaded", detail: detailWith(true) },
+            teamOverview: { _tag: "Loaded", overview },
+          }),
+          Scene.expect(Scene.role("heading", { name: "Latest Results" })).toExist(),
+          Scene.expect(Scene.role("link", { name: "View Results" })).toExist(),
+          Scene.expect(Scene.role("heading", { name: "Recent Rounds" })).toExist(),
+          Scene.expect(
+            Scene.role("link", { name: `Weekly check-in · ${formatRoundDate("2026-11-09")}` }),
+          ).toExist(),
+          Scene.expect(
+            Scene.role("link", { name: `Weekly check-in · ${formatRoundDate("2026-10-26")}` }),
+          ).toExist(),
+        );
+      });
+
+      it("shows no Results entry point to someone who may not read Results", () => {
+        Scene.scene(
+          { update, view },
+          Scene.given({
+            ...initialModel(teamUrl),
+            session: signedInAdmin,
+            teamDetail: { _tag: "Loaded", detail: detailWith(false) },
+            teamOverview: { _tag: "Loaded", overview },
+          }),
+          Scene.expect(Scene.role("heading", { name: "Latest Results" })).toBeAbsent(),
+          Scene.expect(Scene.role("link", { name: "View Results" })).toBeAbsent(),
+        );
       });
     });
   });
@@ -700,6 +1120,22 @@ describe("App Scenes", () => {
       );
     });
 
+    it("links a shared Round to its Results", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given(loaded([shownRound], kept)),
+        Scene.expect(Scene.role("link", { name: message("history.viewResults") })).toExist(),
+      );
+    });
+
+    it("does not link a Round whose Results the member may not see", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given(loaded([soloRound(roundB, "Monthly pulse", "notShared")], {})),
+        Scene.expect(Scene.role("link", { name: message("history.viewResults") })).toBeAbsent(),
+      );
+    });
+
     it("links to My history from the navigation", () => {
       Scene.scene(
         { update, view },
@@ -741,7 +1177,15 @@ describe("App Scenes", () => {
         }),
         Scene.expect(Scene.role("heading", { name: "Organization settings" })).toExist(),
         Scene.expect(Scene.text("alice@acme.com")).toExist(),
+        Scene.expect(Scene.role("columnheader", { name: "Email" })).toExist(),
+        Scene.expect(Scene.role("columnheader", { name: "Role" })).toExist(),
+        Scene.expect(Scene.role("columnheader", { name: "Actions" })).toExist(),
+        Scene.expect(Scene.text("Member")).toExist(),
+        // The row's actions sit behind its own native Actions disclosure; Scene cannot toggle it.
+        Scene.expect(Scene.role("button", { name: "Actions" })).toExist(),
         Scene.expect(Scene.role("button", { name: "Make admin" })).toExist(),
+        Scene.expect(Scene.label("Minimum group size")).toBeAbsent(),
+        Scene.click(Scene.role("button", { name: "Change minimum group size" })),
         Scene.type(Scene.label("Minimum group size"), "5"),
         Scene.click(Scene.role("button", { name: "Save" })),
         Scene.Command.expectHas(UpdateSettings),
@@ -804,6 +1248,7 @@ describe("App Scenes", () => {
                   reason: "rejected",
                   code: "E_SENDER_NOT_VERIFIED",
                   failedAt,
+                  resendable: true,
                 },
                 {
                   sendId: decodeSendId("send-2"),
@@ -812,6 +1257,7 @@ describe("App Scenes", () => {
                   reason: "unknown",
                   code: null,
                   failedAt,
+                  resendable: false,
                 },
               ],
             },
@@ -844,6 +1290,178 @@ describe("App Scenes", () => {
         Scene.expect(Scene.role("heading", { name: "Failed emails" })).toExist(),
         Scene.expect(Scene.text("Something went wrong. Try again in a moment.")).toExist(),
       );
+    });
+
+    describe("resending a failed send", () => {
+      const sendId = decodeSendId("send-1");
+      const failedRow = (resendable: boolean) => ({
+        sendId,
+        kind: "ReminderEmail" as const,
+        recipient: decodeEmail("ada@acme.com"),
+        reason: "rejected" as const,
+        code: "E_SENDER_NOT_VERIFIED",
+        failedAt,
+        resendable,
+      });
+      const listedModel = (resendable = true, resends: Record<string, FailedEmailResend> = {}) => ({
+        ...initialModel(makeUrl("https://app.surveybeat.com/settings")),
+        session: signedInAdmin,
+        settings: { _tag: "Loaded" as const, settings },
+        size: "4",
+        failedEmails: { _tag: "Loaded" as const, list: { emails: [failedRow(resendable)] } },
+        failedEmailResends: resends,
+      });
+      const resendStatus = (state: EmailSendProgress): FailedEmailStatus => ({ sendId, state });
+      const resent = (state: EmailSendProgress) =>
+        Message.ResentFailedEmail({ sendId, outcome: { _tag: "Success", status: resendStatus(state) } });
+      const polled = (state: EmailSendProgress) =>
+        Message.PolledFailedEmail({ sendId, outcome: { _tag: "Success", status: resendStatus(state) } });
+      const resendClick = Scene.click(Scene.role("button", { name: "Resend" }));
+      const queued: EmailSendProgress = { _tag: "Queued", attempts: 0, lastCode: null };
+
+      it("offers Resend only on a row that can be resent", () => {
+        Scene.scene(
+          { update, view },
+          Scene.given(listedModel(false)),
+          Scene.expect(Scene.text("ada@acme.com")).toExist(),
+          Scene.expect(Scene.role("button", { name: "Resend" })).toBeAbsent(),
+        );
+      });
+
+      it("sends the Resend once, and shows it as busy while it is in flight", () => {
+        Scene.scene(
+          { update, view },
+          Scene.given(listedModel()),
+          resendClick,
+          Scene.Command.expectHas(ResendFailedEmailCmd({ sendId })),
+          Scene.expect(Scene.role("button", { name: "Resending…" })).toBeDisabled(),
+          Scene.Command.resolve(
+            ResendFailedEmailCmd({ sendId }),
+            Message.ResentFailedEmail({ sendId, outcome: { _tag: "Failure", failure: "Unavailable" } }),
+          ),
+        );
+      });
+
+      it("ignores a second Resend while the first is in flight or still queued", () => {
+        const first = update(listedModel(), Message.ResendFailedEmailClicked({ sendId }));
+        expect(first.commands?.map((command) => command.name)).toEqual(["ResendFailedEmailCmd"]);
+        const second = update(first.model, Message.ResendFailedEmailClicked({ sendId }));
+        expect(second.commands?.length ?? 0).toBe(0);
+        const queuedModel = update(first.model, resent(queued));
+        const third = update(queuedModel.model, Message.ResendFailedEmailClicked({ sendId }));
+        expect(third.commands?.length ?? 0).toBe(0);
+      });
+
+      it("shows a queued Resend, checks it again, and shows that it was sent", () => {
+        Scene.scene(
+          { update, view },
+          Scene.given(listedModel()),
+          resendClick,
+          Scene.Command.resolve(ResendFailedEmailCmd({ sendId }), resent(queued)),
+          Scene.expect(Scene.text("Queued…")).toExist(),
+          Scene.expect(Scene.role("button", { name: "Resend" })).toBeAbsent(),
+          Scene.Command.expectHas(PollFailedEmailCmd({ sendId })),
+          Scene.Command.resolve(PollFailedEmailCmd({ sendId }), polled({ _tag: "Sent", sentAt: failedAt })),
+          Scene.expect(Scene.text("Sent")).toExist(),
+          Scene.Command.expectNone(),
+        );
+      });
+
+      it("shows that a resent email is being sent", () => {
+        Scene.scene(
+          { update, view },
+          Scene.given(listedModel()),
+          resendClick,
+          Scene.Command.resolve(ResendFailedEmailCmd({ sendId }), resent(queued)),
+          Scene.Command.resolve(PollFailedEmailCmd({ sendId }), polled({ _tag: "Sending", attempt: 1 })),
+          Scene.expect(Scene.text("Sending…")).toExist(),
+          Scene.Command.expectHas(PollFailedEmailCmd({ sendId })),
+          Scene.Command.resolve(PollFailedEmailCmd({ sendId }), polled({ _tag: "Sent", sentAt: failedAt })),
+        );
+      });
+
+      it("shows why a resent email failed again, and offers Resend again", () => {
+        Scene.scene(
+          { update, view },
+          Scene.given(listedModel()),
+          resendClick,
+          Scene.Command.resolve(ResendFailedEmailCmd({ sendId }), resent(queued)),
+          Scene.Command.resolve(
+            PollFailedEmailCmd({ sendId }),
+            polled({ _tag: "Failed", reason: "rejected", code: "E_SENDER_NOT_VERIFIED", failedAt }),
+          ),
+          Scene.expect(
+            Scene.text("Not sent: the email service refused it (E_SENDER_NOT_VERIFIED)"),
+          ).toExist(),
+          Scene.expect(Scene.role("button", { name: "Resend" })).toBeEnabled(),
+          Scene.Command.expectNone(),
+        );
+      });
+
+      it("says the email can no longer be sent when the server refuses the Resend", () => {
+        Scene.scene(
+          { update, view },
+          Scene.given(listedModel()),
+          resendClick,
+          Scene.Command.resolve(
+            ResendFailedEmailCmd({ sendId }),
+            Message.ResentFailedEmail({
+              sendId,
+              outcome: { _tag: "Failure", failure: "EmailNotResendable" },
+            }),
+          ),
+          Scene.expect(Scene.text("This email can no longer be sent.")).toExist(),
+          Scene.expect(Scene.role("button", { name: "Resend" })).toBeAbsent(),
+          Scene.Command.expectNone(),
+        );
+      });
+
+      it("says the Resend failed and re-enables Resend when the request fails", () => {
+        Scene.scene(
+          { update, view },
+          Scene.given(listedModel()),
+          resendClick,
+          Scene.Command.resolve(
+            ResendFailedEmailCmd({ sendId }),
+            Message.ResentFailedEmail({ sendId, outcome: { _tag: "Failure", failure: "Unavailable" } }),
+          ),
+          Scene.expect(Scene.text("Couldn't resend. Try again.")).toExist(),
+          Scene.expect(Scene.role("button", { name: "Resend" })).toBeEnabled(),
+          Scene.Command.expectNone(),
+        );
+      });
+
+      it("says the status could not be read and stops checking when a read fails", () => {
+        Scene.scene(
+          { update, view },
+          Scene.given(listedModel()),
+          resendClick,
+          Scene.Command.resolve(ResendFailedEmailCmd({ sendId }), resent(queued)),
+          Scene.Command.resolve(
+            PollFailedEmailCmd({ sendId }),
+            Message.PolledFailedEmail({ sendId, outcome: { _tag: "Failure", failure: "NotFound" } }),
+          ),
+          Scene.expect(Scene.text("Couldn't check the status. Reload the page to check again.")).toExist(),
+          Scene.Command.expectNone(),
+        );
+      });
+
+      it("stops checking a resent email that is still queued after fifteen minutes", () => {
+        const waiting = listedModel(true, {
+          [sendId]: { _tag: "Resent", state: queued, polls: 299, statusUnavailable: false },
+        });
+        const last = update(waiting, polled(queued));
+        expect(last.commands?.length ?? 0).toBe(0);
+        // Still queued when it gives up: the row says to reload.
+        expect(last.model.failedEmailResends[sendId]).toMatchObject({ statusUnavailable: true });
+        const earlier = update(
+          listedModel(true, {
+            [sendId]: { _tag: "Resent", state: queued, polls: 298, statusUnavailable: false },
+          }),
+          polled(queued),
+        );
+        expect(earlier.commands?.map((command) => command.name)).toEqual(["PollFailedEmailCmd"]);
+      });
     });
 
     it("loads the failed emails when the settings screen opens", () => {
@@ -904,6 +1522,31 @@ describe("App Scenes", () => {
   });
 
   describe("Pulses list screen", () => {
+    it("names the empty state instead of showing a blank list", () => {
+      const teamId = decodeTeamId("team-1");
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}/pulses`)),
+          session: signedInAdmin,
+          pulses: {
+            _tag: "Loaded",
+            pulses: {
+              team: {
+                id: teamId,
+                name: "Engineering",
+                timeZone: decodeTimeZone("UTC"),
+                yourRole: "lead",
+              },
+              pulses: [],
+            },
+          },
+        }),
+        Scene.expect(Scene.text("No Pulse yet")).toExist(),
+        Scene.expect(Scene.text("This Team has no Pulse yet.")).toExist(),
+      );
+    });
+
     it("renders pulse list and creates a pulse", () => {
       const teamId = decodeTeamId("team-1");
       const pulseId = decodePulseId("pulse-1");
@@ -929,12 +1572,17 @@ describe("App Scenes", () => {
                   cadence: { _tag: "Weekly", day: "friday", time: decodeSendTime("09:00") },
                   questionCount: 4,
                   estimatedSeconds: 60,
+                  paused: true,
+                  nextRoundDate: "2026-11-16",
                 },
               ],
             },
           },
         }),
         Scene.expect(Scene.text("Weekly Pulse")).toExist(),
+        // The row carries the Pulse's state and when it next runs.
+        Scene.expect(Scene.text("Paused")).toExist(),
+        Scene.expect(Scene.text("Next Round Nov 16, 2026")).toExist(),
         Scene.expect(Scene.role("button", { name: "Create a Pulse" })).toExist(),
         Scene.click(Scene.role("button", { name: "Create a Pulse" })),
         Scene.Command.expectHas(CreatePulse),
@@ -1039,6 +1687,11 @@ describe("App Scenes", () => {
         Scene.expect(Scene.role("heading", { name: "Settings" })).toExist(),
         Scene.expect(Scene.role("button", { name: "Edit" })).toExist(),
         Scene.expect(Scene.role("button", { name: "Remove" })).toExist(),
+        // Editor controls: labelled icon buttons, and the Pulse/Rounds tabs
+        Scene.expect(Scene.role("button", { name: "Move up" })).toBeDisabled(),
+        Scene.expect(Scene.role("button", { name: "Move down" })).toBeDisabled(),
+        Scene.expect(Scene.role("link", { name: "Pulse", current: "page" })).toExist(),
+        Scene.expect(Scene.role("link", { name: "Rounds", current: "page" })).toBeAbsent(),
         // Add template question
         Scene.click(Scene.role("button", { name: "Add" })),
         Scene.Command.expectHas(AddQuestionCmd),
@@ -1414,7 +2067,14 @@ describe("App Scenes", () => {
           teamDetail: { _tag: "Loaded", detail: leadTeamDetail(teamId) },
         }),
         Scene.expect(Scene.role("heading", { name: "Results" })).toExist(),
-        Scene.expect(Scene.text("75% response rate (6 of 8)")).toExist(),
+        Scene.expect(Scene.role("navigation", { name: message("breadcrumb.label") })).toExist(),
+        Scene.expect(Scene.role("link", { name: "Platform" })).toExist(),
+        Scene.expect(
+          Scene.text(message("results.roundDate", { date: formatRoundDate("2026-11-09") })),
+        ).toExist(),
+        // The response rate is in the aside once, not repeated above the scores.
+        Scene.expect(Scene.text("75%")).toExist(),
+        Scene.expect(Scene.text("6 of 8")).toExist(),
         Scene.expect(
           Scene.text(
             "6 of 8 people checked in. This Team is still building its baseline, so no change is judged yet.",
@@ -1589,7 +2249,9 @@ describe("App Scenes", () => {
         }),
         Scene.expect(Scene.role("heading", { name: "Actions" })).toExist(),
         Scene.expect(Scene.text("No actions committed yet.")).toExist(),
-        // Lead sees commit form
+        // Lead sees the button, and the form only once it is asked for
+        Scene.expect(Scene.role("heading", { name: "Commit an action" })).toBeAbsent(),
+        Scene.click(Scene.role("button", { name: "Commit an action" })),
         Scene.expect(Scene.role("heading", { name: "Commit an action" })).toExist(),
         // Enter title
         Scene.type(Scene.label("Action title"), "Shorten pairing sessions"),
@@ -1621,6 +2283,24 @@ describe("App Scenes", () => {
         Scene.expect(Scene.text("Done")).toExist(),
         Scene.expect(Scene.role("button", { name: "Reopen" })).toExist(),
       );
+    });
+
+    it("asks before dropping an action, and cancelling leaves it untouched", () => {
+      const actionId = Schema.decodeSync(ActionId)("action-1");
+      const base = {
+        ...initialModel(makeUrl("https://app.surveybeat.com/teams/team-1/rounds/round-1")),
+        session: signedInAdmin,
+      };
+      const asked = update(base, Message.AskDropAction({ actionId }));
+      expect(Option.getOrUndefined(asked.model.pendingDropId)).toBe(actionId);
+      expect(asked.commands ?? []).toHaveLength(0);
+
+      const cancelled = update(asked.model, Message.DismissDropAction());
+      expect(Option.getOrUndefined(cancelled.model.pendingDropId)).toBeUndefined();
+      expect(cancelled.commands ?? []).toHaveLength(0);
+
+      const confirmed = update(asked.model, Message.ConfirmDropAction());
+      expect(confirmed.commands?.map((command) => command.name)).toEqual(["UpdateActionCmd"]);
     });
 
     it("renders Actions on sub-N results screen without gating", () => {
@@ -1658,6 +2338,135 @@ describe("App Scenes", () => {
         }),
         Scene.expect(Scene.text("Not enough answers to protect anonymity")).toExist(),
         Scene.expect(Scene.role("heading", { name: "Actions" })).toExist(),
+      );
+    });
+
+    const trendResult = (rounds: number): RoundResult => {
+      const teamId = decodeTeamId("team-1");
+      const roundId = Schema.decodeSync(RoundId)("round-trend");
+      const trend = Array.from({ length: rounds }, (_, i) => ({
+        roundId,
+        plannedOpenDate: `2026-11-${String(9 + i).padStart(2, "0")}`,
+        score: 4,
+        contributors: 6,
+        hasGap: false,
+      }));
+      return {
+        roundId,
+        pulseId: decodePulseId("pulse-1"),
+        teamId,
+        status: "closed",
+        plannedOpenDate: "2026-11-09",
+        anonymityMode: "anonymous",
+        closedAt: 1731140000000,
+        effectiveMinimumGroupSize: 4,
+        meetsMinimumGroupSize: true,
+        eligibleMembersCount: 8,
+        submissionsCount: 6,
+        responseRate: 0.75,
+        delayed: false,
+        questions: [
+          {
+            questionVersionId: decodeVersionId("qv-trend"),
+            position: 0,
+            text: "How are you feeling?",
+            type: { _tag: "Rating", lowLabel: "Low", highLabel: "High", comment: false },
+            dimension: "clarity",
+            contributors: 6,
+            meetsMinimumGroupSize: true,
+            score: 4,
+            distribution: [],
+            change: null,
+            typicalChange: {
+              status: "buildingBaseline",
+              completedUsableRounds: 0,
+              totalRequiredUsableRounds: 6,
+              typicalChange: null,
+            },
+            trend,
+          },
+        ],
+        dimensions: [
+          {
+            dimension: "clarity",
+            score: 4,
+            usableQuestionCount: 1,
+            contributors: 6,
+            totalQuestionCount: 1,
+            meetsMinimumGroupSize: true,
+            change: null,
+            typicalChange: null,
+            trend: trend.map((point) => ({ ...point, usableQuestionCount: 1 })),
+          },
+        ],
+        comments: [],
+      };
+    };
+
+    const trendScene = (rounds: number) =>
+      Scene.given({
+        ...initialModel(makeUrl("https://app.surveybeat.com/teams/team-1/rounds/round-trend")),
+        session: signedInAdmin,
+        results: { _tag: "Loaded" as const, result: trendResult(rounds) },
+        teamDetail: { _tag: "Loaded" as const, detail: leadTeamDetail(decodeTeamId("team-1")) },
+        actions: { _tag: "Loaded" as const, actions: [] },
+      });
+
+    const bareResult = (overrides: Partial<RoundResult>): RoundResult => ({
+      roundId: Schema.decodeSync(RoundId)("round-bare"),
+      pulseId: decodePulseId("pulse-1"),
+      teamId: decodeTeamId("team-1"),
+      status: "closed",
+      plannedOpenDate: "2026-11-09",
+      anonymityMode: "anonymous",
+      closedAt: 1731140000000,
+      effectiveMinimumGroupSize: 4,
+      meetsMinimumGroupSize: true,
+      eligibleMembersCount: 8,
+      submissionsCount: 6,
+      responseRate: 0.75,
+      delayed: false,
+      questions: [],
+      dimensions: [],
+      comments: [],
+      ...overrides,
+    });
+
+    const bareScene = (result: RoundResult) =>
+      Scene.given({
+        ...initialModel(makeUrl("https://app.surveybeat.com/teams/team-1/rounds/round-bare")),
+        session: signedInAdmin,
+        results: { _tag: "Loaded" as const, result },
+        teamDetail: { _tag: "Loaded" as const, detail: leadTeamDetail(decodeTeamId("team-1")) },
+        actions: { _tag: "Loaded" as const, actions: [] },
+      });
+
+    it("puts Share with the team and the Review countdown in front of a Lead's Ready Results", () => {
+      const reviewEndsAt = Date.now() + 2 * 86_400_000 - 3_600_000;
+      Scene.scene(
+        { update, view },
+        bareScene(bareResult({ status: "ready", reviewEndsAt })),
+        Scene.expect(Scene.role("heading", { name: "Only you can see these Results" })).toExist(),
+        Scene.expect(Scene.role("button", { name: "Share with the team" })).toExist(),
+        Scene.expect(Scene.text("2 days left to share")).toExist(),
+      );
+    });
+
+    it("keeps Note and Actions off a Round whose Results could not be computed", () => {
+      Scene.scene(
+        { update, view },
+        bareScene(bareResult({ couldNotCompute: true })),
+        Scene.expect(Scene.text("These Results couldn't be computed.")).toExist(),
+        Scene.expect(Scene.role("heading", { name: "Note from your Lead" })).toBeAbsent(),
+        Scene.expect(Scene.role("heading", { name: "Actions" })).toBeAbsent(),
+      );
+    });
+
+    it.each([1, 4, 12])("names a %i-Round trend by its real length", (rounds) => {
+      Scene.scene(
+        { update, view },
+        trendScene(rounds),
+        Scene.expect(Scene.role("heading", { name: `${rounds}-Round trend` })).toExist(),
       );
     });
 
@@ -1735,7 +2544,7 @@ describe("App Scenes", () => {
         Scene.scene(
           { update, view },
           flaggedScene(flaggedResult("rise", 4.2)),
-          Scene.expect(Scene.text("Bigger change than usual for this team")).toExist(),
+          Scene.expect(Scene.text("Bigger change than usual for this Team")).toExist(),
           Scene.expect(Scene.selector('[data-direction="rise"] path')).toHaveAttr("d", "M6 11V4M3 7l3-3 3 3"),
           Scene.expect(Scene.selector('[data-direction="drop"]')).toBeAbsent(),
           Scene.expect(Scene.text("Usually moves about ±0.3 between Rounds")).toExist(),
@@ -1768,11 +2577,12 @@ describe("App Scenes", () => {
           { update, view },
           flaggedScene(flaggedResult("rise", 3.6), "de"),
           Scene.expect(Scene.text("Runde vom 09.11.2026")).toExist(),
-          Scene.expect(Scene.text("4,0")).toExist(),
-          Scene.expect(Scene.text("3,6")).toExist(),
+          Scene.expect(Scene.text("4,0 / 5")).toExist(),
+          Scene.expect(Scene.text("3,6 / 5")).toExist(),
           Scene.expect(Scene.text("+0,7 seit der letzten Runde (02.11.2026)")).toExist(),
           Scene.expect(Scene.text("Bewegt sich zwischen Runden meist um etwa ±0,3")).toExist(),
-          Scene.expect(Scene.text("75\u00a0% Rücklaufquote (6 von 8)")).toExist(),
+          Scene.expect(Scene.text("75\u00a0%")).toExist(),
+          Scene.expect(Scene.text("6 von 8")).toExist(),
         );
       });
     });
@@ -2475,6 +3285,25 @@ describe("App Scenes", () => {
         ],
       );
 
+    it("shows Review and share on a Ready Round, and only there", () => {
+      const readyId = Schema.decodeSync(RoundId)("round-ready");
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...given("lead"),
+          rounds: {
+            _tag: "Loaded" as const,
+            list: { ...rounds, rounds: [summary(readyId, "ready", "2026-11-09")] },
+          },
+          roundDetails: {},
+          roundRates: {},
+        }),
+        Scene.expect(Scene.text("Ready")).toExist(),
+        Scene.expect(Scene.role("link", { name: "Review and share" })).toExist(),
+        Scene.expect(Scene.role("link", { name: "View Results" })).toBeAbsent(),
+      );
+    });
+
     it("lists Rounds for a Lead with status, response rate, and a link to Results", () => {
       Scene.scene(
         { update, view },
@@ -2624,10 +3453,22 @@ describe("App Scenes", () => {
         { update, view },
         Scene.given({
           ...initialModel(makeUrl("https://app.surveybeat.com/privacy")),
-          session: { _tag: "SignedOut", failed: false },
+          session: {
+            _tag: "SignedOut",
+            failed: false,
+            stage: "email",
+            email: "",
+            code: "",
+            busy: false,
+            notice: null,
+          },
         }),
         Scene.expect(Scene.role("heading", { name: "Privacy at SurveyBeat" })).toExist(),
-        Scene.expect(Scene.role("heading", { name: "Anonymous submissions" })).toExist(),
+        Scene.expect(Scene.role("heading", { name: "Nothing shown below the minimum group size" })).toExist(),
+        Scene.expect(
+          Scene.role("heading", { name: "AI processing is off until an admin turns it on" }),
+        ).toExist(),
+        Scene.expect(Scene.role("heading", { name: "Anonymous Submissions" })).toExist(),
         Scene.expect(Scene.role("heading", { name: "Comment redaction" })).toExist(),
         Scene.expect(Scene.role("heading", { name: "30-day point-in-time restore window" })).toExist(),
         Scene.expect(Scene.role("heading", { name: "Changing your answers" })).toExist(),
@@ -2636,12 +3477,58 @@ describe("App Scenes", () => {
       );
     });
 
+    it("keeps the app nav on the privacy page when signed in", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(makeUrl("https://app.surveybeat.com/privacy")),
+          session: signedInAdmin,
+        }),
+        Scene.expect(Scene.role("link", { name: "Teams" })).toExist(),
+        Scene.expect(
+          Scene.role("heading", { name: "AI processing is off until an admin turns it on" }),
+        ).toExist(),
+      );
+    });
+
+    it("centres the sign-in card with product framing and the privacy promise", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(makeUrl("https://app.surveybeat.com/")),
+          session: {
+            _tag: "SignedOut",
+            failed: false,
+            stage: "email",
+            email: "",
+            code: "",
+            busy: false,
+            notice: null,
+          },
+        }),
+        Scene.expect(Scene.text("Short check-ins that show how your Team is really doing.")).toExist(),
+        Scene.expect(Scene.role("button", { name: "Email me a code" })).toExist(),
+        Scene.expect(Scene.role("link", { name: "How privacy works" })).toExist(),
+        Scene.expect(
+          Scene.text("Anonymous by design: answers are never stored with a name or a time."),
+        ).toExist(),
+      );
+    });
+
     it("renders privacy link on sign in page", () => {
       Scene.scene(
         { update, view },
         Scene.given({
           ...initialModel(makeUrl("https://app.surveybeat.com/")),
-          session: { _tag: "SignedOut", failed: false },
+          session: {
+            _tag: "SignedOut",
+            failed: false,
+            stage: "email",
+            email: "",
+            code: "",
+            busy: false,
+            notice: null,
+          },
         }),
         Scene.expect(Scene.role("link", { name: "Privacy" })).toExist(),
       );
@@ -2668,6 +3555,7 @@ describe("App Scenes", () => {
           teams: { _tag: "Loaded", teams: [] },
         }),
         Scene.expect(Scene.role("link", { name: "Organisationseinstellungen" })).toExist(),
+        ...openAccountMenu("Acme", "Kontomenü"),
         Scene.expect(Scene.role("button", { name: "Abmelden" })).toExist(),
         Scene.expect(Scene.text("Du bist noch in keinem Team.")).toExist(),
         Scene.expect(Scene.label("Sprache")).toExist(),
@@ -2683,6 +3571,7 @@ describe("App Scenes", () => {
           session: { ...signedInAdmin, organizationLocale: "de" as const },
           teams: { _tag: "Loaded", teams: [] },
         }),
+        ...openAccountMenu("Acme", "Kontomenü"),
         Scene.expect(Scene.text("Du bist noch in keinem Team.")).toExist(),
         Scene.expect(Scene.label("Sprache")).toExist(),
       );
@@ -2696,6 +3585,7 @@ describe("App Scenes", () => {
           session: signedInAdmin,
           teams: { _tag: "Loaded", teams: [] },
         }),
+        ...openAccountMenu("Acme"),
         Scene.change(Scene.label("Language"), "de"),
         Scene.Command.expectHas(UpdateOwnLanguage),
         Scene.expect(Scene.label("Sprache")).toExist(),
@@ -2740,8 +3630,8 @@ describe("App Scenes", () => {
           settings: { _tag: "Loaded", settings },
           size: "4",
         }),
-        Scene.expect(Scene.label("Default language")).toExist(),
-        Scene.change(Scene.label("Default language"), "de"),
+        Scene.expect(Scene.label("Language")).toExist(),
+        Scene.change(Scene.label("Language"), "de"),
         Scene.Command.expectHas(UpdateDefaultLanguage),
         Scene.Command.resolve(
           UpdateDefaultLanguage,
@@ -2766,9 +3656,402 @@ describe("App Scenes", () => {
       });
 
       it("uses the browser's language, then English, when signed out", () => {
-        expect(localeOf(modelWith("de", { _tag: "SignedOut", failed: false }))).toBe("de");
-        expect(localeOf(modelWith(null, { _tag: "SignedOut", failed: false }))).toBe("en");
+        expect(
+          localeOf(
+            modelWith("de", {
+              _tag: "SignedOut",
+              failed: false,
+              stage: "email",
+              email: "",
+              code: "",
+              busy: false,
+              notice: null,
+            }),
+          ),
+        ).toBe("de");
+        expect(
+          localeOf(
+            modelWith(null, {
+              _tag: "SignedOut",
+              failed: false,
+              stage: "email",
+              email: "",
+              code: "",
+              busy: false,
+              notice: null,
+            }),
+          ),
+        ).toBe("en");
       });
+    });
+  });
+
+  describe("Header and footer", () => {
+    const teamsUrl = makeUrl("https://app.surveybeat.com/teams");
+    const teamsModel = (session: SessionModel = signedInAdmin) => ({
+      ...initialModel(teamsUrl),
+      session,
+      teams: { _tag: "Loaded" as const, teams: [] },
+    });
+
+    it("marks the section on screen as the current navigation item", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(makeUrl("https://app.surveybeat.com/history")),
+          session: signedInAdmin,
+        }),
+        Scene.expect(Scene.role("link", { name: "My history", current: "page" })).toExist(),
+        Scene.expect(Scene.role("link", { name: "Teams", current: "page" })).toBeAbsent(),
+      );
+    });
+
+    it("marks Teams as the current section on Team screens", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(makeUrl("https://app.surveybeat.com/teams/team-1/pulses")),
+          session: signedInAdmin,
+        }),
+        Scene.expect(Scene.role("link", { name: "Teams", current: "page" })).toExist(),
+        Scene.expect(Scene.role("link", { name: "My history", current: "page" })).toBeAbsent(),
+      );
+    });
+
+    it("lists Organization settings only for admins", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given(teamsModel(signedInAdmin)),
+        Scene.expect(Scene.role("link", { name: "Organization settings" })).toExist(),
+      );
+      Scene.scene(
+        { update, view },
+        Scene.given(teamsModel({ ...signedInAdmin, organizationAdmin: false })),
+        Scene.expect(Scene.role("link", { name: "Organization settings" })).toBeAbsent(),
+      );
+    });
+
+    it("keeps Privacy out of the navigation and in the footer", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given(teamsModel()),
+        Scene.expect(Scene.role("contentinfo")).toExist(),
+        Scene.inside(
+          Scene.role("contentinfo"),
+          Scene.expect(Scene.role("link", { name: "Privacy" })).toExist(),
+        ),
+        Scene.inside(
+          Scene.role("navigation", { name: "Main navigation" }),
+          Scene.expect(Scene.role("link", { name: "Privacy" })).toBeAbsent(),
+        ),
+      );
+    });
+
+    it("marks the footer Privacy link as the current page on the Privacy page", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(makeUrl("https://app.surveybeat.com/privacy")),
+          session: {
+            _tag: "SignedOut",
+            failed: false,
+            stage: "email",
+            email: "",
+            code: "",
+            busy: false,
+            notice: null,
+          },
+        }),
+        Scene.expect(Scene.role("link", { name: "Privacy", current: "page" })).toExist(),
+      );
+    });
+
+    it("keeps the signed-in header and its menus on the Privacy page", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(makeUrl("https://app.surveybeat.com/privacy")),
+          session: signedInAdmin,
+        }),
+        Scene.expect(Scene.role("heading", { name: "Privacy at SurveyBeat" })).toExist(),
+        Scene.expect(Scene.role("link", { name: "Privacy", current: "page" })).toExist(),
+        Scene.expect(Scene.role("link", { name: "Teams", current: "page" })).toBeAbsent(),
+        ...openAccountMenu("Acme"),
+        Scene.expect(Scene.role("button", { name: "Sign out" })).toExist(),
+      );
+    });
+
+    it("keeps the language choice and Sign out in the account menu until it opens", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given(teamsModel()),
+        Scene.expect(Scene.label("Language")).toBeAbsent(),
+        Scene.expect(Scene.role("button", { name: "Sign out" })).toBeAbsent(),
+        ...openAccountMenu("Acme"),
+        Scene.expect(Scene.label("Language")).toExist(),
+        Scene.expect(Scene.role("button", { name: "Sign out" })).toExist(),
+        Scene.keydown(Scene.selector("#account-menu-panel"), "Escape"),
+        // Escape returns focus to the account button and closes the panel.
+        Scene.Command.resolve(Popover.FocusButton, Popover.Message.CompletedFocusButton()),
+        Scene.Mount.expectEnded(Popover.AnchorPopover),
+        Scene.expect(Scene.label("Language")).toBeAbsent(),
+        Scene.expect(Scene.role("button", { name: "Acme Account menu" })).toHaveAttr(
+          "aria-expanded",
+          "false",
+        ),
+      );
+    });
+
+    it("opens the phone navigation from the Menu button", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given(teamsModel()),
+        Scene.click(Scene.role("button", { name: "Menu" })),
+        Scene.Mount.resolve(Popover.AnchorPopover, Popover.Message.CompletedAnchorPopover()),
+        Scene.inside(
+          Scene.selector("#nav-menu-panel"),
+          Scene.expect(Scene.role("link", { name: "My history" })).toExist(),
+          Scene.expect(Scene.role("link", { name: "Teams", current: "page" })).toExist(),
+          Scene.expect(Scene.role("link", { name: "Organization settings" })).toExist(),
+          Scene.expect(Scene.label("Language")).toExist(),
+        ),
+      );
+    });
+
+    it("closes both header menus when the URL changes", () => {
+      const open = {
+        ...teamsModel(),
+        navMenu: Popover.open(Popover.init({ id: "nav-menu" })).model,
+        accountMenu: Popover.open(Popover.init({ id: "account-menu" })).model,
+      };
+      expect(open.navMenu.isOpen).toBe(true);
+      expect(open.accountMenu.isOpen).toBe(true);
+
+      const next = update(open, Message.UrlChanged({ url: makeUrl("https://app.surveybeat.com/history") }));
+
+      expect(next.model.navMenu.isOpen).toBe(false);
+      expect(next.model.accountMenu.isOpen).toBe(false);
+    });
+  });
+
+  describe("Document title", () => {
+    const teamsUrl = makeUrl("https://app.surveybeat.com/teams");
+
+    /** The window title `view` gives `model`, read while a Scene runs the real view. */
+    const titleOf = (model: Model): string => {
+      let title = "";
+      Scene.scene(
+        {
+          update,
+          view: (current, h) => {
+            const document = view(current, h);
+            title = document.title;
+            return document;
+          },
+        },
+        Scene.given(model),
+      );
+      return title;
+    };
+
+    const teamOf = (id: string, name: string) => ({
+      id: decodeTeamId(id),
+      name,
+      timeZone: decodeTimeZone("UTC"),
+      yourRole: "lead" as const,
+    });
+    const teamDetailOf = (id: string, name: string) => ({
+      team: teamOf(id, name),
+      roster: [],
+      may: {
+        update: true,
+        manageLeads: true,
+        manageMembers: true,
+        managePulses: true,
+        viewResults: true,
+      },
+    });
+    const platform = { _tag: "Loaded" as const, detail: teamDetailOf("team-1", "Platform Engineering") };
+    const pulseDetail = {
+      _tag: "Loaded" as const,
+      detail: {
+        id: decodePulseId("pulse-1"),
+        team: teamOf("team-1", "Platform Engineering"),
+        settings: {
+          name: "Weekly check-in",
+          cadence: { _tag: "Weekly" as const, day: "monday" as const, time: decodeSendTime("09:00") },
+          answerWindowDays: 3,
+          reviewWindowDays: 3,
+          reminders: 1,
+          anonymityMode: "anonymous" as const,
+          distribution: "invitation" as const,
+        },
+        questions: [],
+        estimatedSeconds: 0,
+        warnings: [],
+        templateQuestions: [],
+      },
+    };
+    const inOrganization = (url: string, extra: Partial<Model> = {}): Model => ({
+      ...initialModel(makeUrl(url)),
+      session: signedInAdmin,
+      ...extra,
+    });
+
+    it("names the screen and the Organization on the Teams screen", () => {
+      expect(
+        titleOf(inOrganization("https://app.surveybeat.com/teams", { teams: { _tag: "Loaded", teams: [] } })),
+      ).toBe("Teams · Acme — SurveyBeat");
+    });
+
+    it("shows the Teams screen's title on a page that does not exist", () => {
+      expect(titleOf(inOrganization("https://app.surveybeat.com/nowhere"))).toBe("Teams · Acme — SurveyBeat");
+    });
+
+    it("names the Team on its screen, and 'Team' while its detail loads", () => {
+      expect(
+        titleOf(inOrganization("https://app.surveybeat.com/teams/team-1", { teamDetail: platform })),
+      ).toBe("Platform Engineering · Acme — SurveyBeat");
+      expect(titleOf(inOrganization("https://app.surveybeat.com/teams/team-1"))).toBe(
+        "Team · Acme — SurveyBeat",
+      );
+    });
+
+    it("ignores a Team loaded for another screen", () => {
+      expect(
+        titleOf(
+          inOrganization("https://app.surveybeat.com/teams/team-2", {
+            teamDetail: { _tag: "Loaded", detail: teamDetailOf("team-1", "Platform Engineering") },
+          }),
+        ),
+      ).toBe("Team · Acme — SurveyBeat");
+    });
+
+    it("names the Team on the Pulses screen", () => {
+      expect(
+        titleOf(
+          inOrganization("https://app.surveybeat.com/teams/team-1/pulses", {
+            pulses: {
+              _tag: "Loaded",
+              pulses: { team: teamOf("team-1", "Platform Engineering"), pulses: [] },
+            },
+          }),
+        ),
+      ).toBe("Pulses · Platform Engineering — SurveyBeat");
+    });
+
+    it("names the Pulse and its Team in the Pulse editor", () => {
+      expect(
+        titleOf(
+          inOrganization("https://app.surveybeat.com/teams/team-1/pulses/pulse-1", {
+            pulseDetail,
+            teamDetail: platform,
+          }),
+        ),
+      ).toBe("Weekly check-in · Platform Engineering — SurveyBeat");
+    });
+
+    it("falls back to 'Pulse' and the Organization while the Pulse loads", () => {
+      expect(titleOf(inOrganization("https://app.surveybeat.com/teams/team-1/pulses/pulse-1"))).toBe(
+        "Pulse · Acme — SurveyBeat",
+      );
+    });
+
+    it("names the Team on the Rounds screen", () => {
+      expect(
+        titleOf(
+          inOrganization("https://app.surveybeat.com/teams/team-1/pulses/pulse-1/rounds", {
+            teamDetail: platform,
+          }),
+        ),
+      ).toBe("Rounds · Platform Engineering — SurveyBeat");
+    });
+
+    it("names the Team on the Results screen", () => {
+      expect(
+        titleOf(
+          inOrganization("https://app.surveybeat.com/teams/team-1/rounds/round-1", {
+            teamDetail: platform,
+          }),
+        ),
+      ).toBe("Results · Platform Engineering — SurveyBeat");
+    });
+
+    it("ignores a Team loaded for another Results screen", () => {
+      expect(
+        titleOf(
+          inOrganization("https://app.surveybeat.com/teams/team-1/rounds/round-1", {
+            teamDetail: { _tag: "Loaded", detail: teamDetailOf("team-9", "Other Team") },
+          }),
+        ),
+      ).toBe("Results · Acme — SurveyBeat");
+    });
+
+    it("names My history and the Organization", () => {
+      expect(titleOf(inOrganization("https://app.surveybeat.com/history"))).toBe(
+        "My history · Acme — SurveyBeat",
+      );
+    });
+
+    it("names the Organization settings for admins, and falls back to Teams for others", () => {
+      expect(titleOf(inOrganization("https://app.surveybeat.com/settings"))).toBe(
+        "Organization settings · Acme — SurveyBeat",
+      );
+      expect(
+        titleOf(
+          inOrganization("https://app.surveybeat.com/settings", {
+            session: { ...signedInAdmin, organizationAdmin: false },
+          }),
+        ),
+      ).toBe("Teams · Acme — SurveyBeat");
+    });
+
+    it("gives the German titles the same shape", () => {
+      const german = { ...signedInAdmin, locale: "de" as const };
+      expect(
+        titleOf(
+          inOrganization("https://app.surveybeat.com/teams/team-1/rounds/round-1", {
+            session: german,
+            teamDetail: platform,
+          }),
+        ),
+      ).toBe("Ergebnisse · Platform Engineering — SurveyBeat");
+      expect(titleOf(inOrganization("https://app.surveybeat.com/settings", { session: german }))).toBe(
+        "Organisationseinstellungen · Acme — SurveyBeat",
+      );
+    });
+
+    it("keeps the session and Privacy screens' own titles, all naming SurveyBeat", () => {
+      const signedOut = (url: string): Model => ({
+        ...initialModel(makeUrl(url)),
+        session: {
+          _tag: "SignedOut",
+          failed: false,
+          stage: "email",
+          email: "",
+          code: "",
+          busy: false,
+          notice: null,
+        },
+      });
+      expect(titleOf(signedOut("https://app.surveybeat.com/"))).toBe("Sign in to SurveyBeat");
+      expect(titleOf(signedOut("https://app.surveybeat.com/privacy"))).toBe("Privacy at SurveyBeat");
+      expect(titleOf({ ...initialModel(teamsUrl), session: { _tag: "Loading" } })).toBe("SurveyBeat");
+      expect(
+        titleOf({
+          ...initialModel(teamsUrl),
+          session: { _tag: "CreateOrganization", name: "", busy: false },
+        }),
+      ).toBe("Create an Organization — SurveyBeat");
+      expect(titleOf({ ...initialModel(teamsUrl), session: { _tag: "NotInOrganization" } })).toBe(
+        "You're not part of an Organization yet — SurveyBeat",
+      );
+      expect(
+        titleOf({
+          ...initialModel(teamsUrl),
+          session: { _tag: "ChooseOrganization", organizations: [], busy: false },
+        }),
+      ).toBe("Choose an Organization — SurveyBeat");
     });
   });
 });

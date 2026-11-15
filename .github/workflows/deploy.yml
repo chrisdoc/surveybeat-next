@@ -47,14 +47,9 @@ jobs:
       - name: Deploy staging
         run: pnpm exec alchemy deploy infra/alchemy.run.ts --stage staging --yes --no-input
         env:
-          WORKOS_API_KEY: ${{ secrets.WORKOS_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-          WORKOS_CLIENT_ID: ${{ secrets.WORKOS_CLIENT_ID }}
       - name: Smoke test
         run: node infra/scripts/smoke.ts "https://staging.dashboard.surveybeat.app" "https://staging.submit.surveybeat.app"
-        env:
-          WORKOS_API_KEY: ${{ secrets.WORKOS_API_KEY }}
-          WORKOS_CLIENT_ID: ${{ secrets.WORKOS_CLIENT_ID }}
 
   staging-privacy:
     needs: deploy-staging
@@ -127,11 +122,6 @@ jobs:
       - name: Deploy production
         run: pnpm exec alchemy deploy infra/alchemy.run.ts --stage production --yes --no-input
         env:
-          WORKOS_API_KEY: ${{ secrets.WORKOS_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-          WORKOS_CLIENT_ID: ${{ secrets.WORKOS_CLIENT_ID }}
       - name: Smoke test
         run: node infra/scripts/smoke.ts "https://dashboard.surveybeat.app" "https://submit.surveybeat.app"
-        env:
-          WORKOS_API_KEY: ${{ secrets.WORKOS_API_KEY }}
-          WORKOS_CLIENT_ID: ${{ secrets.WORKOS_CLIENT_ID }}

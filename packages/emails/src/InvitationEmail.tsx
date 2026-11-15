@@ -12,23 +12,16 @@ import {
   RatingRow,
 } from "./Parts.tsx";
 
-/** The AI notice, present only when the Organization processes comments with AI (ADR 0015). */
 const aiNotice = (email: InvitationEmailData, m: Messages): string | undefined =>
   email.aiProcessing === true ? m.message("privacy.aiNotice") : undefined;
 
-/**
- * What the lead will and will not see (SPEC 5.2). Rows stored before N was carried hold the finished
- * statement instead; they render verbatim.
- */
 const anonymityStatement = (email: InvitationEmailData, m: Messages): string =>
   email.minimumGroupSize === undefined
     ? (email.anonymityStatement ?? "")
     : m.message("invitation.anonymity", { n: email.minimumGroupSize });
 
-/** A test send (ADR 0021) is marked in the subject and the body, and has no delivery-time link. */
 const isTest = (email: InvitationEmailData): boolean => email.test === true;
 
-/** The footer says why the reader got the email: a test is sent by a Lead or admin to themselves. */
 const reason = (email: InvitationEmailData, m: Messages): string =>
   m.message(isTest(email) ? "invitation.reasonTest" : "invitation.reason");
 

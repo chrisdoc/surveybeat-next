@@ -1,11 +1,6 @@
 import { browserLocale, DEFAULT_LOCALE, type Locale, matchLocale } from "@surveybeat/domain";
 import { type Messages, messagesFor } from "@surveybeat/emails";
 
-/**
- * The server-rendered pages a link in an email opens: change the delivery time zone, and turn off reminders
- * (ADR 0018: their strings come from the emails catalog, in the locale the link carries).
- */
-
 const HTML_ESCAPES = new Map([
   ["&", "&amp;"],
   ["<", "&lt;"],
@@ -14,14 +9,9 @@ const HTML_ESCAPES = new Map([
   ["'", "&#39;"],
 ]);
 
-/** Escapes a value for HTML text and attribute contexts. Every interpolated value passes through it. */
 const escapeHtml = (text: string): string =>
   text.replace(/[&<>"']/g, (char) => HTML_ESCAPES.get(char) ?? char);
 
-/**
- * The locale of a server page: the `lang` the link carries, else the browser's first supported language
- * from Accept-Language, else the default.
- */
 export const pageLocale = (lang: string | null | undefined, acceptLanguage: string | undefined): Locale => {
   const explicit = lang === null || lang === undefined ? undefined : matchLocale(lang);
   if (explicit !== undefined) return explicit;
@@ -60,7 +50,6 @@ const DELIVERY_SCRIPT = `<script>
       } catch (e) {}
     </script>`;
 
-/** The page that changes the Person's delivery time zone. The token and the locale ride in hidden fields. */
 export const renderDeliveryPage = (token: string, locale: Locale): string => {
   const m: Messages = messagesFor(locale);
   const options = TIME_ZONES.map((zone) => `<option value="${zone}">${zone}</option>`).join("\n        ");
@@ -101,10 +90,8 @@ export const renderDeliveryPage = (token: string, locale: Locale): string => {
 </html>`;
 };
 
-/** The confirmation after a delivery time zone is saved. The zone is shown in bold. */
 export const renderDeliverySuccessPage = (timeZone: string, locale: Locale): string => {
   const m: Messages = messagesFor(locale);
-  // Escape the sentence around the placeholder, then put the escaped zone inside <strong>.
   const placeholder = "{timeZone}";
   const [before = "", after = ""] = m
     .message("page.deliverySaved.body", { timeZone: placeholder })
@@ -131,7 +118,6 @@ export const renderDeliverySuccessPage = (timeZone: string, locale: Locale): str
 </html>`;
 };
 
-/** The page that turns off reminders for one Pulse. The token and the locale ride in hidden fields. */
 export const renderUnsubscribePage = (token: string, locale: Locale): string => {
   const m: Messages = messagesFor(locale);
   return `<!DOCTYPE html>

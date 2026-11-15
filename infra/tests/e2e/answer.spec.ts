@@ -1,3 +1,5 @@
+// @effect-diagnostics asyncFunction:off -- Playwright's API is promise-based and these specs never enter an Effect.
+
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
@@ -136,8 +138,7 @@ test.describe("answer page static entry (Issue #44, ADR 0005, ADR 0007, ADR 0008
     expect(storedEditKey?.length).toBe(64); // 256 bits = 64 hex characters
 
     // Verify token was removed from sessionStorage
-    const sessionToken = await page.evaluate(() => sessionStorage.getItem("sb_token"));
-    expect(sessionToken).toBeNull();
+    await expect.poll(() => page.evaluate(() => sessionStorage.getItem("sb_token"))).toBeNull();
 
     // Now on Screen 2 (Question 2: Rating)
     await expect(page.locator('[data-question-screen="2"] legend')).toHaveText(

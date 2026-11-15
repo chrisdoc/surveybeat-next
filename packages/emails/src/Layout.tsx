@@ -5,7 +5,6 @@ import { colors, darkColors, fonts, radius } from "./theme.ts";
 
 const d = darkColors;
 
-/** Clients that honour `prefers-color-scheme` swap to the dark palette through the classes below. */
 const darkMode = `
 :root { color-scheme: light dark; supported-color-schemes: light dark; }
 @media (prefers-color-scheme: dark) {
@@ -22,7 +21,6 @@ const darkMode = `
 }
 `;
 
-/** The frame every SurveyBeat email shares: preview line, brand, card, and the reason it was sent. */
 export function Layout({
   messages,
   preview,
@@ -34,7 +32,7 @@ export function Layout({
   preview: string;
   reason: string;
   children: ReactNode;
-  /** Extra blocks between the card and the footer, such as the privacy panel. */
+
   outside?: ReactNode;
 }) {
   return (
@@ -92,6 +90,5 @@ export function Layout({
   );
 }
 
-/** The plain-text part's frame, mirroring `Layout`. */
 export const textLayout = (messages: Messages, body: ReadonlyArray<string>, reason: string): string =>
   [...body, "", "--", reason, messages.message("layout.signature"), ""].join("\n");

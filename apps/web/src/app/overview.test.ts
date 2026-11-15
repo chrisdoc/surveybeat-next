@@ -1,3 +1,5 @@
+// @effect-diagnostics globalDate:off -- the view formats or compares an instant that arrived from the API against the browser clock; nothing here is stored on the server.
+
 import {
   ActionId,
   OrganizationId,
@@ -188,14 +190,14 @@ describe("Team health overview markers and tooltips", () => {
       ).toBeAbsent(),
       Scene.expect(Scene.role("button", { name: markerLabel("done", middle, "Middle one") })).toHaveStyle(
         "left",
-        plotPercent(markerX(middle), 720),
+        plotPercent(markerX(middle), 360),
       ),
       Scene.expect(
         Scene.role("button", { name: markerLabel("committed", earliest, "Early one") }),
-      ).toHaveStyle("left", plotPercent(0, 720)),
+      ).toHaveStyle("left", plotPercent(0, 360)),
       Scene.expect(Scene.role("button", { name: markerLabel("committed", latest, "Late one") })).toHaveStyle(
         "left",
-        plotPercent(1, 720),
+        plotPercent(1, 360),
       ),
     );
   });

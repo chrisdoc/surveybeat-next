@@ -269,4 +269,53 @@ describe("SendStore", () => {
       }),
     ),
   );
+
+  it.effect("requeues a failed send once, and it is then delivered once under the same id", () =>
+    withSend([accepted("m-1")], (sent) =>
+      Effect.gen(function* () {
+        const store = yield* SendStore;
+        yield* store.abandon(id, 7);
+        expect(yield* store.requeue(id)).toEqual({ _tag: "Requeued" });
+        expect(yield* stateOf).toEqual({ _tag: "Pending", attempts: 0, lastCode: null });
+
+        expect(yield* deliver(id)).toEqual({
+          _tag: "Done",
+          state: { _tag: "Sent", messageId: "m-1", sentAt: 0 },
+        });
+        // The Queue delivers the message again: the send is already sent, so nothing goes out twice.
+        expect(yield* deliver(id)).toEqual({
+          _tag: "Done",
+          state: { _tag: "Sent", messageId: "m-1", sentAt: 0 },
+        });
+        expect(yield* Ref.get(sent)).toHaveLength(1);
+        // A Resend of a send that was delivered changes nothing.
+        expect(yield* store.requeue(id)).toEqual({
+          _tag: "Unchanged",
+          state: { _tag: "Sent", messageId: "m-1", sentAt: 0 },
+        });
+      }),
+    ),
+  );
+
+  it.effect("leaves a second requeue of a pending send unchanged", () =>
+    withSend([], () =>
+      Effect.gen(function* () {
+        const store = yield* SendStore;
+        yield* store.abandon(id, 7);
+        expect(yield* store.requeue(id)).toEqual({ _tag: "Requeued" });
+        expect(yield* store.requeue(id)).toEqual({
+          _tag: "Unchanged",
+          state: { _tag: "Pending", attempts: 0, lastCode: null },
+        });
+      }),
+    ),
+  );
+
+  it.effect("says a requeue of a send that does not exist is missing", () =>
+    withSend([], () =>
+      Effect.gen(function* () {
+        expect(yield* (yield* SendStore).requeue(SendId.make("no-such-send"))).toEqual({ _tag: "Missing" });
+      }),
+    ),
+  );
 });

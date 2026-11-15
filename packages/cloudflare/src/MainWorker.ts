@@ -1,16 +1,18 @@
+import { BetterAuth } from "@alchemy.run/better-auth";
+import { CloudflareD1 } from "@alchemy.run/better-auth/CloudflareD1";
 import * as Cloudflare from "@alchemy.run/cloudflare";
 import {
   EmailOutbox,
   EmailSender,
-  hashToken,
-  IdentityProvider,
   MembershipId,
   OrganizationDirectory,
   NewIds,
   OrganizationPeople,
   PeopleIndex,
-  PersonId,
   OrganizationId,
+  SessionIdentityProvider,
+  AuthUnavailable,
+  PersonId,
   OrganizationPulses,
   OrganizationRounds,
   OrganizationActions,
@@ -19,10 +21,12 @@ import {
   QuestionId,
   TeamId,
 } from "@surveybeat/domain";
-import { SurveyBeatApi } from "@surveybeat/api";
-import { EmailTemplatesLive, messagesFor } from "@surveybeat/emails";
-import type { RuntimeContext } from "alchemy/RuntimeContext";
+import { DELIVERY_PAGE_PATH, SurveyBeatApi, UNSUBSCRIBE_PAGE_PATH } from "@surveybeat/api";
+import { authOptions } from "@surveybeat/auth";
+import { EmailTemplatesLive } from "@surveybeat/emails";
+import { RuntimeContext } from "alchemy/RuntimeContext";
 import { Stack } from "alchemy/Stack";
+import * as Clock from "effect/Clock";
 import * as Config from "effect/Config";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -33,13 +37,13 @@ import * as Redacted from "effect/Redacted";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 import { HttpServerRequest } from "effect/http/HttpServerRequest";
-import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as Etag from "effect/http/Etag";
-import * as HttpPlatform from "effect/http/HttpPlatform";
 import * as HttpRouter from "effect/http/HttpRouter";
 import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
 import { actionHandlers } from "./ActionHandlers.ts";
 import { authBindings, authSettings } from "./auth/AuthConfig.ts";
+import { signInCodeDelivery } from "./auth/AuthResource.ts";
+import { betterAuthIdentityProvider } from "./auth/BetterAuthIdentityProvider.ts";
 import { authHandlers } from "./auth/AuthHandlers.ts";
 import { d1PeopleIndex } from "./auth/D1PeopleIndex.ts";
 import {
@@ -51,10 +55,10 @@ import {
   durableObjectRounds,
 } from "./auth/DurableObjectPeople.ts";
 import { PEOPLE_TEST_ROUTE, peopleTestRoutes } from "./auth/PeopleTestRoutes.ts";
-import { workosIdentityProvider } from "./auth/WorkosIdentityProvider.ts";
 import { capturingEmailSender } from "./CapturingEmailSender.ts";
 import { cloudflareEmailSender } from "./CloudflareEmailSender.ts";
 import { Database } from "./Database.ts";
+import { REPAIR_PAGE_SIZE, repairWindow } from "./CronSweep.ts";
 import { directoryHandlers } from "./DirectoryHandlers.ts";
 import {
   EmailEvents,
@@ -78,47 +82,27 @@ import { roundHandlers } from "./RoundHandlers.ts";
 import { PULSES_TEST_ROUTE, pulseTestRoutes } from "./PulseTestRoutes.ts";
 import { ROUNDS_TEST_ROUTE, roundTestRoutes } from "./RoundTestRoutes.ts";
 import { REVIEW_TEST_ROUTE, reviewTestRoutes } from "./ReviewWindowTestRoutes.ts";
+import { RESEND_EMAIL_TEST_ROUTE, resendEmailTestRoutes } from "./ResendEmailTestRoutes.ts";
 import { TEST_INVITATION_TEST_ROUTE, testInvitationTestRoutes } from "./TestInvitationTestRoutes.ts";
 import { RESULT_RECOVERY_TEST_ROUTE, resultRecoveryTestRoutes } from "./ResultRecoveryTestRoutes.ts";
 import { THEMES_TEST_ROUTE, themesTestRoutes } from "./ThemesTestRoutes.ts";
 import Organization from "./Organization.ts";
+import { pageRoutes } from "./PageRoutes.ts";
 import { Jobs, JobsDlq, type JobMessage } from "./Queues.ts";
-import {
-  pageLocale,
-  renderDeliveryPage,
-  renderDeliverySuccessPage,
-  renderUnsubscribePage,
-} from "./ServerPages.ts";
+import { httpPlatformStub, mainWorkerAssets, randomHex32 } from "./WorkerWiring.ts";
 
-/** `apps/web`'s build output. Absolute, so it does not depend on where Alchemy is started. */
-const assetsDirectory = new URL("../../../apps/web/dist", import.meta.url).pathname;
+const newOrganizationId = () => OrganizationId.make(randomHex32());
 
-/** HttpPlatform normally needs a FileSystem, which does not exist in a Worker isolate. */
-const HttpPlatformStub = Layer.succeed(HttpPlatform.HttpPlatform, {
-  platform: "web",
-  compression: {
-    algorithms: new Set<"gzip">(),
-    compressResponse: (response) => Effect.succeed(response),
-  },
-  fileResponse: () => Effect.die("HttpPlatform.fileResponse not supported"),
-  fileWebResponse: () => Effect.die("HttpPlatform.fileWebResponse not supported"),
-});
+const SURVEYBEAT_AUTH_PATHS = new Set([
+  "/auth/login",
+  "/auth/email-code",
+  "/auth/email-code/verify",
+  "/auth/logout",
+  "/auth/session",
+  "/auth/organization",
+  "/auth/organization/choose",
+]);
 
-/** 32 random hex characters. */
-const randomId = () =>
-  Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) => byte.toString(16).padStart(2, "0")).join(
-    "",
-  );
-
-const newOrganizationId = () => OrganizationId.make(randomId());
-
-/** Plain-text replies from the delivery and unsubscribe routes can be German, so they name their charset. */
-const PLAIN_TEXT = "text/plain; charset=utf-8";
-
-/**
- * The Main Worker: the API (domain schemas, `@surveybeat/api` declaration, handlers backed by the
- * Organization Durable Object) plus the static assets built from `apps/web`.
- */
 export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
   "Main",
   Effect.gen(function* () {
@@ -127,29 +111,7 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
     const domain = mainWorkerDomainFor(stack.stage);
     return {
       main: import.meta.url,
-      // The API routes always reach the Worker. Any other path is a static asset.
-      assets: {
-        directory: assetsDirectory,
-        runWorkerFirst: [
-          "/auth/*",
-          "/api/*",
-          "/delivery",
-          "/delivery/*",
-          ...(isTestStage(stack.stage)
-            ? [
-                TEST_ROUTES,
-                PEOPLE_TEST_ROUTE,
-                PULSES_TEST_ROUTE,
-                ROUNDS_TEST_ROUTE,
-                THEMES_TEST_ROUTE,
-                REVIEW_TEST_ROUTE,
-                RESULT_RECOVERY_TEST_ROUTE,
-                TEST_INVITATION_TEST_ROUTE,
-              ]
-            : []),
-        ],
-      },
-      // The Organization Durable Object builds email links from this. Stages on workers.dev have none.
+      assets: mainWorkerAssets(stack.stage),
       env: {
         ...(yield* authBindings),
         OPENROUTER_API_KEY: Config.Redacted("OPENROUTER_API_KEY").pipe(Config.withDefault(Redacted.make(""))),
@@ -169,22 +131,27 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
       (stream) => Stream.runForEach(stream, () => Effect.log("JOB_PROCESSED")),
     );
 
-    // The dead-letter queue is not drained or alerted on by Cloudflare. Log the code only, never the message.
     yield* Cloudflare.Queues.consumeQueueMessages<JobMessage>(jobsDlq, (stream) =>
       Stream.runForEach(stream, () => Effect.logError("JOB_DEAD_LETTERED")),
     );
 
-    // Transactional email. Production sends through Cloudflare Email Sending; every other stage
-    // records the messages in D1 and binds no `send_email` at all (docs/infra.md).
     const { stage } = yield* Stack;
     const database = yield* Cloudflare.D1.QueryDatabase(yield* Database);
     const emailQueue = yield* EmailQueue;
     const emailDlq = yield* EmailQueueDlq;
     const sendClient = sendsRealEmail(stage) ? yield* Cloudflare.Email.Send(yield* SendEmail) : undefined;
+    const signInEmail =
+      sendClient === undefined
+        ? yield* capturingEmailSender(database)
+        : yield* cloudflareEmailSender(sendClient);
+    const authInstance = yield* BetterAuth({
+      ...authOptions(signInCodeDelivery(signInEmail.send)),
+      id: "Auth",
+      migrate: false,
+    });
 
     yield* Cloudflare.Queues.consumeQueueMessages(
       emailQueue,
-      // Retries cover leases held by another delivery and rejections waiting for their next attempt.
       { batchSize: 10, maxRetries: 10, deadLetterQueue: emailDlq },
       (stream) =>
         Effect.gen(function* () {
@@ -204,7 +171,6 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
       Stream.runForEach(stream, (message) => handleDeadLetter(organizations, message)),
     );
 
-    // Bounces and complaints, from the event subscription on the sending subdomain (infra/alchemy.run.ts).
     if (sendsRealEmail(stage)) {
       yield* Cloudflare.Queues.consumeQueueMessages(
         yield* EmailEvents,
@@ -214,11 +180,7 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
       );
     }
 
-    // Sign-in. The WorkOS client is built once per isolate (it caches the JWKS), the D1 index per request.
-    const settings = yield* Effect.cached(authSettings);
-    const identityProvider = yield* Effect.cached(
-      Effect.map(settings, ({ workos }) => workosIdentityProvider(workos)),
-    );
+    const settings = authSettings;
     const people = durableObjectPeople(organizations);
     const directory = durableObjectDirectory(organizations);
     const pulses = durableObjectPulses(organizations);
@@ -227,11 +189,16 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
     const notes = durableObjectNotes(organizations);
     const emailWrites = yield* Cloudflare.Queues.WriteQueue(emailQueue);
 
-    // Daily Cron repairs missing alarms across all Organizations (ADR 0006)
     yield* Cloudflare.Workers.cron("0 0 * * *", () =>
       Effect.gen(function* () {
+        const day = Math.floor((yield* Clock.currentTimeMillis) / 86_400_000);
+        const counted = yield* database
+          .prepare("SELECT COUNT(*) AS total FROM organization_index")
+          .all<{ total: number }>();
+        const window = repairWindow(counted.results[0]?.total ?? 0, day, REPAIR_PAGE_SIZE);
         const orgs = yield* database
-          .prepare("SELECT organization_id FROM organization_index")
+          .prepare("SELECT organization_id FROM organization_index ORDER BY organization_id LIMIT ? OFFSET ?")
+          .bind(window.limit, window.offset)
           .all<{ organization_id: string }>();
         for (const row of orgs.results) {
           yield* organizations.getByName(row.organization_id).repairAlarm().pipe(Effect.orDie);
@@ -242,7 +209,6 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
     const services = Effect.gen(function* () {
       const runtime = yield* Effect.context<RuntimeContext>();
       const outbox = EmailOutbox.of({
-        // A failed enqueue leaves the send pending; repeating the request queues it again.
         queue: (organizationId, sendId) =>
           Schema.encodeEffect(EmailSendRequested)({ organizationId, sendId }).pipe(
             Effect.flatMap((message) => emailWrites.send(message)),
@@ -251,7 +217,47 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
             Effect.orDie,
           ),
       });
-      return Context.make(IdentityProvider, yield* identityProvider).pipe(
+      const sessions = betterAuthIdentityProvider({
+        auth: yield* authInstance.auth,
+        chosenOrganization: (sessionId) =>
+          database
+            .prepare("SELECT organization_id FROM auth_session_organization WHERE session_id = ?")
+            .bind(sessionId)
+            .all<{ organization_id: string }>()
+            .pipe(
+              Effect.map((result) =>
+                Option.map(Option.fromNullishOr(result.results[0]), (row) =>
+                  OrganizationId.make(row.organization_id),
+                ),
+              ),
+              Effect.provideContext(runtime),
+              Effect.mapError(() => new AuthUnavailable()),
+            ),
+        rememberOrganization: (sessionId, organizationId) =>
+          database
+            .prepare(
+              `INSERT INTO auth_session_organization (session_id, organization_id) VALUES (?, ?)
+               ON CONFLICT (session_id) DO UPDATE SET organization_id = excluded.organization_id`,
+            )
+            .bind(sessionId, organizationId)
+            .run()
+            .pipe(
+              Effect.asVoid,
+              Effect.provideContext(runtime),
+              Effect.mapError(() => new AuthUnavailable()),
+            ),
+        deleteSession: (sessionId) =>
+          database
+            .prepare("DELETE FROM auth_session WHERE id = ?")
+            .bind(sessionId)
+            .run()
+            .pipe(
+              Effect.asVoid,
+              Effect.provideContext(runtime),
+              Effect.mapError(() => new AuthUnavailable()),
+            ),
+      });
+      return Context.make(SessionIdentityProvider, sessions).pipe(
         Context.add(PeopleIndex, yield* d1PeopleIndex(database)),
         Context.add(OrganizationPeople, people),
         Context.add(OrganizationDirectory, directory),
@@ -264,11 +270,11 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
           NewIds,
           NewIds.of({
             organizationId: Effect.sync(newOrganizationId),
-            personId: Effect.sync(() => PersonId.make(randomId())),
-            teamId: Effect.sync(() => TeamId.make(randomId())),
-            membershipId: Effect.sync(() => MembershipId.make(randomId())),
-            pulseId: Effect.sync(() => PulseId.make(randomId())),
-            questionId: Effect.sync(() => QuestionId.make(randomId())),
+            personId: Effect.sync(() => PersonId.make(randomHex32())),
+            teamId: Effect.sync(() => TeamId.make(randomHex32())),
+            membershipId: Effect.sync(() => MembershipId.make(randomHex32())),
+            pulseId: Effect.sync(() => PulseId.make(randomHex32())),
+            questionId: Effect.sync(() => QuestionId.make(randomHex32())),
           }),
         ),
       );
@@ -285,146 +291,22 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
           actionHandlers(services),
           noteHandlers(services),
         ]),
-        Layer.provide([Etag.layer, HttpPlatformStub, Path.layer]),
+        Layer.provide([Etag.layer, httpPlatformStub, Path.layer]),
       ),
     );
 
-    const JsonRecord = Schema.Record(Schema.String, Schema.String);
-    const decodeJsonRecord = Schema.decodeUnknownOption(JsonRecord);
-
-    const parseRequestBody = (req: HttpServerRequest): Effect.Effect<Record<string, string>> =>
-      Effect.gen(function* () {
-        const text = yield* req.text.pipe(Effect.orDie);
-        const contentType = req.headers["content-type"] ?? "";
-        if (contentType.includes("application/json")) {
-          try {
-            const parsed = Option.getOrElse(
-              decodeJsonRecord(JSON.parse(text)),
-              (): Record<string, string> => ({}),
-            );
-            return { ...parsed };
-          } catch {
-            return {};
-          }
-        }
-        const params = new URLSearchParams(text);
-        const result: Record<string, string> = {};
-        for (const [k, v] of params.entries()) {
-          result[k] = v;
-        }
-        return result;
-      });
-
+    const pages = pageRoutes(organizations, database);
     const testRoutes = isTestStage(stage) ? emailTestRoutes(organizations, emailWrites, database) : undefined;
 
     return {
       fetch: Effect.gen(function* () {
         const request = yield* HttpServerRequest;
-        const path = request.url.split("?")[0];
+        const path = request.url.split("?")[0] ?? "/";
 
-        if (path === "/delivery") {
-          if (request.method === "HEAD") {
-            return HttpServerResponse.empty({ status: 200 });
-          }
-          if (request.method === "GET") {
-            const url = new URL(request.url, "https://app.surveybeat.app");
-            const token = url.searchParams.get("token") ?? "";
-            const locale = pageLocale(url.searchParams.get("lang"), request.headers["accept-language"]);
-            return HttpServerResponse.html(renderDeliveryPage(token, locale));
-          }
-          if (request.method === "POST") {
-            const body = yield* parseRequestBody(request);
-            const url = new URL(request.url, "https://app.surveybeat.app");
-            const locale = pageLocale(
-              url.searchParams.get("lang") ?? body["lang"],
-              request.headers["accept-language"],
-            );
-            const m = messagesFor(locale);
-            const token = body["token"] ?? "";
-            const timeZone = body["timeZone"] ?? "";
-            if (!token || !timeZone) {
-              return HttpServerResponse.text(m.message("page.error.missingTokenOrTimeZone"), {
-                status: 400,
-                contentType: PLAIN_TEXT,
-              });
-            }
-            const tokenHash = yield* Effect.promise(() => hashToken(token));
-            const row = yield* database
-              .prepare(
-                "SELECT organization_id, round_id, person_id, pulse_id FROM invitation_index WHERE token_hash = ?",
-              )
-              .bind(tokenHash)
-              .first<{ organization_id: string; round_id: string; person_id: string; pulse_id: string }>()
-              .pipe(Effect.orDie);
-            if (row === null) {
-              return HttpServerResponse.text(m.message("page.error.invalid"), {
-                status: 404,
-                contentType: PLAIN_TEXT,
-              });
-            }
-            yield* organizations
-              .getByName(row.organization_id)
-              .setPersonTimeZone(row.person_id, timeZone)
-              .pipe(Effect.orDie);
-            const acceptHeader = request.headers["accept"] ?? "";
-            if (acceptHeader.includes("application/json")) {
-              return yield* HttpServerResponse.json({ ok: true, timeZone }).pipe(Effect.orDie);
-            }
-            return HttpServerResponse.html(renderDeliverySuccessPage(timeZone, locale));
-          }
-          return HttpServerResponse.empty({ status: 405 });
-        }
+        if (path === DELIVERY_PAGE_PATH || path === UNSUBSCRIBE_PAGE_PATH) return yield* pages;
 
-        if (path === "/api/reminders/unsubscribe") {
-          if (request.method === "HEAD") {
-            return HttpServerResponse.empty({ status: 200 });
-          }
-          if (request.method === "GET") {
-            const url = new URL(request.url, "https://app.surveybeat.app");
-            const token = url.searchParams.get("t") ?? "";
-            const locale = pageLocale(url.searchParams.get("lang"), request.headers["accept-language"]);
-            return HttpServerResponse.html(renderUnsubscribePage(token, locale));
-          }
-          if (request.method === "POST") {
-            const url = new URL(request.url, "https://app.surveybeat.app");
-            const body = yield* parseRequestBody(request);
-            const locale = pageLocale(
-              url.searchParams.get("lang") ?? body["lang"],
-              request.headers["accept-language"],
-            );
-            const m = messagesFor(locale);
-            let token = url.searchParams.get("t");
-            if (!token) {
-              token = body["t"] ?? body["token"] ?? null;
-            }
-            if (!token) {
-              return HttpServerResponse.text(m.message("page.error.missingToken"), {
-                status: 400,
-                contentType: PLAIN_TEXT,
-              });
-            }
-            const tokenHash = yield* Effect.promise(() => hashToken(token));
-            const row = yield* database
-              .prepare(
-                "SELECT organization_id, round_id, person_id, pulse_id FROM invitation_index WHERE token_hash = ?",
-              )
-              .bind(tokenHash)
-              .first<{ organization_id: string; round_id: string; person_id: string; pulse_id: string }>()
-              .pipe(Effect.orDie);
-            if (row === null) {
-              return HttpServerResponse.text(m.message("page.error.invalid"), {
-                status: 404,
-                contentType: PLAIN_TEXT,
-              });
-            }
-            yield* organizations
-              .getByName(row.organization_id)
-              .optOutReminders(row.pulse_id, row.person_id)
-              .pipe(Effect.orDie);
-            return HttpServerResponse.text(m.message("page.unsubscribed"), { contentType: PLAIN_TEXT });
-          }
-          return HttpServerResponse.empty({ status: 405 });
-        }
+        if (path.startsWith("/auth/") && !SURVEYBEAT_AUTH_PATHS.has(path))
+          return yield* authInstance.fetch.pipe(Effect.provide(RuntimeContext.phantom));
 
         if (isTestStage(stage)) {
           if (path === TEST_ROUTES && testRoutes) return yield* testRoutes;
@@ -436,6 +318,8 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
           if (path === RESULT_RECOVERY_TEST_ROUTE) return yield* resultRecoveryTestRoutes(organizations);
           if (path === TEST_INVITATION_TEST_ROUTE)
             return yield* testInvitationTestRoutes(organizations, emailWrites, database);
+          if (path === RESEND_EMAIL_TEST_ROUTE)
+            return yield* resendEmailTestRoutes(organizations, emailWrites, database);
         }
 
         return yield* api;
@@ -444,6 +328,8 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
   }).pipe(
     Effect.provide(
       Layer.mergeAll(
+        RuntimeContext.phantom,
+        CloudflareD1(Database),
         Cloudflare.Queues.EventSourceLive,
         Cloudflare.D1.QueryDatabaseBinding,
         Cloudflare.Email.SendBinding,

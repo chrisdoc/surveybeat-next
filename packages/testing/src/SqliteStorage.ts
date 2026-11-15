@@ -1,11 +1,7 @@
+// @effect-diagnostics asyncFunction:off -- node:sqlite's transaction callback is async; the harness exposes it to the test, not to an Effect runtime.
+
 import type { DatabaseSync, SQLInputValue } from "node:sqlite";
 
-/**
- * The part of a Durable Object's `storage` that `@effect/sql-sqlite-do` uses (`sql.exec` and
- * `transaction`), backed by an in-memory `node:sqlite` database. It lets adapter code such as
- * `makeSqlRounds` run for real, with real transactions, inside a plain Vitest test: no workerd and no
- * test route. Cast it to `DurableObjectStorage` at the call site.
- */
 export interface SqliteStorage {
   readonly sql: {
     readonly exec: (

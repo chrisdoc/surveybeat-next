@@ -1,39 +1,49 @@
+// @effect-diagnostics globalDate:off -- the view formats or compares an instant that arrived from the API against the browser clock; nothing here is stored on the server.
+
 import {
   EmailAddress,
+  EmailSendProgress,
+  FailedEmail,
   FailedEmails,
   Locale,
   MinimumGroupSize,
   OrganizationSettings,
   PersonId,
+  SendId,
   TeamDetail,
   TeamName,
   TeamSummary,
   TimeZone,
 } from "@surveybeat/domain";
+import { Nav, Popover } from "@foldkit/ui";
 import { Option, Predicate, Schema } from "effect";
-import type { Html, HtmlBuilder } from "foldkit/html";
+import type { ChildAttribute, Html, HtmlBuilder } from "foldkit/html";
 import { defineTaggedUnion } from "foldkit/schema";
-import { formatDate, message } from "../messages/locale.ts";
-import { Failure } from "./api.ts";
+import { formatDate, formatRoundDate, message, pluralMessage } from "../messages/locale.ts";
+import { Failure, failureMessage } from "./api.ts";
 import {
   type Child,
   appButton,
   badge,
+  confirmDialog,
+  dangerButtonClass,
   dataTable,
+  dangerLinkButton,
   emptyState,
   linkButton,
   linkClass,
-  navLink,
   pageShell,
   pageTitle,
   problemView,
+  secondaryButtonClass,
   selectField,
+  timeZoneOptions,
   signOutView,
   checkboxField,
   subSectionTitle,
   textField,
 } from "./components.ts";
-import { historyHref, privacyHref, pulsesHref, settingsHref, teamHref, teamsHref } from "./routes.ts";
+import { historyHref, pulsesHref, settingsHref, teamHref, teamsHref } from "./routes.ts";
 import { failureReasonText } from "./pulses.ts";
 
 export const LoadedTeams = defineTaggedUnion({
@@ -64,6 +74,23 @@ export const LoadedFailedEmails = defineTaggedUnion({
 });
 export type LoadedFailedEmails = typeof LoadedFailedEmails.Type;
 
+export const FailedEmailResend = Schema.Union([
+  Schema.TaggedStruct("Resending", {}),
+  Schema.TaggedStruct("Resent", {
+    state: EmailSendProgress,
+    polls: Schema.Int,
+    statusUnavailable: Schema.Boolean,
+  }),
+  Schema.TaggedStruct("Failed", { failure: Failure }),
+]);
+export type FailedEmailResend = typeof FailedEmailResend.Type;
+
+export const FAILED_EMAIL_POLL_INTERVAL = "3 seconds";
+export const FAILED_EMAIL_MAX_POLLS = 300;
+
+export const failedEmailKeepsPolling = (state: EmailSendProgress, polls: number): boolean =>
+  (state._tag === "Queued" || state._tag === "Sending") && polls < FAILED_EMAIL_MAX_POLLS;
+
 const formPanelClass = "mt-8 flex flex-col gap-4 rounded-panel border border-line bg-surface p-6 sm:p-8";
 
 export const roleName = (role: TeamSummary["yourRole"]): string =>
@@ -75,7 +102,6 @@ export const decodeEmail = Schema.decodeUnknownOption(EmailAddress);
 export const decodeSize = Schema.decodeUnknownOption(MinimumGroupSize);
 export const decodePerson = Schema.decodeUnknownOption(PersonId);
 
-/** The Person's language choice: `value` is `null` to follow the browser (ADR 0018). */
 export interface LanguageChoice<Message> {
   readonly value: Locale | null;
   readonly busy: boolean;
@@ -83,78 +109,312 @@ export interface LanguageChoice<Message> {
   readonly onChange: (value: string) => Message;
 }
 
+export type NavSection = "teams" | "history" | "settings";
+
+export interface ShellHeader<Message> {
+  readonly organizationName: string;
+  readonly organizationAdmin: boolean;
+  readonly section: NavSection | null;
+
+  readonly privacyCurrent: boolean;
+  readonly navMenu: Popover.Model;
+  readonly accountMenu: Popover.Model;
+  readonly onNavMenu: (message: Popover.Message) => Message;
+  readonly onAccountMenu: (message: Popover.Message) => Message;
+}
+
+const sectionHref = (section: NavSection): string => {
+  switch (section) {
+    case "teams":
+      return teamsHref();
+    case "history":
+      return historyHref();
+    case "settings":
+      return settingsHref();
+  }
+};
+
+const sectionNav = <Message>(
+  config: {
+    readonly sections: ReadonlyArray<NavSection>;
+    readonly current: NavSection | null;
+    readonly className: string;
+    readonly linkClass: (isCurrent: boolean) => string;
+  },
+  h: HtmlBuilder<Message>,
+): Html =>
+  Nav.view<NavSection>({
+    items: config.sections,
+    ariaLabel: message("nav.label"),
+    toHref: (section) => sectionHref(section),
+    isItemCurrent: (section) => section === config.current,
+    toView: ({ nav, items }) =>
+      h.nav(
+        [...nav, h.Class(config.className)],
+        items.map((item) =>
+          h.a([...item.link, h.Class(config.linkClass(item.isCurrent))], [message(`nav.${item.value}`)]),
+        ),
+      ),
+  });
+
+const desktopLinkClass = (isCurrent: boolean): string =>
+  `inline-flex min-h-11 items-center border-b-2 ${
+    isCurrent
+      ? "border-primary font-semibold text-ink"
+      : "border-transparent font-medium text-muted hover:text-ink"
+  }`;
+
+const phoneLinkClass = (isCurrent: boolean): string =>
+  `flex min-h-11 items-center rounded-control px-3 ${
+    isCurrent ? "bg-primary-soft font-semibold text-primary" : "font-medium text-ink hover:bg-subtle"
+  }`;
+
+const menuPanelClass =
+  "z-50 w-[min(20rem,calc(100vw-2rem))] rounded-panel border border-line bg-surface p-4 shadow-lg";
+
+const chevronIcon = <Message>(h: HtmlBuilder<Message>): Html =>
+  h.svg(
+    [h.Width("16"), h.Height("16"), h.ViewBox("0 0 16 16"), h.AriaHidden(true), h.Class("shrink-0")],
+    [
+      h.path([
+        h.D("M4 6l4 4 4-4"),
+        h.Fill("none"),
+        h.Stroke("currentColor"),
+        h.StrokeWidth("1.8"),
+        h.StrokeLinecap("round"),
+        h.StrokeLinejoin("round"),
+      ]),
+    ],
+  );
+
+const hamburgerIcon = <Message>(h: HtmlBuilder<Message>): Html =>
+  h.svg(
+    [h.Width("18"), h.Height("18"), h.ViewBox("0 0 18 18"), h.AriaHidden(true), h.Class("shrink-0")],
+    [
+      h.path([
+        h.D("M3 5h12M3 9h12M3 13h12"),
+        h.Fill("none"),
+        h.Stroke("currentColor"),
+        h.StrokeWidth("1.8"),
+        h.StrokeLinecap("round"),
+      ]),
+    ],
+  );
+
+const headerMenu = <Message>(
+  model: Popover.Model,
+  toParentMessage: (message: Popover.Message) => Message,
+  parts: {
+    readonly button: (attributes: ReadonlyArray<ChildAttribute>) => Html;
+    readonly panel: (attributes: ReadonlyArray<ChildAttribute>) => Html;
+  },
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.submodel({
+    slotId: model.id,
+    model,
+    view: Popover.view,
+    viewInputs: {
+      anchor: { placement: "bottom-end", gap: 8 },
+      toView: ({ button, panel, isVisible }) =>
+        h.div(
+          [h.Class("relative")],
+          [parts.button(button), isVisible ? parts.panel(panel) : null].filter(Predicate.isNotNull),
+        ),
+    },
+    toParentMessage,
+  });
+
 export const shellView = <Message>(
-  title: string,
-  organizationAdmin: boolean,
+  header: ShellHeader<Message>,
   children: ReadonlyArray<Child>,
   language: LanguageChoice<Message>,
   h: HtmlBuilder<Message>,
   wide = false,
-): Html =>
-  pageShell(
+): Html => {
+  const sections: ReadonlyArray<NavSection> = header.organizationAdmin
+    ? ["teams", "history", "settings"]
+    : ["teams", "history"];
+
+  const languageField = (id: string): Html =>
+    selectField(
+      {
+        id,
+        label: message("language.label"),
+        value: language.value ?? "",
+        options: [
+          ["", message("language.followBrowser")],
+          ["en", message("language.en")],
+          ["de", message("language.de")],
+        ],
+        isDisabled: language.busy,
+        onChange: language.onChange,
+      },
+      h,
+    );
+  const languageProblem = (): Html | null => problemView(language.failure, h);
+
+  const accountButton = (attributes: ReadonlyArray<ChildAttribute>): Html =>
+    h.button(
+      [
+        ...attributes,
+        h.Class(
+          "inline-flex min-h-11 max-w-[16rem] items-center gap-2 rounded-control px-3 font-semibold text-ink hover:bg-subtle",
+        ),
+      ],
+      [
+        h.span([h.Class("min-w-0 truncate")], [header.organizationName]),
+
+        " ",
+        h.span([h.Class("sr-only")], [message("account.menu")]),
+        chevronIcon(h),
+      ],
+    );
+
+  const accountPanel = (attributes: ReadonlyArray<ChildAttribute>): Html =>
+    h.div(
+      [...attributes, h.Class(menuPanelClass)],
+      [
+        h.div(
+          [h.Class("flex flex-col gap-3")],
+          [languageField("language"), languageProblem(), signOutView(h, true)].filter(Predicate.isNotNull),
+        ),
+      ],
+    );
+
+  const menuButton = (attributes: ReadonlyArray<ChildAttribute>): Html =>
+    h.button(
+      [
+        ...attributes,
+        h.Class(
+          "inline-flex min-h-11 items-center gap-2 rounded-control border border-line bg-surface px-3 font-semibold text-ink hover:bg-subtle",
+        ),
+      ],
+      [hamburgerIcon(h), message("nav.menu")],
+    );
+
+  const navPanel = (attributes: ReadonlyArray<ChildAttribute>): Html =>
+    h.div(
+      [...attributes, h.Class(`${menuPanelClass} max-h-[calc(100vh-6rem)] overflow-y-auto`)],
+      [
+        sectionNav(
+          { sections, current: header.section, className: "flex flex-col gap-1", linkClass: phoneLinkClass },
+          h,
+        ),
+        h.div(
+          [h.Class("mt-4 flex flex-col gap-3 border-t border-line-soft pt-4")],
+          [
+            h.p([h.Class("break-words text-sm font-semibold text-muted")], [header.organizationName]),
+            languageField("language-menu"),
+            languageProblem(),
+            signOutView(h, true),
+          ].filter(Predicate.isNotNull),
+        ),
+      ],
+    );
+
+  return pageShell(
     {
-      organizationName: title,
       wide,
-      nav: [
-        navLink(teamsHref(), message("nav.teams"), h),
-        navLink(historyHref(), message("nav.history"), h),
-        organizationAdmin ? navLink(settingsHref(), message("nav.settings"), h) : null,
-        navLink(privacyHref(), message("nav.privacy"), h),
-      ].filter(Predicate.isNotNull),
+      privacyCurrent: header.privacyCurrent,
+      header: [
+        sectionNav(
+          {
+            sections,
+            current: header.section,
+            className: "hidden min-w-0 items-center gap-x-6 text-[15px] lg:ml-auto lg:flex",
+            linkClass: desktopLinkClass,
+          },
+          h,
+        ),
+        h.div(
+          [h.Class("hidden lg:block")],
+          [
+            headerMenu(
+              header.accountMenu,
+              header.onAccountMenu,
+              { button: accountButton, panel: accountPanel },
+              h,
+            ),
+          ],
+        ),
+        h.div(
+          [h.Class("ml-auto lg:hidden")],
+          [headerMenu(header.navMenu, header.onNavMenu, { button: menuButton, panel: navPanel }, h)],
+        ),
+      ],
     },
-    [
-      ...children,
-      h.div(
-        [h.Class("mt-10 flex max-w-xs flex-col gap-3")],
-        [
-          selectField(
-            {
-              id: "language",
-              label: message("language.label"),
-              value: language.value ?? "",
-              options: [
-                ["", message("language.followBrowser")],
-                ["en", message("language.en")],
-                ["de", message("language.de")],
-              ],
-              isDisabled: language.busy,
-              onChange: language.onChange,
-            },
-            h,
-          ),
-          problemView(language.failure, h),
-        ].filter(Predicate.isNotNull),
-      ),
-      signOutView(h),
-    ],
+    children,
     h,
   );
+};
+
+export interface AttentionItem {
+  readonly label: string;
+  readonly text: string;
+  readonly detail: string;
+  readonly href: string;
+}
+
+const attentionView = <Message>(items: ReadonlyArray<AttentionItem>, h: HtmlBuilder<Message>): Html =>
+  items.length === 0
+    ? emptyState(
+        {
+          title: message("home.attention.empty.title"),
+          body: message("home.attention.empty.body"),
+          action: { text: message("home.attention.empty.action"), href: historyHref() },
+        },
+        h,
+      )
+    : h.ul(
+        [h.Class("mt-3 flex flex-col gap-2")],
+        items.map((item) =>
+          h.li(
+            [h.Class("flex flex-wrap items-baseline gap-x-3 gap-y-1")],
+            [
+              h.span([h.Class("text-sm font-semibold text-muted")], [item.label]),
+              h.a([h.Href(item.href), h.Class(`break-words ${linkClass}`)], [item.text]),
+              h.span([h.Class("text-sm text-muted")], [item.detail]),
+            ],
+          ),
+        ),
+      );
 
 export const teamsScreenView = <Message>(
   state: {
     readonly teams: LoadedTeams;
+    readonly attention: ReadonlyArray<AttentionItem>;
     readonly organizationAdmin: boolean;
     readonly createName: string;
     readonly createTimeZone: string;
     readonly createLeadEmail: string;
     readonly createBusy: boolean;
     readonly createFailure?: Failure | undefined;
+    readonly createOpen: boolean;
   },
   actions: {
     readonly onNameChange: (name: string) => Message;
     readonly onTimeZoneChange: (tz: string) => Message;
     readonly onLeadEmailChange: (email: string) => Message;
     readonly onSubmitCreate: Message;
+    readonly onToggleCreate: Message;
   },
   h: HtmlBuilder<Message>,
 ): Html => {
-  const children: Array<Child> = [pageTitle(message("teams.title"), h)];
+  const children: Array<Child> = [
+    pageTitle(message("home.attention.title"), h),
+    attentionView(state.attention, h),
+  ];
+
+  if (state.teams._tag === "Loaded" && state.teams.teams.length > 0) {
+    children.push(h.div([h.Class("mt-8")], [subSectionTitle(message("home.teams.title"), h, 2)]));
+  }
 
   if (state.teams._tag === "Failed") {
     children.push(problemView(state.teams.failure, h)!);
   } else if (state.teams._tag === "Loaded") {
     if (state.teams.teams.length === 0) {
-      children.push(emptyState(message("teams.empty"), h));
+      children.push(emptyState({ title: message("teams.empty.title"), body: message("teams.empty") }, h));
     } else {
       children.push(
         h.ul(
@@ -167,15 +427,47 @@ export const teamsScreenView = <Message>(
                   [
                     h.Href(teamHref(team.id)),
                     h.Class(
-                      "flex min-h-11 items-center justify-between gap-4 rounded-panel border border-line bg-surface px-6 py-4 text-lg font-semibold hover:border-primary",
+                      "flex min-h-11 items-center justify-between gap-4 rounded-panel border border-line bg-surface px-6 py-4 hover:border-primary",
                     ),
                   ],
                   [
-                    h.span([], [team.name]),
-                    team.yourRole !== null
-                      ? badge("neutral", [message("teams.yourRole", { role: roleName(team.yourRole) })], h)
-                      : null,
-                  ].filter(Predicate.isNotNull),
+                    h.span(
+                      [h.Class("flex min-w-0 flex-col gap-1")],
+                      [
+                        h.span(
+                          [h.Class("flex flex-wrap items-center gap-2 text-lg font-semibold")],
+                          [
+                            h.span([h.Class("min-w-0 break-words")], [team.name]),
+                            team.yourRole === "lead"
+                              ? badge("primary", [roleName(team.yourRole)], h)
+                              : team.yourRole === "member"
+                                ? badge("neutral", [message("settings.member")], h)
+                                : null,
+                          ].filter(Predicate.isNotNull),
+                        ),
+                        h.span(
+                          [h.Class("text-sm text-muted")],
+                          [
+                            [
+                              team.memberCount === undefined
+                                ? null
+                                : pluralMessage("teams.members", team.memberCount),
+                              team.nextRoundDate === undefined
+                                ? null
+                                : team.nextRoundDate === null
+                                  ? message("teams.noRound")
+                                  : message("teams.nextRound", {
+                                      date: formatRoundDate(team.nextRoundDate),
+                                    }),
+                            ]
+                              .filter(Predicate.isNotNull)
+                              .join(" · "),
+                          ],
+                        ),
+                      ],
+                    ),
+                    h.span([h.AriaHidden(true), h.Class("text-xl text-muted")], ["›"]),
+                  ],
                 ),
               ],
             ),
@@ -185,7 +477,25 @@ export const teamsScreenView = <Message>(
     }
   }
 
-  if (state.organizationAdmin) {
+  if (state.organizationAdmin && !state.createOpen) {
+    children.push(
+      h.div(
+        [h.Class("mt-6")],
+        [
+          appButton(
+            {
+              text: message("teams.create.open"),
+              onClick: actions.onToggleCreate,
+              className: secondaryButtonClass,
+            },
+            h,
+          ),
+        ],
+      ),
+    );
+  }
+
+  if (state.organizationAdmin && state.createOpen) {
     children.push(
       h.form(
         [h.Class(formPanelClass), h.OnSubmit(actions.onSubmitCreate)],
@@ -201,13 +511,14 @@ export const teamsScreenView = <Message>(
             },
             h,
           ),
-          textField(
+          selectField(
             {
               id: "create-team-tz",
               label: message("teams.create.timeZone"),
               value: state.createTimeZone,
+              options: timeZoneOptions(state.createTimeZone),
               isDisabled: state.createBusy,
-              onInput: actions.onTimeZoneChange,
+              onChange: actions.onTimeZoneChange,
             },
             h,
           ),
@@ -223,13 +534,26 @@ export const teamsScreenView = <Message>(
             h,
           ),
           problemView(state.createFailure, h),
-          appButton(
-            {
-              text: message("teams.create.action"),
-              type: "submit",
-              isDisabled: state.createBusy,
-            },
-            h,
+          h.div(
+            [h.Class("flex flex-wrap gap-3")],
+            [
+              appButton(
+                {
+                  text: message("teams.create.action"),
+                  type: "submit",
+                  isDisabled: state.createBusy,
+                },
+                h,
+              ),
+              appButton(
+                {
+                  text: message("confirm.cancel"),
+                  onClick: actions.onToggleCreate,
+                  className: secondaryButtonClass,
+                },
+                h,
+              ),
+            ],
           ),
         ].filter(Predicate.isNotNull),
       ),
@@ -239,9 +563,43 @@ export const teamsScreenView = <Message>(
   return h.section([], children);
 };
 
+export interface ChecklistStep {
+  readonly text: string;
+  readonly detail?: string | undefined;
+  readonly href: string;
+  readonly done: boolean;
+}
+
+const firstRunChecklistView = <Message>(steps: ReadonlyArray<ChecklistStep>, h: HtmlBuilder<Message>): Html =>
+  h.section(
+    [h.Class("mt-8 rounded-panel border border-line bg-surface p-6")],
+    [
+      subSectionTitle(message("team.checklist.title"), h, 2),
+      h.ol(
+        [h.Class("mt-3 flex flex-col gap-3")],
+        steps.map((step, index) =>
+          h.li(
+            [h.Class("flex flex-wrap items-baseline gap-x-3 gap-y-1")],
+            [
+              h.span([h.Class("text-sm font-semibold text-muted")], [`${index + 1}.`]),
+              h.a([h.Href(step.href), h.Class(`break-words ${linkClass}`)], [step.text]),
+              ...(step.detail === undefined ? [] : [h.span([h.Class("text-sm text-muted")], [step.detail])]),
+              badge(
+                step.done ? "primary" : "neutral",
+                [message(step.done ? "team.checklist.done" : "team.checklist.todo")],
+                h,
+              ),
+            ],
+          ),
+        ),
+      ),
+    ],
+  );
+
 export const teamScreenView = <Message>(
   state: {
     readonly team: LoadedTeam;
+    readonly checklist: ReadonlyArray<ChecklistStep> | null;
     readonly renameName: string;
     readonly renameTimeZone: string;
     readonly renameBusy: boolean;
@@ -256,6 +614,12 @@ export const teamScreenView = <Message>(
     readonly assignLeadFailure?: Failure | undefined;
     readonly rosterBusy: boolean;
     readonly rosterFailure?: Failure | undefined;
+    readonly renameOpen: boolean;
+    readonly addMemberOpen: boolean;
+    readonly assignLeadOpen: boolean;
+    readonly pendingRemove:
+      | { readonly kind: "member" | "lead"; readonly personId: PersonId; readonly email: string }
+      | undefined;
   },
   actions: {
     readonly onRenameNameChange: (name: string) => Message;
@@ -267,6 +631,11 @@ export const teamScreenView = <Message>(
     readonly onSubmitAssignLead: Message;
     readonly onRemoveMember: (personId: PersonId) => Message;
     readonly onRemoveLead: (personId: PersonId) => Message;
+    readonly onToggleRename: Message;
+    readonly onToggleAddMember: Message;
+    readonly onToggleAssignLead: Message;
+    readonly onConfirmRemove: Message;
+    readonly onCancelRemove: Message;
   },
   overview: Html,
   h: HtmlBuilder<Message>,
@@ -284,6 +653,9 @@ export const teamScreenView = <Message>(
 
   const { detail } = state.team;
   children.push(h.div([h.Class("mt-4")], [pageTitle(detail.team.name, h)]));
+  if (state.checklist !== null) {
+    children.push(firstRunChecklistView(state.checklist, h));
+  }
   children.push(
     h.p([h.Class("mt-2 text-muted")], [message("team.timeZone", { timeZone: detail.team.timeZone })]),
   );
@@ -301,12 +673,29 @@ export const teamScreenView = <Message>(
     );
   }
 
-  // The Team health overview is Results, so it follows the same right as the Results screen.
   if (detail.may.viewResults) {
     children.push(h.div([h.Class("mt-8")], [overview]));
   }
 
-  if (detail.may.update) {
+  if (detail.may.update && !state.renameOpen) {
+    children.push(
+      h.div(
+        [h.Class("mt-6")],
+        [
+          appButton(
+            {
+              text: message("team.rename.open"),
+              onClick: actions.onToggleRename,
+              className: secondaryButtonClass,
+            },
+            h,
+          ),
+        ],
+      ),
+    );
+  }
+
+  if (detail.may.update && state.renameOpen) {
     children.push(
       h.form(
         [h.Class(formPanelClass), h.OnSubmit(actions.onSubmitRename)],
@@ -322,31 +711,44 @@ export const teamScreenView = <Message>(
             },
             h,
           ),
-          textField(
+          selectField(
             {
               id: "rename-team-tz",
               label: message("teams.create.timeZone"),
               value: state.renameTimeZone,
+              options: timeZoneOptions(state.renameTimeZone),
               isDisabled: state.renameBusy,
-              onInput: actions.onRenameTimeZoneChange,
+              onChange: actions.onRenameTimeZoneChange,
             },
             h,
           ),
           problemView(state.renameFailure, h),
-          appButton(
-            {
-              text: message("team.rename.action"),
-              type: "submit",
-              isDisabled: state.renameBusy,
-            },
-            h,
+          h.div(
+            [h.Class("flex flex-wrap gap-3")],
+            [
+              appButton(
+                {
+                  text: message("team.rename.action"),
+                  type: "submit",
+                  isDisabled: state.renameBusy,
+                },
+                h,
+              ),
+              appButton(
+                {
+                  text: message("confirm.cancel"),
+                  onClick: actions.onToggleRename,
+                  className: secondaryButtonClass,
+                },
+                h,
+              ),
+            ],
           ),
         ].filter(Predicate.isNotNull),
       ),
     );
   }
 
-  // Roster
   children.push(h.div([h.Class("mt-8")], [subSectionTitle(message("team.roster"), h, 2)]));
   children.push(
     h.ul(
@@ -372,22 +774,33 @@ export const teamScreenView = <Message>(
                 ),
               ],
             ),
-            mayRemove
-              ? h.div(
-                  [h.Class("flex flex-wrap gap-4")],
-                  [
-                    appButton(
-                      {
-                        text: message(isLead ? "team.removeLead" : "team.removeMember"),
-                        isDisabled: state.rosterBusy,
-                        className: linkButton,
-                        onClick: isLead
-                          ? actions.onRemoveLead(entry.personId)
-                          : actions.onRemoveMember(entry.personId),
-                      },
-                      h,
-                    ),
-                  ],
+            mayRemove && state.pendingRemove?.personId !== entry.personId
+              ? appButton(
+                  {
+                    text: message(isLead ? "team.removeLead" : "team.removeMember"),
+                    isDisabled: state.rosterBusy,
+                    className: dangerButtonClass,
+                    onClick: isLead
+                      ? actions.onRemoveLead(entry.personId)
+                      : actions.onRemoveMember(entry.personId),
+                  },
+                  h,
+                )
+              : null,
+            mayRemove && state.pendingRemove?.personId === entry.personId
+              ? confirmDialog(
+                  {
+                    title: message("confirm.removeTitle"),
+                    body: message("confirm.removeMemberBody", {
+                      email: state.pendingRemove.email,
+                    }),
+                    confirmText: message("team.removeMember"),
+                    cancelText: message("confirm.cancel"),
+                    isBusy: state.rosterBusy,
+                    onConfirm: actions.onConfirmRemove,
+                    onCancel: actions.onCancelRemove,
+                  },
+                  h,
                 )
               : null,
           ].filter(Predicate.isNotNull),
@@ -399,8 +812,25 @@ export const teamScreenView = <Message>(
     children.push(problemView(state.rosterFailure, h)!);
   }
 
-  // Add Member
-  if (detail.may.manageMembers) {
+  if (detail.may.manageMembers && !state.addMemberOpen) {
+    children.push(
+      h.div(
+        [h.Class("mt-6")],
+        [
+          appButton(
+            {
+              text: message("team.addMember.open"),
+              onClick: actions.onToggleAddMember,
+              className: secondaryButtonClass,
+            },
+            h,
+          ),
+        ],
+      ),
+    );
+  }
+
+  if (detail.may.manageMembers && state.addMemberOpen) {
     children.push(
       h.form(
         [h.Class(formPanelClass), h.OnSubmit(actions.onSubmitAddMember)],
@@ -420,21 +850,51 @@ export const teamScreenView = <Message>(
           state.addMemberAdded
             ? h.p([h.Role("status"), h.Class("text-sm font-medium text-primary")], [message("team.added")])
             : null,
-          appButton(
-            {
-              text: message("team.addMember.action"),
-              type: "submit",
-              isDisabled: state.addMemberBusy,
-            },
-            h,
+          h.div(
+            [h.Class("flex flex-wrap gap-3")],
+            [
+              appButton(
+                {
+                  text: message("team.addMember.action"),
+                  type: "submit",
+                  isDisabled: state.addMemberBusy,
+                },
+                h,
+              ),
+              appButton(
+                {
+                  text: message("confirm.cancel"),
+                  onClick: actions.onToggleAddMember,
+                  className: secondaryButtonClass,
+                },
+                h,
+              ),
+            ],
           ),
         ].filter(Predicate.isNotNull),
       ),
     );
   }
 
-  // Assign Lead
-  if (detail.may.manageLeads) {
+  if (detail.may.manageLeads && !state.assignLeadOpen) {
+    children.push(
+      h.div(
+        [h.Class("mt-6")],
+        [
+          appButton(
+            {
+              text: message("team.assignLead.open"),
+              onClick: actions.onToggleAssignLead,
+              className: secondaryButtonClass,
+            },
+            h,
+          ),
+        ],
+      ),
+    );
+  }
+
+  if (detail.may.manageLeads && state.assignLeadOpen) {
     children.push(
       h.form(
         [h.Class(formPanelClass), h.OnSubmit(actions.onSubmitAssignLead)],
@@ -454,13 +914,26 @@ export const teamScreenView = <Message>(
           state.assignLeadAdded
             ? h.p([h.Role("status"), h.Class("text-sm font-medium text-primary")], [message("team.added")])
             : null,
-          appButton(
-            {
-              text: message("team.assignLead.action"),
-              type: "submit",
-              isDisabled: state.assignLeadBusy,
-            },
-            h,
+          h.div(
+            [h.Class("flex flex-wrap gap-3")],
+            [
+              appButton(
+                {
+                  text: message("team.assignLead.action"),
+                  type: "submit",
+                  isDisabled: state.assignLeadBusy,
+                },
+                h,
+              ),
+              appButton(
+                {
+                  text: message("confirm.cancel"),
+                  onClick: actions.onToggleAssignLead,
+                  className: secondaryButtonClass,
+                },
+                h,
+              ),
+            ],
           ),
         ].filter(Predicate.isNotNull),
       ),
@@ -470,15 +943,88 @@ export const teamScreenView = <Message>(
   return h.section([], children);
 };
 
-/** The failed sends of the Organization, for admins: what each was, who it was for, why it failed, and when. */
-const failedEmailsView = <Message>(failedEmails: LoadedFailedEmails, h: HtmlBuilder<Message>): Html => {
+const failedEmailReasonText = (reason: FailedEmail["reason"], code: string | null): string =>
+  code === null
+    ? failureReasonText(reason)
+    : message("email.reasonCode", { reason: failureReasonText(reason), code });
+
+const failedEmailStatusText = (state: EmailSendProgress): string => {
+  switch (state._tag) {
+    case "Queued":
+      return message("settings.failedEmails.status.queued");
+    case "Sending":
+      return message("settings.failedEmails.status.sending");
+    case "Sent":
+      return message("settings.failedEmails.status.sent");
+    case "Failed":
+      return message("settings.failedEmails.status.failed", {
+        reason: failedEmailReasonText(state.reason, state.code),
+      });
+  }
+};
+
+const failedEmailActionView = <Message>(
+  email: FailedEmail,
+  resend: FailedEmailResend | undefined,
+  onResend: (sendId: SendId) => Message,
+  h: HtmlBuilder<Message>,
+): Child => {
+  const resendButton = (isDisabled: boolean, text: string): Child =>
+    appButton({ text, isDisabled, className: linkButton, onClick: onResend(email.sendId) }, h);
+  const children: Array<Child> = [];
+  if (resend === undefined) {
+    if (email.resendable) children.push(resendButton(false, message("settings.failedEmails.resend")));
+  } else {
+    switch (resend._tag) {
+      case "Resending":
+        children.push(resendButton(true, message("settings.failedEmails.resending")));
+        break;
+      case "Resent":
+        children.push(h.p([h.Role("status")], [failedEmailStatusText(resend.state)]));
+        if (resend.statusUnavailable) {
+          children.push(h.p([], [message("settings.failedEmails.statusUnavailable")]));
+        }
+        if (resend.state._tag === "Failed") {
+          children.push(resendButton(false, message("settings.failedEmails.resend")));
+        }
+        break;
+      case "Failed":
+        if (resend.failure === "EmailNotResendable") {
+          children.push(h.p([h.Role("status")], [failureMessage(resend.failure)]));
+        } else {
+          children.push(h.p([h.Role("status")], [message("settings.failedEmails.resendFailed")]));
+          children.push(resendButton(false, message("settings.failedEmails.resend")));
+        }
+        break;
+    }
+  }
+  return children.length === 0 ? "" : h.div([h.Class("flex flex-col items-start gap-1 text-sm")], children);
+};
+
+const failedEmailsView = <Message>(
+  state: {
+    readonly failedEmails: LoadedFailedEmails;
+    readonly failedEmailResends: Readonly<Record<string, FailedEmailResend>>;
+  },
+  onResend: (sendId: SendId) => Message,
+  h: HtmlBuilder<Message>,
+): Html => {
+  const { failedEmails } = state;
   const children: Array<Child> = [subSectionTitle(message("settings.failedEmails.title"), h, 2)];
   if (failedEmails._tag === "Failed") {
     children.push(problemView(failedEmails.failure, h)!);
   } else if (failedEmails._tag === "Loaded") {
     const { emails } = failedEmails.list;
     if (emails.length === 0) {
-      children.push(emptyState(message("settings.failedEmails.empty"), h));
+      children.push(
+        emptyState(
+          {
+            title: message("settings.failedEmails.empty.title"),
+            body: message("settings.failedEmails.empty"),
+          },
+          h,
+        ),
+      );
     } else {
       children.push(
         h.div(
@@ -490,17 +1036,14 @@ const failedEmailsView = <Message>(failedEmails: LoadedFailedEmails, h: HtmlBuil
                 message("settings.failedEmails.recipient"),
                 message("settings.failedEmails.reason"),
                 message("settings.failedEmails.time"),
+                message("settings.failedEmails.action"),
               ],
               emails.map((email) => [
                 message(`email.kind.${email.kind}`),
                 email.recipient,
-                email.code === null
-                  ? failureReasonText(email.reason)
-                  : message("email.reasonCode", {
-                      reason: failureReasonText(email.reason),
-                      code: email.code,
-                    }),
+                failedEmailReasonText(email.reason, email.code),
                 formatDate(new Date(email.failedAt), { dateStyle: "medium", timeStyle: "short" }),
+                failedEmailActionView(email, state.failedEmailResends[email.sendId], onResend, h),
               ]),
               h,
             ),
@@ -516,25 +1059,32 @@ export const settingsScreenView = <Message>(
   state: {
     readonly settings: LoadedSettings;
     readonly failedEmails: LoadedFailedEmails;
+    readonly failedEmailResends: Readonly<Record<string, FailedEmailResend>>;
     readonly size: string;
     readonly sizeSaved: boolean;
     readonly sizeBusy: boolean;
     readonly sizeFailure?: Failure | undefined;
+    readonly sizeOpen: boolean;
     readonly aiBusy: boolean;
     readonly aiFailure?: Failure | undefined;
     readonly defaultLanguageBusy: boolean;
     readonly defaultLanguageFailure?: Failure | undefined;
     readonly peopleBusy: boolean;
     readonly peopleFailure?: Failure | undefined;
+    readonly pendingRemovePerson: { readonly personId: PersonId; readonly email: string } | undefined;
   },
   actions: {
     readonly onSizeChange: (size: string) => Message;
+    readonly onToggleSize: Message;
     readonly onSubmitSize: Message;
     readonly onAiProcessingToggle: (isOn: boolean) => Message;
     readonly onDefaultLanguageChange: (value: string) => Message;
     readonly onGrantAdmin: (personId: PersonId) => Message;
     readonly onRevokeAdmin: (personId: PersonId) => Message;
     readonly onRemovePerson: (personId: PersonId) => Message;
+    readonly onConfirmRemovePerson: Message;
+    readonly onCancelRemovePerson: Message;
+    readonly onResendFailedEmail: (sendId: SendId) => Message;
   },
   h: HtmlBuilder<Message>,
 ): Html => {
@@ -551,40 +1101,73 @@ export const settingsScreenView = <Message>(
 
   const { settings } = state.settings;
 
-  // MinimumGroupSizeForm
-  children.push(
-    h.form(
-      [h.Class(formPanelClass), h.OnSubmit(actions.onSubmitSize)],
-      [
-        textField(
-          {
-            id: "min-group-size",
-            label: message("settings.minimumGroupSize"),
-            value: state.size,
-            type: "number",
-            isDisabled: state.sizeBusy,
-            onInput: actions.onSizeChange,
-          },
-          h,
-        ),
-        h.p([h.Class("text-sm text-muted")], [message("settings.minimumGroupSize.help")]),
-        problemView(state.sizeFailure, h),
-        state.sizeSaved
-          ? h.p([h.Role("status"), h.Class("text-sm font-medium text-primary")], [message("settings.saved")])
-          : null,
-        appButton(
-          {
-            text: message("settings.save"),
-            type: "submit",
-            isDisabled: state.sizeBusy,
-          },
-          h,
-        ),
-      ].filter(Predicate.isNotNull),
-    ),
-  );
+  if (!state.sizeOpen) {
+    children.push(
+      h.div(
+        [h.Class("mt-6")],
+        [
+          appButton(
+            {
+              text: message("settings.minimumGroupSize.open"),
+              onClick: actions.onToggleSize,
+              className: secondaryButtonClass,
+            },
+            h,
+          ),
+        ],
+      ),
+    );
+  }
 
-  // AiProcessing
+  if (state.sizeOpen)
+    children.push(
+      h.form(
+        [h.Class(formPanelClass), h.OnSubmit(actions.onSubmitSize)],
+        [
+          textField(
+            {
+              id: "min-group-size",
+              label: message("settings.minimumGroupSize"),
+              value: state.size,
+              type: "number",
+              isDisabled: state.sizeBusy,
+              onInput: actions.onSizeChange,
+            },
+            h,
+          ),
+          h.p([h.Class("text-sm text-muted")], [message("settings.minimumGroupSize.help")]),
+          problemView(state.sizeFailure, h),
+          state.sizeSaved
+            ? h.p(
+                [h.Role("status"), h.Class("text-sm font-medium text-primary")],
+                [message("settings.saved")],
+              )
+            : null,
+          h.div(
+            [h.Class("flex flex-wrap gap-3")],
+            [
+              appButton(
+                {
+                  text: message("settings.save"),
+                  type: "submit",
+                  isDisabled: state.sizeBusy,
+                },
+                h,
+              ),
+              appButton(
+                {
+                  text: message("confirm.cancel"),
+                  onClick: actions.onToggleSize,
+                  className: secondaryButtonClass,
+                },
+                h,
+              ),
+            ],
+          ),
+        ].filter(Predicate.isNotNull),
+      ),
+    );
+
   children.push(
     h.div(
       [h.Class(formPanelClass)],
@@ -606,7 +1189,6 @@ export const settingsScreenView = <Message>(
     ),
   );
 
-  // DefaultLanguage
   children.push(
     h.div(
       [h.Class(formPanelClass)],
@@ -615,7 +1197,7 @@ export const settingsScreenView = <Message>(
         selectField(
           {
             id: "default-language",
-            label: message("settings.defaultLanguage"),
+            label: message("settings.defaultLanguage.field"),
             value: settings.defaultLocale,
             options: [
               ["en", message("language.en")],
@@ -632,54 +1214,88 @@ export const settingsScreenView = <Message>(
     ),
   );
 
-  // People
   children.push(h.div([h.Class("mt-8")], [subSectionTitle(message("settings.people"), h, 2)]));
   children.push(
-    h.ul(
-      [h.Class("mt-3 rounded-panel border border-line bg-surface px-6")],
+    dataTable(
+      [message("settings.people.email"), message("settings.people.role"), message("settings.people.actions")],
       settings.people.map((person) => {
         const personId = decodePerson(person.personId);
-        return h.li(
-          [h.Class("border-b border-line-soft py-3 last:border-b-0")],
-          [
-            h.p(
-              [h.Class("flex flex-wrap items-center gap-2 font-medium")],
-              [
-                h.span([h.Class("min-w-0 break-all")], [person.email]),
-                person.organizationAdmin ? badge("primary", [message("settings.admin")], h) : null,
-                person.linked ? null : badge("neutral", [message("settings.notSignedInYet")], h),
-              ].filter(Predicate.isNotNull),
-            ),
-            h.div(
-              [h.Class("flex flex-wrap gap-x-4 gap-y-2")],
-              [
-                appButton(
-                  {
-                    text: message(person.organizationAdmin ? "settings.revokeAdmin" : "settings.makeAdmin"),
-                    isDisabled: state.peopleBusy,
-                    className: linkButton,
-                    onClick: person.organizationAdmin
-                      ? actions.onRevokeAdmin(person.personId)
-                      : actions.onGrantAdmin(person.personId),
-                  },
-                  h,
-                ),
-                Option.isSome(personId)
-                  ? appButton(
-                      {
-                        text: message("settings.removePerson"),
-                        isDisabled: state.peopleBusy,
-                        className: linkButton,
-                        onClick: actions.onRemovePerson(person.personId),
-                      },
-                      h,
-                    )
-                  : null,
-              ].filter(Predicate.isNotNull),
-            ),
-          ],
-        );
+        return [
+          h.div(
+            [h.Class("flex flex-wrap items-center gap-2")],
+            [
+              h.span([h.Class("min-w-0 break-all")], [person.email]),
+              person.linked ? null : badge("neutral", [message("settings.notSignedInYet")], h),
+            ].filter(Predicate.isNotNull),
+          ),
+          badge(
+            person.organizationAdmin ? "primary" : "neutral",
+            [message(person.organizationAdmin ? "settings.admin" : "settings.member")],
+            h,
+          ),
+          h.details(
+            [h.Class("relative")],
+            [
+              h.summary(
+                [
+                  h.Class(
+                    "inline-flex min-h-11 cursor-pointer list-none items-center gap-1 rounded-control border border-line bg-surface px-3 text-sm font-semibold text-ink hover:bg-subtle",
+                  ),
+                ],
+                [message("settings.people.actions"), h.span([h.AriaHidden(true)], [" \u203a"])],
+              ),
+              h.div(
+                [
+                  h.Class(
+                    "absolute right-0 z-20 mt-2 flex min-w-[12rem] flex-col items-start gap-2 rounded-panel border border-line bg-surface p-3 shadow-lg",
+                  ),
+                ],
+                [
+                  appButton(
+                    {
+                      text: message(person.organizationAdmin ? "settings.revokeAdmin" : "settings.makeAdmin"),
+                      isDisabled: state.peopleBusy,
+                      className: linkButton,
+                      onClick: person.organizationAdmin
+                        ? actions.onRevokeAdmin(person.personId)
+                        : actions.onGrantAdmin(person.personId),
+                    },
+                    h,
+                  ),
+                  Option.isSome(personId) && state.pendingRemovePerson?.personId !== person.personId
+                    ? appButton(
+                        {
+                          text: message("settings.removePerson"),
+                          isDisabled: state.peopleBusy,
+                          className: dangerLinkButton,
+                          onClick: actions.onRemovePerson(person.personId),
+                        },
+                        h,
+                      )
+                    : null,
+                  Option.isSome(personId) && state.pendingRemovePerson?.personId === person.personId
+                    ? confirmDialog(
+                        {
+                          title: message("confirm.removeTitle"),
+                          body: message("confirm.removePersonBody", {
+                            email: state.pendingRemovePerson.email,
+                          }),
+                          confirmText: message("settings.removePerson"),
+                          cancelText: message("confirm.cancel"),
+                          isBusy: state.peopleBusy,
+                          onConfirm: actions.onConfirmRemovePerson,
+                          onCancel: actions.onCancelRemovePerson,
+                        },
+                        h,
+                      )
+                    : null,
+                ].filter(Predicate.isNotNull),
+              ),
+            ],
+          ),
+        ];
       }),
+      h,
     ),
   );
 
@@ -687,7 +1303,7 @@ export const settingsScreenView = <Message>(
     children.push(problemView(state.peopleFailure, h)!);
   }
 
-  children.push(failedEmailsView(state.failedEmails, h));
+  children.push(failedEmailsView(state, actions.onResendFailedEmail, h));
 
   return h.section([], children);
 };

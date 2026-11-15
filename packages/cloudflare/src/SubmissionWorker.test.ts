@@ -1,3 +1,7 @@
+// @effect-diagnostics cryptoRandomUUIDInEffect:off -- the fixture needs a value, not a secure token.
+// @effect-diagnostics nodeBuiltinImport:off -- this file reads the repository from disk or spawns a process outside a Worker; the Effect FileSystem and ChildProcess services do not exist there.
+// @effect-diagnostics unsafeEffectTypeAssertion:off -- SAFETY: the assertion narrows the handler's response body to the type this test just provoked; the error channel is the test's own.
+
 import type * as Cloudflare from "@alchemy.run/cloudflare";
 import { assert, describe, it } from "@effect/vitest";
 import { hashToken } from "@surveybeat/domain";

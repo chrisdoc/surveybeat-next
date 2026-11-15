@@ -1,3 +1,5 @@
+// @effect-diagnostics nodeBuiltinImport:off -- this file reads the repository from disk or spawns a process outside a Worker; the Effect FileSystem and ChildProcess services do not exist there.
+
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -61,6 +63,34 @@ describe("surveybeat/no-literal-ui-text", () => {
 
   it("passes on text that comes from elsewhere", () => {
     expect(lint("apps/web/src/app/good-text.ts")).toHaveLength(0);
+  });
+});
+
+describe("no-comments/no-comments", () => {
+  it("fails on line and block prose", () => {
+    const diagnostics = lint("packages/comments/bad-prose.ts");
+    expect(diagnostics).toHaveLength(2);
+    expect(diagnostics.every((d) => d.code === "no-comments(no-comments)")).toBe(true);
+  });
+
+  it.each([
+    "packages/comments/good-directive.ts",
+    "packages/comments/good-safety.ts",
+    "packages/comments/good-jsdoc.ts",
+  ])("passes on %s", (file) => {
+    expect(lint(file)).toHaveLength(0);
+  });
+});
+
+describe("no-comments/directive-reason", () => {
+  it("fails on a directive without a reason", () => {
+    const diagnostics = lint("packages/comments/bad-directive.ts");
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0]?.code).toBe("no-comments(directive-reason)");
+  });
+
+  it("passes on a directive with a reason after --", () => {
+    expect(lint("packages/comments/good-directive.ts")).toHaveLength(0);
   });
 });
 

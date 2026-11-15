@@ -1,8 +1,11 @@
+// @effect-diagnostics globalDate:off -- the view formats or compares an instant that arrived from the API against the browser clock; nothing here is stored on the server.
+
 import {
   type PersonId,
   type PulseId,
   RoundId,
   RoundList,
+  type RoundStatus,
   type RoundSummary,
   type TeamId,
 } from "@surveybeat/domain";
@@ -15,18 +18,20 @@ import { Failure } from "./api.ts";
 import {
   appButton,
   badge,
-  buttonClass,
+  type BadgeVariant,
   type Child,
   emptyState,
+  confirmDialog,
   linkButton,
   linkClass,
   pageTitle,
   problemView,
   secondaryButtonClass,
   textField,
+  breadcrumbs,
 } from "./components.ts";
 import type { LoadedTeam } from "./directory.ts";
-import { pulseHref, roundResultsHref } from "./routes.ts";
+import { pulseHref, roundResultsHref, teamHref } from "./routes.ts";
 
 export const LoadedRounds = defineTaggedUnion({
   Loading: {},
@@ -35,14 +40,12 @@ export const LoadedRounds = defineTaggedUnion({
 });
 export type LoadedRounds = typeof LoadedRounds.Type;
 
-/** A destructive Lead action waiting for the Lead to confirm it. */
 export const RoundConfirm = Schema.Struct({
   kind: Schema.Literals(["close", "cancel"]),
   roundId: RoundId,
 });
 export type RoundConfirm = typeof RoundConfirm.Type;
 
-/** Only a Team's Lead gets the controls and the Results link; an Organization admin sees the list only. */
 export const isLead = (team: LoadedTeam): boolean =>
   team._tag === "Loaded" && team.detail.team.yourRole === "lead";
 
@@ -57,6 +60,17 @@ const roundDates = (round: RoundSummary): string =>
 const hasResults = (round: RoundSummary): boolean =>
   round.status === "closed" || round.status === "ready" || round.status === "shared";
 
+const statusVariant = (status: RoundStatus): BadgeVariant =>
+  status === "open"
+    ? "primary"
+    : status === "ready"
+      ? "brass"
+      : status === "shared"
+        ? "success"
+        : status === "cancelled"
+          ? "danger"
+          : "neutral";
+
 export const roundsScreenView = <Message>(
   state: {
     readonly teamId: TeamId;
@@ -67,6 +81,7 @@ export const roundsScreenView = <Message>(
     readonly rates: Readonly<Record<string, number | null>>;
     readonly confirm: RoundConfirm | undefined;
     readonly skipDate: string;
+    readonly skipOpen: boolean;
     readonly busy: boolean;
     readonly failure?: Failure | undefined;
   },
@@ -74,6 +89,7 @@ export const roundsScreenView = <Message>(
     readonly onSkipWeek: (plannedOpenDate: string) => Message;
     readonly onSkipDateChange: (date: string) => Message;
     readonly onSubmitSkipDate: Message;
+    readonly onToggleSkip: Message;
     readonly onPause: Message;
     readonly onResume: Message;
     readonly onAskConfirm: (kind: RoundConfirm["kind"], roundId: RoundId) => Message;
@@ -83,8 +99,20 @@ export const roundsScreenView = <Message>(
   },
   h: HtmlBuilder<Message>,
 ): Html => {
+  const teamName = state.team._tag === "Loaded" ? state.team.detail.team.name : message("title.team");
+  const pulseName =
+    state.rounds._tag === "Loaded"
+      ? (state.rounds.list.rounds[0]?.pulseName ?? message("title.pulse"))
+      : message("title.pulse");
   const children: Array<Child> = [
-    h.a([h.Href(pulseHref(state.teamId, state.pulseId)), h.Class(linkClass)], [message("rounds.back")]),
+    breadcrumbs(
+      [
+        { label: teamName, href: teamHref(state.teamId) },
+        { label: pulseName, href: pulseHref(state.teamId, state.pulseId) },
+        { label: message("rounds.title") },
+      ],
+      h,
+    ),
     h.div([h.Class("mt-4")], [pageTitle(message("rounds.title"), h)]),
   ];
 
@@ -135,28 +163,58 @@ export const roundsScreenView = <Message>(
                   ),
             ],
           ),
-          h.form(
-            [
-              h.Class("flex flex-col gap-4 rounded-panel border border-line bg-surface p-6"),
-              h.OnSubmit(actions.onSubmitSkipDate),
-            ],
-            [
-              textField(
+          state.skipOpen
+            ? null
+            : appButton(
                 {
-                  id: "skip-date",
-                  label: message("rounds.skipDate.label"),
-                  value: state.skipDate,
+                  text: message("rounds.skipDate.open"),
                   isDisabled: state.busy,
-                  onInput: actions.onSkipDateChange,
+                  className: secondaryButtonClass,
+                  onClick: actions.onToggleSkip,
                 },
                 h,
               ),
-              appButton(
-                { text: message("rounds.skipDate.action"), type: "submit", isDisabled: state.busy },
-                h,
-              ),
-            ],
-          ),
+          state.skipOpen
+            ? h.form(
+                [
+                  h.Class("flex flex-col gap-4 rounded-panel border border-line bg-surface p-6"),
+                  h.OnSubmit(actions.onSubmitSkipDate),
+                ],
+                [
+                  textField(
+                    {
+                      id: "skip-date",
+                      label: message("rounds.skipDate.label"),
+                      value: state.skipDate,
+                      isDisabled: state.busy,
+                      onInput: actions.onSkipDateChange,
+                    },
+                    h,
+                  ),
+                  h.div(
+                    [h.Class("flex flex-wrap gap-3")],
+                    [
+                      appButton(
+                        {
+                          text: message("rounds.skipDate.action"),
+                          type: "submit",
+                          isDisabled: state.busy,
+                        },
+                        h,
+                      ),
+                      appButton(
+                        {
+                          text: message("confirm.cancel"),
+                          onClick: actions.onToggleSkip,
+                          className: secondaryButtonClass,
+                        },
+                        h,
+                      ),
+                    ],
+                  ),
+                ],
+              )
+            : null,
         ].filter(Predicate.isNotNull),
       ),
     );
@@ -167,7 +225,7 @@ export const roundsScreenView = <Message>(
   }
 
   if (rounds.length === 0) {
-    children.push(emptyState(message("rounds.empty"), h));
+    children.push(emptyState({ title: message("rounds.empty.title"), body: message("rounds.empty") }, h));
     return h.section([], children);
   }
 
@@ -189,11 +247,7 @@ export const roundsScreenView = <Message>(
                   [h.Class("font-semibold")],
                   [message("rounds.round", { date: formatRoundDate(round.plannedOpenDate) })],
                 ),
-                badge(
-                  round.status === "open" ? "primary" : "neutral",
-                  [message(`rounds.status.${round.status}`)],
-                  h,
-                ),
+                badge(statusVariant(round.status), [message(`rounds.status.${round.status}`)], h),
               ],
             ),
             h.p([h.Class("text-sm text-muted")], [roundDates(round)]),
@@ -203,7 +257,18 @@ export const roundsScreenView = <Message>(
                   [message("rounds.responseRate", { rate: formatPercent(rate) })],
                 )
               : null,
-            lead && hasResults(round)
+            lead && round.status === "ready"
+              ? h.a(
+                  [
+                    h.Href(roundResultsHref(state.teamId, round.id)),
+                    h.Class(
+                      "inline-flex min-h-11 items-center rounded-control bg-primary px-4 text-sm font-semibold text-on-primary hover:opacity-90",
+                    ),
+                  ],
+                  [message("rounds.reviewShare")],
+                )
+              : null,
+            lead && hasResults(round) && round.status !== "ready"
               ? h.a(
                   [
                     h.Href(roundResultsHref(state.teamId, round.id)),
@@ -249,34 +314,17 @@ export const roundsScreenView = <Message>(
                 )
               : null,
             confirming !== undefined
-              ? h.div(
-                  [h.Role("alertdialog"), h.Class("flex flex-col gap-2 rounded-control bg-brass-soft p-4")],
-                  [
-                    h.p([h.Class("text-sm text-brass")], [message(`rounds.confirm.${confirming}`)]),
-                    h.div(
-                      [h.Class("flex gap-4")],
-                      [
-                        appButton(
-                          {
-                            text: message("rounds.confirm.yes"),
-                            isDisabled: state.busy,
-                            className: buttonClass,
-                            onClick: actions.onConfirm,
-                          },
-                          h,
-                        ),
-                        appButton(
-                          {
-                            text: message("rounds.confirm.no"),
-                            isDisabled: state.busy,
-                            className: secondaryButtonClass,
-                            onClick: actions.onDismissConfirm,
-                          },
-                          h,
-                        ),
-                      ],
-                    ),
-                  ],
+              ? confirmDialog(
+                  {
+                    title: message(confirming === "cancel" ? "rounds.cancel" : "rounds.closeEarly"),
+                    body: message(`rounds.confirm.${confirming}`),
+                    confirmText: message("rounds.confirm.yes"),
+                    cancelText: message("rounds.confirm.no"),
+                    isBusy: state.busy,
+                    onConfirm: actions.onConfirm,
+                    onCancel: actions.onDismissConfirm,
+                  },
+                  h,
                 )
               : null,
             failed.length > 0

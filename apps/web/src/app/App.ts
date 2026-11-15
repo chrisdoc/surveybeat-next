@@ -1,3 +1,6 @@
+// @effect-diagnostics globalDate:off -- the view formats or compares an instant that arrived from the API against the browser clock; nothing here is stored on the server.
+
+import { Popover } from "@foldkit/ui";
 import {
   ActionId,
   ActionItem,
@@ -7,6 +10,7 @@ import {
   Dimension,
   EmailAddress,
   FailedEmails,
+  FailedEmailStatus,
   Locale,
   MemberHistory,
   MinimumGroupSize,
@@ -40,27 +44,32 @@ import {
   Weekday,
 } from "@surveybeat/domain";
 import { Effect, Option, Schema } from "effect";
-import { Command, Navigation, type Update } from "foldkit";
+import { Command, Navigation, Update } from "foldkit";
 import type { Document, HtmlBuilder } from "foldkit/html";
 import { defineMessageUnion } from "foldkit/message";
 import { Url } from "foldkit/url";
-import { message, setLocale } from "../messages/locale.ts";
+import { formatRoundDate, message, message as translate, setLocale } from "../messages/locale.ts";
 import { Failure, runApi } from "./api.ts";
-import { privacyView, screenView } from "./components.ts";
+import { privacyContent, privacyView, screenView } from "./components.ts";
 import {
   decodeEmail,
   decodeName,
   decodeSize,
   decodeZone,
+  FAILED_EMAIL_POLL_INTERVAL,
+  failedEmailKeepsPolling,
+  FailedEmailResend,
   LoadedFailedEmails,
   LoadedSettings,
   LoadedTeam,
   LoadedTeams,
+  type NavSection,
   settingsScreenView,
   shellView,
   teamScreenView,
   teamsScreenView,
 } from "./directory.ts";
+import type { AttentionItem, ChecklistStep } from "./directory.ts";
 import { historyView, LoadedHistory } from "./history.ts";
 import { browserStorage, clearKeptAnswers, KeptAnswers, readKeptAnswers } from "./keptAnswers.ts";
 import { LoadedOverview, teamOverviewView } from "./overview.ts";
@@ -77,7 +86,16 @@ import {
 } from "./pulses.ts";
 import { GuideCopy, LoadedActions, LoadedNote, LoadedResults, resultsScreenView } from "./results.ts";
 import { isLead, LoadedRounds, RoundConfirm, roundsScreenView } from "./rounds.ts";
-import { AppRoute, pulseHref, teamHref, urlToAppRoute } from "./routes.ts";
+import {
+  AppRoute,
+  pulseHref,
+  pulsesHref,
+  roundResultsHref,
+  roundsHref,
+  teamHref,
+  urlToAppRoute,
+} from "./routes.ts";
+import { screenTitle } from "./titles.ts";
 import {
   chooseOrganizationView,
   createOrganizationView,
@@ -89,26 +107,26 @@ import {
   signInView,
 } from "./session.ts";
 
-// ==========================================
-// MODEL
-// ==========================================
-
 export const Model = Schema.Struct({
   url: Url,
   route: AppRoute,
   session: SessionModel,
-  // The browser's language, if SurveyBeat has one of its languages (ADR 0018)
+
   browserLocale: Schema.NullOr(Locale),
   languageBusy: Schema.Boolean,
   languageFailure: Schema.Option(Failure),
-  // Teams screen
+
+  navMenu: Popover.Model,
+  accountMenu: Popover.Model,
+
   teams: LoadedTeams,
   createTeamName: Schema.String,
   createTeamTimeZone: Schema.String,
   createTeamLeadEmail: Schema.String,
   createTeamBusy: Schema.Boolean,
   createTeamFailure: Schema.Option(Failure),
-  // Team detail screen
+  createTeamOpen: Schema.Boolean,
+
   teamDetail: LoadedTeam,
   teamOverview: LoadedOverview,
   renameName: Schema.String,
@@ -125,12 +143,25 @@ export const Model = Schema.Struct({
   assignLeadFailure: Schema.Option(Failure),
   rosterBusy: Schema.Boolean,
   rosterFailure: Schema.Option(Failure),
-  // Settings screen
+  renameOpen: Schema.Boolean,
+  addMemberOpen: Schema.Boolean,
+  assignLeadOpen: Schema.Boolean,
+
+  pendingRemove: Schema.Option(
+    Schema.Struct({
+      kind: Schema.Literals(["member", "lead"]),
+      personId: PersonId,
+      email: Schema.String,
+    }),
+  ),
+  pendingRemovePerson: Schema.Option(Schema.Struct({ personId: PersonId, email: Schema.String })),
+
   settings: LoadedSettings,
   size: Schema.String,
   sizeSaved: Schema.Boolean,
   sizeBusy: Schema.Boolean,
   sizeFailure: Schema.Option(Failure),
+  sizeOpen: Schema.Boolean,
   aiBusy: Schema.Boolean,
   aiFailure: Schema.Option(Failure),
   defaultLanguageBusy: Schema.Boolean,
@@ -138,11 +169,17 @@ export const Model = Schema.Struct({
   peopleBusy: Schema.Boolean,
   peopleFailure: Schema.Option(Failure),
   failedEmails: LoadedFailedEmails,
-  // Pulses list screen
+
+  failedEmailResends: Schema.Record(Schema.String, FailedEmailResend),
+
   pulses: LoadedPulses,
+
+  homePulses: Schema.Record(Schema.String, PulseList),
+  homeRounds: Schema.Record(Schema.String, RoundList),
+  homeActions: Schema.Record(Schema.String, Schema.Array(ActionItem)),
   createPulseBusy: Schema.Boolean,
   createPulseFailure: Schema.Option(Failure),
-  // Pulse editor screen
+
   pulseDetail: LoadedPulse,
   pulseActionBusy: Schema.Boolean,
   pulseActionFailure: Schema.Option(Failure),
@@ -168,25 +205,26 @@ export const Model = Schema.Struct({
   settingsFailure: Schema.Option(Failure),
   testSendBusy: Schema.Boolean,
   testSendResult: Schema.Option(TestSendResult),
-  // Rounds screen
+
   rounds: LoadedRounds,
   roundDetails: Schema.Record(Schema.String, RoundDetail),
   roundRates: Schema.Record(Schema.String, Schema.NullOr(Schema.Finite)),
   roundConfirm: Schema.Option(RoundConfirm),
   roundsSkipDate: Schema.String,
+  roundsSkipOpen: Schema.Boolean,
   roundsBusy: Schema.Boolean,
   roundsFailure: Schema.Option(Failure),
-  // Results screen
+
   results: LoadedResults,
   showTable: Schema.Record(Schema.String, Schema.Boolean),
-  // History screen
+
   history: LoadedHistory,
   guideCopy: GuideCopy,
   shareBusy: Schema.Boolean,
   shareFailure: Schema.Option(Failure),
   retryBusy: Schema.Boolean,
   retryFailure: Schema.Option(Failure),
-  // Actions
+
   actions: LoadedActions,
   actionTitle: Schema.String,
   actionOwnerId: Schema.Option(PersonId),
@@ -194,7 +232,9 @@ export const Model = Schema.Struct({
   actionDimension: Schema.Union([Dimension, Schema.Literal("none")]),
   actionBusy: Schema.Boolean,
   actionFailure: Schema.Option(Failure),
-  // Lead's Note on the Round
+  actionFormOpen: Schema.Boolean,
+  pendingDropId: Schema.Option(ActionId),
+
   roundNote: LoadedNote,
   noteDraft: Schema.String,
   noteEditing: Schema.Boolean,
@@ -202,10 +242,6 @@ export const Model = Schema.Struct({
   noteFailure: Schema.Option(Failure),
 });
 export type Model = typeof Model.Type;
-
-// ==========================================
-// MESSAGES
-// ==========================================
 
 export const OutcomeResults = Schema.Union([
   Schema.TaggedStruct("Success", { result: RoundResult }),
@@ -271,32 +307,44 @@ export const OutcomeFailedEmails = Schema.Union([
   Schema.TaggedStruct("Success", { list: FailedEmails }),
   Schema.TaggedStruct("Failure", { failure: Failure }),
 ]);
+export const OutcomeFailedEmailStatus = Schema.Union([
+  Schema.TaggedStruct("Success", { status: FailedEmailStatus }),
+  Schema.TaggedStruct("Failure", { failure: Failure }),
+]);
 export const OutcomeVoid = Schema.Union([
   Schema.TaggedStruct("Success", {}),
   Schema.TaggedStruct("Failure", { failure: Failure }),
 ]);
 
 export const Message = defineMessageUnion({
-  // Navigation
   UrlRequested: { request: Navigation.UrlRequest },
   UrlChanged: { url: Url },
   Navigated: {},
-  // Session
+
   GotSession: { result: SessionResult },
   RetrySession: {},
+  SignInEmailChanged: { email: Schema.String },
+  SignInCodeChanged: { code: Schema.String },
+  SubmitSignInEmail: {},
+  SubmitSignInCode: {},
+  SignInCodeSent: { sent: Schema.Boolean },
+  SignInCodeChecked: { verified: Schema.Boolean },
   CreateOrgNameChanged: { name: Schema.String },
   SubmitCreateOrg: {},
   ChooseOrgClicked: { organizationId: OrganizationId },
   LanguageChanged: { value: Schema.String },
   UpdatedOwnLanguage: { chosen: Schema.Boolean, outcome: OutcomeVoid },
-  // Teams screen
+
+  GotNavMenuMessage: { message: Popover.Message },
+  GotAccountMenuMessage: { message: Popover.Message },
+
   GotTeams: { outcome: OutcomeTeams },
   CreateTeamNameChanged: { name: Schema.String },
   CreateTeamTimeZoneChanged: { tz: Schema.String },
   CreateTeamLeadEmailChanged: { email: Schema.String },
   SubmitCreateTeam: {},
   CreatedTeam: { outcome: OutcomeTeamDetail },
-  // Team detail screen
+
   GotTeam: { outcome: OutcomeTeamDetail },
   GotTeamOverview: { outcome: OutcomeTeamOverview },
   RenameNameChanged: { name: Schema.String },
@@ -309,11 +357,22 @@ export const Message = defineMessageUnion({
   AssignLeadEmailChanged: { email: Schema.String },
   SubmitAssignLead: {},
   AssignedLead: { outcome: OutcomeVoid },
+  ToggleForm: {
+    form: Schema.Literals([
+      "createTeam",
+      "renameTeam",
+      "addMember",
+      "assignLead",
+      "skipWeek",
+      "commitAction",
+      "minimumSize",
+    ]),
+  },
   RemoveMemberClicked: { personId: PersonId },
   RemovedMember: { outcome: OutcomeVoid },
   RemoveLeadClicked: { personId: PersonId },
   RemovedLead: { outcome: OutcomeVoid },
-  // Settings screen
+
   GotSettings: { outcome: OutcomeSettings },
   SizeChanged: { size: Schema.String },
   SubmitSize: {},
@@ -323,17 +382,25 @@ export const Message = defineMessageUnion({
   DefaultLanguageChanged: { value: Schema.String },
   UpdatedDefaultLanguage: { outcome: OutcomeVoid },
   GotFailedEmails: { outcome: OutcomeFailedEmails },
+  ResendFailedEmailClicked: { sendId: SendId },
+  ResentFailedEmail: { sendId: SendId, outcome: OutcomeFailedEmailStatus },
+  PolledFailedEmail: { sendId: SendId, outcome: OutcomeFailedEmailStatus },
   GrantAdminClicked: { personId: PersonId },
   GrantedAdmin: { outcome: OutcomeVoid },
   RevokeAdminClicked: { personId: PersonId },
   RevokedAdmin: { outcome: OutcomeVoid },
   RemovePersonClicked: { personId: PersonId },
+  ConfirmRemove: {},
+  DismissRemove: {},
+  AskDropAction: { actionId: ActionId },
+  ConfirmDropAction: {},
+  DismissDropAction: {},
   RemovedPerson: { outcome: OutcomeVoid },
-  // Pulses list screen
+
   GotPulses: { outcome: OutcomePulses },
   CreatePulseClicked: {},
   CreatedPulse: { outcome: OutcomePulseDetail },
-  // Pulse editor screen
+
   GotPulse: { outcome: OutcomePulseDetail },
   MoveQuestionClicked: { index: Schema.Finite, by: Schema.Finite },
   ToggleEditQuestion: { questionId: Schema.Option(QuestionId) },
@@ -359,7 +426,7 @@ export const Message = defineMessageUnion({
   SendTestInvitationClicked: {},
   SentTestInvitation: { outcome: OutcomeTestSent },
   PolledTestSend: { sendId: SendId, outcome: OutcomeTestSendStatus },
-  // Rounds screen
+
   GotRounds: { outcome: OutcomeRounds },
   GotRoundDetail: { roundId: RoundId, outcome: OutcomeRoundDetail },
   GotRoundRate: { roundId: RoundId, outcome: OutcomeResults },
@@ -373,11 +440,11 @@ export const Message = defineMessageUnion({
   RoundConfirmed: {},
   ResendInvitationClicked: { roundId: RoundId, personId: PersonId },
   RoundCommandDone: { outcome: OutcomeVoid },
-  // History screen
+
   GotMyHistory: { outcome: OutcomeMyHistory },
   ClearKeptAnswersClicked: {},
   ClearedKeptAnswers: {},
-  // Results screen
+
   GotResults: { outcome: OutcomeResults },
   ToggleResultsTable: { key: Schema.String },
   CopyGuide: { text: Schema.String },
@@ -386,7 +453,7 @@ export const Message = defineMessageUnion({
   ResultsShareDone: { outcome: OutcomeVoid },
   RetryResultClicked: {},
   RetryResultDone: { outcome: OutcomeVoid },
-  // Actions
+
   GotActions: { outcome: OutcomeActions },
   ActionTitleChanged: { title: Schema.String },
   ActionOwnerChanged: { personId: PersonId },
@@ -396,7 +463,7 @@ export const Message = defineMessageUnion({
   CreatedAction: { outcome: OutcomeActionItem },
   UpdateActionStatus: { actionId: ActionId, status: ActionStatus },
   UpdatedAction: { outcome: OutcomeActionItem },
-  // Lead's Note on the Round
+
   GotRoundNote: { outcome: OutcomeRoundNote },
   NoteEditClicked: {},
   NoteDraftChanged: { text: Schema.String },
@@ -406,15 +473,33 @@ export const Message = defineMessageUnion({
 });
 export type Message = typeof Message.Type;
 
-// ==========================================
-// COMMANDS
-// ==========================================
-
 export const LoadSession = Command.define("LoadSession", {
   messages: [Message.GotSession],
   execute: Effect.suspend(() =>
     runSessionCall((api) => api.auth.session()).pipe(Effect.map((result) => Message.GotSession({ result }))),
   ),
+});
+
+export const SendSignInCode = Command.define("SendSignInCode", {
+  args: { email: EmailAddress },
+  messages: [Message.SignInCodeSent],
+  execute: ({ email }) =>
+    runApi(
+      (api) => api.auth.sendSignInCode({ payload: { email } }),
+      () => Message.SignInCodeSent({ sent: true }),
+      () => Message.SignInCodeSent({ sent: false }),
+    ),
+});
+
+export const VerifySignInCode = Command.define("VerifySignInCode", {
+  args: { email: EmailAddress, code: Schema.String },
+  messages: [Message.SignInCodeChecked],
+  execute: ({ email, code }) =>
+    runApi(
+      (api) => api.auth.verifySignInCode({ payload: { email, code } }),
+      (result) => Message.SignInCodeChecked({ verified: result.verified }),
+      () => Message.SignInCodeChecked({ verified: false }),
+    ),
 });
 
 export const CreateOrganization = Command.define("CreateOrganization", {
@@ -435,7 +520,6 @@ export const ChooseOrganization = Command.define("ChooseOrganization", {
     ),
 });
 
-/** Saves the Person's language (`locale`, `null` to follow the browser) or records the browser's language seen at sign-in (`detectedLocale`). */
 export const UpdateOwnLanguage = Command.define("UpdateOwnLanguage", {
   args: {
     locale: Schema.optionalKey(Schema.NullOr(Locale)),
@@ -573,6 +657,37 @@ export const ListFailedEmails = Command.define("ListFailedEmails", {
   ),
 });
 
+export const ResendFailedEmailCmd = Command.define("ResendFailedEmailCmd", {
+  args: { sendId: SendId },
+  messages: [Message.ResentFailedEmail],
+  execute: ({ sendId }) =>
+    runApi(
+      (api) => api.directory.resendFailedEmail({ params: { sendId } }),
+      (status) => Message.ResentFailedEmail({ sendId, outcome: { _tag: "Success", status } }),
+      (failure) => Message.ResentFailedEmail({ sendId, outcome: { _tag: "Failure", failure } }),
+    ),
+});
+
+export const PollFailedEmailCmd = Command.define("PollFailedEmailCmd", {
+  args: { sendId: SendId },
+  messages: [Message.PolledFailedEmail],
+  execute: ({ sendId }) =>
+    Effect.sleep(FAILED_EMAIL_POLL_INTERVAL).pipe(
+      Effect.andThen(
+        runApi(
+          (api) => api.directory.getEmailStatus({ params: { sendId } }),
+          (status) => Message.PolledFailedEmail({ sendId, outcome: { _tag: "Success", status } }),
+          (failure) => Message.PolledFailedEmail({ sendId, outcome: { _tag: "Failure", failure } }),
+        ),
+      ),
+    ),
+});
+
+const withFailedEmailResend = (model: Model, sendId: SendId, resend: FailedEmailResend): Model => ({
+  ...model,
+  failedEmailResends: { ...model.failedEmailResends, [sendId]: resend },
+});
+
 export const UpdateSettings = Command.define("UpdateSettings", {
   args: { minimumGroupSize: MinimumGroupSize },
   messages: [Message.UpdatedSettings],
@@ -697,7 +812,6 @@ export const SendTestInvitationCmd = Command.define("SendTestInvitationCmd", {
     ),
 });
 
-/** Reads a test send's state after the poll interval. The update decides whether to read it again. */
 export const PollTestSendCmd = Command.define("PollTestSendCmd", {
   args: { teamId: TeamId, pulseId: PulseId, sendId: SendId },
   messages: [Message.PolledTestSend],
@@ -885,7 +999,6 @@ export const GetResultsCmd = Command.define("GetResultsCmd", {
 export const GetMyHistoryCmd = Command.define("GetMyHistoryCmd", {
   messages: [Message.GotMyHistory],
   execute: Effect.suspend(() =>
-    // The request carries nothing from this device: the kept answers are read only once the history has loaded.
     runApi(
       (api) => api.rounds.getMyHistory({}),
       (history) => {
@@ -1030,11 +1143,6 @@ export const LoadExternalUrl = Command.define("LoadExternalUrl", {
   execute: ({ href }) => Navigation.load(href).pipe(Effect.as(Message.Navigated())),
 });
 
-// ==========================================
-// INIT
-// ==========================================
-
-/** The browser's language, read once at start-up. `null` when there is no browser or none of its languages is SurveyBeat's. */
 const detectBrowserLocale = (): Locale | null =>
   typeof navigator === "undefined" ? null : (browserLocale(navigator.languages) ?? null);
 
@@ -1048,12 +1156,15 @@ export const initialModel = (url: Url): Model => {
     browserLocale: detectBrowserLocale(),
     languageBusy: false,
     languageFailure: Option.none(),
+    navMenu: Popover.init({ id: "nav-menu" }),
+    accountMenu: Popover.init({ id: "account-menu" }),
     teams: { _tag: "Loading" },
     createTeamName: "",
     createTeamTimeZone: timeZone,
     createTeamLeadEmail: "",
     createTeamBusy: false,
     createTeamFailure: Option.none(),
+    createTeamOpen: false,
     teamDetail: { _tag: "Loading" },
     teamOverview: { _tag: "Loading" },
     renameName: "",
@@ -1070,11 +1181,17 @@ export const initialModel = (url: Url): Model => {
     assignLeadFailure: Option.none(),
     rosterBusy: false,
     rosterFailure: Option.none(),
+    renameOpen: false,
+    addMemberOpen: false,
+    assignLeadOpen: false,
+    pendingRemove: Option.none(),
+    pendingRemovePerson: Option.none(),
     settings: { _tag: "Loading" },
     size: "3",
     sizeSaved: false,
     sizeBusy: false,
     sizeFailure: Option.none(),
+    sizeOpen: false,
     aiBusy: false,
     aiFailure: Option.none(),
     defaultLanguageBusy: false,
@@ -1082,7 +1199,11 @@ export const initialModel = (url: Url): Model => {
     peopleBusy: false,
     peopleFailure: Option.none(),
     failedEmails: { _tag: "Loading" },
+    failedEmailResends: {},
     pulses: { _tag: "Loading" },
+    homePulses: {},
+    homeRounds: {},
+    homeActions: {},
     createPulseBusy: false,
     createPulseFailure: Option.none(),
     pulseDetail: { _tag: "Loading" },
@@ -1115,6 +1236,7 @@ export const initialModel = (url: Url): Model => {
     roundRates: {},
     roundConfirm: Option.none(),
     roundsSkipDate: "",
+    roundsSkipOpen: false,
     roundsBusy: false,
     roundsFailure: Option.none(),
     results: { _tag: "Loading" },
@@ -1132,6 +1254,8 @@ export const initialModel = (url: Url): Model => {
     actionDimension: "none",
     actionBusy: false,
     actionFailure: Option.none(),
+    actionFormOpen: false,
+    pendingDropId: Option.none(),
     roundNote: { _tag: "Loading" },
     noteDraft: "",
     noteEditing: false,
@@ -1140,12 +1264,114 @@ export const initialModel = (url: Url): Model => {
   };
 };
 
+const attentionItems = (model: Model): ReadonlyArray<AttentionItem> => {
+  if (model.route._tag !== "Teams") return [];
+  if (model.teams._tag !== "Loaded") return [];
+  const items: Array<AttentionItem> = [];
+  for (const team of model.teams.teams) {
+    const pulses = model.homePulses[team.id];
+    if (pulses !== undefined) {
+      for (const pulse of pulses.pulses) {
+        const rounds = model.homeRounds[pulse.id];
+        if (rounds === undefined) continue;
+        for (const round of rounds.rounds) {
+          if (round.status === "closed" || round.status === "ready") {
+            items.push({
+              label: message("home.attention.share"),
+              text: round.pulseName,
+              detail: message("home.attention.shareDetail", {
+                team: team.name,
+                date: formatRoundDate(round.plannedOpenDate),
+              }),
+              href: roundResultsHref(team.id, round.id),
+            });
+          } else if (round.status === "open") {
+            items.push({
+              label: message("home.attention.open"),
+              text: round.pulseName,
+              detail: message("home.attention.openDetail", {
+                team: team.name,
+                date: formatRoundDate(round.plannedOpenDate),
+              }),
+              href: roundsHref(team.id, pulse.id),
+            });
+          }
+        }
+      }
+    }
+    const actions = model.homeActions[team.id];
+    if (actions === undefined) continue;
+    for (const action of actions) {
+      if (action.status !== "committed") continue;
+      items.push({
+        label: message("home.attention.action"),
+        text: action.title,
+        detail: message("home.attention.actionDetail", {
+          team: team.name,
+          owner: action.ownerEmail,
+        }),
+        href: roundResultsHref(team.id, action.roundId),
+      });
+    }
+  }
+  return items;
+};
+
+const firstRunChecklist = (model: Model): ReadonlyArray<ChecklistStep> | null => {
+  const route = model.route;
+  if (route._tag !== "Team") return null;
+  if (model.teamDetail._tag !== "Loaded") return null;
+  const detail = model.teamDetail.detail;
+  if (!detail.may.managePulses) return null;
+  if (model.pulses._tag !== "Loaded") return null;
+  if (model.pulses.pulses.pulses.length > 0 && model.rounds._tag !== "Loaded") return null;
+  const rounds = model.rounds._tag === "Loaded" ? model.rounds.list.rounds : [];
+  if (rounds.some((round) => round.status !== "scheduled" && round.status !== "open")) return null;
+  const firstPulse = model.pulses.pulses.pulses[0];
+  const scheduled = rounds.find((round) => round.status === "scheduled" || round.status === "open");
+  const members = detail.roster.length;
+  return [
+    {
+      text: message("team.checklist.members"),
+      detail: message("team.checklist.membersDetail", { count: String(members) }),
+      href: teamHref(route.teamId),
+      done: members > 0,
+    },
+    {
+      text: message("team.checklist.pulse"),
+      detail: message("team.checklist.pulseDetail"),
+      href: pulsesHref(route.teamId),
+      done: firstPulse !== undefined,
+    },
+    {
+      text: message("team.checklist.test"),
+      detail: message("team.checklist.testDetail"),
+      href: firstPulse === undefined ? pulsesHref(route.teamId) : pulseHref(route.teamId, firstPulse.id),
+      done: scheduled !== undefined,
+    },
+    {
+      text:
+        scheduled === undefined
+          ? message("team.checklist.round")
+          : message("team.checklist.roundScheduled", {
+              date: formatRoundDate(scheduled.plannedOpenDate),
+            }),
+      href: firstPulse === undefined ? pulsesHref(route.teamId) : roundsHref(route.teamId, firstPulse.id),
+      done: false,
+    },
+  ];
+};
+
 export const loadActiveRouteCommand = (route: AppRoute) => {
   switch (route._tag) {
     case "Teams":
       return [ListTeams()];
     case "Team":
-      return [GetTeam({ teamId: route.teamId }), GetTeamOverviewCmd({ teamId: route.teamId })];
+      return [
+        GetTeam({ teamId: route.teamId }),
+        GetTeamOverviewCmd({ teamId: route.teamId }),
+        ListPulses({ teamId: route.teamId }),
+      ];
     case "History":
       return [GetMyHistoryCmd()];
     case "Settings":
@@ -1155,7 +1381,6 @@ export const loadActiveRouteCommand = (route: AppRoute) => {
     case "Pulse":
       return [GetPulse({ teamId: route.teamId, pulseId: route.pulseId })];
     case "Rounds":
-      // The Team loads first: its role decides which follow-up calls the Rounds screen makes.
       return [GetTeam({ teamId: route.teamId })];
     case "RoundResults":
       return [
@@ -1175,25 +1400,59 @@ export const init = (url: Url): Update.Return<Model, Message> => ({
   commands: [LoadSession()],
 });
 
-// ==========================================
-// UPDATE
-// ==========================================
-
-/** A language `<select>` value: "" follows the browser (`null`); anything else that is not a Locale is ignored (`undefined`). */
 const languageChoice = (value: string): Locale | null | undefined => {
   if (value === "") return null;
   return Schema.is(Locale)(value) ? value : undefined;
 };
 
-/** True when a Note response belongs to the Round on screen. */
+const foldNavMenu = Update.foldChild({
+  update: Popover.update,
+  read: (model: Model) => Option.some(model.navMenu),
+  write: (model: Model, navMenu: Popover.Model) => ({ ...model, navMenu }),
+  toParentMessage: (message: Popover.Message) => Message.GotNavMenuMessage({ message }),
+  foldOutMessage: () => (model: Model) => ({ model }),
+});
+const foldAccountMenu = Update.foldChild({
+  update: Popover.update,
+  read: (model: Model) => Option.some(model.accountMenu),
+  write: (model: Model, accountMenu: Popover.Model) => ({ ...model, accountMenu }),
+  toParentMessage: (message: Popover.Message) => Message.GotAccountMenuMessage({ message }),
+  foldOutMessage: () => (model: Model) => ({ model }),
+});
+
+const closeHeaderMenus = (model: Model): Update.Return<Model, Message> => {
+  const closedNav = foldNavMenu(model, Popover.Message.RequestedClose());
+  const closedAccount = foldAccountMenu(closedNav.model, Popover.Message.RequestedClose());
+  return {
+    model: closedAccount.model,
+    commands: [...(closedNav.commands ?? []), ...(closedAccount.commands ?? [])],
+  };
+};
+
+const navSectionOf = (route: AppRoute, organizationAdmin: boolean): NavSection | null => {
+  switch (route._tag) {
+    case "Teams":
+    case "NotFound":
+    case "Team":
+    case "Pulses":
+    case "Pulse":
+    case "Rounds":
+    case "RoundResults":
+      return "teams";
+    case "History":
+      return "history";
+    case "Settings":
+      return organizationAdmin ? "settings" : "teams";
+    case "Privacy":
+      return null;
+  }
+};
+
 const isCurrentRoundNote = (model: Model, roundId: RoundId): boolean =>
   model.route._tag === "RoundResults" && model.route.roundId === roundId;
 
 export const update = (model: Model, message: Message): Update.Return<Model, Message> => {
   switch (message._tag) {
-    // ----------------------------------------
-    // Navigation
-    // ----------------------------------------
     case "UrlRequested": {
       const { request } = message;
       if (request._tag === "Internal") {
@@ -1227,11 +1486,15 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         teamOverview: { _tag: "Loading" },
         history: { _tag: "Loading" },
         pulses: { _tag: "Loading" },
+        homePulses: {},
+        homeRounds: {},
+        homeActions: {},
         pulseDetail: { _tag: "Loading" },
         testSendBusy: false,
         testSendResult: Option.none(),
         settings: { _tag: "Loading" },
         failedEmails: { _tag: "Loading" },
+        failedEmailResends: {},
         teams: { _tag: "Loading" },
         results: { _tag: "Loading" },
         guideCopy: "idle",
@@ -1259,21 +1522,19 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         noteBusy: false,
         noteFailure: Option.none(),
       };
+      const closed = closeHeaderMenus(nextModel);
       if (model.session._tag === "SignedIn") {
         return {
-          model: nextModel,
-          commands: loadActiveRouteCommand(route),
+          model: closed.model,
+          commands: [...(closed.commands ?? []), ...loadActiveRouteCommand(route)],
         };
       }
-      return { model: nextModel };
+      return closed;
     }
 
     case "Navigated":
       return { model };
 
-    // ----------------------------------------
-    // Session
-    // ----------------------------------------
     case "GotSession": {
       const sessionResult = message.result;
       const failedParam = Option.isSome(model.url.search) && model.url.search.value.includes("signin=failed");
@@ -1283,7 +1544,15 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
           return {
             model: {
               ...model,
-              session: { _tag: "SignedOut", failed: failedParam },
+              session: {
+                _tag: "SignedOut",
+                failed: failedParam,
+                stage: "email",
+                email: "",
+                code: "",
+                busy: false,
+                notice: null,
+              },
             },
           };
         case "Failed":
@@ -1330,7 +1599,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
               organizationLocale: sessionResult.organizationLocale,
             },
           };
-          // A Person who has not chosen a language gets the browser's language recorded once (ADR 0018).
+
           const detect =
             sessionResult.locale === null &&
             model.browserLocale !== null &&
@@ -1350,6 +1619,69 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       return {
         model: { ...model, session: { _tag: "Loading" } },
         commands: [LoadSession()],
+      };
+
+    case "SignInEmailChanged":
+      return model.session._tag === "SignedOut"
+        ? { model: { ...model, session: { ...model.session, email: message.email } } }
+        : { model };
+
+    case "SignInCodeChanged":
+      return model.session._tag === "SignedOut"
+        ? { model: { ...model, session: { ...model.session, code: message.code } } }
+        : { model };
+
+    case "SubmitSignInEmail":
+      if (model.session._tag !== "SignedOut" || model.session.busy) return { model };
+      if (model.session.email.trim() === "") return { model };
+      return {
+        model: { ...model, session: { ...model.session, busy: true, notice: null } },
+        commands: [SendSignInCode({ email: EmailAddress.make(model.session.email.trim()) })],
+      };
+
+    case "SubmitSignInCode":
+      if (model.session._tag !== "SignedOut" || model.session.busy) return { model };
+      if (model.session.code.trim() === "") return { model };
+      return {
+        model: { ...model, session: { ...model.session, busy: true, notice: null } },
+        commands: [
+          VerifySignInCode({
+            email: EmailAddress.make(model.session.email.trim()),
+            code: model.session.code.trim(),
+          }),
+        ],
+      };
+
+    case "SignInCodeSent":
+      if (model.session._tag !== "SignedOut") return { model };
+      return {
+        model: {
+          ...model,
+          session: {
+            ...model.session,
+            busy: false,
+            stage: message.sent ? "code" : model.session.stage,
+            code: "",
+            notice: message.sent
+              ? translate("signIn.sent", { email: model.session.email.trim() })
+              : translate("signIn.sendFailed"),
+          },
+        },
+      };
+
+    case "SignInCodeChecked":
+      if (model.session._tag !== "SignedOut") return { model };
+      if (message.verified) {
+        return {
+          model: { ...model, session: { ...model.session, busy: false, notice: null } },
+          commands: [LoadSession()],
+        };
+      }
+      return {
+        model: {
+          ...model,
+          session: { ...model.session, busy: false, notice: translate("signIn.failed") },
+        },
       };
 
     case "CreateOrgNameChanged":
@@ -1406,7 +1738,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
 
     case "UpdatedOwnLanguage": {
       const { chosen, outcome } = message;
-      // Only a language the Person chose shows progress or a problem; a recorded browser language is best effort.
+
       const settled: Model = chosen ? { ...model, languageBusy: false } : model;
       if (outcome._tag === "Success") {
         return chosen ? { model: settled, commands: [LoadSession()] } : { model };
@@ -1415,16 +1747,19 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         return { model: settled, commands: [LoadSession()] };
       }
       if (!chosen) return { model };
-      // LoadSession brings back the stored language, so the select shows what the server holds again.
+
       return {
         model: { ...settled, languageFailure: Option.some(outcome.failure) },
         commands: [LoadSession()],
       };
     }
 
-    // ----------------------------------------
-    // Teams screen
-    // ----------------------------------------
+    case "GotNavMenuMessage":
+      return foldNavMenu(model, message.message);
+
+    case "GotAccountMenuMessage":
+      return foldAccountMenu(model, message.message);
+
     case "GotTeams": {
       const { outcome } = message;
       if (outcome._tag === "Success") {
@@ -1433,6 +1768,12 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
             ...model,
             teams: { _tag: "Loaded", teams: outcome.teams },
           },
+          commands:
+            model.route._tag === "Teams"
+              ? outcome.teams
+                  .filter((team) => team.yourRole === "lead")
+                  .map((team) => ListPulses({ teamId: team.id }))
+              : [],
         };
       }
       if (outcome.failure === "Unauthenticated") {
@@ -1491,9 +1832,6 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       };
     }
 
-    // ----------------------------------------
-    // Team detail screen
-    // ----------------------------------------
     case "GotTeam": {
       const { outcome } = message;
       if (outcome._tag === "Success") {
@@ -1648,10 +1986,17 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
 
     case "RemoveMemberClicked": {
       if (model.teamDetail._tag !== "Loaded") return { model };
-      const teamId = model.teamDetail.detail.team.id;
+      const entry = model.teamDetail.detail.roster.find((row) => row.personId === message.personId);
       return {
-        model: { ...model, rosterBusy: true, rosterFailure: Option.none() },
-        commands: [RemoveMember({ teamId, personId: message.personId })],
+        model: {
+          ...model,
+          rosterFailure: Option.none(),
+          pendingRemove: Option.some({
+            kind: "member",
+            personId: message.personId,
+            email: entry?.email ?? "",
+          }),
+        },
       };
     }
 
@@ -1678,12 +2023,49 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
 
     case "RemoveLeadClicked": {
       if (model.teamDetail._tag !== "Loaded") return { model };
-      const teamId = model.teamDetail.detail.team.id;
+      const entry = model.teamDetail.detail.roster.find((row) => row.personId === message.personId);
       return {
-        model: { ...model, rosterBusy: true, rosterFailure: Option.none() },
-        commands: [RemoveLead({ teamId, personId: message.personId })],
+        model: {
+          ...model,
+          rosterFailure: Option.none(),
+          pendingRemove: Option.some({
+            kind: "lead",
+            personId: message.personId,
+            email: entry?.email ?? "",
+          }),
+        },
       };
     }
+
+    case "ConfirmRemove": {
+      if (Option.isSome(model.pendingRemovePerson)) {
+        const personId = model.pendingRemovePerson.value.personId;
+        return {
+          model: {
+            ...model,
+            pendingRemovePerson: Option.none(),
+            peopleBusy: true,
+            peopleFailure: Option.none(),
+          },
+          commands: [RemovePerson({ personId })],
+        };
+      }
+      if (Option.isNone(model.pendingRemove)) return { model };
+      if (model.teamDetail._tag !== "Loaded") return { model };
+      const pending = model.pendingRemove.value;
+      const teamId = model.teamDetail.detail.team.id;
+      return {
+        model: { ...model, pendingRemove: Option.none(), rosterBusy: true, rosterFailure: Option.none() },
+        commands: [
+          pending.kind === "lead"
+            ? RemoveLead({ teamId, personId: pending.personId })
+            : RemoveMember({ teamId, personId: pending.personId }),
+        ],
+      };
+    }
+
+    case "DismissRemove":
+      return { model: { ...model, pendingRemove: Option.none(), pendingRemovePerson: Option.none() } };
 
     case "RemovedLead": {
       if (model.teamDetail._tag !== "Loaded") return { model };
@@ -1706,9 +2088,6 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       };
     }
 
-    // ----------------------------------------
-    // Settings screen
-    // ----------------------------------------
     case "GotSettings": {
       const { outcome } = message;
       if (outcome._tag === "Success") {
@@ -1740,6 +2119,71 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         return { model, commands: [LoadSession()] };
       }
       return { model: { ...model, failedEmails: { _tag: "Failed", failure: outcome.failure } } };
+    }
+
+    case "ResendFailedEmailClicked": {
+      const { sendId } = message;
+      const current = model.failedEmailResends[sendId];
+
+      if (
+        model.failedEmails._tag !== "Loaded" ||
+        current?._tag === "Resending" ||
+        (current?._tag === "Resent" && current.state._tag !== "Failed") ||
+        (current?._tag === "Failed" && current.failure === "EmailNotResendable")
+      ) {
+        return { model };
+      }
+      return {
+        model: withFailedEmailResend(model, sendId, { _tag: "Resending" }),
+        commands: [ResendFailedEmailCmd({ sendId })],
+      };
+    }
+
+    case "ResentFailedEmail": {
+      const { sendId, outcome } = message;
+
+      if (model.failedEmailResends[sendId]?._tag !== "Resending") return { model };
+      if (outcome._tag === "Failure") {
+        const failed = withFailedEmailResend(model, sendId, { _tag: "Failed", failure: outcome.failure });
+        return outcome.failure === "Unauthenticated"
+          ? { model: failed, commands: [LoadSession()] }
+          : { model: failed };
+      }
+      const { state } = outcome.status;
+      const next = withFailedEmailResend(model, sendId, {
+        _tag: "Resent",
+        state,
+        polls: 0,
+        statusUnavailable: false,
+      });
+      if (!failedEmailKeepsPolling(state, 0)) return { model: next };
+      return { model: next, commands: [PollFailedEmailCmd({ sendId })] };
+    }
+
+    case "PolledFailedEmail": {
+      const { sendId, outcome } = message;
+      const current = model.failedEmailResends[sendId];
+
+      if (current?._tag !== "Resent") return { model };
+      if (outcome._tag === "Failure") {
+        const failed = withFailedEmailResend(model, sendId, { ...current, statusUnavailable: true });
+        return outcome.failure === "Unauthenticated"
+          ? { model: failed, commands: [LoadSession()] }
+          : { model: failed };
+      }
+      const polls = current.polls + 1;
+      const { state } = outcome.status;
+      const keepsPolling = failedEmailKeepsPolling(state, polls);
+      const settled = state._tag === "Sent" || state._tag === "Failed";
+      const next = withFailedEmailResend(model, sendId, {
+        _tag: "Resent",
+        state,
+        polls,
+
+        statusUnavailable: !keepsPolling && !settled,
+      });
+      if (!keepsPolling) return { model: next };
+      return { model: next, commands: [PollFailedEmailCmd({ sendId })] };
     }
 
     case "SizeChanged":
@@ -1776,7 +2220,6 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     }
 
     case "AiProcessingToggled":
-      // A click on the checkbox can arrive twice (label and input); ignore toggles while saving.
       if (model.aiBusy) return { model };
       return {
         model: { ...model, aiBusy: true, aiFailure: Option.none() },
@@ -1810,7 +2253,6 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     case "UpdatedDefaultLanguage": {
       const { outcome } = message;
       if (outcome._tag === "Success") {
-        // The default reaches every Person without a choice: reloading the session reloads the settings too.
         return {
           model: { ...model, defaultLanguageBusy: false },
           commands: [LoadSession()],
@@ -1878,11 +2320,56 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       };
     }
 
-    case "RemovePersonClicked":
+    case "RemovePersonClicked": {
+      const person =
+        model.settings._tag === "Loaded"
+          ? model.settings.settings.people.find((row) => row.personId === message.personId)
+          : undefined;
       return {
-        model: { ...model, peopleBusy: true, peopleFailure: Option.none() },
-        commands: [RemovePerson({ personId: message.personId })],
+        model: {
+          ...model,
+          peopleFailure: Option.none(),
+          pendingRemovePerson: Option.some({
+            personId: message.personId,
+            email: person?.email ?? "",
+          }),
+        },
       };
+    }
+
+    case "AskDropAction":
+      return { model: { ...model, pendingDropId: Option.some(message.actionId) } };
+
+    case "DismissDropAction":
+      return { model: { ...model, pendingDropId: Option.none() } };
+
+    case "ConfirmDropAction": {
+      if (Option.isNone(model.pendingDropId)) return { model };
+      return update(
+        model,
+        Message.UpdateActionStatus({ actionId: model.pendingDropId.value, status: "dropped" }),
+      );
+    }
+
+    case "ToggleForm": {
+      switch (message.form) {
+        case "createTeam":
+          return { model: { ...model, createTeamOpen: !model.createTeamOpen } };
+        case "renameTeam":
+          return { model: { ...model, renameOpen: !model.renameOpen } };
+        case "addMember":
+          return { model: { ...model, addMemberOpen: !model.addMemberOpen } };
+        case "assignLead":
+          return { model: { ...model, assignLeadOpen: !model.assignLeadOpen } };
+        case "skipWeek":
+          return { model: { ...model, roundsSkipOpen: !model.roundsSkipOpen } };
+        case "commitAction":
+          return { model: { ...model, actionFormOpen: !model.actionFormOpen } };
+        case "minimumSize":
+          return { model: { ...model, sizeOpen: !model.sizeOpen } };
+      }
+      return { model };
+    }
 
     case "RemovedPerson": {
       if (message.outcome._tag === "Success") {
@@ -1903,9 +2390,6 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       };
     }
 
-    // ----------------------------------------
-    // Pulses list screen
-    // ----------------------------------------
     case "GotPulses": {
       const { outcome } = message;
       if (outcome._tag === "Success") {
@@ -1913,7 +2397,22 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
           model: {
             ...model,
             pulses: { _tag: "Loaded", pulses: outcome.pulses },
+            homePulses:
+              model.route._tag === "Teams"
+                ? { ...model.homePulses, [outcome.pulses.team.id]: outcome.pulses }
+                : model.homePulses,
           },
+          commands:
+            model.route._tag === "Team" && outcome.pulses.pulses[0] !== undefined
+              ? [ListRoundsCmd({ teamId: model.route.teamId, pulseId: outcome.pulses.pulses[0].id })]
+              : model.route._tag === "Teams"
+                ? [
+                    ...outcome.pulses.pulses.map((pulse) =>
+                      ListRoundsCmd({ teamId: outcome.pulses.team.id, pulseId: pulse.id }),
+                    ),
+                    ListActionsCmd({ teamId: outcome.pulses.team.id }),
+                  ]
+                : [],
         };
       }
       if (outcome.failure === "Unauthenticated") {
@@ -1958,9 +2457,6 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       };
     }
 
-    // ----------------------------------------
-    // Pulse editor screen
-    // ----------------------------------------
     case "GotPulse": {
       const { outcome } = message;
       if (outcome._tag === "Success") {
@@ -2265,7 +2761,6 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     case "SentTestInvitation": {
       const { outcome } = message;
       if (outcome._tag === "Success") {
-        // Only the editor of the Pulse that was sent from shows the result; a send that returns after the user left is dropped.
         if (model.route._tag !== "Pulse" || model.route.pulseId !== outcome.pulseId) {
           return { model: { ...model, testSendBusy: false } };
         }
@@ -2300,7 +2795,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     case "PolledTestSend": {
       const { sendId, outcome } = message;
       const current = Option.getOrUndefined(model.testSendResult);
-      // Only the send on screen is updated; a read that returns after the user left or sent another test is dropped.
+
       if (current?._tag !== "Sent" || current.sendId !== sendId) return { model };
       if (outcome._tag === "Failure") {
         const failed: Model = {
@@ -2323,9 +2818,6 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       };
     }
 
-    // ----------------------------------------
-    // Rounds screen
-    // ----------------------------------------
     case "GotRounds": {
       const { outcome } = message;
       if (outcome._tag === "Failure") {
@@ -2347,7 +2839,14 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         }
       }
       return {
-        model: { ...model, rounds: { _tag: "Loaded", list: outcome.list } },
+        model: {
+          ...model,
+          rounds: { _tag: "Loaded", list: outcome.list },
+          homeRounds:
+            model.route._tag === "Teams"
+              ? { ...model.homeRounds, [outcome.list.pulseId]: outcome.list }
+              : model.homeRounds,
+        },
         commands,
       };
     }
@@ -2478,7 +2977,6 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     case "GotTeamOverview": {
       const { outcome } = message;
       if (outcome._tag === "Success") {
-        // A response for a Team the user has since navigated away from is stale: drop it.
         const isCurrentTeam = model.route._tag === "Team" && model.route.teamId === outcome.overview.teamId;
         if (!isCurrentTeam) return { model };
         return {
@@ -2496,13 +2994,9 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       };
     }
 
-    // ----------------------------------------
-    // History screen
-    // ----------------------------------------
     case "GotMyHistory": {
       const { outcome } = message;
       if (outcome._tag === "Success") {
-        // A response that arrives after the user has left the History screen is stale: drop it.
         if (model.route._tag !== "History") return { model };
         return {
           model: {
@@ -2529,9 +3023,6 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         model: { ...model, history: { ...model.history, kept: {}, cleared: true } },
       };
 
-    // ----------------------------------------
-    // Results screen
-    // ----------------------------------------
     case "GotResults": {
       const { outcome } = message;
       if (outcome._tag === "Success") {
@@ -2586,7 +3077,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       if (outcome._tag === "Failure") {
         return { model: { ...model, shareBusy: false, shareFailure: Option.some(outcome.failure) } };
       }
-      // Sharing changes what the page shows, so reload the Results the same way the page loads them.
+
       const reload =
         model.route._tag === "RoundResults"
           ? [GetResultsCmd({ teamId: model.route.teamId, roundId: model.route.roundId })]
@@ -2607,7 +3098,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       if (outcome._tag === "Failure") {
         return { model: { ...model, retryBusy: false, retryFailure: Option.some(outcome.failure) } };
       }
-      // A retry that succeeds changes what the page shows, so reload the Results as the page loads them.
+
       const reload =
         model.route._tag === "RoundResults"
           ? [GetResultsCmd({ teamId: model.route.teamId, roundId: model.route.roundId })]
@@ -2615,9 +3106,6 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       return { model: { ...model, retryBusy: false, retryFailure: Option.none() }, commands: reload };
     }
 
-    // ----------------------------------------
-    // Actions
-    // ----------------------------------------
     case "GotActions": {
       const { outcome } = message;
       if (outcome._tag === "Success") {
@@ -2625,6 +3113,10 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
           model: {
             ...model,
             actions: { _tag: "Loaded", actions: outcome.list.actions },
+            homeActions:
+              model.route._tag === "Teams"
+                ? { ...model.homeActions, [outcome.list.teamId]: outcome.list.actions }
+                : model.homeActions,
           },
         };
       }
@@ -2732,13 +3224,9 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       return { model: { ...model, actionFailure: Option.some(outcome.failure) } };
     }
 
-    // ----------------------------------------
-    // Lead's Note on the Round
-    // ----------------------------------------
     case "GotRoundNote": {
       const { outcome } = message;
       if (outcome._tag === "Success") {
-        // Drop a late response for a Round the person has already left.
         if (!isCurrentRoundNote(model, outcome.view.roundId)) return { model };
         return {
           model: {
@@ -2811,15 +3299,6 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
   }
 };
 
-// ==========================================
-// VIEW
-// ==========================================
-
-/**
- * The language a Model is shown in (ADR 0018): a signed-in Person's own choice, then the browser's
- * language, then the Organization's default. Other screens have no Person, so they use the browser's
- * language or English.
- */
 export const localeOf = (model: Model): Locale => {
   if (model.session._tag === "SignedIn") {
     return resolveLocale({
@@ -2832,17 +3311,15 @@ export const localeOf = (model: Model): Locale => {
 };
 
 export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
-  // The browser app has one reader, so the language follows the model: every message below reads the live binding.
   setLocale(localeOf(model));
 
-  if (model.route._tag === "Privacy") {
+  if (model.route._tag === "Privacy" && model.session._tag !== "SignedIn") {
     return {
       title: message("privacy.title"),
       body: privacyView(h),
     };
   }
 
-  // Session states
   if (model.session._tag === "Loading") {
     return {
       title: message("app.title"),
@@ -2853,7 +3330,23 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
   if (model.session._tag === "SignedOut") {
     return {
       title: message("signIn.title"),
-      body: signInView(model.session.failed, h),
+      body: signInView(
+        {
+          failed: model.session.failed,
+          stage: model.session.stage,
+          email: model.session.email,
+          code: model.session.code,
+          busy: model.session.busy,
+          notice: model.session.notice,
+        },
+        {
+          onEmail: (email) => Message.SignInEmailChanged({ email }),
+          onCode: (code) => Message.SignInCodeChanged({ code }),
+          onSubmitEmail: Message.SubmitSignInEmail(),
+          onSubmitCode: Message.SubmitSignInCode(),
+        },
+        h,
+      ),
     };
   }
 
@@ -2866,7 +3359,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
 
   if (model.session._tag === "CreateOrganization") {
     return {
-      title: message("createOrganization.title"),
+      title: message("title.session", { screen: message("createOrganization.title") }),
       body: createOrganizationView(
         model.session.name,
         model.session.busy,
@@ -2879,14 +3372,14 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
 
   if (model.session._tag === "NotInOrganization") {
     return {
-      title: message("notInOrganization.title"),
+      title: message("title.session", { screen: message("notInOrganization.title") }),
       body: notInOrganizationView(h),
     };
   }
 
   if (model.session._tag === "ChooseOrganization") {
     return {
-      title: message("chooseOrganization.title"),
+      title: message("title.session", { screen: message("chooseOrganization.title") }),
       body: chooseOrganizationView(
         model.session.organizations,
         model.session.busy,
@@ -2896,9 +3389,15 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
     };
   }
 
-  // Signed In
   const { organization, organizationAdmin, locale } = model.session;
-  const shellTitle = message("signedIn.title", { organization: organization.name });
+  const shellTitle = screenTitle({
+    route: model.route,
+    organizationName: organization.name,
+    organizationAdmin,
+    teamDetail: model.teamDetail,
+    pulses: model.pulses,
+    pulseDetail: model.pulseDetail,
+  });
 
   let screenContent = null;
   switch (model.route._tag) {
@@ -2907,18 +3406,21 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
       screenContent = teamsScreenView(
         {
           teams: model.teams,
+          attention: attentionItems(model),
           organizationAdmin,
           createName: model.createTeamName,
           createTimeZone: model.createTeamTimeZone,
           createLeadEmail: model.createTeamLeadEmail,
           createBusy: model.createTeamBusy,
           createFailure: Option.getOrUndefined(model.createTeamFailure),
+          createOpen: model.createTeamOpen,
         },
         {
           onNameChange: (name) => Message.CreateTeamNameChanged({ name }),
           onTimeZoneChange: (tz) => Message.CreateTeamTimeZoneChanged({ tz }),
           onLeadEmailChange: (email) => Message.CreateTeamLeadEmailChanged({ email }),
           onSubmitCreate: Message.SubmitCreateTeam(),
+          onToggleCreate: Message.ToggleForm({ form: "createTeam" }),
         },
         h,
       );
@@ -2928,6 +3430,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
       screenContent = teamScreenView(
         {
           team: model.teamDetail,
+          checklist: firstRunChecklist(model),
           renameName: model.renameName,
           renameTimeZone: model.renameTimeZone,
           renameBusy: model.renameBusy,
@@ -2942,6 +3445,10 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
           assignLeadFailure: Option.getOrUndefined(model.assignLeadFailure),
           rosterBusy: model.rosterBusy,
           rosterFailure: Option.getOrUndefined(model.rosterFailure),
+          renameOpen: model.renameOpen,
+          addMemberOpen: model.addMemberOpen,
+          assignLeadOpen: model.assignLeadOpen,
+          pendingRemove: Option.getOrUndefined(model.pendingRemove),
         },
         {
           onRenameNameChange: (name) => Message.RenameNameChanged({ name }),
@@ -2953,6 +3460,11 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
           onSubmitAssignLead: Message.SubmitAssignLead(),
           onRemoveMember: (personId) => Message.RemoveMemberClicked({ personId }),
           onRemoveLead: (personId) => Message.RemoveLeadClicked({ personId }),
+          onToggleRename: Message.ToggleForm({ form: "renameTeam" }),
+          onToggleAddMember: Message.ToggleForm({ form: "addMember" }),
+          onToggleAssignLead: Message.ToggleForm({ form: "assignLead" }),
+          onConfirmRemove: Message.ConfirmRemove(),
+          onCancelRemove: Message.DismissRemove(),
         },
         teamOverviewView(
           model.teamOverview,
@@ -2964,28 +3476,34 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
       );
       break;
 
+    case "Privacy":
+      screenContent = h.div([], privacyContent(h));
+      break;
+
     case "History":
       screenContent = historyView(model.history, { onClear: Message.ClearKeptAnswersClicked() }, h);
       break;
 
     case "Settings":
       if (!organizationAdmin) {
-        // Fallback to teams if not admin
         screenContent = teamsScreenView(
           {
             teams: model.teams,
+            attention: attentionItems(model),
             organizationAdmin: false,
             createName: model.createTeamName,
             createTimeZone: model.createTeamTimeZone,
             createLeadEmail: model.createTeamLeadEmail,
             createBusy: model.createTeamBusy,
             createFailure: Option.getOrUndefined(model.createTeamFailure),
+            createOpen: model.createTeamOpen,
           },
           {
             onNameChange: (name) => Message.CreateTeamNameChanged({ name }),
             onTimeZoneChange: (tz) => Message.CreateTeamTimeZoneChanged({ tz }),
             onLeadEmailChange: (email) => Message.CreateTeamLeadEmailChanged({ email }),
             onSubmitCreate: Message.SubmitCreateTeam(),
+            onToggleCreate: Message.ToggleForm({ form: "createTeam" }),
           },
           h,
         );
@@ -2997,22 +3515,29 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
             sizeSaved: model.sizeSaved,
             sizeBusy: model.sizeBusy,
             sizeFailure: Option.getOrUndefined(model.sizeFailure),
+            sizeOpen: model.sizeOpen,
             aiBusy: model.aiBusy,
             aiFailure: Option.getOrUndefined(model.aiFailure),
             defaultLanguageBusy: model.defaultLanguageBusy,
             defaultLanguageFailure: Option.getOrUndefined(model.defaultLanguageFailure),
             peopleBusy: model.peopleBusy,
             peopleFailure: Option.getOrUndefined(model.peopleFailure),
+            pendingRemovePerson: Option.getOrUndefined(model.pendingRemovePerson),
             failedEmails: model.failedEmails,
+            failedEmailResends: model.failedEmailResends,
           },
           {
             onSizeChange: (size) => Message.SizeChanged({ size }),
+            onToggleSize: Message.ToggleForm({ form: "minimumSize" }),
             onSubmitSize: Message.SubmitSize(),
             onAiProcessingToggle: (isOn) => Message.AiProcessingToggled({ isOn }),
             onDefaultLanguageChange: (value) => Message.DefaultLanguageChanged({ value }),
             onGrantAdmin: (personId) => Message.GrantAdminClicked({ personId }),
             onRevokeAdmin: (personId) => Message.RevokeAdminClicked({ personId }),
             onRemovePerson: (personId) => Message.RemovePersonClicked({ personId }),
+            onConfirmRemovePerson: Message.ConfirmRemove(),
+            onCancelRemovePerson: Message.DismissRemove(),
+            onResendFailedEmail: (sendId) => Message.ResendFailedEmailClicked({ sendId }),
           },
           h,
         );
@@ -3111,6 +3636,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
           rates: model.roundRates,
           confirm: Option.getOrUndefined(model.roundConfirm),
           skipDate: model.roundsSkipDate,
+          skipOpen: model.roundsSkipOpen,
           busy: model.roundsBusy,
           failure: Option.getOrUndefined(model.roundsFailure),
         },
@@ -3118,6 +3644,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
           onSkipWeek: (plannedOpenDate) => Message.SkipWeekClicked({ plannedOpenDate }),
           onSkipDateChange: (date) => Message.SkipDateChanged({ date }),
           onSubmitSkipDate: Message.SubmitSkipDate(),
+          onToggleSkip: Message.ToggleForm({ form: "skipWeek" }),
           onPause: Message.PausePulseClicked(),
           onResume: Message.ResumePulseClicked(),
           onAskConfirm: (kind, roundId) => Message.RoundConfirmRequested({ kind, roundId }),
@@ -3147,6 +3674,8 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
           actionDimension: model.actionDimension,
           actionBusy: model.actionBusy,
           actionFailure: model.actionFailure,
+          actionFormOpen: model.actionFormOpen,
+          pendingDropId: Option.getOrUndefined(model.pendingDropId),
           roundNote: model.roundNote,
           noteDraft: model.noteDraft,
           noteEditing: model.noteEditing,
@@ -3171,6 +3700,10 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
               dimension: Schema.is(Dimension)(dim) ? dim : "none",
             }),
           onSubmitAction: Message.SubmitAction(),
+          onToggleActionForm: Message.ToggleForm({ form: "commitAction" }),
+          onAskDrop: (actionId) => Message.AskDropAction({ actionId }),
+          onConfirmDrop: Message.ConfirmDropAction(),
+          onCancelDrop: Message.DismissDropAction(),
           onUpdateActionStatus: (actionId, status) => Message.UpdateActionStatus({ actionId, status }),
         },
         h,
@@ -3181,8 +3714,16 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
   return {
     title: shellTitle,
     body: shellView(
-      shellTitle,
-      organizationAdmin,
+      {
+        organizationName: organization.name,
+        organizationAdmin,
+        section: navSectionOf(model.route, organizationAdmin),
+        privacyCurrent: model.route._tag === "Privacy",
+        navMenu: model.navMenu,
+        accountMenu: model.accountMenu,
+        onNavMenu: (message) => Message.GotNavMenuMessage({ message }),
+        onAccountMenu: (message) => Message.GotAccountMenuMessage({ message }),
+      },
       [screenContent],
       {
         value: locale,

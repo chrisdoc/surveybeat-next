@@ -1,32 +1,20 @@
-/**
- * The deterministic A4 harness (ADR 0005, invariant A4): after k Submissions written in a known
- * order, nothing in a dump predicts which Participation record goes with which Submission.
- *
- * A subject writes one Participant at a time through its own storage and then dumps two tables.
- * Every key the subject mints must come from Effect's `Random`, which the harness seeds, so each
- * run is identical. The harness then runs the known attacks against the dump and measures how many
- * pairs each one recovers. Chance is one correct pair, so the bar is at most `MAX_MATCHES` (2/k).
- */
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Random from "effect/Random";
 
-/** k from the privacy suite design (issue #25, section 2). */
 export const K = 200;
 
-/** Three fixed seeds. A run is the same on every machine, so a failure is never a flake. */
 export const SEEDS: ReadonlyArray<string> = ["a4-alpha", "a4-bravo", "a4-charlie"];
 
-/** At most 2 of k pairs may be recovered by any attack (match rate ≤ 2/k). */
 export const MAX_MATCHES = 2;
 
 export type Row = Readonly<Record<string, unknown>>;
 
 export interface Table {
   readonly name: string;
-  /** The primary key columns, most significant first. A rowid table without one uses `["rowid"]`. */
+
   readonly key: ReadonlyArray<string>;
-  /** Every row, in the order the dump returned it. Include a `rowid` column when the table has one. */
+
   readonly rows: ReadonlyArray<Row>;
 }
 
@@ -35,18 +23,15 @@ export interface Dump {
   readonly submission: Table;
 }
 
-/** One Person answering. Both values are random and unique, so the harness can find the true pairs. */
 export interface Participant {
-  /** Must be stored verbatim in the Participation record, for example as the Person id. */
   readonly person: string;
-  /** Must be stored verbatim in the Submission row, for example as an Answer value. */
+
   readonly answer: string;
 }
 
 export interface Subject<E, R> {
-  /** Writes the Participation record and the Submission of one Participant, as the product does. */
   readonly write: (participant: Participant) => Effect.Effect<void, E, R>;
-  /** Reads both tables back the way an operator would dump them. */
+
   readonly dump: Effect.Effect<Dump, E, R>;
 }
 
@@ -54,7 +39,7 @@ export type AttackName = "rank" | "keyOrder" | "sharedColumns" | "rowid";
 
 export interface AttackResult {
   readonly attack: AttackName;
-  /** Expected number of correctly recovered pairs. Ties count as a uniform guess among them. */
+
   readonly matches: number;
   readonly detail: string;
 }
@@ -75,7 +60,6 @@ export class LinkableDump extends Data.TaggedError("LinkableDump")<{
   }
 }
 
-/** A random 128-bit value as hex, from the seeded `Random`. */
 export const randomHex = (bytes = 16): Effect.Effect<string> =>
   Effect.gen(function* () {
     let hex = "";
@@ -85,19 +69,11 @@ export const randomHex = (bytes = 16): Effect.Effect<string> =>
     return hex;
   });
 
-/**
- * A byte source drawn from the seeded `Random`, for a subject whose storage mints its own keys
- * (for example Submission ids). Read it inside `makeSubject` so it follows the harness's seed.
- */
 export const seededRandomBytes: Effect.Effect<(size: number) => Uint8Array> = Effect.gen(function* () {
   const random = yield* Random.Random;
   return (size) => Uint8Array.from({ length: size }, () => Math.floor(random.nextDoubleUnsafe() * 256));
 });
 
-/**
- * Writes k Participants in index order into a fresh subject and runs every attack, once per seed.
- * `makeSubject` runs inside the seeded `Random`, so it must create fresh, empty storage each time.
- */
 export const measure = <E, R>(
   makeSubject: Effect.Effect<Subject<E, R>, E, R>,
   options: { readonly k?: number; readonly seeds?: ReadonlyArray<string> } = {},
@@ -117,7 +93,6 @@ export const measure = <E, R>(
   );
 };
 
-/** Fails with `LinkableDump` when any attack recovers more than `MAX_MATCHES` pairs for any seed. */
 export const assertUnlinkable = <E, R>(
   makeSubject: Effect.Effect<Subject<E, R>, E, R>,
   options: { readonly k?: number; readonly seeds?: ReadonlyArray<string> } = {},
@@ -133,11 +108,6 @@ export const assertUnlinkable = <E, R>(
     }),
   );
 
-/**
- * For each Participation row, the Submission rows an attack considers equally likely. The expected
- * number of correct pairs is the sum, over Participation rows, of 1/|candidates| when the true
- * Submission is among them.
- */
 type Guess = ReadonlyArray<ReadonlyArray<number>>;
 
 export const runAttacks = (
@@ -183,7 +153,6 @@ export const runAttacks = (
     });
   }
 
-  // Any column of one table against any column of the other: rows with an equal value are candidates.
   let best: AttackResult = { attack: "sharedColumns", matches: 0, detail: "no column pairs" };
   for (const pColumn of columns(participation)) {
     for (const sColumn of columns(submission)) {
@@ -207,7 +176,6 @@ export const runAttacks = (
   return results;
 };
 
-/** truth[p] is the index of the Submission row that belongs with Participation row p. */
 const trueSubmissionOf = (dump: Dump, participants: ReadonlyArray<Participant>): ReadonlyArray<number> => {
   const locate = (table: Table, values: ReadonlyArray<string>): ReadonlyArray<number> => {
     if (table.rows.length !== values.length) {
@@ -251,7 +219,6 @@ const sortBy = (table: Table, key: ReadonlyArray<string>): ReadonlyArray<number>
     return 0;
   });
 
-/** SQLite's order: NULL, then numbers, then text, then blobs (bytewise). */
 const typeRank = (value: unknown): number => {
   if (value === null || value === undefined) return 0;
   if (typeof value === "number" || typeof value === "bigint") return 1;
@@ -276,7 +243,6 @@ const compareValues = (a: unknown, b: unknown): number => {
   return 0;
 };
 
-/** A key under which equal stored values collide: 1 and 1n are equal, blobs compare by bytes. */
 const valueKey = (value: unknown): string => {
   if (value === null || value === undefined) return "null";
   if (typeof value === "number" || typeof value === "bigint") return `n:${String(value)}`;

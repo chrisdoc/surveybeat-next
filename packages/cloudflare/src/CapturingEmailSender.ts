@@ -1,13 +1,11 @@
+// @effect-diagnostics cryptoRandomUUIDInEffect:off -- the id labels a captured message in a non-production stage; it is never a token or a secret.
+
 import type * as Cloudflare from "@alchemy.run/cloudflare";
 import { EmailSender } from "@surveybeat/domain";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import * as Clock from "effect/Clock";
 import * as Effect from "effect/Effect";
 
-/**
- * `EmailSender` for every stage except production: records each message in the `captured_email`
- * table of the stage's D1 database and sends nothing. Built inside a handler.
- */
 export const capturingEmailSender = (db: Cloudflare.D1.QueryDatabaseClient) =>
   Effect.gen(function* () {
     const runtime = yield* Effect.context<RuntimeContext>();

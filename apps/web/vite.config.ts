@@ -1,3 +1,5 @@
+// @effect-diagnostics nodeBuiltinImport:off -- this file reads the repository from disk or spawns a process outside a Worker; the Effect FileSystem and ChildProcess services do not exist there.
+
 import { foldkit } from "@foldkit/vite-plugin";
 import tailwindcss from "@tailwindcss/vite";
 import { copyFileSync, mkdirSync, readFileSync } from "node:fs";
@@ -73,11 +75,9 @@ const prerenderAnswer = (): Plugin => {
 })();
 </script>`;
 
-      // The German shell is `de/answer.html`; every other answer shell is English.
       const table: AnswerTranslation = ctx.path.endsWith("de/answer.html") ? answerDe : answerCatalog;
       const message = answerMessages(table);
 
-      // Plain numbers here; main.ts fills the ends with the Question's own labels once the context arrives.
       const scale = [1, 2, 3, 4, 5]
         .map((value) => {
           const id = value === 1 ? ' id="q1low"' : value === 5 ? ' id="q1high"' : "";
@@ -87,6 +87,7 @@ const prerenderAnswer = (): Plugin => {
 
       const body = `<main>
   <noscript><p class="err" role="alert">${message("answer.noscript")}</p></noscript>
+  <p class="mark">${message("answer.mark")}</p>
   <h1 id="pulse"></h1>
   <p class="test-banner" id="test-banner" hidden></p>
   <p class="err" id="err" role="alert" hidden></p>
@@ -116,7 +117,6 @@ const prerenderAnswer = (): Plugin => {
         .replace("<!--PRERENDER_BODY-->", body);
     },
     closeBundle() {
-      // `/a` and `/de/a` are served from copies of the prerendered shells; a failed copy fails the build.
       for (const [source, dir] of [
         ["answer.html", ""],
         ["de/answer.html", "de"],
@@ -131,11 +131,6 @@ const prerenderAnswer = (): Plugin => {
   };
 };
 
-/**
- * Lists every chunk an answer page imports statically as `<link rel="modulepreload">`, so the browser
- * fetches them in parallel instead of discovering each level of the import graph one round trip later.
- * The answer pages share their runtime chunk, which would otherwise add a level (ADR 0008, Lighthouse gate).
- */
 const preloadAnswerChunks = (): Plugin => ({
   name: "preload-answer-chunks",
   transformIndexHtml: {
@@ -158,7 +153,6 @@ const preloadAnswerChunks = (): Plugin => ({
   },
 });
 
-// Two entries in one project: the app (Foldkit) and the answer page (plain TypeScript, no framework).
 export default defineConfig({
   plugins: [tailwindcss(), foldkit(), prerenderAnswer(), preloadAnswerChunks()],
   build: {

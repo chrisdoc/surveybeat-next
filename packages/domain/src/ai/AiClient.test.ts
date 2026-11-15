@@ -1,3 +1,5 @@
+// @effect-diagnostics anyUnknownInErrorContext:off -- the decoder's failure type is unknown by construction; the assertion is about the decoded value.
+
 import { describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";

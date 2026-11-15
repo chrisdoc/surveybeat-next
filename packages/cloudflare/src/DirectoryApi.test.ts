@@ -1,11 +1,13 @@
+// @effect-diagnostics asyncFunction:off -- the vitest runner awaits a plain Promise here; the test never enters an Effect.
+
 import { describe, expect, it } from "@effect/vitest";
-import type { OrganizationId, PersonId, SendState } from "@surveybeat/domain";
+import { type OrganizationId, type PersonId, SendId, type SendState } from "@surveybeat/domain";
 import { Browser, ORIGIN, SignInWorld } from "./auth/testing.ts";
 
 /**
  * The directory API over HTTP: real handlers, the real domain rules and permission table, and
- * in-memory stand-ins for WorkOS, the D1 index, the Organization Durable Objects, and the email
- * queue. Each role signs in through AuthKit (the fake) and is linked by verified email.
+ * in-memory stand-ins for sign-in, the D1 index, the Organization Durable Objects, and the email
+ * queue. Each role signs in through the in-memory provider and is linked by verified email.
  */
 
 const setup = async () => {
@@ -14,7 +16,7 @@ const setup = async () => {
   const adminId = world.addPerson(acme.id, "admin@example.com", true);
   const as = async (email: string) => {
     const browser = new Browser(world.handler());
-    await browser.signIn(world.workos.addUser(email));
+    browser.signIn(world.sessions.login(email));
     const session = await browser.session();
     return { browser, session };
   };
@@ -54,12 +56,6 @@ const personIdOf = (world: SignInWorld, organizationId: OrganizationId, email: s
   return person.id;
 };
 
-const userIdOf = (world: SignInWorld, email: string): string => {
-  const user = [...world.workos.users.values()].find((each) => each.email === email);
-  if (user === undefined) throw new Error(`no user ${email}`);
-  return user.id;
-};
-
 const roster = async (browser: Browser, teamId: string) => {
   const { status, body } = await browser.call("GET", `/api/teams/${teamId}`);
   expect(status).toBe(200);
@@ -75,7 +71,7 @@ describe("an Organization admin", () => {
     const acme = world.addOrganization("Acme");
     world.addPerson(acme.id, "admin@example.com", true);
     const admin = new Browser(world.handler());
-    await admin.signIn(world.workos.addUser("admin@example.com"));
+    admin.signIn(world.sessions.login("admin@example.com"));
     await admin.session();
 
     const created = await admin.call("POST", "/api/teams", {
@@ -93,7 +89,7 @@ describe("an Organization admin", () => {
     });
     const grace = personIdOf(world, acme.id, "grace@example.com");
     expect(world.durable.person(acme.id, grace)).toMatchObject({
-      workosUserId: null,
+      authUserId: null,
       organizationAdmin: false,
     });
     // Linkable at sign-in: the index offers the Person to that verified email.
@@ -101,11 +97,6 @@ describe("an Organization admin", () => {
       email: "grace@example.com",
       userId: null,
     });
-    // No WorkOS membership until they sign in (ADR 0002): only the admin's exists.
-    expect([...world.workos.memberships.keys()]).toEqual([
-      `${userIdOf(world, "admin@example.com")}/${acme.workos}`,
-    ]);
-
     expect(world.outbox.queued).toHaveLength(1);
     const sends = [...(world.durable.organizations.get(acme.id)?.sends.entries() ?? [])];
     expect(sends.map(([sendId]) => sendId)).toEqual(world.outbox.queued.map(({ sendId }) => sendId));
@@ -126,7 +117,8 @@ describe("an Organization admin", () => {
     const { admin, teamId } = await setup();
     expect(await admin.call("GET", "/api/teams")).toMatchObject({
       status: 200,
-      body: [{ id: teamId, name: "Platform", yourRole: null }],
+      // Two people in the Team, and no Round scheduled yet.
+      body: [{ id: teamId, name: "Platform", yourRole: null, memberCount: 2, nextRoundDate: null }],
     });
     expect(await roster(admin, teamId)).toEqual(["lead grace@example.com", "member ada@example.com"]);
     expect((await admin.call("GET", `/api/teams/${teamId}`)).body).toMatchObject({
@@ -167,17 +159,13 @@ describe("an Organization admin", () => {
     expect(await roster(admin, teamId)).toEqual(["lead ada@example.com", "member grace@example.com"]);
   });
 
-  it("removes a Person: Memberships end, the index forgets them, WorkOS deactivates them, the next request denies them", async () => {
+  it("removes a Person: Memberships end, the index forgets them, the next request denies them", async () => {
     const { world, acme, admin, lead, member, teamId, personId } = await setup();
     const ada = personId("ada@example.com");
-    expect(world.workos.memberships.has(`${userIdOf(world, "ada@example.com")}/${acme.workos}`)).toBe(true);
 
     expect((await admin.call("DELETE", `/api/organization/people/${ada}`)).status).toBe(204);
     expect(world.durable.person(acme.id, ada)?.removedAt).not.toBeNull();
     expect(world.index.persons.has(`${acme.id}/${ada}`)).toBe(false);
-    expect(world.workos.inactiveMemberships.has(`${userIdOf(world, "ada@example.com")}/${acme.workos}`)).toBe(
-      true,
-    );
     // History stays: the Membership is ended, not deleted.
     const memberships = world.durable.organizations.get(acme.id)?.state.memberships ?? [];
     expect(memberships.filter((membership) => membership.personId === ada)).toEqual([
@@ -199,20 +187,6 @@ describe("an Organization admin", () => {
     expect(
       (await admin.call("POST", `/api/teams/${teamId}/members`, { email: "ada@example.com" })).status,
     ).toBe(204);
-  });
-
-  it("finishes a removal on retry when WorkOS was down, with the Person already denied", async () => {
-    const { world, acme, admin, member, personId } = await setup();
-    const ada = personId("ada@example.com");
-    world.workos.failMembershipChanges = true;
-    expect((await admin.call("DELETE", `/api/organization/people/${ada}`)).status).toBe(503);
-    expect(world.index.persons.has(`${acme.id}/${ada}`)).toBe(false);
-    expect((await member.call("GET", "/api/teams")).status).toBe(403);
-    expect(world.workos.inactiveMemberships.size).toBe(0);
-
-    world.workos.failMembershipChanges = false;
-    expect((await admin.call("DELETE", `/api/organization/people/${ada}`)).status).toBe(204);
-    expect(world.workos.inactiveMemberships.size).toBe(1);
   });
 
   it("refuses to remove a Team's last Lead, revoke the last admin, or remove yourself", async () => {
@@ -291,26 +265,19 @@ describe("an Organization admin", () => {
     expect((await admin.session()).body).toMatchObject({ locale: null, detectedLocale: null });
   });
 
-  it("makes another Person admin, in the Durable Object and in WorkOS", async () => {
-    const { world, acme, admin, lead, personId, adminId } = await setup();
+  it("makes another Person admin in the Durable Object", async () => {
+    const { admin, lead, personId, adminId } = await setup();
     const grace = personId("grace@example.com");
     expect((await admin.call("PUT", `/api/organization/admins/${grace}`)).status).toBe(204);
-    expect(world.workos.memberships.get(`${userIdOf(world, "grace@example.com")}/${acme.workos}`)).toBe(
-      "admin",
-    );
     expect((await lead.session()).body).toMatchObject({ organizationAdmin: true });
     expect((await lead.call("DELETE", `/api/organization/admins/${adminId}`)).status).toBe(204);
     expect((await admin.session()).body).toMatchObject({ organizationAdmin: false });
     expect((await admin.call("GET", "/api/organization")).status).toBe(403);
   });
 
-  it("is judged by the Durable Object, not the token's role claim", async () => {
+  it("is judged by the Durable Object, not by the session", async () => {
     const { world, acme, admin, adminId } = await setup();
-    // WorkOS (and so the token) still says admin; the Organization's object no longer does.
     world.durable.update(acme.id, adminId, { organizationAdmin: false });
-    expect(world.workos.memberships.get(`${userIdOf(world, "admin@example.com")}/${acme.workos}`)).toBe(
-      "admin",
-    );
     expect((await admin.session()).body).toMatchObject({ _tag: "SignedIn", organizationAdmin: false });
     expect((await admin.call("GET", "/api/organization")).status).toBe(403);
     expect(
@@ -428,6 +395,8 @@ describe("every directory endpoint", () => {
     ["DELETE", "/api/teams/t/leads/p", undefined],
     ["GET", "/api/organization", undefined],
     ["GET", "/api/organization/failed-emails", undefined],
+    ["POST", "/api/organization/failed-emails/s/resend", undefined],
+    ["GET", "/api/organization/failed-emails/s", undefined],
     ["PATCH", "/api/organization", { minimumGroupSize: 4 }],
     ["PATCH", "/api/me/language", { locale: "de" }],
     ["PUT", "/api/organization/admins/p", undefined],
@@ -443,7 +412,7 @@ describe("every directory endpoint", () => {
   it("answers 403 to someone signed in but not in an Organization", async () => {
     const world = new SignInWorld();
     const browser = new Browser(world.handler());
-    await browser.signIn(world.workos.addUser("nobody@example.com"));
+    browser.signIn(world.sessions.login("nobody@example.com"));
     expect((await browser.call("GET", "/api/teams")).status).toBe(403);
   });
 
@@ -464,7 +433,7 @@ describe("every directory endpoint", () => {
     const globex = world.addOrganization("Globex");
     world.addPerson(globex.id, "boss@example.com", true);
     const outsider = new Browser(world.handler());
-    await outsider.signIn(world.workos.addUser("boss@example.com"));
+    outsider.signIn(world.sessions.login("boss@example.com"));
     await outsider.session();
     expect((await outsider.call("GET", `/api/teams/${teamId}`)).status).toBe(404);
     expect(await outsider.call("GET", "/api/teams")).toEqual({ status: 200, body: [] });
@@ -527,5 +496,134 @@ describe("the failed emails of the Organization (issue 147)", () => {
     const { lead, member } = await setup();
     expect((await lead.call("GET", "/api/organization/failed-emails")).status).toBe(403);
     expect((await member.call("GET", "/api/organization/failed-emails")).status).toBe(403);
+  });
+});
+
+describe("resending a failed email (issue 159)", () => {
+  /** The Organization's send to `recipient`, as the setup made it. */
+  const sendTo = (world: SignInWorld, recipient: string): SendId => {
+    for (const organization of world.durable.organizations.values()) {
+      for (const [sendId, send] of organization.sends) {
+        if (send.recipient === recipient) return sendId;
+      }
+    }
+    throw new Error(`no send to ${recipient}`);
+  };
+
+  /** Marks the send to `recipient` as `state`, the way the email queue would, and returns its id. */
+  const failedTo = (world: SignInWorld, recipient: string, state: SendState): SendId => {
+    const sendId = sendTo(world, recipient);
+    for (const organization of world.durable.organizations.values()) {
+      const send = organization.sends.get(sendId);
+      if (send !== undefined) organization.sends.set(sendId, { ...send, state });
+    }
+    return sendId;
+  };
+
+  const rejected: SendState = {
+    _tag: "Failed",
+    reason: "rejected",
+    code: "E_SENDER_NOT_VERIFIED",
+    failedAt: 30,
+  };
+  const queuedFor = (world: SignInWorld, sendId: SendId) =>
+    world.outbox.queued.filter((each) => each.sendId === sendId).length;
+  const resendPath = (sendId: SendId) => `/api/organization/failed-emails/${sendId}/resend`;
+  const statusPath = (sendId: SendId) => `/api/organization/failed-emails/${sendId}`;
+
+  it("sends a failed email again for an admin, under the same id, a repeat changes nothing but the queue", async () => {
+    const { world, admin } = await setup();
+    const sendId = failedTo(world, "ada@example.com", rejected);
+    const before = queuedFor(world, sendId);
+
+    const queued = { status: 200, body: { sendId, state: { _tag: "Queued", attempts: 0, lastCode: null } } };
+    expect(await admin.call("POST", resendPath(sendId))).toEqual(queued);
+    expect(queuedFor(world, sendId)).toBe(before + 1);
+    // A double click: the second request answers the same. It hands the still-waiting send to the queue again,
+    // in case the first enqueue was lost; delivery claims a send once, so it is still sent once.
+    expect(await admin.call("POST", resendPath(sendId))).toEqual(queued);
+    expect(queuedFor(world, sendId)).toBe(before + 2);
+
+    // The send is pending again, so the failed list no longer shows it, and the status reads as queued.
+    expect(await admin.call("GET", "/api/organization/failed-emails")).toEqual({
+      status: 200,
+      body: { emails: [] },
+    });
+    expect(await admin.call("GET", statusPath(sendId))).toEqual(queued);
+  });
+
+  it("shows a failed send's state to an admin: its reason, code, and time, and nothing else", async () => {
+    const { world, admin } = await setup();
+    const sendId = failedTo(world, "ada@example.com", rejected);
+    expect(await admin.call("GET", statusPath(sendId))).toEqual({
+      status: 200,
+      body: {
+        sendId,
+        state: { _tag: "Failed", reason: "rejected", code: "E_SENDER_NOT_VERIFIED", failedAt: 30 },
+      },
+    });
+  });
+
+  it("says in the failed list which failed emails may be resent", async () => {
+    const { world, admin } = await setup();
+    failedTo(world, "ada@example.com", rejected);
+    failedTo(world, "grace@example.com", { _tag: "Failed", reason: "complained", code: null, failedAt: 40 });
+    expect(await admin.call("GET", "/api/organization/failed-emails")).toMatchObject({
+      status: 200,
+      body: {
+        emails: [
+          { recipient: "grace@example.com", reason: "complained", resendable: false },
+          { recipient: "ada@example.com", reason: "rejected", resendable: true },
+        ],
+      },
+    });
+  });
+
+  it("is refused to a Lead and to a member, who are not Organization admins, and queues nothing", async () => {
+    const { world, lead, member } = await setup();
+    const sendId = failedTo(world, "ada@example.com", rejected);
+    const before = queuedFor(world, sendId);
+    for (const browser of [lead, member]) {
+      expect((await browser.call("POST", resendPath(sendId))).status).toBe(403);
+      expect((await browser.call("GET", statusPath(sendId))).status).toBe(403);
+    }
+    expect(queuedFor(world, sendId)).toBe(before);
+  });
+
+  it("answers 404 for a send the Organization does not have, and for another Organization's send", async () => {
+    const { world, admin } = await setup();
+    const sendId = failedTo(world, "ada@example.com", rejected);
+    expect((await admin.call("POST", resendPath(SendId.make("no-such-send")))).status).toBe(404);
+    expect((await admin.call("GET", statusPath(SendId.make("no-such-send")))).status).toBe(404);
+
+    const globex = world.addOrganization("Globex");
+    world.addPerson(globex.id, "boss@example.com", true);
+    const outsider = new Browser(world.handler());
+    outsider.signIn(world.sessions.login("boss@example.com"));
+    await outsider.session();
+    expect((await outsider.call("POST", resendPath(sendId))).status).toBe(404);
+    expect((await outsider.call("GET", statusPath(sendId))).status).toBe(404);
+    // Acme's send is still failed, and was not queued by the other Organization's admin.
+    expect(await admin.call("GET", statusPath(sendId))).toMatchObject({
+      status: 200,
+      body: { state: { _tag: "Failed" } },
+    });
+  });
+
+  it("refuses to send again an email that was complained about, and queues nothing", async () => {
+    const { world, admin } = await setup();
+    const sendId = failedTo(world, "ada@example.com", {
+      _tag: "Failed",
+      reason: "complained",
+      code: null,
+      failedAt: 40,
+    });
+    const before = queuedFor(world, sendId);
+    expect((await admin.call("POST", resendPath(sendId))).status).toBe(409);
+    expect(queuedFor(world, sendId)).toBe(before);
+    expect(await admin.call("GET", statusPath(sendId))).toMatchObject({
+      status: 200,
+      body: { state: { _tag: "Failed", reason: "complained" } },
+    });
   });
 });

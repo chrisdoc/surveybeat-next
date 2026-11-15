@@ -1,3 +1,5 @@
+// @effect-diagnostics nodeBuiltinImport:off -- this file reads the repository from disk or spawns a process outside a Worker; the Effect FileSystem and ChildProcess services do not exist there.
+
 import type * as Cloudflare from "@alchemy.run/cloudflare";
 import { assert, describe, it } from "@effect/vitest";
 import { hashToken } from "@surveybeat/domain";

@@ -4,7 +4,6 @@ import {
   EmailAddress,
   EmailOutbox,
   identityOf,
-  IdentityProvider,
   MembershipId,
   OrganizationCreationAllowlist,
   OrganizationDirectory,
@@ -12,15 +11,16 @@ import {
   OrganizationPeople,
   PeopleIndex,
   PersonId,
-  type ProviderSession,
   runDirectoryCommand,
   SessionId,
+  SessionIdentityProvider,
+  type SignedInSession,
   sessionState,
   TeamId,
   TimeZone,
-  WorkosOrganizationId,
-  WorkosUserId,
+  AuthUserId,
   type Member,
+  Unauthenticated,
 } from "@surveybeat/domain";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -34,12 +34,6 @@ import { durableObjectDirectory, durableObjectPeople } from "./DurableObjectPeop
 
 export const PEOPLE_TEST_ROUTE = "/__test/people";
 
-/**
- * Test stages only (`isTestStage`): runs the Person rules against a real Organization Durable
- * Object and the stage's D1 index, for `Organization.test.ts` on local workerd. Only WorkOS is a
- * stand-in, which records the membership calls it gets: an admin adds Eve and Ada by email, both
- * sign in with that verified email and are linked, then Ada is removed.
- */
 export const peopleTestRoutes = (organizations: Organizations, database: Cloudflare.D1.QueryDatabaseClient) =>
   Effect.gen(function* () {
     const request = yield* HttpServerRequest;
@@ -47,17 +41,15 @@ export const peopleTestRoutes = (organizations: Organizations, database: Cloudfl
     const people = durableObjectPeople(organizations);
     const index = yield* d1PeopleIndex(database);
     const organization = { id: OrganizationId.make(`people-${run}`), name: "Acme" };
-    const workosOrganization = WorkosOrganizationId.make(`org_${run}`);
     const admin = PersonId.make(`admin-${run}`);
-    const adminUser = WorkosUserId.make(`user_admin_${run}`);
-    const eve = WorkosUserId.make(`user_eve_${run}`);
-    const ada = WorkosUserId.make(`user_ada_${run}`);
+    const adminUser = AuthUserId.make(`user_admin_${run}`);
+    const eve = AuthUserId.make(`user_eve_${run}`);
+    const ada = AuthUserId.make(`user_ada_${run}`);
     const email = EmailAddress.make("Admin@Example.com");
 
-    // Slice 03's checks: the creator is active, idempotently, and cannot be taken over.
     yield* people.createWithAdmin(organization, { personId: admin, email, userId: adminUser });
     yield* people.createWithAdmin(organization, { personId: admin, email, userId: adminUser });
-    yield* index.putOrganization(organization, Option.some(workosOrganization));
+    yield* index.putOrganization(organization);
     const creator = {
       adminActive: yield* people.activePerson(organization.id, adminUser),
       eveActiveBeforeAdded: yield* people.activePerson(organization.id, eve),
@@ -66,36 +58,30 @@ export const peopleTestRoutes = (organizations: Organizations, database: Cloudfl
       linkMissingPerson: yield* people.linkPerson(organization.id, PersonId.make("nobody"), eve, email),
     };
 
-    const workosCalls: Array<string> = [];
-    const sessionOf = (userId: WorkosUserId, address: string, workos: Option.Option<WorkosOrganizationId>) =>
-      ({
-        sealed: Redacted.make(`sealed-${userId}`),
-        sessionId: SessionId.make(`session-${userId}`),
-        identity: identityOf(userId, address, true),
-        workosOrganizationId: workos,
-        role: Option.none(),
-      }) satisfies ProviderSession;
-    const identityProvider = IdentityProvider.of({
-      authorizationUrl: () => "",
-      authenticateWithCode: () => Effect.die("not used"),
-      authenticateWithOrganizationSelection: () => Effect.die("not used"),
-      authenticate: () => Effect.die("not used"),
-      refresh: (sealed, workos) =>
-        Effect.sync(() => {
-          const userId = WorkosUserId.make(Redacted.value(sealed).replace(/^sealed-/, ""));
-          return sessionOf(userId, userId === eve ? "eve@example.com" : "ada@example.com", workos);
+    const chosen = new Map<SessionId, OrganizationId>();
+    const sessionOf = (userId: AuthUserId, address: string): SignedInSession => ({
+      identity: identityOf(userId, address, true),
+      sessionId: SessionId.make(`session-${userId}`),
+    });
+    const sessions = SessionIdentityProvider.of({
+      authenticate: (cookie) =>
+        Effect.suspend(() => {
+          const userId = cookie.pipe(Redacted.value, (value) => value.replace(/^cookie-/, ""));
+          return userId.length === 0
+            ? Effect.fail(new Unauthenticated())
+            : Effect.succeed(
+                sessionOf(AuthUserId.make(userId), userId === eve ? "eve@example.com" : "ada@example.com"),
+              );
         }),
-      logoutUrl: () => "",
-      revokeSession: () => Effect.void,
-      createOrganization: () => Effect.die("not used"),
-      ensureMembership: (userId, _organization, role) =>
-        Effect.sync(() => void workosCalls.push(`ensure ${userId} ${role}`)),
-      setMembershipRole: (userId, _organization, role) =>
-        Effect.sync(() => void workosCalls.push(`role ${userId} ${role}`)),
-      deactivateMembership: (userId) => Effect.sync(() => void workosCalls.push(`deactivate ${userId}`)),
+      sendSignInCode: () => Effect.void,
+      verifySignInCode: () => Effect.succeedNone,
+      chosenOrganization: (sessionId) => Effect.sync(() => Option.fromNullishOr(chosen.get(sessionId))),
+      chooseOrganization: (sessionId, organizationId) =>
+        Effect.sync(() => void chosen.set(sessionId, organizationId)),
+      revokeSession: (sessionId) => Effect.sync(() => void chosen.delete(sessionId)),
     });
     const queued: Array<string> = [];
-    const services = Context.make(IdentityProvider, identityProvider).pipe(
+    const services = Context.make(SessionIdentityProvider, sessions).pipe(
       Context.add(PeopleIndex, index),
       Context.add(OrganizationPeople, people),
       Context.add(OrganizationDirectory, durableObjectDirectory(organizations)),
@@ -120,11 +106,10 @@ export const peopleTestRoutes = (organizations: Organizations, database: Cloudfl
     });
     const teamId = TeamId.make(`team-${run}`);
 
-    /** First sign-in with no Organization in the session, as `GET /auth/session` runs it. */
-    const signIn = (userId: WorkosUserId, address: string) =>
+    const signIn = (userId: AuthUserId, address: string) =>
       sessionState(
         {
-          session: sessionOf(userId, address, Option.none()),
+          session: sessionOf(userId, address),
           member: Option.none(),
         } satisfies CheckedSession,
         new OrganizationCreationAllowlist(""),
@@ -160,7 +145,6 @@ export const peopleTestRoutes = (organizations: Organizations, database: Cloudfl
         adaSignInAgain: yield* signIn(ada, "ada@example.com"),
       };
       const view = yield* (yield* OrganizationDirectory).team(organization.id, admin, teamId);
-      // Start times vary by run; who is in the Team in which role does not.
       const roster =
         view._tag === "Viewed"
           ? view.value.roster.map(({ personId, email, role }) => ({ personId, email, role }))
@@ -169,5 +153,5 @@ export const peopleTestRoutes = (organizations: Organizations, database: Cloudfl
     }).pipe(Effect.provideContext(services));
 
     const result = yield* flow;
-    return yield* HttpServerResponse.json({ ...creator, ...result, workosCalls, queued });
+    return yield* HttpServerResponse.json({ ...creator, ...result, queued });
   }).pipe(Effect.orDie);

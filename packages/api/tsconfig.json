@@ -4,7 +4,34 @@
     "rootDir": "src",
     "outDir": "dist",
     "tsBuildInfoFile": "dist/.tsbuildinfo",
-    "types": []
+    "types": [],
+    "plugins": [
+      {
+        "name": "@effect/language-service",
+        // Debt from the effect 4.1.2 pin: these are the exact unstable APIs this package calls.
+        // Delete an entry when the pin moves and the module becomes stable.
+        "allowedUnstableApis": [
+          "@effect/vitest#it",
+          "effect/Arbitrary#Arbitrary",
+          "effect/Arbitrary#checkEffect",
+          "effect/Arbitrary#formatCheckFailure",
+          "effect/Arbitrary#schema",
+          "effect/http-api/HttpApi#HttpApi",
+          "effect/http-api/HttpApi#make",
+          "effect/http-api/HttpApi#reflect",
+          "effect/http-api/HttpApiEndpoint#Top",
+          "effect/http-api/HttpApiEndpoint#delete",
+          "effect/http-api/HttpApiEndpoint#get",
+          "effect/http-api/HttpApiEndpoint#patch",
+          "effect/http-api/HttpApiEndpoint#post",
+          "effect/http-api/HttpApiEndpoint#put",
+          "effect/http-api/HttpApiGroup#Constraint",
+          "effect/http-api/HttpApiGroup#Endpoints",
+          "effect/http-api/HttpApiGroup#make",
+          "effect/http-api/HttpApiSchema#Empty"
+        ]
+      }
+    ]
   },
   "include": ["src"],
   "references": [{ "path": "../domain" }]

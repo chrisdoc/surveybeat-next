@@ -24,12 +24,6 @@ export const TEST_INVITATION_TEST_ROUTE = "/__test/test-invitations";
 
 const outcome = (result: TestSendResult) => (result._tag === "Accepted" ? "Accepted" : result.rejection._tag);
 
-/**
- * Test stages only (`isTestStage`): runs "send me a test" against a real Organization Durable Object and
- * the real email queue, so `Organization.test.ts` checks what ADR 0021 promises on local workerd. An
- * admin sends six tests in one hour (the sixth is refused), a send an hour later is accepted, a plain
- * member is refused, and the first test's token is indexed in D1 as a test and never as an Invitation.
- */
 export const testInvitationTestRoutes = (
   organizations: Organizations,
   queue: Cloudflare.Queues.WriteQueueClient,
@@ -91,11 +85,9 @@ export const testInvitationTestRoutes = (
     const record = yield* organization.getTestSendBySendId(sendId);
     const invitation = yield* organization.getInvitationBySendId(sendId);
 
-    // The editor's poll (issue 147): a fresh test send reads as queued, and a stranger's read is refused.
     const queued = yield* organization.viewTestSend(admin, teamId, pulseId, sendId, now);
     const memberRead = yield* organization.viewTestSend(member, teamId, pulseId, sendId, now);
 
-    // A second test send is failed by the queue's own transitions: claimed, then rejected for good.
     const accepted = burst.flatMap((result) => (result._tag === "Accepted" ? [result.sendId] : []));
     const failing = SendId.make(accepted[1] ?? "none");
     yield* organization.claimEmailSend(failing, now + 1);
@@ -108,7 +100,6 @@ export const testInvitationTestRoutes = (
     const failedStatus = yield* organization.viewTestSend(admin, teamId, pulseId, failing, now + 3);
     const failedBefore = yield* organization.listFailedEmails(admin);
 
-    // Fifty-one more sends fail, one after another: the list keeps the newest fifty.
     for (let i = 0; i < 51; i++) {
       const bulk = SendId.make(`bulk-${run}-${i}`);
       yield* organization.createEmailSend(bulk, EmailAddress.make("grace@example.com"), {
@@ -122,7 +113,6 @@ export const testInvitationTestRoutes = (
     }
     const failedAfter = yield* organization.listFailedEmails(admin);
 
-    // The first test goes through the real queue: the consumer renders it and indexes its token.
     yield* queue.send(
       yield* Schema.encodeEffect(EmailSendRequested)({
         organizationId: OrganizationId.make(organizationId),
@@ -147,7 +137,6 @@ export const testInvitationTestRoutes = (
       .bind(tokenHash)
       .all();
 
-    // The answer page's context for the test's Pulse, and what the Lead would see of an answer (ADR 0021).
     const expiresAt = now + testInvitationLifetimeMs;
     const testContext = yield* organization.getTestSubmissionContext(pulseId, expiresAt);
     const view = yield* organization.viewPulse(admin, teamId, pulseId);

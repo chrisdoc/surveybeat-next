@@ -4,11 +4,6 @@ import type { QuestionType, QuestionVersionId } from "../pulses/Question.ts";
 import { RoundId } from "./Round.ts";
 import type { SubmissionAnswer, SubmissionRoundContext } from "./Submission.ts";
 
-/**
- * The answer page's context for a test Invitation (ADR 0021). It has no Round: the Pulse stands in
- * for it, `hasAnswered` is always false, and the expiry is the close time. Only the Organization
- * builds it, from the Pulse's saved Questions and settings.
- */
 export const testSubmissionContext = (input: {
   readonly pulseName: string;
   readonly minimumGroupSize: number;
@@ -39,10 +34,6 @@ export const testSubmissionContext = (input: {
   test: true,
 });
 
-/**
- * What the Lead would be shown for a test answer (ADR 0021): the last comment that survives
- * redaction, as the real path shows it (`SqlRounds.recordFirstAnswer`). Writes nothing.
- */
 export const previewAnswers = (
   answers: ReadonlyArray<SubmissionAnswer>,
   roster: Roster,

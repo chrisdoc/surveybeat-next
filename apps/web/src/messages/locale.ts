@@ -1,3 +1,5 @@
+// @effect-diagnostics globalDate:off -- the view formats or compares an instant that arrived from the API against the browser clock; nothing here is stored on the server.
+
 import type { Locale } from "@surveybeat/domain";
 import { catalog } from "./catalog.ts";
 import { de } from "./de.ts";
@@ -20,19 +22,18 @@ interface MessageFn {
   <K extends KeysWithParams>(key: K, params: Params<K>): string;
 }
 
-/** Message lookup bound to one locale. Workers and tests use this; the browser app uses the live `message` below. */
 export interface Messages {
   readonly locale: Locale;
   readonly message: MessageFn;
   readonly pluralMessage: <B extends PluralKey>(base: B, count: number, params?: PluralParams<B>) => string;
   readonly formatDate: (date: Date, options?: Intl.DateTimeFormatOptions) => string;
-  /** A Dimension or Question score, one decimal place: "4.0", "3,6" in German. */
+
   readonly formatScore: (score: number) => string;
-  /** A signed score change, one decimal place, with a sign on every non-zero value: "+0.5", "+0,5". */
+
   readonly formatChange: (change: number) => string;
-  /** A ratio as a whole percentage: "75%", "75 %" in German. */
+
   readonly formatPercent: (ratio: number) => string;
-  /** A `YYYY-MM-DD` Round date as a medium date; the input unchanged when it is not a date. */
+
   readonly formatRoundDate: (isoDate: string) => string;
 }
 
@@ -98,7 +99,6 @@ const build = (locale: Locale): Messages => {
 
 const cache = new Map<Locale, Messages>();
 
-/** The messages for `locale`, built once per language. Safe on Workers, where no module state is shared per request. */
 export const messagesFor = (locale: Locale): Messages => {
   const cached = cache.get(locale);
   if (cached !== undefined) return cached;
@@ -107,17 +107,20 @@ export const messagesFor = (locale: Locale): Messages => {
   return messages;
 };
 
-/** The app's active language. Reassigned by `setLocale`; call sites read the live binding. */
 export let currentLocale: Locale = "en";
 export let message: Messages["message"] = messagesFor("en").message;
 export let pluralMessage: Messages["pluralMessage"] = messagesFor("en").pluralMessage;
+
+export const formatDuration = (seconds: number): string =>
+  seconds >= 60
+    ? message("duration.minutes", { minutes: Math.round(seconds / 60) })
+    : message("duration.seconds", { seconds });
 export let formatDate: Messages["formatDate"] = messagesFor("en").formatDate;
 export let formatScore: Messages["formatScore"] = messagesFor("en").formatScore;
 export let formatChange: Messages["formatChange"] = messagesFor("en").formatChange;
 export let formatPercent: Messages["formatPercent"] = messagesFor("en").formatPercent;
 export let formatRoundDate: Messages["formatRoundDate"] = messagesFor("en").formatRoundDate;
 
-/** Switches every later `message` call to `locale` and sets `<html lang>`. The browser app has one reader, so module state is safe here; Workers must use `messagesFor`. */
 export const setLocale = (locale: Locale): void => {
   const messages = messagesFor(locale);
   currentLocale = locale;

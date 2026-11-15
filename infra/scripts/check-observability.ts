@@ -1,19 +1,7 @@
-/**
- * Deployed-settings read-back for the Submission Worker (ADR 0005).
- *
- *   node infra/scripts/check-observability.ts --stage pr-12
- *
- * Reads the Worker's settings from the Cloudflare API and exits 1 if any log channel is on or a
- * tail consumer is attached. Needs CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID.
- *
- * Alchemy tags every Worker with its stack, stage and logical id, so the Worker is found by tag
- * and nothing has to be parsed out of the deploy output.
- *
- * `logs.invocation_logs` and `persist` (also `traces.persist`) cannot be switched off over the API
- * while their channel is disabled: Cloudflare reports `true` whatever is sent (checked with the
- * Worker script-settings and Workers PATCH endpoints, 2026-11-07). They log nothing then, so they
- * count only when their channel is enabled, and they are always printed.
- */
+// @effect-diagnostics asyncFunction:off -- a standalone Node script: it reports to the shell and never builds an Effect program.
+// @effect-diagnostics globalConsole:off -- the script writes its report to stdout/stderr; it never runs an Effect program.
+// @effect-diagnostics globalFetch:off -- the script calls the deployed stage over the platform fetch; there is no HttpClient outside a Worker.
+
 import * as Schema from "effect/Schema";
 
 const Flag = Schema.optional(Schema.NullOr(Schema.Boolean));
@@ -44,7 +32,6 @@ const Page = Schema.Struct({
 });
 const One = Schema.Struct({ result: WorkerSettings });
 
-/** What is wrong with the Worker's deployed settings. Empty means every log channel is off. */
 export const findViolations = (worker: WorkerSettings): string[] => {
   const observability = worker.observability;
   const logs = observability?.logs;
@@ -70,7 +57,6 @@ const get = async (path: string, token: string): Promise<unknown> => {
   return response.json();
 };
 
-/** A Worker of a stage by its id in the stack (e.g. `Submission`), found by the tags Alchemy puts on it. */
 export const findWorker = async (
   accountId: string,
   token: string,
@@ -84,7 +70,6 @@ export const findWorker = async (
     );
     const match = body.result.find((worker) => wanted.every((tag) => worker.tags?.includes(tag)));
     if (match !== undefined) {
-      // The detail endpoint is the one `cf workers get` reads.
       const detail = await get(`/accounts/${accountId}/workers/workers/${match.id}`, token);
       return Schema.decodeUnknownSync(One)(detail).result;
     }
