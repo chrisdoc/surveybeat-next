@@ -1,3 +1,5 @@
+import { BetterAuth } from "@alchemy.run/better-auth";
+import { CloudflareD1 } from "@alchemy.run/better-auth/CloudflareD1";
 import * as Cloudflare from "@alchemy.run/cloudflare";
 import {
   EmailOutbox,
@@ -19,8 +21,9 @@ import {
   TeamId,
 } from "@surveybeat/domain";
 import { DELIVERY_PAGE_PATH, SurveyBeatApi, UNSUBSCRIBE_PAGE_PATH } from "@surveybeat/api";
+import { authOptions } from "@surveybeat/auth";
 import { EmailTemplatesLive } from "@surveybeat/emails";
-import type { RuntimeContext } from "alchemy/RuntimeContext";
+import { RuntimeContext } from "alchemy/RuntimeContext";
 import { Stack } from "alchemy/Stack";
 import * as Clock from "effect/Clock";
 import * as Config from "effect/Config";
@@ -37,6 +40,7 @@ import * as HttpRouter from "effect/http/HttpRouter";
 import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
 import { actionHandlers } from "./ActionHandlers.ts";
 import { authBindings, authSettings } from "./auth/AuthConfig.ts";
+import { signInCodeDelivery } from "./auth/AuthResource.ts";
 import { authHandlers } from "./auth/AuthHandlers.ts";
 import { d1PeopleIndex } from "./auth/D1PeopleIndex.ts";
 import {
@@ -124,6 +128,15 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
     const emailQueue = yield* EmailQueue;
     const emailDlq = yield* EmailQueueDlq;
     const sendClient = sendsRealEmail(stage) ? yield* Cloudflare.Email.Send(yield* SendEmail) : undefined;
+    const signInEmail =
+      sendClient === undefined
+        ? yield* capturingEmailSender(database)
+        : yield* cloudflareEmailSender(sendClient);
+    yield* BetterAuth({
+      ...authOptions(signInCodeDelivery(signInEmail.send)),
+      id: "Auth",
+      migrate: false,
+    });
 
     yield* Cloudflare.Queues.consumeQueueMessages(
       emailQueue,
@@ -261,6 +274,8 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
   }).pipe(
     Effect.provide(
       Layer.mergeAll(
+        RuntimeContext.phantom,
+        CloudflareD1(Database),
         Cloudflare.Queues.EventSourceLive,
         Cloudflare.D1.QueryDatabaseBinding,
         Cloudflare.Email.SendBinding,

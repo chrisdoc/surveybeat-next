@@ -8,6 +8,8 @@ Sign-in is WorkOS AuthKit today: the Worker seals a WorkOS session into `__Host-
 
 **Revocation.** ADR 0010's requirement stands: a revoked session fails the next request. Sign-out deletes the Better Auth session row in D1. The `revoked_session` deny list stays until a test shows a deleted session is refused on the next request with no extra row; then the row and that part of ADR 0010 go in the same change.
 
+**Store and secret.** Better Auth writes its own `auth_user`, `auth_session`, `auth_account` and `auth_verification` tables in the same D1 database as the people index, kept apart by that prefix so nothing sits beside `person_index` or `organization_index` by accident. The tables come from SurveyBeat's own numbered migration (`packages/cloudflare/d1-migrations/0008_better_auth.sql`), not from a deploy-time schema push, so the schema is reviewed and reversible like every other D1 change; the Alchemy `BetterAuth` resource therefore runs with `migrate: false` and the D1 adapter reads the raw binding, so no connection string or second database exists. The resource provisions its own signing secret as an Alchemy random resource that is bound into the Worker environment, the way `WORKOS_COOKIE_PASSWORD` is today, so no secret is checked in or set by hand.
+
 **Deferred.** Enterprise SSO (SAML or OIDC) and Directory Sync (SCIM) leave this change; SPEC §5.6 and §6.1 name them deferred until a later issue. Google and Microsoft stay on the sign-in screen only if Better Auth can configure them inside the Worker; a provider that cannot is called out rather than silently dropped.
 
 ## Considered options

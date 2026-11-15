@@ -1,7 +1,8 @@
 // @effect-diagnostics nodeBuiltinImport:off -- this file reads the repository from disk or spawns a process outside a Worker; the Effect FileSystem and ChildProcess services do not exist there.
 
 import type * as Cloudflare from "@alchemy.run/cloudflare";
-import { assert, describe, it } from "@effect/vitest";
+import { assert, describe, expect, it } from "@effect/vitest";
+import { AUTH_TABLES, SESSION_COOKIE, createAuth, memoryAuth } from "@surveybeat/auth";
 import {
   EmailAddress,
   OrganizationId,
@@ -177,4 +178,114 @@ describe("D1 PeopleIndex", () => {
         .run(),
     );
   });
+});
+
+const authOrigin = "http://localhost:5173";
+const authAddress = "person@example.com";
+const authSettings = {
+  baseURL: authOrigin,
+  secret: "surveybeat-d1-test-secret-000000000000",
+  trustedOrigins: [authOrigin],
+};
+
+interface D1Result<T> {
+  readonly results: T[];
+  readonly meta: { readonly changes: number; readonly last_row_id: number };
+}
+
+interface AuthorizedStatement {
+  readonly bind: (...values: ReadonlyArray<unknown>) => AuthorizedStatement;
+  readonly all: <T>() => Promise<D1Result<T>>;
+}
+
+// Better Auth resolves its session rows through a D1-shaped database, so the test hands it Node's
+// SQLite behind that interface and lets the real migrations run in front of it.
+const betterAuthDatabase = () => {
+  const sqlite = new DatabaseSync(":memory:");
+  for (const file of readdirSync(migrations).sort()) {
+    sqlite.exec(readFileSync(new URL(file, migrations), "utf8"));
+  }
+  const bounded = (binds: ReadonlyArray<unknown>) => binds as Array<null | number | string>;
+  const statement = (sql: string, binds: ReadonlyArray<unknown>): AuthorizedStatement => ({
+    bind: (...values) => statement(sql, values),
+    all: <T>() => {
+      const prepared = sqlite.prepare(sql);
+      if (prepared.columns().length === 0) {
+        const applied = prepared.run(...bounded(binds));
+        return Promise.resolve({
+          results: [] as T[],
+          meta: { changes: Number(applied.changes), last_row_id: Number(applied.lastInsertRowid) },
+        });
+      }
+      return Promise.resolve({
+        results: prepared.all(...bounded(binds)) as unknown as T[],
+        meta: { changes: 0, last_row_id: 0 },
+      });
+    },
+  });
+  const database = {
+    prepare: (sql: string) => statement(sql, []),
+    batch: (statements: ReadonlyArray<AuthorizedStatement>) =>
+      Promise.all(statements.map((query) => query.all())),
+    exec: (sql: string) => Promise.resolve(sqlite.exec(sql)),
+  };
+  return { sqlite, database };
+};
+
+const authPost = (path: string, body: unknown) =>
+  new Request(`${authOrigin}${path}`, {
+    method: "POST",
+    headers: { "content-type": "application/json", origin: authOrigin },
+    body: JSON.stringify(body),
+  });
+
+const authGetSession = (cookie: string) =>
+  new Request(`${authOrigin}/auth/get-session`, {
+    headers: { cookie, origin: authOrigin },
+  });
+
+describe("Better Auth sessions in D1", () => {
+  it.effect("keeps a session for the next auth instance, unlike the memory adapter", () =>
+    Effect.gen(function* () {
+      const { sqlite, database } = betterAuthDatabase();
+      const codes: Array<string> = [];
+      const delivery = {
+        sendSignInCode: ({ otp }: { readonly email: string; readonly otp: string }) =>
+          Effect.sync(() => {
+            codes.push(otp);
+          }),
+      };
+      const d1 = database as unknown as NonNullable<Parameters<typeof createAuth>[0]["database"]>;
+
+      const first = createAuth({ settings: authSettings, delivery, database: d1 });
+      const sent = yield* Effect.promise(() =>
+        first.handler(
+          authPost("/auth/email-otp/send-verification-otp", { email: authAddress, type: "sign-in" }),
+        ),
+      );
+      expect(sent.status).toBe(200);
+
+      const signedIn = yield* Effect.promise(() =>
+        first.handler(authPost("/auth/sign-in/email-otp", { email: authAddress, otp: codes[0] ?? "" })),
+      );
+      expect(signedIn.status).toBe(200);
+      const cookie = (signedIn.headers.get("set-cookie") ?? "").split(";")[0] ?? "";
+      expect(cookie).toContain(`${SESSION_COOKIE}=`);
+
+      const stored = sqlite.prepare(`SELECT COUNT(*) AS count FROM ${AUTH_TABLES.session}`).get() as {
+        count: number;
+      };
+      expect(stored.count).toBe(1);
+
+      const nextInstance = createAuth({ settings: authSettings, delivery, database: d1 });
+      const read = yield* Effect.promise(() => nextInstance.handler(authGetSession(cookie)));
+      expect(read.status).toBe(200);
+      const body: unknown = yield* Effect.promise(() => read.json());
+      expect(body).toMatchObject({ user: { email: authAddress } });
+
+      const inMemory = memoryAuth(delivery);
+      const forgotten = yield* Effect.promise(() => inMemory.handler(authGetSession(cookie)));
+      expect(yield* Effect.promise(() => forgotten.json())).toBeNull();
+    }),
+  );
 });

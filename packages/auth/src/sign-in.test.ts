@@ -8,10 +8,10 @@ const address = "person@example.com";
 const harness = () => {
   const codes: Array<string> = [];
   const auth = memoryAuth({
-    sendSignInCode: ({ otp }) => {
-      codes.push(otp);
-      return Promise.resolve();
-    },
+    sendSignInCode: ({ otp }) =>
+      Effect.sync(() => {
+        codes.push(otp);
+      }),
   });
   return { auth, codes };
 };

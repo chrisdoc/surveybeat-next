@@ -164,6 +164,9 @@ settings:
 
 catalogs:
   default:
+    '@alchemy.run/better-auth':
+      specifier: 2.0.0-beta.85
+      version: 2.0.0-beta.85
     '@alchemy.run/cloudflare':
       specifier: 2.0.0-beta.85
       version: 2.0.0-beta.85
@@ -430,6 +433,9 @@ importers:
 
   packages/cloudflare:
     dependencies:
+      '@alchemy.run/better-auth':
+        specifier: 'catalog:'
+        version: 2.0.0-beta.85(2e7317a6a5dac53c46b078a2bcd771a4)
       '@alchemy.run/cloudflare':
         specifier: 'catalog:'
         version: 2.0.0-beta.85(@effect/platform-bun@4.1.2(effect@4.1.2))(@effect/platform-node@4.1.2(effect@4.1.2)(redis@6.3.1))(@types/node@26.6.6)(alchemy@2.0.0-beta.85(@effect/platform-bun@4.1.2(effect@4.1.2))(@effect/platform-node@4.1.2(effect@4.1.2)(redis@6.3.1))(@types/react@19.3.0)(effect@4.1.2)(vite@8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))(ws@8.22.1))(effect@4.1.2)(typescript@7.0.2)(vite@8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))
@@ -439,6 +445,9 @@ importers:
       '@surveybeat/api':
         specifier: workspace:*
         version: link:../api
+      '@surveybeat/auth':
+        specifier: workspace:*
+        version: link:../auth
       '@surveybeat/domain':
         specifier: workspace:*
         version: link:../domain
@@ -540,6 +549,44 @@ packages:
     peerDependencies:
       alchemy: 2.0.0-beta.85
       effect: ^4.1.0
+
+  '@alchemy.run/better-auth@2.0.0-beta.85':
+    resolution: {integrity: sha512-n9TvHYzh9qInZI/8vb27QgdT8iIziS801UMCGKTZYQfStuUyOnQkdCq8lIMFYtWz9TI8JitswVxmGVq2kPOWbQ==}
+    peerDependencies:
+      '@alchemy.run/aws': 2.0.0-beta.85
+      '@alchemy.run/cloudflare': 2.0.0-beta.85
+      '@better-auth/drizzle-adapter': ^1.7.5
+      '@cloudflare/workers-types': 5.20261026.1
+      '@distilled.cloud/aws': 1.0.0-rc.18
+      '@neondatabase/serverless': ^1.0.1
+      alchemy: 2.0.0-beta.85
+      better-auth: ^1.7.5
+      drizzle-orm: 1.0.0-rc.5
+      effect: ^4.1.0
+      kysely: ^0.29.4
+      mysql2: ^3.24.2
+      pg: ^8.22.0
+    peerDependenciesMeta:
+      '@alchemy.run/aws':
+        optional: true
+      '@alchemy.run/cloudflare':
+        optional: true
+      '@better-auth/drizzle-adapter':
+        optional: true
+      '@cloudflare/workers-types':
+        optional: true
+      '@distilled.cloud/aws':
+        optional: true
+      '@neondatabase/serverless':
+        optional: true
+      drizzle-orm:
+        optional: true
+      kysely:
+        optional: true
+      mysql2:
+        optional: true
+      pg:
+        optional: true
 
   '@alchemy.run/cloudflare-runtime@2.0.0-beta.85':
     resolution: {integrity: sha512-OyGH/j5R9QaUdMjvm3y6pIUpMa7T9SvVYvlVd+fWo/eltOf+k/KQxC12QHC2fe22GVs3apL28l9f4VUH8N9aEA==}
@@ -3458,6 +3505,22 @@ snapshots:
       '@distilled.cloud/acme': 1.0.0-rc.18(effect@4.1.2)
       alchemy: 2.0.0-beta.85(@effect/platform-bun@4.1.2(effect@4.1.2))(@effect/platform-node@4.1.2(effect@4.1.2)(redis@6.3.1))(@types/react@19.3.0)(effect@4.1.2)(vite@8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))(ws@8.22.1)
       effect: 4.1.2
+
+  '@alchemy.run/better-auth@2.0.0-beta.85(2e7317a6a5dac53c46b078a2bcd771a4)':
+    dependencies:
+      '@alchemy.run/sql': 2.0.0-beta.85(alchemy@2.0.0-beta.85(@effect/platform-bun@4.1.2(effect@4.1.2))(@effect/platform-node@4.1.2(effect@4.1.2)(redis@6.3.1))(@types/react@19.3.0)(effect@4.1.2)(vite@8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))(ws@8.22.1))(effect@4.1.2)
+      alchemy: 2.0.0-beta.85(@effect/platform-bun@4.1.2(effect@4.1.2))(@effect/platform-node@4.1.2(effect@4.1.2)(redis@6.3.1))(@types/react@19.3.0)(effect@4.1.2)(vite@8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))(ws@8.22.1)
+      better-auth: 1.7.11(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.1.0(@types/node@26.6.6)(vite@8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)))
+      effect: 4.1.2
+    optionalDependencies:
+      '@alchemy.run/cloudflare': 2.0.0-beta.85(@effect/platform-bun@4.1.2(effect@4.1.2))(@effect/platform-node@4.1.2(effect@4.1.2)(redis@6.3.1))(@types/node@26.6.6)(alchemy@2.0.0-beta.85(@effect/platform-bun@4.1.2(effect@4.1.2))(@effect/platform-node@4.1.2(effect@4.1.2)(redis@6.3.1))(@types/react@19.3.0)(effect@4.1.2)(vite@8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))(ws@8.22.1))(effect@4.1.2)(typescript@7.0.2)(vite@8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))
+      '@better-auth/drizzle-adapter': 1.7.11(@better-auth/core@1.7.11(@better-auth/utils@0.5.0)(@better-fetch/fetch@1.3.2)(better-call@1.4.2(zod@4.6.7))(jose@6.2.17)(kysely@0.29.9)(nanostores@1.5.5))(@better-auth/utils@0.5.0)
+      '@distilled.cloud/aws': 1.0.0-rc.18(effect@4.1.2)
+      kysely: 0.29.9
+    transitivePeerDependencies:
+      - '@effect/sql-libsql'
+      - '@effect/sql-mysql2'
+      - '@effect/sql-pg'
 
   '@alchemy.run/cloudflare-runtime@2.0.0-beta.85(@distilled.cloud/cloudflare@1.0.0-rc.18(effect@4.1.2))(@effect/platform-bun@4.1.2(effect@4.1.2))(@effect/platform-node@4.1.2(effect@4.1.2)(redis@6.3.1))(@types/node@26.6.6)(effect@4.1.2)(rolldown@1.2.13)(typescript@7.0.2)(vite@8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))':
     dependencies:
