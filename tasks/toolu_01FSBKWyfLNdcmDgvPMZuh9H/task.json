@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01FSBKWyfLNdcmDgvPMZuh9H",
+  "agent_id": "aafd849b59cc481f8",
+  "subagent_type": "scoper",
+  "task_description": "Scope themes UI on Results",
+  "token_usage": {
+    "input_tokens": 24,
+    "cache_creation_tokens": 59150,
+    "cache_read_tokens": 447116,
+    "output_tokens": 7489,
+    "api_call_count": 12
+  },
+  "started_at": "2026-11-10T11:20:01.33064557Z",
+  "completed_at": "2026-11-10T12:15:38.748272935Z"
+}
