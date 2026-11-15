@@ -78,6 +78,33 @@ describe("Better Auth identity provider", () => {
     }),
   );
 
+  it.effect("mails a code and turns it into a session token", () =>
+    Effect.gen(function* () {
+      const codes: Array<string> = [];
+      const auth = memoryAuth({
+        sendSignInCode: ({ otp }) =>
+          Effect.sync(() => {
+            codes.push(otp);
+          }),
+      });
+      const provider = betterAuthIdentityProvider({
+        auth,
+        chosenOrganization: () => Effect.succeedNone,
+        rememberOrganization: () => Effect.void,
+        deleteSession: () => Effect.void,
+      });
+      yield* provider.sendSignInCode(address);
+      expect(codes).toHaveLength(1);
+
+      const token = yield* provider.verifySignInCode(address, codes[0] ?? "");
+      const session = yield* provider.authenticate(Redacted.make(Option.getOrThrow(token)));
+      expect(session.identity.email).toBe(address);
+
+      const rejected = yield* provider.verifySignInCode(address, "000000");
+      expect(Option.isNone(rejected)).toBe(true);
+    }),
+  );
+
   it.effect("remembers the chosen Organization beside the session", () =>
     Effect.gen(function* () {
       const { provider, chosen, value } = yield* signedIn();

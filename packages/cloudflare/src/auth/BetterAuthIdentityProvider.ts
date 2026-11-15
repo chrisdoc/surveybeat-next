@@ -13,7 +13,7 @@ import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Redacted from "effect/Redacted";
 
-const authOrigin = "http://localhost";
+const authOrigin = "http://localhost:5173";
 
 const authRequest = (path: string, body: unknown) =>
   new Request(`${authOrigin}${path}`, {
@@ -68,9 +68,11 @@ export const betterAuthIdentityProvider = (params: {
     sendSignInCode: (email) =>
       Effect.tryPromise({
         try: () =>
-          params.auth.handler(
-            authRequest("/auth/email-otp/send-verification-otp", { email, type: "sign-in" }),
-          ),
+          params.auth
+            .handler(authRequest("/auth/email-otp/send-verification-otp", { email, type: "sign-in" }))
+            .then((response) => {
+              if (!response.ok) throw new Error(`send-verification-otp answered ${response.status}`);
+            }),
         catch: () => new AuthUnavailable(),
       }).pipe(Effect.asVoid),
 

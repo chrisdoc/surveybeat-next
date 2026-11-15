@@ -74,7 +74,7 @@ export const peopleTestRoutes = (organizations: Organizations, database: Cloudfl
               );
         }),
       sendSignInCode: () => Effect.void,
-      verifySignInCode: () => Effect.succeed(Option.none()),
+      verifySignInCode: () => Effect.succeedNone,
       chosenOrganization: (sessionId) => Effect.sync(() => Option.fromNullishOr(chosen.get(sessionId))),
       chooseOrganization: (sessionId, organizationId) =>
         Effect.sync(() => void chosen.set(sessionId, organizationId)),
