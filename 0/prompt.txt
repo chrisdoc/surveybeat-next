@@ -1,0 +1,51 @@
+help me setup mitmproxy https://www.mitmproxy.org/posts/releases/mitmproxy-12.3/ so that i can intercept the requests my eufy e21 baby monitor makes when checking for new firmware
+
+│ Time     │ Device                 │ Connection                                                     │
+  ├──────────┼────────────────────────┼────────────────────────────────────────────────────────────────┤
+  │ 13:08:57 │ Monitor 192.168.86.177 │ TLS to 18.185.21.9:443, about 1.4 KB sent and 5.7 KB received  │
+  ├──────────┼────────────────────────┼────────────────────────────────────────────────────────────────┤
+  │ 13:09:03 │ Camera 192.168.86.159  │ TLS to 3.125.211.238:443, about 12 KB sent and 5.4 KB received │
+  ├──────────┼────────────────────────┼────────────────────────────────────────────────────────────────┤
+  │ 13:09:07 │ Camera 192.168.86.159  │ Second short TLS session to the same address                   │
+  ├──────────┼────────────────────────┼────────────────────────────────────────────────────────────────┤
+  │ 13:09:31 │ Monitor 192.168.86.177 │ TLS to 3.76.165.41:443, same small size as the first check     │
+
+---
+
+i triggered it
+
+---
+
+still not able to check firmware, the monitor can't connect
+
+---
+
+it still fails checking
+
+---
+
+still the same
+
+---
+
+tell me what you see
+
+---
+
+i can trigger it on my phone
+
+---
+
+do you see it>
+
+---
+
+what is the status?
+
+---
+
+remove the router setup we did before, all traffic is still going through this mac
+
+---
+
+why is my download speed so slow then? i have 1gbit fiber but i only get 2mbit
