@@ -55,7 +55,7 @@ describe("email code sign-in through Better Auth", () => {
       const response = yield* post(auth, "/auth/sign-in/email-otp", { email: address, otp });
       expect(response.status).toBe(200);
       const setCookie = response.headers.get("set-cookie") ?? "";
-      expect(setCookie).toContain(`${SESSION_COOKIE}=`);
+      expect(setCookie.startsWith(`${SESSION_COOKIE}=`)).toBe(true);
       expect(setCookie).toContain("HttpOnly");
       expect(setCookie).toContain("Secure");
       expect(setCookie.toLowerCase()).toContain("samesite=lax");

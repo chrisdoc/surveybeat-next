@@ -10,6 +10,7 @@ import {
   NewIds,
   OrganizationPeople,
   PeopleIndex,
+  SessionIdentityProvider,
   PersonId,
   OrganizationId,
   OrganizationPulses,
@@ -41,6 +42,7 @@ import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
 import { actionHandlers } from "./ActionHandlers.ts";
 import { authBindings, authSettings } from "./auth/AuthConfig.ts";
 import { signInCodeDelivery } from "./auth/AuthResource.ts";
+import { betterAuthIdentityProvider } from "./auth/BetterAuthIdentityProvider.ts";
 import { authHandlers } from "./auth/AuthHandlers.ts";
 import { d1PeopleIndex } from "./auth/D1PeopleIndex.ts";
 import {
@@ -132,7 +134,7 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
       sendClient === undefined
         ? yield* capturingEmailSender(database)
         : yield* cloudflareEmailSender(sendClient);
-    yield* BetterAuth({
+    const authInstance = yield* BetterAuth({
       ...authOptions(signInCodeDelivery(signInEmail.send)),
       id: "Auth",
       migrate: false,
@@ -206,7 +208,17 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
             Effect.orDie,
           ),
       });
+      const sessions = betterAuthIdentityProvider({
+        auth: yield* authInstance.auth,
+        deleteSession: (sessionId) =>
+          database
+            .prepare("DELETE FROM auth_session WHERE id = ?")
+            .bind(sessionId)
+            .run()
+            .pipe(Effect.asVoid, Effect.provideContext(runtime), Effect.orDie),
+      });
       return Context.make(IdentityProvider, yield* identityProvider).pipe(
+        Context.add(SessionIdentityProvider, sessions),
         Context.add(PeopleIndex, yield* d1PeopleIndex(database)),
         Context.add(OrganizationPeople, people),
         Context.add(OrganizationDirectory, directory),

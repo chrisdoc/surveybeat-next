@@ -38,7 +38,7 @@ export const authOptions = (delivery: CodeDelivery): SurveyBeatAuthOptions => ({
   account: { modelName: AUTH_TABLES.account },
   verification: { modelName: AUTH_TABLES.verification },
   advanced: {
-    useSecureCookies: true,
+    useSecureCookies: false,
     cookies: { session_token: { name: SESSION_COOKIE } },
     defaultCookieAttributes: { httpOnly: true, secure: true, sameSite: "lax", path: "/" },
   },

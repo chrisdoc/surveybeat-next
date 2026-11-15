@@ -15,6 +15,7 @@
     "@surveybeat/emails": "workspace:*",
     "@workos-inc/node": "catalog:",
     "alchemy": "catalog:",
+    "better-auth": "catalog:",
     "effect": "catalog:"
   },
   "devDependencies": {

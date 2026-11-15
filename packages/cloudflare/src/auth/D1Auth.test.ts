@@ -15,7 +15,9 @@ import { RuntimeContext } from "alchemy/RuntimeContext";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import { readdirSync, readFileSync } from "node:fs";
+import * as Redacted from "effect/Redacted";
 import { DatabaseSync } from "node:sqlite";
+import { betterAuthIdentityProvider } from "./BetterAuthIdentityProvider.ts";
 import { d1PeopleIndex } from "./D1PeopleIndex.ts";
 
 // The D1 adapter's SQL against the real migrations, on Node's SQLite (the engine D1 runs).
@@ -196,6 +198,7 @@ interface D1Result<T> {
 interface AuthorizedStatement {
   readonly bind: (...values: ReadonlyArray<unknown>) => AuthorizedStatement;
   readonly all: <T>() => Promise<D1Result<T>>;
+  readonly run: () => Promise<unknown>;
 }
 
 // Better Auth resolves its session rows through a D1-shaped database, so the test hands it Node's
@@ -208,6 +211,10 @@ const betterAuthDatabase = () => {
   const bounded = (binds: ReadonlyArray<unknown>) => binds as Array<null | number | string>;
   const statement = (sql: string, binds: ReadonlyArray<unknown>): AuthorizedStatement => ({
     bind: (...values) => statement(sql, values),
+    run: () => {
+      sqlite.prepare(sql).run(...bounded(binds));
+      return Promise.resolve();
+    },
     all: <T>() => {
       const prepared = sqlite.prepare(sql);
       if (prepared.columns().length === 0) {
@@ -286,6 +293,52 @@ describe("Better Auth sessions in D1", () => {
       const inMemory = memoryAuth(delivery);
       const forgotten = yield* Effect.promise(() => inMemory.handler(authGetSession(cookie)));
       expect(yield* Effect.promise(() => forgotten.json())).toBeNull();
+    }),
+  );
+});
+
+describe("Better Auth identity provider over D1", () => {
+  it.effect("refuses the cookie once the session row is deleted", () =>
+    Effect.gen(function* () {
+      const { sqlite, database } = betterAuthDatabase();
+      const codes: Array<string> = [];
+      const delivery = {
+        sendSignInCode: ({ otp }: { readonly email: string; readonly otp: string }) =>
+          Effect.sync(() => {
+            codes.push(otp);
+          }),
+      };
+      const d1 = database as unknown as NonNullable<Parameters<typeof createAuth>[0]["database"]>;
+      const auth = createAuth({ settings: authSettings, delivery, database: d1 });
+      yield* Effect.promise(() =>
+        auth.handler(
+          authPost("/auth/email-otp/send-verification-otp", { email: authAddress, type: "sign-in" }),
+        ),
+      );
+      const signedIn = yield* Effect.promise(() =>
+        auth.handler(authPost("/auth/sign-in/email-otp", { email: authAddress, otp: codes[0] ?? "" })),
+      );
+      const cookie = (signedIn.headers.get("set-cookie") ?? "").split(";")[0] ?? "";
+      const value = cookie.slice(`${SESSION_COOKIE}=`.length);
+
+      const provider = betterAuthIdentityProvider({
+        auth,
+        deleteSession: (sessionId) =>
+          Effect.promise(() =>
+            database.prepare("DELETE FROM auth_session WHERE id = ?").bind(sessionId).run(),
+          ),
+      });
+      const session = yield* provider.authenticate(Redacted.make(value));
+      expect(session.identity.email).toBe(authAddress);
+
+      yield* provider.revokeSession(session.sessionId);
+      const rows = sqlite.prepare(`SELECT COUNT(*) AS count FROM ${AUTH_TABLES.session}`).get() as {
+        count: number;
+      };
+      expect(rows.count).toBe(0);
+
+      const refused = yield* provider.authenticate(Redacted.make(value)).pipe(Effect.flip);
+      expect(refused._tag).toBe("Unauthenticated");
     }),
   );
 });
