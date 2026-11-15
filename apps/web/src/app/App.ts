@@ -48,7 +48,7 @@ import { Command, Navigation, Update } from "foldkit";
 import type { Document, HtmlBuilder } from "foldkit/html";
 import { defineMessageUnion } from "foldkit/message";
 import { Url } from "foldkit/url";
-import { formatRoundDate, message, setLocale } from "../messages/locale.ts";
+import { formatRoundDate, message, message as translate, setLocale } from "../messages/locale.ts";
 import { Failure, runApi } from "./api.ts";
 import { privacyContent, privacyView, screenView } from "./components.ts";
 import {
@@ -323,6 +323,12 @@ export const Message = defineMessageUnion({
 
   GotSession: { result: SessionResult },
   RetrySession: {},
+  SignInEmailChanged: { email: Schema.String },
+  SignInCodeChanged: { code: Schema.String },
+  SubmitSignInEmail: {},
+  SubmitSignInCode: {},
+  SignInCodeSent: { sent: Schema.Boolean },
+  SignInCodeChecked: { verified: Schema.Boolean },
   CreateOrgNameChanged: { name: Schema.String },
   SubmitCreateOrg: {},
   ChooseOrgClicked: { organizationId: OrganizationId },
@@ -472,6 +478,28 @@ export const LoadSession = Command.define("LoadSession", {
   execute: Effect.suspend(() =>
     runSessionCall((api) => api.auth.session()).pipe(Effect.map((result) => Message.GotSession({ result }))),
   ),
+});
+
+export const SendSignInCode = Command.define("SendSignInCode", {
+  args: { email: EmailAddress },
+  messages: [Message.SignInCodeSent],
+  execute: ({ email }) =>
+    runApi(
+      (api) => api.auth.sendSignInCode({ payload: { email } }),
+      () => Message.SignInCodeSent({ sent: true }),
+      () => Message.SignInCodeSent({ sent: false }),
+    ),
+});
+
+export const VerifySignInCode = Command.define("VerifySignInCode", {
+  args: { email: EmailAddress, code: Schema.String },
+  messages: [Message.SignInCodeChecked],
+  execute: ({ email, code }) =>
+    runApi(
+      (api) => api.auth.verifySignInCode({ payload: { email, code } }),
+      (result) => Message.SignInCodeChecked({ verified: result.verified }),
+      () => Message.SignInCodeChecked({ verified: false }),
+    ),
 });
 
 export const CreateOrganization = Command.define("CreateOrganization", {
@@ -1516,7 +1544,15 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
           return {
             model: {
               ...model,
-              session: { _tag: "SignedOut", failed: failedParam },
+              session: {
+                _tag: "SignedOut",
+                failed: failedParam,
+                stage: "email",
+                email: "",
+                code: "",
+                busy: false,
+                notice: null,
+              },
             },
           };
         case "Failed":
@@ -1583,6 +1619,69 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       return {
         model: { ...model, session: { _tag: "Loading" } },
         commands: [LoadSession()],
+      };
+
+    case "SignInEmailChanged":
+      return model.session._tag === "SignedOut"
+        ? { model: { ...model, session: { ...model.session, email: message.email } } }
+        : { model };
+
+    case "SignInCodeChanged":
+      return model.session._tag === "SignedOut"
+        ? { model: { ...model, session: { ...model.session, code: message.code } } }
+        : { model };
+
+    case "SubmitSignInEmail":
+      if (model.session._tag !== "SignedOut" || model.session.busy) return { model };
+      if (model.session.email.trim() === "") return { model };
+      return {
+        model: { ...model, session: { ...model.session, busy: true, notice: null } },
+        commands: [SendSignInCode({ email: EmailAddress.make(model.session.email.trim()) })],
+      };
+
+    case "SubmitSignInCode":
+      if (model.session._tag !== "SignedOut" || model.session.busy) return { model };
+      if (model.session.code.trim() === "") return { model };
+      return {
+        model: { ...model, session: { ...model.session, busy: true, notice: null } },
+        commands: [
+          VerifySignInCode({
+            email: EmailAddress.make(model.session.email.trim()),
+            code: model.session.code.trim(),
+          }),
+        ],
+      };
+
+    case "SignInCodeSent":
+      if (model.session._tag !== "SignedOut") return { model };
+      return {
+        model: {
+          ...model,
+          session: {
+            ...model.session,
+            busy: false,
+            stage: message.sent ? "code" : model.session.stage,
+            code: "",
+            notice: message.sent
+              ? translate("signIn.sent", { email: model.session.email.trim() })
+              : translate("signIn.sendFailed"),
+          },
+        },
+      };
+
+    case "SignInCodeChecked":
+      if (model.session._tag !== "SignedOut") return { model };
+      if (message.verified) {
+        return {
+          model: { ...model, session: { ...model.session, busy: false, notice: null } },
+          commands: [LoadSession()],
+        };
+      }
+      return {
+        model: {
+          ...model,
+          session: { ...model.session, busy: false, notice: translate("signIn.failed") },
+        },
       };
 
     case "CreateOrgNameChanged":
@@ -3231,7 +3330,23 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
   if (model.session._tag === "SignedOut") {
     return {
       title: message("signIn.title"),
-      body: signInView(model.session.failed, h),
+      body: signInView(
+        {
+          failed: model.session.failed,
+          stage: model.session.stage,
+          email: model.session.email,
+          code: model.session.code,
+          busy: model.session.busy,
+          notice: model.session.notice,
+        },
+        {
+          onEmail: (email) => Message.SignInEmailChanged({ email }),
+          onCode: (code) => Message.SignInCodeChanged({ code }),
+          onSubmitEmail: Message.SubmitSignInEmail(),
+          onSubmitCode: Message.SubmitSignInCode(),
+        },
+        h,
+      ),
     };
   }
 

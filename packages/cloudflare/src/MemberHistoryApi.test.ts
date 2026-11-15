@@ -10,7 +10,7 @@ const setup = async () => {
 
   const as = async (email: string) => {
     const browser = new Browser(world.handler());
-    await browser.signIn(world.workos.addUser(email));
+    browser.signIn(world.sessions.login(email));
     await browser.session();
     return browser;
   };

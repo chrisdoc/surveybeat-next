@@ -1,8 +1,8 @@
 -- Better Auth's own tables (ADR 0022): who signed in, and the session each cookie names. They sit
 -- beside the people index rather than inside it, so the `auth_` prefix keeps them apart from
--- `person_index`, `organization_index` and `revoked_session`. Columns and indexes are Better Auth
--- 1.7.11's SQLite schema for packages/auth's model names; the Organization object still holds the
--- Persons, so no survey content is here.
+-- `person_index`, `organization_index` and `organization_claim`. Columns and indexes are Better
+-- Auth 1.7.11's SQLite schema for packages/auth's model names; the Organization object still holds
+-- the Persons, so no survey content is here.
 
 CREATE TABLE auth_user (
   id TEXT NOT NULL PRIMARY KEY,
@@ -49,6 +49,13 @@ CREATE TABLE auth_verification (
   createdAt DATE NOT NULL,
   updatedAt DATE NOT NULL
 );
+
+-- Which Organization this session is working in (ADR 0023). One session spans Organizations, so
+-- the choice is kept here instead of in the cookie, and deleting the session takes it with it.
+CREATE TABLE auth_session_organization (
+  session_id TEXT NOT NULL PRIMARY KEY REFERENCES auth_session (id) ON DELETE CASCADE,
+  organization_id TEXT NOT NULL
+) WITHOUT ROWID;
 
 CREATE INDEX auth_session_userId_idx ON auth_session (userId);
 CREATE INDEX auth_account_userId_idx ON auth_account (userId);

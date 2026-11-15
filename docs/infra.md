@@ -25,8 +25,6 @@ The landing page (`SiteWorker`, ADR 0020) uses the stage's own name without `app
 
 ```sh
 pnpm --filter @surveybeat/web build        # the Main Worker serves apps/web/dist
-# Sign-in secrets, read at deploy (and destroy) time. Use the WorkOS SurveyBeat Staging values.
-export WORKOS_API_KEY=sk_test_... WORKOS_CLIENT_ID=client_...
 pnpm infra:deploy --stage dev-yourname     # `alchemy deploy infra/alchemy.run.ts`
 pnpm infra:destroy --stage dev-yourname
 CLOUDFLARE_API_TOKEN=... CLOUDFLARE_ACCOUNT_ID=... pnpm check:observability --stage dev-yourname
@@ -36,48 +34,36 @@ E2E_BASE_URL=<main-url> pnpm test:e2e      # once: pnpm --filter @surveybeat/inf
 
 ## Preview stages in CI
 
-`.github/workflows/preview.yml` deploys `pr-<number>` on every push to a pull request, smoke tests the stage, and destroys it when the pull request closes. It needs the repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`, plus the sign-in secrets `WORKOS_API_KEY` and `WORKOS_CLIENT_ID` (below). Fork pull requests are skipped. After the deploy, two jobs run against the stage:
+`.github/workflows/preview.yml` deploys `pr-<number>` on every push to a pull request, smoke tests the stage, and destroys it when the pull request closes. It needs the repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`, (no sign-in secret beyond `ORG_CREATION_ALLOWLIST`, which `infra/alchemy.run.ts` reads). Fork pull requests are skipped. After the deploy, two jobs run against the stage:
 
 - `preview-privacy` reads back the Submission Worker's settings (below) on every PR. When the PR touches `packages/cloudflare`, `infra`, the answer entry (`apps/web/answer.html`, `src/answer`, `src/messages`, `vite.config.ts`), the dependency pins or this workflow, it also runs the canary sweep (`infra/tests/privacy/canary-sweep.ts`).
 - `e2e` runs the Playwright tests in `infra/tests/e2e/` (the SPEC §7 flow, which grows with the slices).
 
-## Sign-in (WorkOS AuthKit)
+## Sign-in (Better Auth, email codes)
 
-The Main Worker handles `/auth/login`, `/auth/callback`, and `/auth/logout` with `@workos-inc/node`'s workerd build, and the app calls `/auth/session`, `/auth/organization`, and `/auth/organization/choose` (`packages/cloudflare/src/auth/`, flow in `packages/domain/src/people/SignInFlow.ts`). The client is built once per isolate (`Effect.cached` in `MainWorker.ts`, the SDK caches the JWKS on it) and the D1 index is built per request. The cookie password seals the session with iron-webcrypto and needs at least 32 characters, and no WorkOS call may hold a request longer than the configured `requestTimeout` (`auth/AuthConfig.ts`).
+The Main Worker serves `/auth/login`, `/auth/email-code`, `/auth/email-code/verify`, `/auth/logout`, `/auth/session`, `/auth/organization` and `/auth/organization/choose` (`packages/cloudflare/src/auth/`; the flow is `packages/domain/src/people/SignInFlow.ts`), and forwards every other `/auth/*` path to the Better Auth instance mounted at `/auth` (ADR 0022, ADR 0023). `authInstance.fetch` is built once per isolate in `MainWorker.ts`; the D1 index is built per request.
 
-**Session failure rules.** `auth/ProviderFailure.ts` decides what a throw from WorkOS means, and `ProviderFailure.test.ts` pins it. A 4xx other than 408 and 429 is a refusal, so the user must sign in again (`Unauthenticated`); a `TypeError`, a `jose`/JWKS error, a timeout, a 429 or a 5xx means the provider is out of reach, so the session is kept and the request answers `AuthUnavailable`. Only the calls a user can fix by signing in again (code exchange, organization selection) turn a refusal into `Unauthenticated`; the rest fail only when WorkOS is unreachable. `authenticate` maps `invalid_jwt` to an expired session and any other unauthenticated result to invalid, and a cookie too malformed to unseal to invalid rather than to an outage. A refresh keeps the session only when the SDK reports `retryable`, since the 30-second replay window makes retries converge. When a user belongs to several WorkOS organizations the code exchange answers `OrganizationSelectionRequired`, and `signInWithCode` picks, because only it knows where the user is still a Person. Revoking an already ended session and deactivating an already gone membership succeed: the refusal is the desired end state. Creating an Organization is idempotent by `externalId` (explicit `idempotencyKey`), and a concurrent create is resolved by reading the existing Organization back.
+**Signing in.** `/auth/login` redirects to the app's own form. The form posts the email to `/auth/email-code`, which hands it to Better Auth's verification-code endpoint, and Better Auth mails a six-digit code through the same `EmailSender` the invitations use. `/auth/email-code/verify` exchanges the code for a session: Better Auth writes the `auth_session` row, and its `Set-Cookie` value is put on our response as `__Host-surveybeat-session`. There is no callback route and no state cookie, because nothing redirects off-site, and there is no hosted logout page: sign-out deletes the session row and answers 303 to the app.
+
+**Session failure rules.** `BetterAuthIdentityProvider` reads the session for the cookie: no row or an unknown token is `Unauthenticated`, so the cookie is dropped and the request answers 401; a throw from Better Auth is `AuthUnavailable`, so the cookie is kept and the request answers 503 and can be retried. Only `Unauthenticated` from `authenticate` expires the cookie. Revoking a session that is already gone succeeds: the refusal is the desired end state.
 
 | Binding | Source |
 | --- | --- |
-| `WORKOS_API_KEY`, `WORKOS_CLIENT_ID` | The deploying shell's environment, bound as Worker secrets. In CI they are GitHub secrets: the `production` environment holds the SurveyBeat Production values, and every other stage falls back to the repository secrets, which hold the Staging values. |
-| `ORG_CREATION_ALLOWLIST` | `infra/org-creation-allowlist.yaml`, the emails that may create an Organization, keyed by stage with `default` for any stage not listed. `infra/alchemy.run.ts` reads it at deploy time and it wins over the shell; a missing file, an empty list, or a malformed email fails the deploy. Bound as a Worker secret, comma-separated. Emails match case-insensitively and only when WorkOS verified them. A change takes effect at the stage's next deploy. |
-| `WORKOS_COOKIE_PASSWORD` | Generated per stage by Alchemy (`Random`, 32 bytes as hex) and kept in its state. Destroying a stage discards it. |
+| `ORG_CREATION_ALLOWLIST` | `infra/org-creation-allowlist.yaml`, the emails that may create an Organization, keyed by stage with `default` for any stage not listed. `infra/alchemy.run.ts` reads it at deploy time and it wins over the shell; a missing file, an empty list, or a malformed email fails the deploy. Bound as a Worker secret, comma-separated. Emails match case-insensitively and only when Better Auth verified them. A change takes effect at the stage's next deploy. |
+| `INVITATION_TOKEN_KEY` | Generated per stage by Alchemy (`Random`, 32 bytes as hex) and kept in its state. Destroying a stage discards it. |
 | `OPENROUTER_API_KEY` | Optional. The deploying environment's `OPENROUTER_API_KEY` (a GitHub secret in CI), bound as a Worker secret; empty when unset. AI features fail closed (`AiNotConfigured`) without it. Account settings and the EU-only routing are per ADR 0015. |
 
-**WorkOS environments.** `pr-*` and personal stages use **SurveyBeat Staging** (`environment_01M6TXKPTEY2HWYAEFC0XMMVB2`, AuthKit domain `straightforward-mouse-82-staging.authkit.app`). Production is **SurveyBeat Production** (`environment_01M6TXKQ8G5Q9ASGGJCQE1FAFH`). Staging has:
+`BETTER_AUTH_SECRET` comes from `packages/auth`'s `authOptions`; it is not a stage secret. Better Auth's own tables live in D1 (`packages/cloudflare/d1-migrations/0008_better_auth.sql`) and are migrated by the normal deploy.
 
-- redirect URIs `https://pr-*.dashboard.surveybeat.app/auth/callback`, `https://staging.dashboard.surveybeat.app/auth/callback`, `https://*.chrisdoc.workers.dev/auth/callback`, `http://localhost:5173/auth/callback`. Wildcards work: WorkOS sends `pr-52` to the hosted page and a host outside the list to `/redirect-uri-invalid` (checked on 2026-11-07);
-- logout URIs `https://pr-*.dashboard.surveybeat.app/` (default), `https://staging.dashboard.surveybeat.app/`, `https://*.chrisdoc.workers.dev/`, `http://localhost:5173/`, set with `workos authkit logout-uris set --environment-id environment_01M6TXKPTEY2HWYAEFC0XMMVB2`;
-- the roles `member` (default) and `admin` (Organization admin, created with `workos role create`).
+**Session cookie.** `__Host-surveybeat-session` holds Better Auth's session token: `HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/`, no `Domain`. Better Auth sets it with a 30-day lifetime and refreshes it on use. POSTs with an `Origin` other than the stage's own are refused (`requireSameOrigin`), and Better Auth's own endpoints check `trustedOrigins`.
 
-Production has:
+**Per-request check.** The cookie is read against `auth_session`; then the Person linked to that user must be active in the chosen Organization's Durable Object (ADR 0010, ADR 0023). The Organization the session is working in is stored beside the session in `auth_session_organization`, so one session spans Organizations and `/auth/organization/choose` writes nothing about the organization into the cookie. Sign-out deletes the session row, which takes that choice with it through the foreign key.
 
-- sign-in methods enabled in the dashboard (a new environment allows only SSO, which shows "This account is not authorized to sign in");
-- redirect URI `https://dashboard.surveybeat.app/auth/callback` (default), `https://app.surveybeat.app/auth/callback`;
-- logout URI `https://dashboard.surveybeat.app/` (default), `https://app.surveybeat.app/`;
-- the roles `member` (default) and `admin` (Organization admin).
+**Organization admins** are held in the Organization's Durable Object (`person.organization_admin`) and nowhere else (ADR 0003). There is no outward role to keep in step: the auth layer knows who signed in, the Organization knows what they may do.
 
-The smoke test checks that WorkOS accepts the stage's authorization URL and that `WORKOS_API_KEY` belongs to the client's environment: a key from another environment deploys fine and only fails at the first real sign-in.
+**Teams and People** (`/api/*`, `packages/cloudflare/src/DirectoryHandlers.ts`, rules in `packages/domain/src/people/Directory.ts`, permissions in `Permissions.ts`). The Durable Object authorizes and commits each change in one transaction, then the Worker puts the D1 index and the email queue in step. Removing a Person marks them removed in the Durable Object (the per-request check denies them at once), deletes their `person_index` row, and ends their Memberships, with history kept.
 
-**Session cookie.** `__Host-surveybeat-session` holds the WorkOS sealed session: `HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/`, no `Domain`, 30 days. `__Host-surveybeat-auth-state` holds the OAuth `state` for 10 minutes. POSTs with an `Origin` other than the stage's own are refused.
-
-**Per-request check.** The access token is verified locally (JWKS cached per isolate) and refreshed when it expired. Then the session must not be in D1's `revoked_session`, and when the token is scoped to an Organization, the Person linked to the WorkOS user must be active in its Durable Object (ADR 0010). Sign-out writes `revoked_session` before redirecting to WorkOS's logout, so a copied cookie stops working at once.
-
-**Organization admins** are held in the Organization's Durable Object (`person.organization_admin`), not read from the token's role claim, which can be minutes old. The WorkOS `admin` role is kept in step when an admin is granted or revoked, and set at each sign-in from the Durable Object.
-
-**Teams and People** (`/api/*`, `packages/cloudflare/src/DirectoryHandlers.ts`, rules in `packages/domain/src/people/Directory.ts`, permissions in `Permissions.ts`). The Durable Object authorizes and commits each change in one transaction, then the Worker puts the D1 index, WorkOS, and the email queue in step. Removing a Person marks them removed in the Durable Object (the per-request check denies them at once), deletes their `person_index` row, then deactivates their WorkOS organization membership. If WorkOS cannot be reached the call answers 503 and repeating it finishes the removal.
-
-**D1 index** (`d1-migrations/0003_people_index.sql`): `organization_index` (Organization ↔ WorkOS organization, name), `person_index` (WorkOS user → Persons; email → Organizations for Persons not yet linked; emails normalised), `organization_claim` (one created Organization per WorkOS user, which makes creation idempotent), and `revoked_session`.
+**D1 index** (`d1-migrations/0003_people_index.sql`): `organization_index` (Organization name), `person_index` (auth user → Persons; email → Organizations for Persons not yet linked; emails normalised), and `organization_claim` (one created Organization per auth user, which makes creation idempotent).
 
 ## Workers Logs are sampled at 1%
 

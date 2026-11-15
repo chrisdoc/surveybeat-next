@@ -76,9 +76,16 @@ export type EndpointPrivacy =
     };
 
 export const privacyRegistry: { readonly [K in EndpointKey<typeof SurveyBeatApi>]: EndpointPrivacy } = {
-  "auth.login": { _tag: "NoResultData", why: "redirects to the AuthKit hosted sign-in page" },
-  "auth.callback": { _tag: "NoResultData", why: "sets the session cookie and redirects to the app" },
-  "auth.logout": { _tag: "NoResultData", why: "clears the session cookie and redirects to WorkOS logout" },
+  "auth.login": { _tag: "NoResultData", why: "redirects to the app's own email-code form" },
+  "auth.sendSignInCode": { _tag: "NoResultData", why: "hands the email to Better Auth, which mails a code" },
+  "auth.verifySignInCode": {
+    _tag: "NoResultData",
+    why: "checks the code and hands Better Auth's session cookie back to the browser",
+  },
+  "auth.logout": {
+    _tag: "NoResultData",
+    why: "clears the session cookie, revokes the session and redirects home",
+  },
   "auth.session": {
     _tag: "NoResultData",
     why: "returns the sign-in state: Organization ids and names, a Person id, and the admin flag",

@@ -14,7 +14,7 @@ import {
   type SendStoreShape,
   TeamId,
   TimeZone,
-  WorkosUserId,
+  AuthUserId,
 } from "@surveybeat/domain";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
@@ -28,7 +28,7 @@ const OrganizationRow = Schema.Struct({
 const PersonRow = Schema.Struct({
   id: PersonId,
   email: EmailAddress,
-  workos_user_id: Schema.NullOr(WorkosUserId),
+  auth_user_id: Schema.NullOr(AuthUserId),
   organization_admin: Schema.Int,
   removed_at: Schema.NullOr(Schema.Int),
   locale: Schema.NullOr(Locale),
@@ -54,7 +54,7 @@ export const makeSqlDirectory = (sql: SqliteClient.SqliteClient, sends: SendStor
         Effect.flatMap(rows(OrganizationRow)),
       );
     const people =
-      yield* sql`SELECT id, email, workos_user_id, organization_admin, removed_at, locale, detected_locale
+      yield* sql`SELECT id, email, auth_user_id, organization_admin, removed_at, locale, detected_locale
         FROM person`.pipe(Effect.flatMap(rows(PersonRow)));
     const teams = yield* sql`SELECT id, name, time_zone FROM team`.pipe(Effect.flatMap(rows(TeamRow)));
     const memberships = yield* sql`
@@ -69,7 +69,7 @@ export const makeSqlDirectory = (sql: SqliteClient.SqliteClient, sends: SendStor
       people: people.map((row) => ({
         id: row.id,
         email: row.email,
-        workosUserId: row.workos_user_id,
+        authUserId: row.auth_user_id,
         organizationAdmin: row.organization_admin === 1,
         removedAt: row.removed_at,
         locale: row.locale,
@@ -91,8 +91,8 @@ export const makeSqlDirectory = (sql: SqliteClient.SqliteClient, sends: SendStor
     switch (change._tag) {
       case "PersonAdded": {
         const { person } = change;
-        return sql`INSERT INTO person (id, email, workos_user_id, organization_admin, removed_at)
-          VALUES (${person.id}, ${person.email}, ${person.workosUserId}, ${person.organizationAdmin ? 1 : 0},
+        return sql`INSERT INTO person (id, email, auth_user_id, organization_admin, removed_at)
+          VALUES (${person.id}, ${person.email}, ${person.authUserId}, ${person.organizationAdmin ? 1 : 0},
                   ${person.removedAt})`;
       }
       case "PersonRestored":

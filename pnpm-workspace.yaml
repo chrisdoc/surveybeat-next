@@ -41,7 +41,6 @@ catalog:
   "@types/node": 26.6.6
   react-email: 6.11.8
   "@playwright/test": 1.65.0
-  "@workos-inc/node": 12.2.0
   foldkit: 0.170.0
   "@foldkit/ui": 0.170.0
   "@foldkit/vite-plugin": 0.29.0

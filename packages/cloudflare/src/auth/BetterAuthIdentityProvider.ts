@@ -1,18 +1,41 @@
 import { SESSION_COOKIE } from "@surveybeat/auth";
 import {
   AuthUnavailable,
+  AuthUserId,
   identityOf,
+  type OrganizationId,
   SessionId,
   SessionIdentityProvider,
   Unauthenticated,
-  WorkosUserId,
 } from "@surveybeat/domain";
 import type { Auth } from "better-auth";
 import * as Effect from "effect/Effect";
+import * as Option from "effect/Option";
 import * as Redacted from "effect/Redacted";
+
+const authOrigin = "http://localhost";
+
+const authRequest = (path: string, body: unknown) =>
+  new Request(`${authOrigin}${path}`, {
+    method: "POST",
+    headers: { "content-type": "application/json", origin: authOrigin },
+    body: JSON.stringify(body),
+  });
+
+const sessionTokenFromCookie = (header: string): string => {
+  const pair = header.split(";")[0] ?? "";
+  return Option.getOrElse(Option.fromNullishOr(pair.split("=").slice(1).join("=")), () => "");
+};
 
 export const betterAuthIdentityProvider = (params: {
   readonly auth: Auth;
+  readonly chosenOrganization: (
+    sessionId: SessionId,
+  ) => Effect.Effect<Option.Option<OrganizationId>, AuthUnavailable>;
+  readonly rememberOrganization: (
+    sessionId: SessionId,
+    organizationId: OrganizationId,
+  ) => Effect.Effect<void, AuthUnavailable>;
   readonly deleteSession: (sessionId: SessionId) => Effect.Effect<void, AuthUnavailable>;
 }) =>
   SessionIdentityProvider.of({
@@ -29,7 +52,7 @@ export const betterAuthIdentityProvider = (params: {
             ? Effect.fail(new Unauthenticated())
             : Effect.succeed({
                 identity: identityOf(
-                  WorkosUserId.make(session.user.id),
+                  AuthUserId.make(session.user.id),
                   session.user.email,
                   session.user.emailVerified,
                 ),
@@ -37,6 +60,32 @@ export const betterAuthIdentityProvider = (params: {
               }),
         ),
       ),
+
+    chosenOrganization: (sessionId) => params.chosenOrganization(sessionId),
+
+    chooseOrganization: (sessionId, organizationId) => params.rememberOrganization(sessionId, organizationId),
+
+    sendSignInCode: (email) =>
+      Effect.tryPromise({
+        try: () =>
+          params.auth.handler(
+            authRequest("/auth/email-otp/send-verification-otp", { email, type: "sign-in" }),
+          ),
+        catch: () => new AuthUnavailable(),
+      }).pipe(Effect.asVoid),
+
+    verifySignInCode: (email, code) =>
+      Effect.tryPromise({
+        try: () =>
+          params.auth
+            .handler(authRequest("/auth/sign-in/email-otp", { email, otp: code }))
+            .then((response) =>
+              response.ok
+                ? Option.map(Option.fromNullishOr(response.headers.get("set-cookie")), sessionTokenFromCookie)
+                : Option.none<string>(),
+            ),
+        catch: () => new AuthUnavailable(),
+      }),
 
     revokeSession: (sessionId) => params.deleteSession(sessionId),
   });

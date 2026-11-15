@@ -45,44 +45,17 @@ if (session.status !== 401) fail(`GET /auth/session without a cookie answered ${
 console.log(`GET /auth/session -> 401 (OK)`);
 
 const login = await fetch(`${mainUrl}/auth/login`, { redirect: "manual" });
-const authorize = login.headers.get("location");
-if (login.status !== 302 || authorize === null) fail(`GET /auth/login answered ${login.status}`);
-const authorizeUrl = new URL(authorize);
-if (authorizeUrl.searchParams.get("redirect_uri") !== `${mainUrl}/auth/callback`) {
-  fail(`the login redirect asks for redirect_uri ${authorizeUrl.searchParams.get("redirect_uri")}`);
+if (login.status !== 302 || login.headers.get("location") !== `${mainUrl}/`) {
+  fail(`GET /auth/login answered ${login.status} -> ${login.headers.get("location") ?? "nothing"}`);
 }
-const hosted = (await fetch(authorizeUrl, { redirect: "manual" })).headers.get("location") ?? "";
-const hostedUrl = URL.canParse(hosted) ? new URL(hosted) : undefined;
-if (
-  hostedUrl === undefined ||
-  !hostedUrl.hostname.endsWith(".authkit.app") ||
-  hostedUrl.pathname !== "/bootstrap"
-) {
-  fail(`WorkOS did not accept the authorization URL: it redirected to ${hosted || "nothing"}`);
-}
-console.log(`GET /auth/login -> ${hostedUrl.origin}`);
+console.log(`GET /auth/login -> ${mainUrl}/ (OK)`);
 
-const apiKey = process.env["WORKOS_API_KEY"];
-const clientId = process.env["WORKOS_CLIENT_ID"];
-if (apiKey !== undefined && apiKey !== "" && clientId !== undefined && clientId !== "") {
-  const exchange = await fetch("https://api.workos.com/user_management/authenticate", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      client_id: clientId,
-      client_secret: apiKey,
-      grant_type: "authorization_code",
-      code: "smoke-test-not-a-code",
-    }),
-  });
-  const answer: unknown = await exchange.json();
-  const error = typeof answer === "object" && answer !== null && "error" in answer ? answer.error : undefined;
-  if (error === "invalid_client")
-    fail("WORKOS_API_KEY does not belong to the environment of WORKOS_CLIENT_ID");
-  if (error !== "invalid_grant")
-    fail(`the WorkOS key check answered ${exchange.status} ${JSON.stringify(answer)}`);
-  console.log("WORKOS_API_KEY belongs to the client's environment");
+const form = await request(`${mainUrl}/`);
+if (form.status !== 200) fail(`GET / answered ${form.status}`);
+if (!(form.headers.get("content-type") ?? "").includes("text/html")) {
+  fail(`GET / serves ${form.headers.get("content-type") ?? "no content type"}`);
 }
+console.log(`GET / -> 200 text/html (OK)`);
 
 if (submissionUrl !== undefined) {
   const submitted = await request(`${submissionUrl}/submit`, { method: "POST", body: "{}" });

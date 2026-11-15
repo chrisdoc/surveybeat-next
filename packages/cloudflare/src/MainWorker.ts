@@ -4,15 +4,15 @@ import * as Cloudflare from "@alchemy.run/cloudflare";
 import {
   EmailOutbox,
   EmailSender,
-  IdentityProvider,
   MembershipId,
   OrganizationDirectory,
   NewIds,
   OrganizationPeople,
   PeopleIndex,
-  SessionIdentityProvider,
-  PersonId,
   OrganizationId,
+  SessionIdentityProvider,
+  AuthUnavailable,
+  PersonId,
   OrganizationPulses,
   OrganizationRounds,
   OrganizationActions,
@@ -31,6 +31,7 @@ import * as Config from "effect/Config";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 import * as Redacted from "effect/Redacted";
 import * as Schema from "effect/Schema";
@@ -54,7 +55,6 @@ import {
   durableObjectRounds,
 } from "./auth/DurableObjectPeople.ts";
 import { PEOPLE_TEST_ROUTE, peopleTestRoutes } from "./auth/PeopleTestRoutes.ts";
-import { workosIdentityProvider } from "./auth/WorkosIdentityProvider.ts";
 import { capturingEmailSender } from "./CapturingEmailSender.ts";
 import { cloudflareEmailSender } from "./CloudflareEmailSender.ts";
 import { Database } from "./Database.ts";
@@ -92,6 +92,16 @@ import { Jobs, JobsDlq, type JobMessage } from "./Queues.ts";
 import { httpPlatformStub, mainWorkerAssets, randomHex32 } from "./WorkerWiring.ts";
 
 const newOrganizationId = () => OrganizationId.make(randomHex32());
+
+const SURVEYBEAT_AUTH_PATHS = new Set([
+  "/auth/login",
+  "/auth/email-code",
+  "/auth/email-code/verify",
+  "/auth/logout",
+  "/auth/session",
+  "/auth/organization",
+  "/auth/organization/choose",
+]);
 
 export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
   "Main",
@@ -171,7 +181,6 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
     }
 
     const settings = authSettings;
-    const identityProvider = Effect.map(settings, ({ workos }) => workosIdentityProvider(workos));
     const people = durableObjectPeople(organizations);
     const directory = durableObjectDirectory(organizations);
     const pulses = durableObjectPulses(organizations);
@@ -210,15 +219,45 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
       });
       const sessions = betterAuthIdentityProvider({
         auth: yield* authInstance.auth,
+        chosenOrganization: (sessionId) =>
+          database
+            .prepare("SELECT organization_id FROM auth_session_organization WHERE session_id = ?")
+            .bind(sessionId)
+            .all<{ organization_id: string }>()
+            .pipe(
+              Effect.map((result) =>
+                Option.map(Option.fromNullishOr(result.results[0]), (row) =>
+                  OrganizationId.make(row.organization_id),
+                ),
+              ),
+              Effect.provideContext(runtime),
+              Effect.mapError(() => new AuthUnavailable()),
+            ),
+        rememberOrganization: (sessionId, organizationId) =>
+          database
+            .prepare(
+              `INSERT INTO auth_session_organization (session_id, organization_id) VALUES (?, ?)
+               ON CONFLICT (session_id) DO UPDATE SET organization_id = excluded.organization_id`,
+            )
+            .bind(sessionId, organizationId)
+            .run()
+            .pipe(
+              Effect.asVoid,
+              Effect.provideContext(runtime),
+              Effect.mapError(() => new AuthUnavailable()),
+            ),
         deleteSession: (sessionId) =>
           database
             .prepare("DELETE FROM auth_session WHERE id = ?")
             .bind(sessionId)
             .run()
-            .pipe(Effect.asVoid, Effect.provideContext(runtime), Effect.orDie),
+            .pipe(
+              Effect.asVoid,
+              Effect.provideContext(runtime),
+              Effect.mapError(() => new AuthUnavailable()),
+            ),
       });
-      return Context.make(IdentityProvider, yield* identityProvider).pipe(
-        Context.add(SessionIdentityProvider, sessions),
+      return Context.make(SessionIdentityProvider, sessions).pipe(
         Context.add(PeopleIndex, yield* d1PeopleIndex(database)),
         Context.add(OrganizationPeople, people),
         Context.add(OrganizationDirectory, directory),
@@ -262,9 +301,12 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
     return {
       fetch: Effect.gen(function* () {
         const request = yield* HttpServerRequest;
-        const path = request.url.split("?")[0];
+        const path = request.url.split("?")[0] ?? "/";
 
         if (path === DELIVERY_PAGE_PATH || path === UNSUBSCRIBE_PAGE_PATH) return yield* pages;
+
+        if (path.startsWith("/auth/") && !SURVEYBEAT_AUTH_PATHS.has(path))
+          return yield* authInstance.fetch.pipe(Effect.provide(RuntimeContext.phantom));
 
         if (isTestStage(stage)) {
           if (path === TEST_ROUTES && testRoutes) return yield* testRoutes;

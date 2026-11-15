@@ -61,7 +61,7 @@ describe("the Organization's directory tables (ADR 0018)", () => {
           person: {
             id: ada,
             email: EmailAddress.make("ada@example.com"),
-            workosUserId: null,
+            authUserId: null,
             organizationAdmin: false,
             removedAt: null,
             locale: null,

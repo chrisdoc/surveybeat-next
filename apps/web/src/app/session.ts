@@ -26,7 +26,14 @@ import {
 
 export const SessionModel = defineTaggedUnion({
   Loading: {},
-  SignedOut: { failed: Schema.Boolean },
+  SignedOut: {
+    failed: Schema.Boolean,
+    stage: Schema.Literals(["email", "code"]),
+    email: Schema.String,
+    code: Schema.String,
+    busy: Schema.Boolean,
+    notice: Schema.NullOr(Schema.String),
+  },
   Failed: {},
   CreateOrganization: { name: Schema.String, busy: Schema.Boolean },
   NotInOrganization: {},
@@ -89,7 +96,27 @@ export const runSessionCall = <E>(
     Effect.provide(FetchHttpClient.layer),
   );
 
-export const signInView = <Message>(failed: boolean, h: HtmlBuilder<Message>): Html =>
+export interface SignInState {
+  readonly failed: boolean;
+  readonly stage: "email" | "code";
+  readonly email: string;
+  readonly code: string;
+  readonly busy: boolean;
+  readonly notice: string | null;
+}
+
+export interface SignInActions<Message> {
+  readonly onEmail: (email: string) => Message;
+  readonly onCode: (code: string) => Message;
+  readonly onSubmitEmail: Message;
+  readonly onSubmitCode: Message;
+}
+
+export const signInView = <Message>(
+  state: SignInState,
+  actions: SignInActions<Message>,
+  h: HtmlBuilder<Message>,
+): Html =>
   pageShell(
     {},
     [
@@ -102,20 +129,63 @@ export const signInView = <Message>(failed: boolean, h: HtmlBuilder<Message>): H
               pageTitle(message("signIn.title"), h),
               h.p([h.Class("mt-3 text-lg text-ink")], [message("signIn.framing")]),
               h.p([h.Class("mt-2 text-sm text-muted")], [message("signIn.intro")]),
-              failed ? alertView(message("signIn.failed"), h) : null,
+              state.failed ? alertView(message("signIn.failed"), h) : null,
+              state.notice === null ? null : h.p([h.Class("mt-4 text-sm text-ink")], [state.notice]),
               h.form(
-                [h.Method("get"), h.Action("/auth/login"), h.Class("mt-6")],
+                [h.Class("mt-6 text-left"), h.OnSubmit(actions.onSubmitEmail)],
                 [
-                  appButton(
+                  textField(
                     {
-                      text: message("signIn.action"),
-                      type: "submit",
-                      className: `${buttonClass} w-full`,
+                      id: "sign-in-email",
+                      label: message("signIn.email"),
+                      type: "email",
+                      value: state.email,
+                      maxLength: 254,
+                      isDisabled: state.busy || state.stage === "code",
+                      onInput: actions.onEmail,
                     },
                     h,
                   ),
+                  state.stage === "email"
+                    ? appButton(
+                        {
+                          text: message("signIn.emailAction"),
+                          type: "submit",
+                          isDisabled: state.busy || state.email.trim() === "",
+                          className: `mt-4 w-full ${buttonClass}`,
+                        },
+                        h,
+                      )
+                    : null,
                 ],
               ),
+              state.stage === "code"
+                ? h.form(
+                    [h.Class("mt-4 text-left"), h.OnSubmit(actions.onSubmitCode)],
+                    [
+                      textField(
+                        {
+                          id: "sign-in-code",
+                          label: message("signIn.code"),
+                          value: state.code,
+                          maxLength: 12,
+                          isDisabled: state.busy,
+                          onInput: actions.onCode,
+                        },
+                        h,
+                      ),
+                      appButton(
+                        {
+                          text: message("signIn.codeAction"),
+                          type: "submit",
+                          isDisabled: state.busy || state.code.trim() === "",
+                          className: `mt-4 w-full ${buttonClass}`,
+                        },
+                        h,
+                      ),
+                    ],
+                  )
+                : null,
               h.p(
                 [h.Class("mt-6 text-sm text-muted")],
                 [

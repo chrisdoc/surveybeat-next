@@ -3,14 +3,7 @@
 import type * as Cloudflare from "@alchemy.run/cloudflare";
 import { assert, describe, expect, it } from "@effect/vitest";
 import { AUTH_TABLES, SESSION_COOKIE, createAuth, memoryAuth } from "@surveybeat/auth";
-import {
-  EmailAddress,
-  OrganizationId,
-  PersonId,
-  SessionId,
-  WorkosOrganizationId,
-  WorkosUserId,
-} from "@surveybeat/domain";
+import { EmailAddress, OrganizationId, PersonId, AuthUserId } from "@surveybeat/domain";
 import { RuntimeContext } from "alchemy/RuntimeContext";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
@@ -44,14 +37,14 @@ const makeIndex = () => {
 
 const acme = { id: OrganizationId.make("acme"), name: "Acme" };
 const globex = { id: OrganizationId.make("globex"), name: "Globex" };
-const ada = WorkosUserId.make("user_ada");
+const ada = AuthUserId.make("user_ada");
 
 describe("D1 PeopleIndex", () => {
   it.effect("finds unlinked Persons by normalised email, then by user once linked", () =>
     Effect.gen(function* () {
       const index = yield* makeIndex();
-      yield* index.putOrganization(acme, Option.some(WorkosOrganizationId.make("org_acme")));
-      yield* index.putOrganization(globex, Option.none());
+      yield* index.putOrganization(acme);
+      yield* index.putOrganization(globex);
       const person = PersonId.make("p1");
       yield* index.putPerson({
         organizationId: acme.id,
@@ -74,7 +67,7 @@ describe("D1 PeopleIndex", () => {
 
       yield* index.linkPerson(acme.id, person, ada);
       // Linking is one-shot: a second user cannot take the Person over.
-      yield* index.linkPerson(acme.id, person, WorkosUserId.make("user_mallory"));
+      yield* index.linkPerson(acme.id, person, AuthUserId.make("user_mallory"));
       assert.deepStrictEqual(yield* index.linkedPersons(ada), [
         { organization: acme, personId: person, linked: true },
       ]);
@@ -82,19 +75,6 @@ describe("D1 PeopleIndex", () => {
         (yield* index.unlinkedPersons(EmailAddress.make("ada@example.com"))).map((c) => c.organization.id),
         [globex.id],
       );
-    }),
-  );
-
-  it.effect("maps WorkOS organizations both ways, and keeps a known WorkOS id when re-put without one", () =>
-    Effect.gen(function* () {
-      const index = yield* makeIndex();
-      const workos = WorkosOrganizationId.make("org_acme");
-      yield* index.putOrganization(acme, Option.none());
-      assert.isTrue(Option.isNone(yield* index.workosOrganizationOf(acme.id)));
-      yield* index.putOrganization(acme, Option.some(workos));
-      yield* index.putOrganization(acme, Option.none());
-      assert.deepStrictEqual(yield* index.workosOrganizationOf(acme.id), Option.some(workos));
-      assert.deepStrictEqual(yield* index.organizationByWorkos(workos), Option.some(acme));
     }),
   );
 
@@ -144,28 +124,17 @@ describe("D1 PeopleIndex", () => {
     }
     const rows = sqlite
       .prepare(
-        "SELECT workos_user_id, completed_at IS NOT NULL AS completed FROM organization_claim ORDER BY 1",
+        "SELECT auth_user_id, completed_at IS NOT NULL AS completed FROM organization_claim ORDER BY 1",
       )
       .all();
     assert.deepStrictEqual(
       rows.map((row) => ({ ...row })),
       [
-        { workos_user_id: "user_done", completed: 1 },
-        { workos_user_id: "user_open", completed: 0 },
+        { auth_user_id: "user_done", completed: 1 },
+        { auth_user_id: "user_open", completed: 0 },
       ],
     );
   });
-
-  it.effect("records revoked sessions", () =>
-    Effect.gen(function* () {
-      const index = yield* makeIndex();
-      const session = SessionId.make("session_1");
-      assert.isFalse(yield* index.isSessionRevoked(session));
-      yield* index.revokeSession(session, 1);
-      yield* index.revokeSession(session, 2);
-      assert.isTrue(yield* index.isSessionRevoked(session));
-    }),
-  );
 
   it("rejects an email stored without normalising", () => {
     const sqlite = new DatabaseSync(":memory:");
@@ -323,6 +292,29 @@ describe("Better Auth identity provider over D1", () => {
 
       const provider = betterAuthIdentityProvider({
         auth,
+        chosenOrganization: (sessionId) =>
+          Effect.promise(() =>
+            database
+              .prepare("SELECT organization_id FROM auth_session_organization WHERE session_id = ?")
+              .bind(sessionId)
+              .all<{ organization_id: string }>(),
+          ).pipe(
+            Effect.map((result) =>
+              Option.map(Option.fromNullishOr(result.results[0]), (row) =>
+                OrganizationId.make(row.organization_id),
+              ),
+            ),
+          ),
+        rememberOrganization: (sessionId, organizationId) =>
+          Effect.promise(() =>
+            database
+              .prepare(
+                `INSERT INTO auth_session_organization (session_id, organization_id) VALUES (?, ?)
+                 ON CONFLICT (session_id) DO UPDATE SET organization_id = excluded.organization_id`,
+              )
+              .bind(sessionId, organizationId)
+              .run(),
+          ).pipe(Effect.asVoid),
         deleteSession: (sessionId) =>
           Effect.promise(() =>
             database.prepare("DELETE FROM auth_session WHERE id = ?").bind(sessionId).run(),
@@ -331,11 +323,22 @@ describe("Better Auth identity provider over D1", () => {
       const session = yield* provider.authenticate(Redacted.make(value));
       expect(session.identity.email).toBe(authAddress);
 
-      yield* provider.revokeSession(session.sessionId);
-      const rows = sqlite.prepare(`SELECT COUNT(*) AS count FROM ${AUTH_TABLES.session}`).get() as {
-        count: number;
+      // One session spans Organizations: the choice is remembered beside the session, not in it.
+      yield* provider.chooseOrganization(session.sessionId, acme.id);
+      yield* provider.chooseOrganization(session.sessionId, globex.id);
+      assert.deepStrictEqual(yield* provider.chosenOrganization(session.sessionId), Option.some(globex.id));
+
+      const count = (table: string) => {
+        const row = sqlite.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get() as { count: number };
+        return row.count;
       };
-      expect(rows.count).toBe(0);
+      expect(count("auth_session_organization")).toBe(1);
+
+      yield* provider.revokeSession(session.sessionId);
+      expect(count(AUTH_TABLES.session)).toBe(0);
+      // Revocation deletes the session and nothing else: it adds no row anywhere.
+      expect(count("auth_session_organization")).toBe(0);
+      expect(count("person_index")).toBe(0);
 
       const refused = yield* provider.authenticate(Redacted.make(value)).pipe(Effect.flip);
       expect(refused._tag).toBe("Unauthenticated");

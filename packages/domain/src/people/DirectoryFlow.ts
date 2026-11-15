@@ -11,7 +11,7 @@ import type { PersonId } from "./Identity.ts";
 import type { OrganizationId } from "./Organization.ts";
 import { Forbidden } from "./SignIn.ts";
 import type { Member } from "./SignInFlow.ts";
-import { IdentityProvider, PeopleIndex } from "./SignInPorts.ts";
+import { PeopleIndex } from "./SignInPorts.ts";
 import {
   LastAdmin,
   LastLead,
@@ -118,29 +118,16 @@ const viewed = <A>(view: Viewed<A>): Effect.Effect<A, DirectoryError> =>
 
 const followUp = Effect.fnUntraced(function* (organizationId: OrganizationId, step: FollowUp) {
   const index = yield* PeopleIndex;
-  const identityProvider = yield* IdentityProvider;
-  const workosOrganization = index.workosOrganizationOf(organizationId);
   switch (step._tag) {
     case "IndexPerson":
       return yield* index.putPerson({
         organizationId,
         personId: step.person.id,
         email: step.person.email,
-        userId: Option.fromNullishOr(step.person.workosUserId),
+        userId: Option.fromNullishOr(step.person.authUserId),
       });
     case "UnindexPerson":
       return yield* index.removePerson(organizationId, step.personId);
-    case "DeactivateWorkosMembership": {
-      const workos = yield* workosOrganization;
-      if (Option.isSome(workos)) yield* identityProvider.deactivateMembership(step.userId, workos.value);
-      return;
-    }
-    case "SetWorkosRole": {
-      const workos = yield* workosOrganization;
-      if (Option.isSome(workos))
-        yield* identityProvider.setMembershipRole(step.userId, workos.value, step.role);
-      return;
-    }
     case "QueueEmail":
       return yield* (yield* EmailOutbox).queue(organizationId, step.sendId);
   }

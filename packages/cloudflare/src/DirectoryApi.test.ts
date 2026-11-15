@@ -6,8 +6,8 @@ import { Browser, ORIGIN, SignInWorld } from "./auth/testing.ts";
 
 /**
  * The directory API over HTTP: real handlers, the real domain rules and permission table, and
- * in-memory stand-ins for WorkOS, the D1 index, the Organization Durable Objects, and the email
- * queue. Each role signs in through AuthKit (the fake) and is linked by verified email.
+ * in-memory stand-ins for sign-in, the D1 index, the Organization Durable Objects, and the email
+ * queue. Each role signs in through the in-memory provider and is linked by verified email.
  */
 
 const setup = async () => {
@@ -16,7 +16,7 @@ const setup = async () => {
   const adminId = world.addPerson(acme.id, "admin@example.com", true);
   const as = async (email: string) => {
     const browser = new Browser(world.handler());
-    await browser.signIn(world.workos.addUser(email));
+    browser.signIn(world.sessions.login(email));
     const session = await browser.session();
     return { browser, session };
   };
@@ -56,12 +56,6 @@ const personIdOf = (world: SignInWorld, organizationId: OrganizationId, email: s
   return person.id;
 };
 
-const userIdOf = (world: SignInWorld, email: string): string => {
-  const user = [...world.workos.users.values()].find((each) => each.email === email);
-  if (user === undefined) throw new Error(`no user ${email}`);
-  return user.id;
-};
-
 const roster = async (browser: Browser, teamId: string) => {
   const { status, body } = await browser.call("GET", `/api/teams/${teamId}`);
   expect(status).toBe(200);
@@ -77,7 +71,7 @@ describe("an Organization admin", () => {
     const acme = world.addOrganization("Acme");
     world.addPerson(acme.id, "admin@example.com", true);
     const admin = new Browser(world.handler());
-    await admin.signIn(world.workos.addUser("admin@example.com"));
+    admin.signIn(world.sessions.login("admin@example.com"));
     await admin.session();
 
     const created = await admin.call("POST", "/api/teams", {
@@ -95,7 +89,7 @@ describe("an Organization admin", () => {
     });
     const grace = personIdOf(world, acme.id, "grace@example.com");
     expect(world.durable.person(acme.id, grace)).toMatchObject({
-      workosUserId: null,
+      authUserId: null,
       organizationAdmin: false,
     });
     // Linkable at sign-in: the index offers the Person to that verified email.
@@ -103,11 +97,6 @@ describe("an Organization admin", () => {
       email: "grace@example.com",
       userId: null,
     });
-    // No WorkOS membership until they sign in (ADR 0002): only the admin's exists.
-    expect([...world.workos.memberships.keys()]).toEqual([
-      `${userIdOf(world, "admin@example.com")}/${acme.workos}`,
-    ]);
-
     expect(world.outbox.queued).toHaveLength(1);
     const sends = [...(world.durable.organizations.get(acme.id)?.sends.entries() ?? [])];
     expect(sends.map(([sendId]) => sendId)).toEqual(world.outbox.queued.map(({ sendId }) => sendId));
@@ -170,17 +159,13 @@ describe("an Organization admin", () => {
     expect(await roster(admin, teamId)).toEqual(["lead ada@example.com", "member grace@example.com"]);
   });
 
-  it("removes a Person: Memberships end, the index forgets them, WorkOS deactivates them, the next request denies them", async () => {
+  it("removes a Person: Memberships end, the index forgets them, the next request denies them", async () => {
     const { world, acme, admin, lead, member, teamId, personId } = await setup();
     const ada = personId("ada@example.com");
-    expect(world.workos.memberships.has(`${userIdOf(world, "ada@example.com")}/${acme.workos}`)).toBe(true);
 
     expect((await admin.call("DELETE", `/api/organization/people/${ada}`)).status).toBe(204);
     expect(world.durable.person(acme.id, ada)?.removedAt).not.toBeNull();
     expect(world.index.persons.has(`${acme.id}/${ada}`)).toBe(false);
-    expect(world.workos.inactiveMemberships.has(`${userIdOf(world, "ada@example.com")}/${acme.workos}`)).toBe(
-      true,
-    );
     // History stays: the Membership is ended, not deleted.
     const memberships = world.durable.organizations.get(acme.id)?.state.memberships ?? [];
     expect(memberships.filter((membership) => membership.personId === ada)).toEqual([
@@ -202,20 +187,6 @@ describe("an Organization admin", () => {
     expect(
       (await admin.call("POST", `/api/teams/${teamId}/members`, { email: "ada@example.com" })).status,
     ).toBe(204);
-  });
-
-  it("finishes a removal on retry when WorkOS was down, with the Person already denied", async () => {
-    const { world, acme, admin, member, personId } = await setup();
-    const ada = personId("ada@example.com");
-    world.workos.failMembershipChanges = true;
-    expect((await admin.call("DELETE", `/api/organization/people/${ada}`)).status).toBe(503);
-    expect(world.index.persons.has(`${acme.id}/${ada}`)).toBe(false);
-    expect((await member.call("GET", "/api/teams")).status).toBe(403);
-    expect(world.workos.inactiveMemberships.size).toBe(0);
-
-    world.workos.failMembershipChanges = false;
-    expect((await admin.call("DELETE", `/api/organization/people/${ada}`)).status).toBe(204);
-    expect(world.workos.inactiveMemberships.size).toBe(1);
   });
 
   it("refuses to remove a Team's last Lead, revoke the last admin, or remove yourself", async () => {
@@ -294,26 +265,19 @@ describe("an Organization admin", () => {
     expect((await admin.session()).body).toMatchObject({ locale: null, detectedLocale: null });
   });
 
-  it("makes another Person admin, in the Durable Object and in WorkOS", async () => {
-    const { world, acme, admin, lead, personId, adminId } = await setup();
+  it("makes another Person admin in the Durable Object", async () => {
+    const { admin, lead, personId, adminId } = await setup();
     const grace = personId("grace@example.com");
     expect((await admin.call("PUT", `/api/organization/admins/${grace}`)).status).toBe(204);
-    expect(world.workos.memberships.get(`${userIdOf(world, "grace@example.com")}/${acme.workos}`)).toBe(
-      "admin",
-    );
     expect((await lead.session()).body).toMatchObject({ organizationAdmin: true });
     expect((await lead.call("DELETE", `/api/organization/admins/${adminId}`)).status).toBe(204);
     expect((await admin.session()).body).toMatchObject({ organizationAdmin: false });
     expect((await admin.call("GET", "/api/organization")).status).toBe(403);
   });
 
-  it("is judged by the Durable Object, not the token's role claim", async () => {
+  it("is judged by the Durable Object, not by the session", async () => {
     const { world, acme, admin, adminId } = await setup();
-    // WorkOS (and so the token) still says admin; the Organization's object no longer does.
     world.durable.update(acme.id, adminId, { organizationAdmin: false });
-    expect(world.workos.memberships.get(`${userIdOf(world, "admin@example.com")}/${acme.workos}`)).toBe(
-      "admin",
-    );
     expect((await admin.session()).body).toMatchObject({ _tag: "SignedIn", organizationAdmin: false });
     expect((await admin.call("GET", "/api/organization")).status).toBe(403);
     expect(
@@ -448,7 +412,7 @@ describe("every directory endpoint", () => {
   it("answers 403 to someone signed in but not in an Organization", async () => {
     const world = new SignInWorld();
     const browser = new Browser(world.handler());
-    await browser.signIn(world.workos.addUser("nobody@example.com"));
+    browser.signIn(world.sessions.login("nobody@example.com"));
     expect((await browser.call("GET", "/api/teams")).status).toBe(403);
   });
 
@@ -469,7 +433,7 @@ describe("every directory endpoint", () => {
     const globex = world.addOrganization("Globex");
     world.addPerson(globex.id, "boss@example.com", true);
     const outsider = new Browser(world.handler());
-    await outsider.signIn(world.workos.addUser("boss@example.com"));
+    outsider.signIn(world.sessions.login("boss@example.com"));
     await outsider.session();
     expect((await outsider.call("GET", `/api/teams/${teamId}`)).status).toBe(404);
     expect(await outsider.call("GET", "/api/teams")).toEqual({ status: 200, body: [] });
@@ -635,7 +599,7 @@ describe("resending a failed email (issue 159)", () => {
     const globex = world.addOrganization("Globex");
     world.addPerson(globex.id, "boss@example.com", true);
     const outsider = new Browser(world.handler());
-    await outsider.signIn(world.workos.addUser("boss@example.com"));
+    outsider.signIn(world.sessions.login("boss@example.com"));
     await outsider.session();
     expect((await outsider.call("POST", resendPath(sendId))).status).toBe(404);
     expect((await outsider.call("GET", statusPath(sendId))).status).toBe(404);

@@ -1,5 +1,5 @@
-import { Clock, Effect, Option, Redacted } from "effect";
-import type { OrganizationCreationAllowlist, PersonId, WorkosOrganizationId } from "./Identity.ts";
+import { Clock, Effect, Option, type Redacted } from "effect";
+import type { OrganizationCreationAllowlist, PersonId } from "./Identity.ts";
 import type { Locale } from "./Locale.ts";
 import type { OrganizationId } from "./Organization.ts";
 import {
@@ -9,17 +9,15 @@ import {
   type OrganizationSummary,
   type PersonCandidate,
   type SessionState,
-  Unauthenticated,
 } from "./SignIn.ts";
 import {
   type ClaimStatus,
-  IdentityProvider,
-  NewIds,
   type OrganizationClaim,
+  NewIds,
   OrganizationPeople,
   PeopleIndex,
-  type ProviderSession,
 } from "./SignInPorts.ts";
+import { type SignedInSession, SessionIdentityProvider } from "./SessionIdentity.ts";
 
 export interface Member {
   readonly organization: OrganizationSummary;
@@ -32,52 +30,54 @@ export interface Member {
 }
 
 export interface CheckedSession {
-  readonly session: ProviderSession;
+  readonly session: SignedInSession;
 
   readonly member: Option.Option<Member>;
 }
 
 export interface SessionOutcome {
   readonly state: SessionState;
-  readonly session: ProviderSession;
+  readonly session: SignedInSession;
 }
 
-export const checkSession = Effect.fnUntraced(function* (sealed: Redacted.Redacted<string>) {
-  const identityProvider = yield* IdentityProvider;
-  const index = yield* PeopleIndex;
+const memberOf = Effect.fnUntraced(function* (session: SignedInSession, organization: OrganizationSummary) {
   const people = yield* OrganizationPeople;
-
-  const check = yield* identityProvider.authenticate(sealed);
-  const session =
-    check._tag === "Valid"
-      ? check.session
-      : check._tag === "Expired"
-        ? yield* identityProvider.refresh(sealed, Option.none())
-        : yield* new Unauthenticated();
-
-  const [revoked, organization] = yield* Effect.all(
-    [
-      index.isSessionRevoked(session.sessionId),
-      Option.match(session.workosOrganizationId, {
-        onNone: () => Effect.succeedNone,
-        onSome: index.organizationByWorkos,
-      }),
-    ],
-    { concurrency: "unbounded" },
-  );
-  if (revoked) return yield* new Unauthenticated();
-  if (Option.isNone(organization)) return { session, member: Option.none() } satisfies CheckedSession;
-
-  const person = yield* people.activePerson(organization.value.id, session.identity.userId);
-
-  if (Option.isNone(person)) return { session, member: Option.none() } satisfies CheckedSession;
-  return {
-    session,
-    member: Option.some({ organization: organization.value, ...person.value }),
-  } satisfies CheckedSession;
+  const person = yield* people.activePerson(organization.id, session.identity.userId);
+  return Option.map(person, (active) => ({ organization, ...active }));
 });
 
-const signedIn = (session: ProviderSession, member: Member): SessionOutcome => ({
+export const checkSession = Effect.fnUntraced(function* (cookie: Redacted.Redacted<string>) {
+  const sessions = yield* SessionIdentityProvider;
+  const index = yield* PeopleIndex;
+
+  const session = yield* sessions.authenticate(cookie);
+  const chosen = yield* sessions.chosenOrganization(session.sessionId);
+
+  if (Option.isSome(chosen)) {
+    const [linked, unlinked] = yield* Effect.all(
+      [
+        index.linkedPersons(session.identity.userId),
+        session.identity.emailMatchable ? index.unlinkedPersons(session.identity.email) : Effect.succeed([]),
+      ],
+      { concurrency: "unbounded" },
+    );
+    const candidate = candidatesFor(session.identity, linked, unlinked).find(
+      (each) => each.organization.id === chosen.value,
+    );
+    const member =
+      candidate === undefined ? Option.none<Member>() : yield* memberOf(session, candidate.organization);
+    return { session, member } satisfies CheckedSession;
+  }
+
+  const linked = yield* index.linkedPersons(session.identity.userId);
+  const [only, ...rest] = linked;
+  if (only === undefined || rest.length > 0) {
+    return { session, member: Option.none() } satisfies CheckedSession;
+  }
+  return { session, member: yield* memberOf(session, only.organization) } satisfies CheckedSession;
+});
+
+const signedIn = (session: SignedInSession, member: Member): SessionOutcome => ({
   session,
   state: {
     _tag: "SignedIn",
@@ -90,7 +90,7 @@ const signedIn = (session: ProviderSession, member: Member): SessionOutcome => (
   },
 });
 
-const candidatesOf = Effect.fnUntraced(function* (session: ProviderSession) {
+const candidatesOf = Effect.fnUntraced(function* (session: SignedInSession) {
   const index = yield* PeopleIndex;
   const { identity } = session;
   const [linked, unlinked] = yield* Effect.all(
@@ -104,8 +104,8 @@ const candidatesOf = Effect.fnUntraced(function* (session: ProviderSession) {
   return candidatesFor(identity, linked, unlinked);
 });
 
-const enter = Effect.fnUntraced(function* (session: ProviderSession, candidate: PersonCandidate) {
-  const identityProvider = yield* IdentityProvider;
+const enter = Effect.fnUntraced(function* (session: SignedInSession, candidate: PersonCandidate) {
+  const sessions = yield* SessionIdentityProvider;
   const index = yield* PeopleIndex;
   const people = yield* OrganizationPeople;
   const { identity } = session;
@@ -121,24 +121,14 @@ const enter = Effect.fnUntraced(function* (session: ProviderSession, candidate: 
     if (!linked) return yield* new Forbidden();
     yield* index.linkPerson(organizationId, candidate.personId, identity.userId);
   }
-  const person = yield* people.activePerson(organizationId, identity.userId);
-  if (Option.isNone(person)) return yield* new Forbidden();
-
-  const workosOrganizationId = yield* index.workosOrganizationOf(organizationId);
-  if (Option.isNone(workosOrganizationId)) {
-    return yield* Effect.die(`Organization ${organizationId} has People but no WorkOS organization`);
-  }
-  yield* identityProvider.ensureMembership(
-    identity.userId,
-    workosOrganizationId.value,
-    person.value.organizationAdmin ? "admin" : "member",
-  );
-  const refreshed = yield* identityProvider.refresh(session.sealed, workosOrganizationId);
-  return signedIn(refreshed, { organization: candidate.organization, ...person.value });
+  const member = yield* memberOf(session, candidate.organization);
+  if (Option.isNone(member)) return yield* new Forbidden();
+  yield* sessions.chooseOrganization(session.sessionId, organizationId);
+  return signedIn(session, member.value);
 });
 
-const finishCreation = Effect.fnUntraced(function* (session: ProviderSession, claim: OrganizationClaim) {
-  const identityProvider = yield* IdentityProvider;
+const finishCreation = Effect.fnUntraced(function* (session: SignedInSession, claim: OrganizationClaim) {
+  const sessions = yield* SessionIdentityProvider;
   const index = yield* PeopleIndex;
   const people = yield* OrganizationPeople;
   const { identity } = session;
@@ -150,28 +140,26 @@ const finishCreation = Effect.fnUntraced(function* (session: ProviderSession, cl
     userId: identity.userId,
   });
 
-  const person = yield* people.activePerson(organization.id, identity.userId);
-  if (Option.isNone(person)) {
+  const member = yield* memberOf(session, organization);
+  if (Option.isNone(member)) {
     yield* index.completeClaim(identity.userId, yield* Clock.currentTimeMillis);
     return yield* new Forbidden();
   }
-  const workosOrganizationId = yield* identityProvider.createOrganization(organization.name, organization.id);
-  yield* index.putOrganization(organization, Option.some(workosOrganizationId));
+  yield* index.putOrganization(organization);
   yield* index.putPerson({
     organizationId: organization.id,
     personId: adminPersonId,
     email: identity.email,
     userId: Option.some(identity.userId),
   });
-  yield* identityProvider.ensureMembership(identity.userId, workosOrganizationId, "admin");
   yield* index.completeClaim(identity.userId, yield* Clock.currentTimeMillis);
-  const refreshed = yield* identityProvider.refresh(session.sealed, Option.some(workosOrganizationId));
-  return signedIn(refreshed, { organization, ...person.value });
+  yield* sessions.chooseOrganization(session.sessionId, organization.id);
+  return signedIn(session, member.value);
 });
 
 const isUnfinished = (
   claim: Option.Option<ClaimStatus>,
-  session: ProviderSession,
+  session: SignedInSession,
   allowlist: OrganizationCreationAllowlist,
 ): claim is Option.Some<ClaimStatus> =>
   Option.isSome(claim) && !claim.value.completed && allowlist.allows(session.identity);
@@ -208,7 +196,7 @@ export const sessionState = Effect.fnUntraced(function* (
   }
 });
 
-const finishOrEnter = (session: ProviderSession, claim: ClaimStatus) =>
+const finishOrEnter = (session: SignedInSession, claim: ClaimStatus) =>
   claim.completed
     ? enter(session, { organization: claim.organization, personId: claim.adminPersonId, linked: true })
     : finishCreation(session, claim);
@@ -222,7 +210,8 @@ export const createOrganization = Effect.fnUntraced(function* (
   const ids = yield* NewIds;
   const { session } = checked;
 
-  if (Option.isSome(checked.member) || !allowlist.allows(session.identity)) return yield* new Forbidden();
+  if (Option.isSome(checked.member)) return signedIn(session, checked.member.value);
+  if (!allowlist.allows(session.identity)) return yield* new Forbidden();
 
   const existing = yield* index.claimOf(session.identity.userId);
   if (Option.isSome(existing)) return yield* finishOrEnter(session, existing.value);
@@ -230,11 +219,12 @@ export const createOrganization = Effect.fnUntraced(function* (
   const decision = decideSignIn(session.identity, yield* candidatesOf(session), allowlist);
   if (decision._tag !== "CreateOrganization") return yield* new Forbidden();
 
-  const claim = yield* index.claimOrganization(session.identity.userId, {
+  const claimed = yield* index.claimOrganization(session.identity.userId, {
     organization: { id: yield* ids.organizationId, name },
     adminPersonId: yield* ids.personId,
   });
-  return yield* finishOrEnter(session, claim);
+  const canonical = Option.getOrElse(yield* index.claimOf(session.identity.userId), () => claimed);
+  return yield* finishOrEnter(session, canonical);
 });
 
 export const chooseOrganization = Effect.fnUntraced(function* (
@@ -248,53 +238,9 @@ export const chooseOrganization = Effect.fnUntraced(function* (
   return yield* enter(checked.session, candidate);
 });
 
-export const signInWithCode = Effect.fnUntraced(function* (code: string) {
-  const identityProvider = yield* IdentityProvider;
-  const index = yield* PeopleIndex;
-  const people = yield* OrganizationPeople;
-
-  const exchange = yield* identityProvider.authenticateWithCode(code);
-  if (exchange._tag === "Authenticated") return exchange.session;
-  const [first] = exchange.organizations;
-  if (first === undefined) return yield* new Unauthenticated();
-
-  let chosen: WorkosOrganizationId = first;
-  if (Option.isSome(exchange.userId)) {
-    for (const workosOrganizationId of exchange.organizations) {
-      const organization = yield* index.organizationByWorkos(workosOrganizationId);
-      if (Option.isNone(organization)) continue;
-      if (Option.isSome(yield* people.activePerson(organization.value.id, exchange.userId.value))) {
-        chosen = workosOrganizationId;
-        break;
-      }
-    }
-  }
-  return yield* identityProvider.authenticateWithOrganizationSelection(
-    exchange.pendingAuthenticationToken,
-    chosen,
-  );
+export const signOut = Effect.fnUntraced(function* (cookie: Redacted.Redacted<string>) {
+  const sessions = yield* SessionIdentityProvider;
+  const session = yield* sessions.authenticate(cookie).pipe(Effect.option);
+  if (Option.isNone(session)) return yield* Effect.void;
+  yield* sessions.revokeSession(session.value.sessionId);
 });
-
-export const signOut = Effect.fnUntraced(function* (sealed: Redacted.Redacted<string>, returnTo: string) {
-  const identityProvider = yield* IdentityProvider;
-  const index = yield* PeopleIndex;
-
-  const check = yield* identityProvider.authenticate(sealed);
-  const session =
-    check._tag === "Valid"
-      ? Option.some(check.session)
-      : check._tag === "Expired"
-        ? yield* identityProvider.refresh(sealed, Option.none()).pipe(
-            Effect.asSome,
-            Effect.catchTag("Unauthenticated", () => Effect.succeedNone),
-          )
-        : Option.none<ProviderSession>();
-  if (Option.isNone(session)) return Option.none<string>();
-
-  yield* index.revokeSession(session.value.sessionId, yield* Clock.currentTimeMillis);
-  yield* identityProvider.revokeSession(session.value.sessionId);
-  return Option.some(identityProvider.logoutUrl(session.value.sessionId, returnTo));
-});
-
-export const sealedChanged = (before: Redacted.Redacted<string>, after: ProviderSession): boolean =>
-  Redacted.value(before) !== Redacted.value(after.sealed);

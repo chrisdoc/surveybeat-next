@@ -8,7 +8,7 @@ This repository is the Cloudflare rebuild. Read these before you change behavior
 - [GLOSSARY.md](GLOSSARY.md) is the vocabulary. Use those words in code, the API, and the UI.
 - [docs/adr](docs/adr) holds the binding decisions.
 - [AGENTS.md](AGENTS.md) is the guide for working in this tree.
-- [docs/infra.md](docs/infra.md) covers stages, WorkOS sign-in, email, and observability.
+- [docs/infra.md](docs/infra.md) covers stages, sign-in, email, and observability.
 
 ## Requirements
 
@@ -51,7 +51,7 @@ pnpm --filter @surveybeat/web dev
 
 ## Deploy a personal stage
 
-Run Alchemy from the repository root. It finds Durable Object SQL migrations relative to the working directory. Export `WORKOS_API_KEY` and `WORKOS_CLIENT_ID` first. A personal stage stays on `workers.dev` and records email in D1 instead of sending it. Hostnames, preview stages, and the observability check are in [docs/infra.md](docs/infra.md).
+Run Alchemy from the repository root. It finds Durable Object SQL migrations relative to the working directory. The sign-in allowlist comes from `infra/org-creation-allowlist.yaml`. A personal stage stays on `workers.dev` and records email in D1 instead of sending it. Hostnames, preview stages, and the observability check are in [docs/infra.md](docs/infra.md).
 
 ```sh
 pnpm --filter @surveybeat/web build

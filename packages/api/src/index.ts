@@ -83,9 +83,15 @@ export const OrganizationName = Schema.String.pipe(
 export class AuthApiGroup extends HttpApiGroup.make("auth")
   .add(
     HttpApiEndpoint.get("login", "/login", { success: HttpApiSchema.Empty(302) }),
-    HttpApiEndpoint.get("callback", "/callback", {
-      query: { code: Schema.optional(Schema.String), state: Schema.optional(Schema.String) },
-      success: HttpApiSchema.Empty(302),
+    HttpApiEndpoint.post("sendSignInCode", "/email-code", {
+      payload: Schema.Struct({ email: EmailAddress }),
+      success: HttpApiSchema.Empty(204),
+      error: [Forbidden, AuthUnavailable],
+    }),
+    HttpApiEndpoint.post("verifySignInCode", "/email-code/verify", {
+      payload: Schema.Struct({ email: EmailAddress, code: Schema.String }),
+      success: Schema.Struct({ verified: Schema.Boolean }),
+      error: [Forbidden, AuthUnavailable],
     }),
     HttpApiEndpoint.post("logout", "/logout", {
       success: HttpApiSchema.Empty(303),

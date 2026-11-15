@@ -29,6 +29,12 @@ export type SurveyBeatAuthOptions = Omit<BetterAuthOptions, "baseURL" | "databas
 export const authOptions = (delivery: CodeDelivery): SurveyBeatAuthOptions => ({
   appName: "SurveyBeat",
   basePath: "/auth",
+  trustedOrigins: [
+    "https://surveybeat.app",
+    "https://*.surveybeat.app",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+  ],
   session: {
     expiresIn: SESSION_TTL_SECONDS,
     updateAge: 24 * 60 * 60,

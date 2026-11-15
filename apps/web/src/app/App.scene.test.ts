@@ -132,15 +132,44 @@ const signedInAdmin: SessionModel = {
 
 describe("App Scenes", () => {
   describe("Sign-in states", () => {
-    it("renders signed out screen with sign-in button", () => {
+    it("renders signed out screen with the email-code form", () => {
       Scene.scene(
         { update, view },
         Scene.given({
           ...initialModel(makeUrl("https://app.surveybeat.com/")),
-          session: { _tag: "SignedOut", failed: false },
+          session: {
+            _tag: "SignedOut",
+            failed: false,
+            stage: "email",
+            email: "",
+            code: "",
+            busy: false,
+            notice: null,
+          },
         }),
         Scene.expect(Scene.role("heading", { name: "Sign in to SurveyBeat" })).toExist(),
-        Scene.expect(Scene.role("button", { name: "Sign in" })).toExist(),
+        Scene.expect(Scene.role("textbox", { name: "Your email" })).toExist(),
+        Scene.expect(Scene.role("button", { name: "Email me a code" })).toExist(),
+      );
+    });
+
+    it("asks for the code once the email is submitted", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(makeUrl("https://app.surveybeat.com/")),
+          session: {
+            _tag: "SignedOut",
+            failed: false,
+            stage: "code",
+            email: "ada@example.com",
+            code: "",
+            busy: false,
+            notice: "We sent a 6-digit code to ada@example.com. It expires in 5 minutes.",
+          },
+        }),
+        Scene.expect(Scene.role("textbox", { name: "Sign-in code" })).toExist(),
+        Scene.expect(Scene.role("button", { name: "Sign in with this code" })).toExist(),
       );
     });
 
@@ -149,7 +178,15 @@ describe("App Scenes", () => {
         { update, view },
         Scene.given({
           ...initialModel(makeUrl("https://app.surveybeat.com/?signin=failed")),
-          session: { _tag: "SignedOut", failed: true },
+          session: {
+            _tag: "SignedOut",
+            failed: true,
+            stage: "email",
+            email: "",
+            code: "",
+            busy: false,
+            notice: null,
+          },
         }),
         Scene.expect(Scene.text("Signing in did not work. Please try again.")).toExist(),
       );
@@ -3416,7 +3453,15 @@ describe("App Scenes", () => {
         { update, view },
         Scene.given({
           ...initialModel(makeUrl("https://app.surveybeat.com/privacy")),
-          session: { _tag: "SignedOut", failed: false },
+          session: {
+            _tag: "SignedOut",
+            failed: false,
+            stage: "email",
+            email: "",
+            code: "",
+            busy: false,
+            notice: null,
+          },
         }),
         Scene.expect(Scene.role("heading", { name: "Privacy at SurveyBeat" })).toExist(),
         Scene.expect(Scene.role("heading", { name: "Nothing shown below the minimum group size" })).toExist(),
@@ -3451,10 +3496,18 @@ describe("App Scenes", () => {
         { update, view },
         Scene.given({
           ...initialModel(makeUrl("https://app.surveybeat.com/")),
-          session: { _tag: "SignedOut", failed: false },
+          session: {
+            _tag: "SignedOut",
+            failed: false,
+            stage: "email",
+            email: "",
+            code: "",
+            busy: false,
+            notice: null,
+          },
         }),
         Scene.expect(Scene.text("Short check-ins that show how your Team is really doing.")).toExist(),
-        Scene.expect(Scene.role("button", { name: "Sign in" })).toExist(),
+        Scene.expect(Scene.role("button", { name: "Email me a code" })).toExist(),
         Scene.expect(Scene.role("link", { name: "How privacy works" })).toExist(),
         Scene.expect(
           Scene.text("Anonymous by design: answers are never stored with a name or a time."),
@@ -3467,7 +3520,15 @@ describe("App Scenes", () => {
         { update, view },
         Scene.given({
           ...initialModel(makeUrl("https://app.surveybeat.com/")),
-          session: { _tag: "SignedOut", failed: false },
+          session: {
+            _tag: "SignedOut",
+            failed: false,
+            stage: "email",
+            email: "",
+            code: "",
+            busy: false,
+            notice: null,
+          },
         }),
         Scene.expect(Scene.role("link", { name: "Privacy" })).toExist(),
       );
@@ -3595,8 +3656,32 @@ describe("App Scenes", () => {
       });
 
       it("uses the browser's language, then English, when signed out", () => {
-        expect(localeOf(modelWith("de", { _tag: "SignedOut", failed: false }))).toBe("de");
-        expect(localeOf(modelWith(null, { _tag: "SignedOut", failed: false }))).toBe("en");
+        expect(
+          localeOf(
+            modelWith("de", {
+              _tag: "SignedOut",
+              failed: false,
+              stage: "email",
+              email: "",
+              code: "",
+              busy: false,
+              notice: null,
+            }),
+          ),
+        ).toBe("de");
+        expect(
+          localeOf(
+            modelWith(null, {
+              _tag: "SignedOut",
+              failed: false,
+              stage: "email",
+              email: "",
+              code: "",
+              busy: false,
+              notice: null,
+            }),
+          ),
+        ).toBe("en");
       });
     });
   });
@@ -3667,7 +3752,15 @@ describe("App Scenes", () => {
         { update, view },
         Scene.given({
           ...initialModel(makeUrl("https://app.surveybeat.com/privacy")),
-          session: { _tag: "SignedOut", failed: false },
+          session: {
+            _tag: "SignedOut",
+            failed: false,
+            stage: "email",
+            email: "",
+            code: "",
+            busy: false,
+            notice: null,
+          },
         }),
         Scene.expect(Scene.role("link", { name: "Privacy", current: "page" })).toExist(),
       );
@@ -3931,7 +4024,15 @@ describe("App Scenes", () => {
     it("keeps the session and Privacy screens' own titles, all naming SurveyBeat", () => {
       const signedOut = (url: string): Model => ({
         ...initialModel(makeUrl(url)),
-        session: { _tag: "SignedOut", failed: false },
+        session: {
+          _tag: "SignedOut",
+          failed: false,
+          stage: "email",
+          email: "",
+          code: "",
+          busy: false,
+          notice: null,
+        },
       });
       expect(titleOf(signedOut("https://app.surveybeat.com/"))).toBe("Sign in to SurveyBeat");
       expect(titleOf(signedOut("https://app.surveybeat.com/privacy"))).toBe("Privacy at SurveyBeat");

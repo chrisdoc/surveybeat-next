@@ -1,11 +1,8 @@
 import { Schema } from "effect";
 import { EmailAddress } from "../email/Email.ts";
 
-export const WorkosUserId = Schema.String.pipe(Schema.brand("WorkosUserId"));
-export type WorkosUserId = typeof WorkosUserId.Type;
-
-export const WorkosOrganizationId = Schema.String.pipe(Schema.brand("WorkosOrganizationId"));
-export type WorkosOrganizationId = typeof WorkosOrganizationId.Type;
+export const AuthUserId = Schema.String.pipe(Schema.brand("AuthUserId"));
+export type AuthUserId = typeof AuthUserId.Type;
 
 export const SessionId = Schema.String.pipe(Schema.brand("SessionId"));
 export type SessionId = typeof SessionId.Type;
@@ -18,14 +15,14 @@ export const normaliseEmail = (email: string): string => email.normalize("NFKC")
 const isPrintableAscii = (text: string): boolean => /^[\x20-\x7e]*$/.test(text);
 
 export interface Identity {
-  readonly userId: WorkosUserId;
+  readonly userId: AuthUserId;
   readonly email: EmailAddress;
   readonly emailVerified: boolean;
 
   readonly emailMatchable: boolean;
 }
 
-export const identityOf = (userId: WorkosUserId, email: string, emailVerified: boolean): Identity => ({
+export const identityOf = (userId: AuthUserId, email: string, emailVerified: boolean): Identity => ({
   userId,
   email: EmailAddress.make(normaliseEmail(email)),
   emailVerified,

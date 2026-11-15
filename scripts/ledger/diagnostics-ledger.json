@@ -1,6 +1,6 @@
 {
   "effect-file:anyUnknownInErrorContext": 5,
-  "effect-file:asyncFunction": 26,
+  "effect-file:asyncFunction": 25,
   "effect-file:cryptoRandomUUIDInEffect": 5,
   "effect-file:globalConsole": 5,
   "effect-file:globalDate": 16,

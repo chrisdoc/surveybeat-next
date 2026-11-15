@@ -5,7 +5,7 @@ import type { Page } from "@playwright/test";
 /**
  * The signed-in screens without a session: every read `/auth/session` and `/api` answer is stubbed
  * from the values below, so a test can open a settings, Teams, or Rounds screen on a stage where
- * the only session is WorkOS's (SPEC §7's flow is still `test.fixme`). Nothing here changes what
+ * the only session is the sign-in cookie (SPEC §7's flow is still `test.fixme`). Nothing here changes what
  * the screens do; it only supplies the reads they make.
  *
  * The Team is one the caller leads, so the Rounds screen shows its Lead controls, and the two

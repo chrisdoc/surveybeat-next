@@ -6,7 +6,7 @@ import { Browser, SignInWorld } from "./auth/testing.ts";
 
 /**
  * The Pulse editor API over HTTP: real handlers, the real editor rules and permission table, and
- * the in-memory Organization objects. Each role signs in through AuthKit (the fake).
+ * the in-memory Organization objects. Each role signs in through the in-memory session provider.
  */
 
 const setup = async () => {
@@ -15,7 +15,7 @@ const setup = async () => {
   world.addPerson(acme.id, "admin@example.com", true);
   const as = async (email: string) => {
     const browser = new Browser(world.handler());
-    await browser.signIn(world.workos.addUser(email));
+    browser.signIn(world.sessions.login(email));
     await browser.session();
     return browser;
   };
@@ -322,7 +322,7 @@ describe("every Pulse endpoint", () => {
     const globex = world.addOrganization("Globex");
     world.addPerson(globex.id, "boss@example.com", true);
     const outsider = new Browser(world.handler());
-    await outsider.signIn(world.workos.addUser("boss@example.com"));
+    outsider.signIn(world.sessions.login("boss@example.com"));
     await outsider.session();
     expect((await outsider.call("GET", `/api/teams/${teamId}/pulses`)).status).toBe(404);
     expect((await outsider.call("POST", `/api/teams/${teamId}/pulses`)).status).toBe(404);

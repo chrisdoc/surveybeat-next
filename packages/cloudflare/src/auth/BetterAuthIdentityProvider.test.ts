@@ -1,6 +1,8 @@
 import { describe, expect, it } from "@effect/vitest";
 import { SESSION_COOKIE, memoryAuth } from "@surveybeat/auth";
+import { OrganizationId, SessionId } from "@surveybeat/domain";
 import * as Effect from "effect/Effect";
+import * as Option from "effect/Option";
 import * as Redacted from "effect/Redacted";
 import { betterAuthIdentityProvider } from "./BetterAuthIdentityProvider.ts";
 
@@ -40,15 +42,21 @@ const signedIn = () =>
         }),
       ),
     );
+    const chosen = new Map<SessionId, OrganizationId>();
     const provider = betterAuthIdentityProvider({
       auth,
+      chosenOrganization: (sessionId) => Effect.sync(() => Option.fromNullishOr(chosen.get(sessionId))),
+      rememberOrganization: (sessionId, organizationId) =>
+        Effect.sync(() => void chosen.set(sessionId, organizationId)),
       deleteSession: (sessionId) =>
         Effect.sync(() => {
           sent.push(sessionId);
         }),
     });
-    return { provider, sent, value: sessionValue(response) };
+    return { provider, sent, chosen, value: sessionValue(response) };
   });
+
+const organizationIds = ["organization-1", "organization-2"] as const;
 
 describe("Better Auth identity provider", () => {
   it.effect("reads the Person's identity from the session cookie", () =>
@@ -67,6 +75,21 @@ describe("Better Auth identity provider", () => {
       const { provider } = yield* signedIn();
       const refused = yield* provider.authenticate(Redacted.make("not-a-session-token")).pipe(Effect.flip);
       expect(refused._tag).toBe("Unauthenticated");
+    }),
+  );
+
+  it.effect("remembers the chosen Organization beside the session", () =>
+    Effect.gen(function* () {
+      const { provider, chosen, value } = yield* signedIn();
+      const session = yield* provider.authenticate(Redacted.make(value));
+      expect(yield* provider.chosenOrganization(session.sessionId)).toEqual(Option.none());
+      const [first, second] = organizationIds;
+      yield* provider.chooseOrganization(session.sessionId, OrganizationId.make(first));
+      yield* provider.chooseOrganization(session.sessionId, OrganizationId.make(second));
+      expect(yield* provider.chosenOrganization(session.sessionId)).toEqual(
+        Option.some(OrganizationId.make(second)),
+      );
+      expect(chosen.size).toBe(1);
     }),
   );
 

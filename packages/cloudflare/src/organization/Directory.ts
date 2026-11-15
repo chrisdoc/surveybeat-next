@@ -50,37 +50,37 @@ export const organizationDirectory = ({
         .withTransaction(sql`INSERT INTO organization (id, name) VALUES (${id}, ${name})`)
         .pipe(Effect.as({ id, name }), Effect.orDie),
 
-    createWithAdmin: (id: string, name: string, personId: string, email: string, workosUserId: string) =>
+    createWithAdmin: (id: string, name: string, personId: string, email: string, authUserId: string) =>
       sql
         .withTransaction(
           Effect.all([
             sql`INSERT INTO organization (id, name) VALUES (${id}, ${name}) ON CONFLICT (id) DO NOTHING`,
-            sql`INSERT INTO person (id, email, workos_user_id, organization_admin)
-              VALUES (${personId}, ${email}, ${workosUserId}, 1)
+            sql`INSERT INTO person (id, email, auth_user_id, organization_admin)
+              VALUES (${personId}, ${email}, ${authUserId}, 1)
               ON CONFLICT (id) DO NOTHING`,
           ]),
         )
         .pipe(Effect.asVoid, Effect.orDie),
 
-    linkPerson: (personId: string, workosUserId: string, email: string) =>
+    linkPerson: (personId: string, authUserId: string, email: string) =>
       sql
         .withTransaction(
           Effect.gen(function* () {
             const other = yield* sql<{ id: string }>`
-            SELECT id FROM person WHERE workos_user_id = ${workosUserId} AND id <> ${personId}`;
+            SELECT id FROM person WHERE auth_user_id = ${authUserId} AND id <> ${personId}`;
             if (other.length > 0) return false;
             yield* sql`
-            UPDATE person SET workos_user_id = ${workosUserId}
-             WHERE id = ${personId} AND email = ${email} AND removed_at IS NULL AND workos_user_id IS NULL`;
+            UPDATE person SET auth_user_id = ${authUserId}
+             WHERE id = ${personId} AND email = ${email} AND removed_at IS NULL AND auth_user_id IS NULL`;
             const linked = yield* sql<{ id: string }>`
             SELECT id FROM person
-             WHERE id = ${personId} AND workos_user_id = ${workosUserId} AND removed_at IS NULL`;
+             WHERE id = ${personId} AND auth_user_id = ${authUserId} AND removed_at IS NULL`;
             return linked.length > 0;
           }),
         )
         .pipe(Effect.orDie),
 
-    activePerson: (workosUserId: string) =>
+    activePerson: (authUserId: string) =>
       sql<{
         id: string;
         organization_admin: number;
@@ -91,7 +91,7 @@ export const organizationDirectory = ({
       SELECT person.id, person.organization_admin, person.locale, person.detected_locale,
              (SELECT default_locale FROM organization LIMIT 1) AS default_locale
         FROM person
-       WHERE person.workos_user_id = ${workosUserId} AND person.removed_at IS NULL`.pipe(
+       WHERE person.auth_user_id = ${authUserId} AND person.removed_at IS NULL`.pipe(
         Effect.map((rows) => {
           const row = rows[0];
           if (row === undefined) return null;

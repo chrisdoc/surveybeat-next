@@ -85,28 +85,20 @@ test(
       removed: { adaActive: none, adaIndexed: [], adaSignInAgain: { _tag: "NotInOrganization" } },
       // Ada's Membership ended with her removal; Eve, the Lead, stays.
       roster: [{ personId: eve, email: "eve@example.com", role: "lead" }],
-      // WorkOS memberships only once each signs in, and Ada's deactivated on removal (ADR 0010).
-      workosCalls: [
-        `ensure user_eve_${run} member`,
-        `ensure user_ada_${run} member`,
-        `deactivate user_ada_${run}`,
-      ],
       queued: [`added-membership-1-${run}`, `added-membership-2-${run}`],
     });
   }),
 );
 
 test(
-  "reads its sign-in bindings: a request without a session is unauthenticated, and login goes to AuthKit",
+  "reads its sign-in bindings: a request without a session is unauthenticated, and login goes to the form",
   Effect.gen(function* () {
     const { url } = yield* stack;
     const session = yield* Effect.promise(() => fetch(`${url}/auth/session`));
     assert.strictEqual(session.status, 401);
     const login = yield* Effect.promise(() => fetch(`${url}/auth/login`, { redirect: "manual" }));
     assert.strictEqual(login.status, 302);
-    const location = new URL(login.headers.get("location") ?? "");
-    assert.strictEqual(location.searchParams.get("client_id"), "client_local_adapter_tests");
-    assert.strictEqual(location.searchParams.get("redirect_uri"), `${url}/auth/callback`);
+    assert.strictEqual(login.headers.get("location"), `${url}/`);
   }),
 );
 

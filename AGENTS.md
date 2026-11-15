@@ -2,7 +2,7 @@
 
 Cloudflare-only Effect app. One Durable Object per Organization is the system of record; D1 holds only the global index and auth/email bookkeeping, never survey content. Three Workers serve the app/API (`MainWorker`), the answer page's submission path (`SubmissionWorker`), and the static landing page (`SiteWorker`, ADR 0020).
 
-Read `SPEC.md` (authoritative spec), `GLOSSARY.md` (domain vocabulary), and `docs/adr/` (binding decisions) before changing behavior. `docs/infra.md` covers stages, WorkOS sign-in, email, and observability. For Effect, Alchemy, Foldkit, XState, a new lint rule, or a Cloudflare resource, start at the [ratstack agent guide](https://ratstack.sh/llms.txt) and follow the Ratstack section.
+Read `SPEC.md` (authoritative spec), `GLOSSARY.md` (domain vocabulary), and `docs/adr/` (binding decisions) before changing behavior. `docs/infra.md` covers stages, Better Auth sign-in, email, and observability. For Effect, Alchemy, Foldkit, XState, a new lint rule, or a Cloudflare resource, start at the [ratstack agent guide](https://ratstack.sh/llms.txt) and follow the Ratstack section.
 
 ## Ground rules
 
@@ -80,7 +80,7 @@ CI runs `typecheck`, `check:ledger`, `check:comments`, `format:check`, `lint`, `
 
 - Every Cloudflare resource is declared in `infra/alchemy.run.ts`; no dashboard edits, no wrangler config.
 - Run Alchemy from the repo root: the Organization DO migrations path (`packages/cloudflare/migrations`) is relative to the working directory. Build the web app first; the Main Worker serves `apps/web/dist`.
-- `pnpm infra:deploy --stage dev-<name>` needs `WORKOS_API_KEY` and `WORKOS_CLIENT_ID` in the environment. Who may create an Organization is `infra/org-creation-allowlist.yaml`, per stage.
+- `pnpm infra:deploy --stage dev-<name>` reads the sign-in allowlist at deploy time. Who may create an Organization is `infra/org-creation-allowlist.yaml`, per stage.
 - Non-production stages never send real email; sends are recorded in D1's `captured_email`. Only `production` sends.
 - The Submission Worker must keep every observability channel off. `pnpm check:observability --stage <stage>` reads the deployed settings back; the canary sweep proves no logs are kept. Stage scripts need `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
 - New SQL migrations: numbered files in `packages/cloudflare/migrations` (Durable Object) or `packages/cloudflare/d1-migrations` (D1).

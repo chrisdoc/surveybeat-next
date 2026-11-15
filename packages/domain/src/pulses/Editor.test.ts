@@ -36,7 +36,7 @@ const pulseId = PulseId.make("pulse");
 const person = (id: PersonId, organizationAdmin = false) => ({
   id,
   email: EmailAddress.make(`${id}@example.com`),
-  workosUserId: null,
+  authUserId: null,
   organizationAdmin,
   removedAt: null,
   locale: null,

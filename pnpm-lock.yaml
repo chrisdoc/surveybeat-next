@@ -212,9 +212,6 @@ catalogs:
     '@types/react-dom':
       specifier: 19.3.0
       version: 19.3.0
-    '@workos-inc/node':
-      specifier: 12.2.0
-      version: 12.2.0
     '@xstate/effect':
       specifier: 1.0.0-beta.0
       version: 1.0.0-beta.0
@@ -454,9 +451,6 @@ importers:
       '@surveybeat/emails':
         specifier: workspace:*
         version: link:../emails
-      '@workos-inc/node':
-        specifier: 'catalog:'
-        version: 12.2.0
       alchemy:
         specifier: 'catalog:'
         version: 2.0.0-beta.85(@effect/platform-bun@4.1.2(effect@4.1.2))(@effect/platform-node@4.1.2(effect@4.1.2)(redis@6.3.1))(@types/react@19.3.0)(effect@4.1.2)(vite@8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))(ws@8.22.1)
@@ -2231,10 +2225,6 @@ packages:
 
   '@vitest/spy@5.1.0':
     resolution: {integrity: sha512-2DPO5OMHWKrBngC+fCmTQqemNF0gidRhp3lxbBmRhW+M1XJrfgPpqNqWVevXtn2f2ufD5ZaR1B6B641aAlcX5A==}
-
-  '@workos-inc/node@12.2.0':
-    resolution: {integrity: sha512-uWzWtPieLqn+juXcIm8YQxh0qokZg0dnjzGm5AHeemiG6VeqzGYc6nlqQ2zw/OI80aYuaPo/ZOURACyQuqYgnA==}
-    engines: {node: '>=22.11.0'}
 
   '@xstate/effect@1.0.0-beta.0':
     resolution: {integrity: sha512-UW9oREcMeU5iiL/lOL0Ol8Gu4kbR4uHpzv8qW6+tEWNpQ/Yaf3SqqoHtN5johpO9XCRNBSFuNoKQeJrLDyoo8A==}
@@ -4601,8 +4591,6 @@ snapshots:
       vite: 8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)
 
   '@vitest/spy@5.1.0': {}
-
-  '@workos-inc/node@12.2.0': {}
 
   '@xstate/effect@1.0.0-beta.0(@oxlint/plugins@1.92.0)(effect@4.1.2)(xstate@6.0.0-beta.1)':
     dependencies:

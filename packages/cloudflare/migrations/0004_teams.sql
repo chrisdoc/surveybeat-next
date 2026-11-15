@@ -1,7 +1,7 @@
 -- Teams, Memberships, Organization admins, and the minimum group size (slice 04, ADR 0002–0004).
 
 -- The Durable Object, not a token claim, decides who is an Organization admin (ADR 0010); the
--- WorkOS `admin` role is kept in step. Until now the only Person was each Organization's creator,
+-- `organization_admin` flag is kept in step. Until now the only Person was each Organization's creator,
 -- made its admin, so every existing Person is one.
 ALTER TABLE person ADD COLUMN organization_admin INTEGER NOT NULL DEFAULT 0 CHECK (organization_admin IN (0, 1));
 UPDATE person SET organization_admin = 1;

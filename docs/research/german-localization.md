@@ -89,7 +89,7 @@ Consequences:
 
 ## 2. Choosing the locale
 
-**Where the Person setting lives.** A Person is a row in its Organization's Durable Object (`packages/cloudflare/migrations/0003_person.sql`: `id`, `email`, `workos_user_id`, `removed_at`). D1's `person_index` only routes sign-in, and AGENTS.md keeps D1 to the index and auth bookkeeping. Add a DO migration:
+**Where the Person setting lives.** A Person is a row in its Organization's Durable Object (`packages/cloudflare/migrations/0003_person.sql`: `id`, `email`, `auth_user_id`, `removed_at`). D1's `person_index` only routes sign-in, and AGENTS.md keeps D1 to the index and auth bookkeeping. Add a DO migration:
 
 ```sql
 ALTER TABLE person ADD COLUMN locale TEXT CHECK (locale IN ('en', 'de'));       -- NULL: follow the browser

@@ -25,7 +25,7 @@ export default defineConfig({
     { name: "chromium", use: { ...devices["Desktop Chrome"] } },
     // The audit's phone layouts (C4, #160): the signed-in screens the polish pass changed at a
     // 393 x 851 phone, where a table or a row is most likely to break. The answer page tests its
-    // own phone width, and the AuthKit redirect is a desktop concern, so only `polish.spec.ts`
+    // own phone width, and the sign-in form is a desktop concern, so only `polish.spec.ts`
     // runs here.
     { name: "phone", testMatch: /polish\.spec\.ts/, use: { ...devices["Pixel 5"] } },
   ],

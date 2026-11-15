@@ -1,10 +1,9 @@
 import { Option } from "effect";
 import { EmailAddress, SendId, type TransactionalEmail } from "../email/Email.ts";
 import type { FailedEmail, FailedEmails, FailedEmailStatus } from "../email/FailedEmails.ts";
-import { normaliseEmail, type PersonId, type WorkosUserId } from "./Identity.ts";
+import { normaliseEmail, type PersonId, type AuthUserId } from "./Identity.ts";
 import { type Actor, can } from "./Permissions.ts";
 import { type Locale, resolveLocale } from "./Locale.ts";
-import type { OrganizationRole } from "./SignInPorts.ts";
 import type {
   AssignableRole,
   MembershipId,
@@ -19,7 +18,7 @@ import type {
 export interface PersonRecord {
   readonly id: PersonId;
   readonly email: EmailAddress;
-  readonly workosUserId: WorkosUserId | null;
+  readonly authUserId: AuthUserId | null;
   readonly organizationAdmin: boolean;
 
   readonly removedAt: number | null;
@@ -137,14 +136,12 @@ export type DirectoryChange =
 export interface PersonRef {
   readonly id: PersonId;
   readonly email: EmailAddress;
-  readonly workosUserId: WorkosUserId | null;
+  readonly authUserId: AuthUserId | null;
 }
 
 export type FollowUp =
   | { readonly _tag: "IndexPerson"; readonly person: PersonRef }
   | { readonly _tag: "UnindexPerson"; readonly personId: PersonId }
-  | { readonly _tag: "DeactivateWorkosMembership"; readonly userId: WorkosUserId }
-  | { readonly _tag: "SetWorkosRole"; readonly userId: WorkosUserId; readonly role: OrganizationRole }
   | { readonly _tag: "QueueEmail"; readonly sendId: SendId };
 
 export type DirectoryRejection =
@@ -211,7 +208,7 @@ const findTeam = (state: DirectoryState, teamId: TeamId) => state.teams.find((te
 const refOf = (person: PersonRecord): PersonRef => ({
   id: person.id,
   email: person.email,
-  workosUserId: person.workosUserId,
+  authUserId: person.authUserId,
 });
 
 export const actorOf = (state: DirectoryState, personId: PersonId): Option.Option<Actor> => {
@@ -256,7 +253,7 @@ const putInTeam = (
   const person: PersonRecord = existing ?? {
     id: member.personId,
     email,
-    workosUserId: null,
+    authUserId: null,
     organizationAdmin: false,
     removedAt: null,
     locale: null,
@@ -388,9 +385,6 @@ export const decide = (
       const person = state.people.find((each) => each.id === command.personId);
       if (person === undefined) return reject({ _tag: "PersonNotFound" });
       const followUps: Array<FollowUp> = [{ _tag: "UnindexPerson", personId: person.id }];
-      if (person.workosUserId !== null) {
-        followUps.push({ _tag: "DeactivateWorkosMembership", userId: person.workosUserId });
-      }
 
       if (person.removedAt !== null) return accept([], followUps);
 
@@ -431,21 +425,10 @@ export const decide = (
       ) {
         return reject({ _tag: "LastAdmin" });
       }
-      const followUps: ReadonlyArray<FollowUp> =
-        person.workosUserId === null
-          ? []
-          : [
-              {
-                _tag: "SetWorkosRole",
-                userId: person.workosUserId,
-                role: command.organizationAdmin ? "admin" : "member",
-              },
-            ];
-      if (person.organizationAdmin === command.organizationAdmin) return accept([], followUps);
-      return accept(
-        [{ _tag: "AdminSet", personId: person.id, organizationAdmin: command.organizationAdmin }],
-        followUps,
-      );
+      if (person.organizationAdmin === command.organizationAdmin) return accept([]);
+      return accept([
+        { _tag: "AdminSet", personId: person.id, organizationAdmin: command.organizationAdmin },
+      ]);
     }
 
     case "UpdateSettings": {
@@ -609,7 +592,7 @@ export const settingsView = (state: DirectoryState, actorId: PersonId): Viewed<O
           personId: person.id,
           email: person.email,
           organizationAdmin: person.organizationAdmin,
-          linked: person.workosUserId !== null,
+          linked: person.authUserId !== null,
         }))
         .sort((a, b) => a.email.localeCompare(b.email, "en")),
     },

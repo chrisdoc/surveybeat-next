@@ -4,15 +4,13 @@ import {
   chooseOrganization,
   createOrganization,
   Forbidden,
-  IdentityProvider,
   type NewIds,
   type OrganizationCreationAllowlist,
   type OrganizationPeople,
   type PeopleIndex,
-  sealedChanged,
   type SessionOutcome,
   sessionState,
-  signInWithCode,
+  SessionIdentityProvider,
   signOut,
   Unauthenticated,
 } from "@surveybeat/domain";
@@ -26,23 +24,16 @@ import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
 
 export const SESSION_COOKIE = "__Host-surveybeat-session";
-export const STATE_COOKIE = "__Host-surveybeat-auth-state";
 
 const SESSION_MAX_AGE = "30 days";
-const STATE_MAX_AGE = "10 minutes";
 const cookieOptions = { path: "/", httpOnly: true, secure: true, sameSite: "lax" } as const;
 
-export type AuthServices = IdentityProvider | PeopleIndex | OrganizationPeople | NewIds;
+export type AuthServices = SessionIdentityProvider | PeopleIndex | OrganizationPeople | NewIds;
 
 export interface AuthHandlerOptions<R> {
   readonly services: Effect.Effect<Context.Context<AuthServices>, never, R>;
   readonly allowlist: Effect.Effect<OrganizationCreationAllowlist, never, R>;
 }
-
-const randomToken = () =>
-  Array.from(crypto.getRandomValues(new Uint8Array(32)), (byte) => byte.toString(16).padStart(2, "0")).join(
-    "",
-  );
 
 export const requestOrigin = Effect.map(HttpServerRequest, (request) =>
   URL.canParse(request.originalUrl)
@@ -50,17 +41,9 @@ export const requestOrigin = Effect.map(HttpServerRequest, (request) =>
     : Option.match(toURL(request), { onNone: () => "http://localhost", onSome: (url) => url.origin }),
 );
 
-const sealedFromRequest = Effect.map(HttpServerRequest, (request) =>
+const sessionCookie = Effect.map(HttpServerRequest, (request) =>
   Option.map(Option.fromNullishOr(request.cookies[SESSION_COOKIE]), Redacted.make),
 );
-
-const setSessionCookie = (sealed: Redacted.Redacted<string>) =>
-  HttpEffect.appendPreResponseHandler((_request, response) =>
-    HttpServerResponse.setCookie(response, SESSION_COOKIE, Redacted.value(sealed), {
-      ...cookieOptions,
-      maxAge: SESSION_MAX_AGE,
-    }).pipe(Effect.orDie),
-  );
 
 const expireSessionCookie = HttpEffect.appendPreResponseHandler((_request, response) =>
   HttpServerResponse.expireCookie(response, SESSION_COOKIE, cookieOptions).pipe(Effect.orDie),
@@ -72,27 +55,29 @@ export const requireSameOrigin = Effect.gen(function* () {
   if (origin !== undefined && origin !== (yield* requestOrigin)) return yield* new Forbidden();
 });
 
+const setSessionCookie = (token: Redacted.Redacted<string>) =>
+  HttpEffect.appendPreResponseHandler((_request, response) =>
+    HttpServerResponse.setCookie(response, SESSION_COOKIE, Redacted.value(token), {
+      ...cookieOptions,
+      maxAge: SESSION_MAX_AGE,
+    }).pipe(Effect.orDie),
+  );
+
 const authenticated = Effect.gen(function* () {
-  const sealed = yield* sealedFromRequest;
-  if (Option.isNone(sealed)) return yield* new Unauthenticated();
-  return yield* checkSession(sealed.value).pipe(
+  const cookie = yield* sessionCookie;
+  if (Option.isNone(cookie)) return yield* new Unauthenticated();
+  return yield* checkSession(cookie.value).pipe(
     Effect.tapError((error) => (error._tag === "Unauthenticated" ? expireSessionCookie : Effect.void)),
-    Effect.map((checked) => ({ sealed: sealed.value, checked })),
   );
 });
 
 export const currentMember = Effect.gen(function* () {
-  const { sealed, checked } = yield* authenticated;
-  if (sealedChanged(sealed, checked.session)) yield* setSessionCookie(checked.session.sealed);
+  const checked = yield* authenticated;
   if (Option.isNone(checked.member)) return yield* new Forbidden();
   return checked.member.value;
 });
 
-const respond = (sealed: Redacted.Redacted<string>, outcome: SessionOutcome) =>
-  Effect.gen(function* () {
-    if (sealedChanged(sealed, outcome.session)) yield* setSessionCookie(outcome.session.sealed);
-    return outcome.state;
-  });
+const respond = (outcome: SessionOutcome) => Effect.succeed(outcome.state);
 
 export const authHandlers = <R>({ services, allowlist }: AuthHandlerOptions<R>) => {
   const provide = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
@@ -102,44 +87,30 @@ export const authHandlers = <R>({ services, allowlist }: AuthHandlerOptions<R>) 
       .handle("login", () =>
         provide(
           Effect.gen(function* () {
-            const identityProvider = yield* IdentityProvider;
-            const state = randomToken();
-            const url = identityProvider.authorizationUrl({
-              redirectUri: `${yield* requestOrigin}/auth/callback`,
-              state,
-            });
-            return yield* HttpServerResponse.redirect(url).pipe(
-              HttpServerResponse.setCookie(STATE_COOKIE, state, { ...cookieOptions, maxAge: STATE_MAX_AGE }),
-              Effect.orDie,
-            );
+            const home = `${yield* requestOrigin}/`;
+            return HttpServerResponse.redirect(home);
           }),
         ),
       )
-      .handle("callback", ({ query }) =>
+      .handle("sendSignInCode", ({ payload }) =>
         provide(
           Effect.gen(function* () {
-            const request = yield* HttpServerRequest;
-            const expected = request.cookies[STATE_COOKIE];
-            const home = `${yield* requestOrigin}/`;
-            const back = (location: string) =>
-              HttpServerResponse.redirect(location).pipe(
-                HttpServerResponse.expireCookie(STATE_COOKIE, cookieOptions),
-                Effect.orDie,
-              );
-            if (query.code === undefined || expected === undefined || query.state !== expected) {
-              return yield* back(`${home}?signin=failed`);
+            yield* requireSameOrigin;
+            const sessions = yield* SessionIdentityProvider;
+            yield* sessions.sendSignInCode(payload.email);
+          }),
+        ),
+      )
+      .handle("verifySignInCode", ({ payload }) =>
+        provide(
+          Effect.gen(function* () {
+            yield* requireSameOrigin;
+            const sessions = yield* SessionIdentityProvider;
+            const token = yield* sessions.verifySignInCode(payload.email, payload.code);
+            if (Option.isSome(token)) {
+              yield* setSessionCookie(Redacted.make(token.value));
             }
-            const session = yield* signInWithCode(query.code).pipe(Effect.option);
-            if (Option.isNone(session)) return yield* back(`${home}?signin=failed`);
-            return yield* back(home).pipe(
-              Effect.flatMap(
-                HttpServerResponse.setCookie(SESSION_COOKIE, Redacted.value(session.value.sealed), {
-                  ...cookieOptions,
-                  maxAge: SESSION_MAX_AGE,
-                }),
-              ),
-              Effect.orDie,
-            );
+            return { verified: Option.isSome(token) };
           }),
         ),
       )
@@ -148,24 +119,19 @@ export const authHandlers = <R>({ services, allowlist }: AuthHandlerOptions<R>) 
           Effect.gen(function* () {
             yield* requireSameOrigin;
             yield* expireSessionCookie;
+            const cookie = yield* sessionCookie;
+            if (Option.isSome(cookie)) yield* signOut(cookie.value);
             const home = `${yield* requestOrigin}/`;
-            const sealed = yield* sealedFromRequest;
-            const logoutUrl = Option.isNone(sealed)
-              ? Option.none<string>()
-              : yield* signOut(sealed.value, home);
-            return HttpServerResponse.redirect(
-              Option.getOrElse(logoutUrl, () => home),
-              { status: 303 },
-            );
+            return HttpServerResponse.redirect(home, { status: 303 });
           }),
         ),
       )
       .handle("session", () =>
         provide(
           Effect.gen(function* () {
-            const { sealed, checked } = yield* authenticated;
+            const checked = yield* authenticated;
             return yield* sessionState(checked, yield* allowlist).pipe(
-              Effect.flatMap((outcome) => respond(sealed, outcome)),
+              Effect.flatMap(respond),
               Effect.catchTag("Forbidden", () => Effect.succeed({ _tag: "NotInOrganization" } as const)),
             );
           }),
@@ -175,8 +141,8 @@ export const authHandlers = <R>({ services, allowlist }: AuthHandlerOptions<R>) 
         provide(
           Effect.gen(function* () {
             yield* requireSameOrigin;
-            const { sealed, checked } = yield* authenticated;
-            return yield* respond(sealed, yield* createOrganization(checked, payload.name, yield* allowlist));
+            const checked = yield* authenticated;
+            return yield* respond(yield* createOrganization(checked, payload.name, yield* allowlist));
           }),
         ),
       )
@@ -184,8 +150,8 @@ export const authHandlers = <R>({ services, allowlist }: AuthHandlerOptions<R>) 
         provide(
           Effect.gen(function* () {
             yield* requireSameOrigin;
-            const { sealed, checked } = yield* authenticated;
-            return yield* respond(sealed, yield* chooseOrganization(checked, payload.organizationId));
+            const checked = yield* authenticated;
+            return yield* respond(yield* chooseOrganization(checked, payload.organizationId));
           }),
         ),
       ),

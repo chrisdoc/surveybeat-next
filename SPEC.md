@@ -63,8 +63,8 @@ This section names the core concepts and the rules each one must keep. Pick the 
 
 ### Tenancy and people
 
-- **Organization.** The tenant. Every other record belongs to exactly one organization. An organization maps one to one to a WorkOS organization. Data never crosses organizations.
-- **Person.** A human in an organization. A person is linked to a WorkOS user once they sign in, and may exist before that, for example when imported from a directory, or invited by email.
+- **Organization.** The tenant. Every other record belongs to exactly one organization. An organization is one Durable Object with SurveyBeat's own id, and it owns its membership. Data never crosses organizations.
+- **Person.** A human in an organization. A person is linked to an auth user once they sign in, and may exist before that, for example when imported from a directory, or invited by email.
 - **Team.** A named group of people. Teams can nest (a department contains teams), so leadership views can roll up. Nesting is optional for small customers.
 - **Membership.** A person's role in a team. Roles are lead, member, and viewer. A team needs at least one lead. Memberships have a start and end date, so historical participation rates stay correct after people join or leave.
 
@@ -167,10 +167,10 @@ Anonymity is a product feature, and section 3 explains why it comes first. These
 
 ### 5.6 Administration
 
-- **Sign-in.** Sign-in uses WorkOS AuthKit, with email magic link, Google, and Microsoft for small teams, and enterprise SSO (SAML or OIDC) for organizations that set it up.
-- **Directory sync.** WorkOS Directory Sync (SCIM) creates and removes people and can map directory groups to teams. When a person is removed from the directory, they lose access immediately. Their memberships end on that date, and history stays intact.
-- **Roles and permissions.** WorkOS manages organization-level roles (admin, member). Team-level roles (lead, member, viewer) live in SurveyBeat's own data, because they belong to the domain. Permission checks are one function of (person, action, resource), defined in one place and tested as a table.
-- **Audit log.** The system records admin and lead actions, such as changing privacy settings, changing anonymity modes, exporting data, and adding leads. Use WorkOS Audit Logs if that fits, or a store inside SurveyBeat.
+- **Sign-in.** Sign-in is Better Auth with an email code (ADR 0022, ADR 0023). Google, Microsoft and enterprise SSO are later additions, not part of the first release.
+- **Directory sync.** Directory sync (SCIM) creates and removes people and can map directory groups to teams, and is not in the first release. When a person is removed, they lose access immediately. Their memberships end on that date, and history stays intact.
+- **Roles and permissions.** Organization-level roles are a fact in the Organization's own data: an admin flag (admin, member). Team-level roles (lead, member, viewer) live there too, because they belong to the domain. Permission checks are one function of (person, action, resource), defined in one place and tested as a table.
+- **Audit log.** The system records admin and lead actions, such as changing privacy settings, changing anonymity modes, exporting data, and adding leads, in a store inside SurveyBeat.
 - **Billing.** Not in the first release. Design the model so that seats or teams per organization can be counted later.
 
 ### 5.7 Integrations and API
@@ -187,7 +187,7 @@ Anonymity is a product feature, and section 3 explains why it comes first. These
 
 ## 6. Platform and architecture
 
-Everything runs on Cloudflare. No Next.js, no Vercel, and no separate cloud provider for compute or data. WorkOS (identity) and the Slack and Microsoft Teams platforms are the only required external services.
+Everything runs on Cloudflare. No Next.js, no Vercel, and no separate cloud provider for compute or data. Sign-in runs on Better Auth inside the Main Worker, so the Slack and Microsoft Teams platforms are the only required external services.
 
 ### 6.1 Fixed technology choices
 
@@ -200,7 +200,7 @@ Everything runs on Cloudflare. No Next.js, no Vercel, and no separate cloud prov
 | HTTP API | Effect's platform HTTP API module | The API is declared once. The server implementation and a typed client for the web app both come from that declaration. |
 | Web app | React single-page app built with Vite | Client-side routing with a typed router, such as TanStack Router. Answer pages and email landing pages must render fast without a heavy bundle. Split them into their own small entry point. |
 | UI components | Base UI | Unstyled, accessible primitives. Build a small design system of your own on top (tokens, typography, and a dozen composed components). Tailwind CSS for styling is fine. Charts need an accessible library or hand-built SVG, and each chart needs a table view. |
-| Authentication | WorkOS AuthKit, SSO, Directory Sync | The Worker handles the OAuth callback and keeps a session cookie. The session is checked on every request. WorkOS webhooks (directory and user events) arrive at the Worker and are verified there. |
+| Authentication | Better Auth on D1, email codes | The Worker serves `/auth/*`: an email-code start and verify, a session cookie, and sign-out. The session is checked on every request against D1 and the Organization's Durable Object. ADR 0022 and ADR 0023. |
 | Email | Cloudflare Email Service | Sends invitations, reminders, and notices. Inbound email routing is optional, for reply-to-answer later. If Cloudflare email sending cannot meet deliverability needs, decide on a fallback and record it. |
 | AI | Cloudflare Workers AI, through AI Gateway | Comment redaction, theme grouping, discussion guides, and "ask your results". AI Gateway handles caching, rate limits, logging policy, and model swaps. Never send raw comments to a model that keeps them. |
 
@@ -210,7 +210,7 @@ The recommended layout follows. Departures are fine when they make the system si
 
 - **Durable Object per organization, with SQLite storage, as the system of record.** Each organization's people, teams, pulses, rounds, submissions, results, and actions live in that organization's own Durable Object. This gives hard tenant isolation, strongly consistent writes, and plain SQL for analytics within one organization. Survey data is small, so a single object's storage limit is far away. An organization with 5,000 people answering weekly for 5 years stays well under it. Check this number against current Cloudflare limits before you commit.
 - **Durable Object per open round** (optional, decide during the build). It counts participation, rejects double submissions, and owns the round's state machine. If the organization object handles this load well, skip the extra object.
-- **D1 for the global index.** This holds what must be looked up before you know the organization: WorkOS user to organization memberships, invitation token to organization and round, Slack and Teams workspace to organization, and API keys. Keep it small. No survey content goes here.
+- **D1 for the global index.** This holds what must be looked up before you know the organization: auth user to Persons, invitation token to organization and round, Slack and Teams workspace to organization, and API keys. Keep it small. No survey content goes here.
 - **Cloudflare Workflows for the round lifecycle.** Each round is a durable workflow. It waits until the open time, sends invitations in batches, waits, sends reminders, closes, computes results, and notifies. Workflows give retries and resumption after crashes, and each step must be idempotent.
 - **Cron Triggers** run once an hour to create the next round for each active pulse. This job is idempotent. Running it twice creates no duplicate rounds.
 - **Queues** buffer outbound messages (email, Slack, Teams) and inbound webhooks, with retries and a dead-letter queue.
@@ -218,7 +218,7 @@ The recommended layout follows. Departures are fine when they make the system si
 - **KV** holds rarely changing configuration and caches, if needed. Do not use it for sessions that must be revoked at once.
 - **Workers Analytics Engine** stores product metrics (send counts, open rates, answer latency). It must never contain answers.
 - **Turnstile** protects the public link answer page against bots.
-- **Secrets Store, or Worker secrets managed through Alchemy**, holds the WorkOS, Slack, and Teams credentials.
+- **Secrets Store, or Worker secrets managed through Alchemy**, holds the Slack and Teams credentials.
 
 ### 6.3 Code organization
 
@@ -246,7 +246,7 @@ The recommended layout follows. Departures are fine when they make the system si
 Each release is usable on its own. Ship a release to a real team (your own, first) before starting the next.
 
 **Release 1. The core loop for one team.**
-Sign-in with AuthKit, plus organization and team setup by hand. Pulses from templates, with rating, choice, and text questions. Weekly cadence with time zones. Email invitations with one-tap first answers, and reminders. Anonymous mode with the minimum group size. Round results with trends and sample sizes. Actions with owner and status, shown in the next invitation. The full privacy test suite. Preview environments per pull request.
+Sign-in with an email code, plus organization and team setup by hand. Pulses from templates, with rating, choice, and text questions. Weekly cadence with time zones. Email invitations with one-tap first answers, and reminders. Anonymous mode with the minimum group size. Round results with trends and sample sizes. Actions with owner and status, shown in the next invitation. The full privacy test suite. Preview environments per pull request.
 
 **Release 2. Insight.**
 Comment redaction and themes. Discussion guide. Team health overview with action markers. Delayed sharing. The member's private history page. German translation.

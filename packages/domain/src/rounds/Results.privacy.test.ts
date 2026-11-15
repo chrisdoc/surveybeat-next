@@ -242,7 +242,7 @@ describe("Results Privacy & Minimum Group Size Invariants (ADR 0004, Issue #3)",
     ): PersonRecord => ({
       id: PersonId.make(id),
       email: EmailAddress.make(`${id}@example.com`),
-      workosUserId: null,
+      authUserId: null,
       organizationAdmin,
       removedAt,
       locale: null,

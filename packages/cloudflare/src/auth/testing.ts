@@ -49,24 +49,21 @@ import {
   teamsView,
   teamView,
   type TransactionalEmail,
-  type CodeExchange,
-  IdentityProvider,
   identityOf,
   NewIds,
   normaliseEmail,
   OrganizationCreationAllowlist,
   OrganizationId,
   OrganizationPeople,
-  type OrganizationRole,
   type OrganizationSummary,
   PeopleIndex,
   type PersonCandidate,
   PersonId,
-  type ProviderSession,
   SessionId,
+  SessionIdentityProvider,
+  type SignedInSession,
   Unauthenticated,
-  WorkosOrganizationId,
-  WorkosUserId,
+  AuthUserId,
   ActionId,
   type ActionItem,
   type ActionList,
@@ -83,7 +80,6 @@ import {
   noteChange,
   RoundId,
 } from "@surveybeat/domain";
-import { expect } from "@effect/vitest";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -97,193 +93,101 @@ import { directoryHandlers } from "../DirectoryHandlers.ts";
 import { noteHandlers } from "../NoteHandlers.ts";
 import { pulseHandlers } from "../PulseHandlers.ts";
 import { roundHandlers } from "../RoundHandlers.ts";
-import { authHandlers } from "./AuthHandlers.ts";
+import { authHandlers, SESSION_COOKIE } from "./AuthHandlers.ts";
 
 interface FakeUser {
-  readonly id: WorkosUserId;
+  readonly id: AuthUserId;
   readonly email: string;
   readonly emailVerified: boolean;
 }
 
 interface FakeSession {
   readonly sessionId: SessionId;
-  readonly userId: WorkosUserId;
-  readonly workosOrganizationId: Option.Option<WorkosOrganizationId>;
-  expired: boolean;
+  readonly userId: AuthUserId;
 }
 
-export class FakeWorkos {
-  readonly users = new Map<WorkosUserId, FakeUser>();
-  readonly codes = new Map<string, WorkosUserId>();
+export class FakeSessions {
+  readonly users = new Map<AuthUserId, FakeUser>();
   readonly sessions = new Map<string, FakeSession>();
-  readonly organizations = new Map<OrganizationId, { id: WorkosOrganizationId; name: string }>();
-  readonly memberships = new Map<string, OrganizationRole>();
-  readonly inactiveMemberships = new Set<string>();
-  readonly revokedSessions = new Set<SessionId>();
-  private readonly pending = new Map<string, WorkosUserId>();
-  createOrganizationCalls = 0;
-  ensureMembershipCalls = 0;
-  failCreateOrganization = 0;
-  failRevokeSession = false;
-  failMembershipChanges = false;
-  requireOrganizationSelection = false;
+  readonly chosen = new Map<SessionId, OrganizationId>();
+  readonly codes = new Map<string, string>();
+  readonly revocations: Array<SessionId> = [];
+  readonly revoked = new Set<string>();
+  failRevoke = false;
   private counter = 0;
 
-  addUser(email: string, emailVerified = true): string {
-    const id = WorkosUserId.make(`user_${++this.counter}`);
-    this.users.set(id, { id, email, emailVerified });
-    const code = `code_${this.counter}`;
-    this.codes.set(code, id);
-    return code;
+  login(email: string, emailVerified = true): string {
+    const existing = [...this.users.values()].find(
+      (user) => normaliseEmail(user.email) === normaliseEmail(email),
+    );
+    if (existing !== undefined) return this.issue(existing.id);
+    const user = AuthUserId.make(`user_${++this.counter}`);
+    this.users.set(user, { id: user, email, emailVerified });
+    return this.issue(user);
   }
 
-  newCode(userId: WorkosUserId | undefined): string {
-    if (userId === undefined || !this.users.has(userId)) throw new Error("no such user");
-    const code = `code_${++this.counter}`;
-    this.codes.set(code, userId);
-    return code;
+  private issue(user: AuthUserId): string {
+    const token = `token_${++this.counter}`;
+    this.sessions.set(token, { sessionId: SessionId.make(`session_${this.counter}`), userId: user });
+    return token;
   }
 
-  private issue(
-    userId: WorkosUserId,
-    sessionId: SessionId,
-    organization: Option.Option<WorkosOrganizationId>,
-  ) {
-    const sealed = `sealed_${++this.counter}`;
-    this.sessions.set(sealed, { sessionId, userId, workosOrganizationId: organization, expired: false });
-    return this.toSession(sealed);
+  userIdOf(email: string): AuthUserId {
+    const found = [...this.users.values()].find(
+      (user) => normaliseEmail(user.email) === normaliseEmail(email),
+    );
+    if (found === undefined) throw new Error(`no user ${email}`);
+    return found.id;
   }
 
-  private toSession(sealed: string): ProviderSession {
-    const session = this.sessions.get(sealed);
-    const user = session === undefined ? undefined : this.users.get(session.userId);
-    if (session === undefined || user === undefined) throw new Error(`no session ${sealed}`);
-    return {
-      sealed: Redacted.make(sealed),
-      sessionId: session.sessionId,
-      identity: identityOf(user.id, user.email, user.emailVerified),
-      workosOrganizationId: session.workosOrganizationId,
-      role: Option.flatMap(session.workosOrganizationId, (organization) =>
-        Option.fromNullishOr(this.memberships.get(`${user.id}/${organization}`)),
-      ),
-    };
-  }
-
-  expire(sealed: string) {
-    const session = this.sessions.get(sealed);
-    if (session !== undefined) session.expired = true;
-  }
-
-  readonly service = IdentityProvider.of({
-    authorizationUrl: ({ redirectUri, state }) =>
-      `https://auth.example.test/authorize?${new URLSearchParams({ redirect_uri: redirectUri, state }).toString()}`,
-    authenticateWithCode: (code) =>
+  readonly service = SessionIdentityProvider.of({
+    authenticate: (cookie) =>
       Effect.suspend(() => {
-        const userId = this.codes.get(code);
-        if (userId === undefined) return Effect.fail(new Unauthenticated());
-        this.codes.delete(code);
-        const organizations = [...this.memberships.keys()]
-          .filter((key) => key.startsWith(`${userId}/`) && !this.inactiveMemberships.has(key))
-          .map((key) => WorkosOrganizationId.make(key.slice(userId.length + 1)));
-        if (this.requireOrganizationSelection && organizations.length > 1) {
-          const token = `pending_${++this.counter}`;
-          this.pending.set(token, userId);
-          return Effect.succeed<CodeExchange>({
-            _tag: "OrganizationSelectionRequired",
-            pendingAuthenticationToken: Redacted.make(token),
-            userId: Option.some(userId),
-            organizations,
-          });
+        const token = Redacted.value(cookie);
+        const session = this.sessions.get(token);
+        const user = session === undefined ? undefined : this.users.get(session.userId);
+        if (session === undefined || user === undefined || this.revoked.has(token)) {
+          return Effect.fail(new Unauthenticated());
         }
-        return Effect.succeed<CodeExchange>({
-          _tag: "Authenticated",
-          session: this.issue(userId, SessionId.make(`session_${++this.counter}`), Option.none()),
+        return Effect.succeed<SignedInSession>({
+          identity: identityOf(user.id, user.email, user.emailVerified),
+          sessionId: session.sessionId,
         });
       }),
-    authenticateWithOrganizationSelection: (token, organization) =>
-      Effect.suspend(() => {
-        const userId = this.pending.get(Redacted.value(token));
-        if (userId === undefined || !this.memberships.has(`${userId}/${organization}`)) {
-          return Effect.fail(new Unauthenticated());
-        }
-        this.pending.delete(Redacted.value(token));
-        return Effect.succeed(
-          this.issue(userId, SessionId.make(`session_${++this.counter}`), Option.some(organization)),
-        );
-      }),
-    authenticate: (sealed) =>
+    chosenOrganization: (sessionId) => Effect.sync(() => Option.fromNullishOr(this.chosen.get(sessionId))),
+    chooseOrganization: (sessionId, organizationId) =>
+      Effect.sync(() => void this.chosen.set(sessionId, organizationId)),
+    sendSignInCode: (email) =>
+      Effect.sync(() => void this.codes.set(`code_${++this.counter}`, normaliseEmail(email))),
+    verifySignInCode: (email, code) =>
       Effect.sync(() => {
-        const session = this.sessions.get(Redacted.value(sealed));
-        if (session === undefined) return { _tag: "Invalid" } as const;
-        if (session.expired) return { _tag: "Expired" } as const;
-        return { _tag: "Valid", session: this.toSession(Redacted.value(sealed)) } as const;
+        const expected = this.codes.get(code);
+        const user = [...this.users.values()].find(
+          (each) => normaliseEmail(each.email) === normaliseEmail(email),
+        );
+        if (expected !== normaliseEmail(email) || user === undefined) return Option.none<string>();
+        this.codes.delete(code);
+        return Option.some(this.issue(user.id));
       }),
-    refresh: (sealed, organization) =>
-      Effect.suspend(() => {
-        const session = this.sessions.get(Redacted.value(sealed));
-        if (session === undefined || this.revokedSessions.has(session.sessionId)) {
-          return Effect.fail(new Unauthenticated());
-        }
-        const target = Option.orElse(organization, () => session.workosOrganizationId);
-        const key = `${session.userId}/${Option.getOrElse(target, () => "")}`;
-        if (Option.isSome(target) && (!this.memberships.has(key) || this.inactiveMemberships.has(key))) {
-          return Effect.fail(new Unauthenticated());
-        }
-        return Effect.succeed(this.issue(session.userId, session.sessionId, target));
-      }),
-    logoutUrl: (sessionId, returnTo) =>
-      `https://auth.example.test/logout?${new URLSearchParams({ session_id: sessionId, return_to: returnTo }).toString()}`,
     revokeSession: (sessionId) =>
       Effect.suspend(() => {
-        if (this.failRevokeSession) return Effect.fail(new AuthUnavailable());
-        this.revokedSessions.add(sessionId);
-        return Effect.void;
-      }),
-    createOrganization: (name, externalId) =>
-      Effect.suspend(() => {
-        this.createOrganizationCalls++;
-        if (this.failCreateOrganization > 0) {
-          this.failCreateOrganization--;
-          return Effect.fail(new AuthUnavailable());
+        if (this.failRevoke) return Effect.fail(new AuthUnavailable());
+        this.revocations.push(sessionId);
+        for (const [token, session] of this.sessions) {
+          if (session.sessionId === sessionId) this.revoked.add(token);
         }
-        const existing = this.organizations.get(externalId);
-        if (existing !== undefined) return Effect.succeed(existing.id);
-        const id = WorkosOrganizationId.make(`org_${++this.counter}`);
-        this.organizations.set(externalId, { id, name });
-        return Effect.succeed(id);
-      }),
-    ensureMembership: (userId, organization, role) =>
-      Effect.sync(() => {
-        this.ensureMembershipCalls++;
-        const key = `${userId}/${organization}`;
-        this.memberships.set(key, role);
-        this.inactiveMemberships.delete(key);
-      }),
-    setMembershipRole: (userId, organization, role) =>
-      Effect.suspend(() => {
-        if (this.failMembershipChanges) return Effect.fail(new AuthUnavailable());
-        const key = `${userId}/${organization}`;
-        if (this.memberships.has(key)) this.memberships.set(key, role);
-        return Effect.void;
-      }),
-    deactivateMembership: (userId, organization) =>
-      Effect.suspend(() => {
-        if (this.failMembershipChanges) return Effect.fail(new AuthUnavailable());
-        const key = `${userId}/${organization}`;
-        if (this.memberships.has(key)) this.inactiveMemberships.add(key);
         return Effect.void;
       }),
   });
 }
 
 export class MemoryIndex {
-  readonly organizations = new Map<OrganizationId, { name: string; workos: WorkosOrganizationId | null }>();
+  readonly organizations = new Map<OrganizationId, { name: string }>();
   readonly persons = new Map<
     string,
-    { organizationId: OrganizationId; personId: PersonId; email: string; userId: WorkosUserId | null }
+    { organizationId: OrganizationId; personId: PersonId; email: string; userId: AuthUserId | null }
   >();
-  readonly claims = new Map<WorkosUserId, ClaimStatus>();
-  readonly revoked = new Set<SessionId>();
+  readonly claims = new Map<AuthUserId, ClaimStatus>();
 
   private candidate(organizationId: OrganizationId, personId: PersonId, linked: boolean): PersonCandidate {
     const organization = this.organizations.get(organizationId);
@@ -303,24 +207,8 @@ export class MemoryIndex {
           .filter((person) => person.userId === null && person.email === normaliseEmail(email))
           .map((person) => this.candidate(person.organizationId, person.personId, false)),
       ),
-    putOrganization: (organization, workos) =>
-      Effect.sync(() => {
-        const existing = this.organizations.get(organization.id);
-        this.organizations.set(organization.id, {
-          name: organization.name,
-          workos: Option.getOrNull(workos) ?? existing?.workos ?? null,
-        });
-      }),
-    organizationByWorkos: (workos) =>
-      Effect.sync(() => {
-        const found = [...this.organizations].find(([, organization]) => organization.workos === workos);
-        return Option.map(Option.fromNullishOr(found), ([id, organization]) => ({
-          id,
-          name: organization.name,
-        }));
-      }),
-    workosOrganizationOf: (organizationId) =>
-      Effect.sync(() => Option.fromNullishOr(this.organizations.get(organizationId)?.workos)),
+    putOrganization: (organization) =>
+      Effect.sync(() => void this.organizations.set(organization.id, { name: organization.name })),
     putPerson: (person) =>
       Effect.sync(() => {
         const key = `${person.organizationId}/${person.personId}`;
@@ -353,8 +241,6 @@ export class MemoryIndex {
         const claim = this.claims.get(userId);
         if (claim !== undefined) this.claims.set(userId, { ...claim, completed: true });
       }),
-    revokeSession: (sessionId) => Effect.sync(() => void this.revoked.add(sessionId)),
-    isSessionRevoked: (sessionId) => Effect.sync(() => this.revoked.has(sessionId)),
   });
 }
 
@@ -428,7 +314,7 @@ export class MemoryOrganizations {
               {
                 id: admin.personId,
                 email: EmailAddress.make(normaliseEmail(admin.email)),
-                workosUserId: admin.userId,
+                authUserId: admin.userId,
                 organizationAdmin: true,
                 removedAt: null,
                 locale: null,
@@ -455,14 +341,14 @@ export class MemoryOrganizations {
         const person = people.find((each) => each.id === personId);
         if (person === undefined || person.removedAt !== null) return false;
         if (person.email !== normaliseEmail(email)) return false;
-        if (people.some((other) => other.id !== personId && other.workosUserId === userId)) return false;
-        if (person.workosUserId === null) this.update(organizationId, personId, { workosUserId: userId });
-        return this.person(organizationId, personId)?.workosUserId === userId;
+        if (people.some((other) => other.id !== personId && other.authUserId === userId)) return false;
+        if (person.authUserId === null) this.update(organizationId, personId, { authUserId: userId });
+        return this.person(organizationId, personId)?.authUserId === userId;
       }),
     activePerson: (organizationId, userId) =>
       Effect.sync(() => {
         const found = this.organization(organizationId).state.people.find(
-          (person) => person.workosUserId === userId && person.removedAt === null,
+          (person) => person.authUserId === userId && person.removedAt === null,
         );
         const organizationLocale = this.organization(organizationId).state.defaultLocale;
         return Option.map(Option.fromNullishOr(found), (person) => ({
@@ -879,7 +765,7 @@ export class MemoryOutbox {
 }
 
 export class SignInWorld {
-  readonly workos = new FakeWorkos();
+  readonly sessions = new FakeSessions();
   readonly index = new MemoryIndex();
   readonly durable = new MemoryOrganizations();
   readonly outbox = new MemoryOutbox();
@@ -887,11 +773,9 @@ export class SignInWorld {
 
   constructor(readonly allowlist = "") {}
 
-  addOrganization(name: string): OrganizationSummary & { readonly workos: WorkosOrganizationId } {
+  addOrganization(name: string): OrganizationSummary {
     const id = OrganizationId.make(`organization-${++this.ids}`);
-    const workos = WorkosOrganizationId.make(`org_existing_${this.ids}`);
-    this.workos.organizations.set(id, { id: workos, name });
-    this.index.organizations.set(id, { name, workos });
+    this.index.organizations.set(id, { name });
     this.durable.organizations.set(id, {
       state: {
         organizationName: name,
@@ -910,7 +794,7 @@ export class SignInWorld {
       testSends: new Map(),
       testSendTimes: new Map(),
     });
-    return { id, name, workos };
+    return { id, name };
   }
 
   addRound(organizationId: OrganizationId, teamId: TeamId): RoundId {
@@ -933,7 +817,7 @@ export class SignInWorld {
         {
           id: personId,
           email: normalised,
-          workosUserId: null,
+          authUserId: null,
           organizationAdmin,
           removedAt: null,
           locale: null,
@@ -951,7 +835,7 @@ export class SignInWorld {
   }
 
   readonly handler = (): ((request: Request) => Promise<Response>) => {
-    const services = Context.make(IdentityProvider, this.workos.service).pipe(
+    const services = Context.make(SessionIdentityProvider, this.sessions.service).pipe(
       Context.add(PeopleIndex, this.index.service),
       Context.add(OrganizationPeople, this.durable.service),
       Context.add(OrganizationDirectory, this.durable.directory),
@@ -1040,11 +924,8 @@ export class Browser {
     return { status: response.status, body: text === "" ? null : JSON.parse(text) };
   }
 
-  async signIn(code: string): Promise<void> {
-    const login = await this.get("/auth/login");
-    const state = new URL(login.headers.get("location") ?? "").searchParams.get("state") ?? "";
-    const callback = await this.get(`/auth/callback?${new URLSearchParams({ code, state }).toString()}`);
-    expect(callback.headers.get("location")).toBe(`${ORIGIN}/`);
+  signIn(token: string): void {
+    this.cookies.set(SESSION_COOKIE, token);
   }
 
   async session(): Promise<{ status: number; body: unknown }> {
