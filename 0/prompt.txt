@@ -1,0 +1,5 @@
+Continue where you left off.
+
+---
+
+You stopped on an API rate limit. Continue where you left off: PR #115 had all checks green but is now CONFLICTING because #113 (German catalogs, `de.ts`, `messagesFor(locale)`) merged into main. Rebase r2-103-themes on origin/main, keeping both sides (add German strings for any new catalog keys you introduced, informal "du"), re-run the full suite, force-push your branch, wait for checks, and squash-merge when green. Then send your final report.
