@@ -11,6 +11,8 @@ catalog:
   alchemy: 2.0.0-beta.85
   "@alchemy.run/cloudflare": 2.0.0-beta.85
   "@alchemy.run/test": 2.0.0-beta.85
+  "@alchemy.run/better-auth": 2.0.0-beta.85
+  better-auth: 1.7.11
   "@effect/sql-sqlite-do": 4.1.2
   effect: 4.1.2
   xstate: 6.0.0-beta.1

@@ -5,6 +5,12 @@
       "path": "packages/domain"
     },
     {
+      "path": "packages/auth"
+    },
+    {
+      "path": "packages/domain"
+    },
+    {
       "path": "packages/api"
     },
     {
