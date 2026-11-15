@@ -1,0 +1,50 @@
+{
+  "cli_version": "0.13.4",
+  "checkpoint_id": "01M7FJB2FSRFMW631Y2NPSSGAE",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 1,
+  "files_touched": [
+    ".githooks/post-commit",
+    ".githooks/pre-commit",
+    "package.json",
+    "packages/api/src/PrivacyRegistry.ts",
+    "packages/api/src/index.ts",
+    "packages/api/src/registry.privacy.test.ts",
+    "packages/cloudflare/src/MainWorker.ts",
+    "scripts/fence/gate.mjs",
+    "scripts/fence/install.mjs",
+    "scripts/fence/post-commit.mjs",
+    "scripts/fence/vcs-command-policy.mjs",
+    "tsconfig.base.json"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 23512,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 91699,
+    "output_tokens": 1823,
+    "api_call_count": 12
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}

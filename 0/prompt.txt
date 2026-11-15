@@ -1,0 +1,20 @@
+/surveybeat-next  main [!?]
+❯ pnpm i
+Scope: all 9 workspace projects
+[WARN] The store at /Users/chrisdoc/Library/pnpm/store/v11 is not used because packages cannot be hard linked from it into this project. Using the store at /Users/chrisdoc/fun/.pnpm-store/v11 instead. Set storeDir to choose the store.
+✓ Lockfile passes supply-chain policies (verified 14m ago)
+Lockfile is up to date, resolution step is skipped
+Packages are cloned from the content-addressable store to the virtual store.
+  Content-addressable store is at: /Users/chrisdoc/fun/.pnpm-store/v11
+  Virtual store is at:             node_modules/.pnpm
+Downloading @oxlint-tsgolint/darwin-arm64@7.0.2006: 7.52 MB/7.52 MB, done
+Downloading @oxlint/binding-darwin-arm64@1.92.0: 5.72 MB/5.72 MB, done
+Progress: resolved 255, reused 207, downloaded 43, added 245
+Downloading @distilled.cloud/aws@1.0.0-rc.18: 2.92 MB/18.66 MB
+Downloading @distilled.cloud/cloudflare@1.0.0-rc.18: 2.19 MB/6.11 MB
+Downloading @cloudflare/workerd-darwin-arm64@1.20261026.1: 12.22 MB/38.44 MB
+Downloading @effect/tsgo-darwin-arm64@0.67.4: 7.72 MB/93.93 MB
+Error:   × installing dependencies
+  ╰─▶ Failed to write cafs: Failed to write to file at "/Users/chrisdoc/fun/.pnpm-store/v11/
+      files/32/3beb704f8eb3ebb791770a5eb5cc063f634e27512c14e662773a128e4efc55b2a4693a15cf950a46a0aa2916c59f89cab85da06139b3cd22a
+      2a496d6325936": No space left on device (os error 28)
