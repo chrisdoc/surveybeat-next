@@ -4,13 +4,19 @@ import { defineConfig, devices } from "@playwright/test";
 import { resolve } from "node:path";
 
 /**
- * End-to-end tests against a deployed stage (SPEC §7) or local web preview.
+ * End-to-end tests against a deployed stage (SPEC §7) or the app served by a local stage.
  *
  *   E2E_BASE_URL=https://pr-12.app.surveybeat.app pnpm test:e2e
+ *   pnpm test:e2e
+ *
+ * Without `E2E_BASE_URL`, `alchemy dev` deploys the real `MainWorker` (Durable Object, D1 and the
+ * sign-in handlers) to local workerd at `http://localhost:1337`, and the static assets are built
+ * from `apps/web` first. The specs then drive the same routes a stage answers, `/auth/session`
+ * included, so no stub can hide a missing handler.
  */
-const defaultPort = 4173;
-const baseURL = process.env["E2E_BASE_URL"] ?? `http://127.0.0.1:${defaultPort}`;
-const distDir = resolve(import.meta.dirname, "../../../apps/web/dist");
+const root = resolve(import.meta.dirname, "../../..");
+const localStageURL = "http://localhost:1337";
+const baseURL = process.env["E2E_BASE_URL"] ?? localStageURL;
 
 export default defineConfig({
   testDir: ".",
@@ -33,29 +39,13 @@ export default defineConfig({
     ? {}
     : {
         webServer: {
-          command: `node -e '
-const http = require("node:http");
-const fs = require("node:fs");
-const path = require("node:path");
-const dist = "${distDir}";
-const s = http.createServer((req, res) => {
-  const url = new URL(req.url, "http://" + req.headers.host);
-  let file = path.join(dist, url.pathname);
-  if (fs.existsSync(file) && fs.statSync(file).isDirectory()) file = path.join(file, "index.html");
-  if (!fs.existsSync(file)) {
-    if (url.pathname.startsWith("/de/a")) file = path.join(dist, "de", "answer.html");
-    else if (url.pathname.startsWith("/a") || url.pathname.startsWith("/answer")) file = path.join(dist, "answer.html");
-    else file = path.join(dist, "index.html");
-  }
-  const ext = path.extname(file);
-  const type = ext === ".js" ? "application/javascript" : ext === ".css" ? "text/css" : "text/html";
-  res.writeHead(200, { "content-type": type, "access-control-allow-origin": "*" });
-  res.end(fs.readFileSync(file));
-});
-s.listen(${defaultPort}, "127.0.0.1");
-'`,
-          port: defaultPort,
-          reuseExistingServer: !process.env["CI"],
+          command:
+            "pnpm --filter @surveybeat/web build && exec node_modules/.bin/alchemy dev -c infra/tests/e2e/stack.ts --stage test_e2e --no-input --log-level warn",
+          cwd: root,
+          url: `${localStageURL}/`,
+          timeout: 180_000,
+          reuseExistingServer: process.env["CI"] === undefined,
+          env: { ORG_CREATION_ALLOWLIST: "nobody@example.invalid" },
         },
       }),
 });

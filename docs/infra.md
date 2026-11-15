@@ -29,7 +29,9 @@ pnpm infra:deploy --stage dev-yourname     # `alchemy deploy infra/alchemy.run.t
 pnpm infra:destroy --stage dev-yourname
 CLOUDFLARE_API_TOKEN=... CLOUDFLARE_ACCOUNT_ID=... pnpm check:observability --stage dev-yourname
 CLOUDFLARE_API_TOKEN=... CLOUDFLARE_ACCOUNT_ID=... pnpm test:preview-privacy --stage dev-yourname <main-url> <submission-url>
-E2E_BASE_URL=<main-url> pnpm test:e2e      # once: pnpm --filter @surveybeat/infra exec playwright install chromium
+pnpm test:e2e                              # local stage: builds the app, runs `alchemy dev` on infra/tests/e2e/stack.ts
+E2E_BASE_URL=<main-url> pnpm test:e2e      # the same specs against a deployed stage
+                                           # once: pnpm --filter @surveybeat/infra exec playwright install chromium
 ```
 
 ## Preview stages in CI

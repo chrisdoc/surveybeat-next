@@ -17,6 +17,14 @@ export const emailTestRoutes = (
   Effect.gen(function* () {
     const request = yield* HttpServerRequest;
     const params = new URL(request.url, "http://localhost").searchParams;
+    const recipient = params.get("recipient");
+    if (recipient !== null) {
+      const captured = yield* db
+        .prepare("SELECT text FROM captured_email WHERE recipient = ? ORDER BY captured_at DESC LIMIT 1")
+        .bind(recipient)
+        .all<{ text: string }>();
+      return yield* HttpServerResponse.json({ text: captured.results[0]?.text ?? null });
+    }
     const organizationId = OrganizationId.make(params.get("organization") ?? "");
     const sendId = SendId.make(params.get("send") ?? "");
     if (request.method === "POST") {

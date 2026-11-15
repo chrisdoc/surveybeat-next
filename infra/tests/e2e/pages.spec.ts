@@ -71,3 +71,54 @@ test("the directory and Pulse APIs refuse a visitor without a session", async ({
     expect((await request.get(path)).status(), `GET ${path}`).toBe(401);
   }
 });
+
+const sixDigits = /\b(\d{6})\b/;
+
+test("a code mailed to the visitor signs them in and the session answers with their Organization state", async ({
+  page,
+  pageErrors,
+}) => {
+  const email = "e2e-sign-in@example.com";
+  await open(page, "/");
+
+  await page.getByRole("textbox", { name: "Your email" }).fill(email);
+  await page.getByRole("button", { name: "Email me a code" }).click();
+  await expect(page.getByText(`We sent a 6-digit code to ${email}.`)).toBeVisible();
+
+  let code = "";
+  await expect
+    .poll(async () => {
+      const response = await page.request.get(`/__test/email?recipient=${encodeURIComponent(email)}`);
+      const body = (await response.json()) as { text: string | null };
+      code = body.text?.match(sixDigits)?.[1] ?? "";
+      return code;
+    })
+    .toMatch(/^\d{6}$/);
+
+  await page.getByRole("textbox", { name: "Sign-in code" }).fill(code);
+  await page.getByRole("button", { name: "Sign in with this code" }).click();
+
+  await expect(page.getByRole("heading", { name: "You're not part of an Organization yet" })).toBeVisible();
+
+  const session = await page.request.get("/auth/session");
+  expect(session.status(), "GET /auth/session").toBe(200);
+  const body = (await session.json()) as { _tag: string };
+  expect(body._tag).toBe("NotInOrganization");
+
+  expect(pageErrors).toEqual([]);
+});
+
+test("a wrong code is refused and leaves the visitor signed out", async ({ page }) => {
+  const email = "e2e-wrong-code@example.com";
+  await open(page, "/");
+
+  await page.getByRole("textbox", { name: "Your email" }).fill(email);
+  await page.getByRole("button", { name: "Email me a code" }).click();
+  await expect(page.getByText(`We sent a 6-digit code to ${email}.`)).toBeVisible();
+
+  await page.getByRole("textbox", { name: "Sign-in code" }).fill("000000");
+  await page.getByRole("button", { name: "Sign in with this code" }).click();
+
+  await expect(page.getByText("Signing in did not work. Please try again.")).toBeVisible();
+  expect((await page.request.get("/auth/session")).status(), "GET /auth/session").toBe(401);
+});

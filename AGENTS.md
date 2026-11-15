@@ -74,7 +74,7 @@ CI runs `typecheck`, `check:ledger`, `check:comments`, `format:check`, `lint`, `
 - Use `@effect/vitest` (`it.effect` for Effect programs). Prefer a property or a model for a domain rule, and keep an example test for a seam. Make a new property fail on a planted bug, then remove that bug, before you trust the test.
 - Adapter tests use `@alchemy.run/test`'s `Test.make({ dev: true })` against local workerd and are slow (deploy timeouts up to 240 s); run the single file you need.
 - A new API endpoint must be classified in `packages/api/src/PrivacyRegistry.ts` or the package will not typecheck; `registry.privacy.test.ts` checks the runtime declaration too.
-- End-to-end tests run only against a deployed stage: `E2E_BASE_URL=https://pr-<n>.app.surveybeat.app pnpm test:e2e` (install Chromium once with `pnpm --filter @surveybeat/infra exec playwright install chromium`).
+- End-to-end tests run against a local stage by default: `pnpm test:e2e` builds the web app and starts `alchemy dev` on `infra/tests/e2e/stack.ts`, which deploys the real `MainWorker` (Durable Object, D1, sign-in and email-code handlers) to local workerd at `http://localhost:1337`. Add `E2E_BASE_URL=https://pr-<n>.app.surveybeat.app` to run the same specs against a deployed stage. Install Chromium once with `pnpm --filter @surveybeat/infra exec playwright install chromium`. The SPEC §7 flow in `flow.spec.ts` stays `test.fixme`: its answer step needs the separate `SubmissionWorker`, which the local stack does not deploy.
 
 ## Infra
 
