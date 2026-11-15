@@ -12,8 +12,11 @@
   "rules": {
     "anti-slop/no-reflect-get": "error",
     "effect-tests/no-manual-effect-runtime-in-tests": "error",
+    "patterns/acquire-release-constructs-in-acquire-body": "error",
     "patterns/no-module-level-mutable-state": "error",
+    "patterns/no-shared-pending-cache": "error",
     "patterns/no-sleep-in-loop": "error",
+    "patterns/shared-waiters": "error",
     "xstate-effect/no-inline-effect": "error"
   }
 }

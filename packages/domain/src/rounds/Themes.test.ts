@@ -812,3 +812,29 @@ describe("the themes retry machine", () => {
     },
   );
 });
+
+describe("the themes retry machine", () => {
+  const snapshotAt = (value: "ready" | "failed") =>
+    themesRetryMachine.resolveState({
+      value,
+      context: { attempts: 0, requestedAt: REQUESTED_AT, now: REQUESTED_AT, decision: null },
+    });
+
+  const events = [
+    { type: "Store", themes: { themes: [], guide: null } },
+    { type: "Reject" },
+    { type: "Unavailable" },
+    { type: "Invalid" },
+    { type: "NotConfigured" },
+  ] as const;
+
+  it.each(["ready", "failed"] as const)("refuses every event once it is %s", (value) => {
+    const snapshot = snapshotAt(value);
+    for (const event of events) {
+      expect(
+        isUnhandled(snapshot, transition(themesRetryMachine, snapshot, event)),
+        `${event.type} in ${value}`,
+      ).toBe(true);
+    }
+  });
+});
