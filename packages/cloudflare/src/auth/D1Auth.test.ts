@@ -230,6 +230,7 @@ describe("Better Auth sessions in D1", () => {
           Effect.sync(() => {
             codes.push(otp);
           }),
+        sendMagicLink: () => Effect.void,
       };
       const d1 = database as unknown as NonNullable<Parameters<typeof createAuth>[0]["database"]>;
 
@@ -276,6 +277,7 @@ describe("Better Auth identity provider over D1", () => {
           Effect.sync(() => {
             codes.push(otp);
           }),
+        sendMagicLink: () => Effect.void,
       };
       const d1 = database as unknown as NonNullable<Parameters<typeof createAuth>[0]["database"]>;
       const auth = createAuth({ settings: authSettings, delivery, database: d1 });
@@ -342,6 +344,51 @@ describe("Better Auth identity provider over D1", () => {
 
       const refused = yield* provider.authenticate(Redacted.make(value)).pipe(Effect.flip);
       expect(refused._tag).toBe("Unauthenticated");
+    }),
+  );
+});
+
+describe("Better Auth plugin tables in D1", () => {
+  it.effect("signs in through a magic link against the migrated plugin tables", () =>
+    Effect.gen(function* () {
+      const { sqlite, database } = betterAuthDatabase();
+      const links: Array<string> = [];
+      const delivery = {
+        sendSignInCode: () => Effect.void,
+        sendMagicLink: ({ url }: { readonly email: string; readonly url: string }) =>
+          Effect.sync(() => {
+            links.push(url);
+          }),
+      };
+      const d1 = database as unknown as NonNullable<Parameters<typeof createAuth>[0]["database"]>;
+      const auth = createAuth({ settings: authSettings, delivery, database: d1 });
+
+      const sent = yield* Effect.promise(() =>
+        auth.handler(authPost("/auth/sign-in/magic-link", { email: authAddress })),
+      );
+      expect(sent.status).toBe(200);
+      expect(links).toHaveLength(1);
+
+      const link = new URL(links[0] ?? "");
+      const verified = yield* Effect.promise(() =>
+        auth.handler(new Request(link.toString(), { headers: { origin: authOrigin } })),
+      );
+      expect(verified.status).toBeLessThan(400);
+      const cookie = (verified.headers.get("set-cookie") ?? "").split(";")[0] ?? "";
+      expect(cookie).toContain(`${SESSION_COOKIE}=`);
+
+      const read = yield* Effect.promise(() => auth.handler(authGetSession(cookie)));
+      const body: unknown = yield* Effect.promise(() => read.json());
+      expect(body).toMatchObject({ user: { email: authAddress, role: "user" } });
+
+      for (const table of ["auth_organization", "auth_member", "auth_invitation", "auth_passkey"]) {
+        const row = sqlite.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get() as { count: number };
+        expect(row.count, table).toBe(0);
+      }
+      const user = sqlite.prepare("SELECT role FROM auth_user WHERE email = ?").get(authAddress) as {
+        role: string;
+      };
+      expect(user.role).toBe("user");
     }),
   );
 });

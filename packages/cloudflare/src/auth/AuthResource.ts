@@ -18,4 +18,11 @@ export const signInCodeDelivery = (
       text: `Your SurveyBeat sign-in code is ${otp}. It expires in 10 minutes.`,
       html: `<p>Your SurveyBeat sign-in code is <strong>${otp}</strong>. It expires in 10 minutes.</p>`,
     }).pipe(Effect.asVoid, Effect.orDie),
+  sendMagicLink: ({ email, url }) =>
+    send({
+      to: EmailAddress.make(email),
+      subject: "Your SurveyBeat sign-in link",
+      text: `Open SurveyBeat: ${url}\n\nThe link expires in 5 minutes and works once.`,
+      html: `<p><a href="${url}">Sign in to SurveyBeat</a></p><p>The link expires in 5 minutes and works once.</p>`,
+    }).pipe(Effect.asVoid, Effect.orDie),
 });

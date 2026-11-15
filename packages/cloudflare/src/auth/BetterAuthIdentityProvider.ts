@@ -28,7 +28,7 @@ const sessionTokenFromCookie = (header: string): string => {
 };
 
 export const betterAuthIdentityProvider = (params: {
-  readonly auth: Auth;
+  readonly auth: Pick<Auth, "api" | "handler">;
   readonly chosenOrganization: (
     sessionId: SessionId,
   ) => Effect.Effect<Option.Option<OrganizationId>, AuthUnavailable>;

@@ -7,13 +7,18 @@ const address = "person@example.com";
 
 const harness = () => {
   const codes: Array<string> = [];
+  const links: Array<string> = [];
   const auth = memoryAuth({
     sendSignInCode: ({ otp }) =>
       Effect.sync(() => {
         codes.push(otp);
       }),
+    sendMagicLink: ({ url }) =>
+      Effect.sync(() => {
+        links.push(url);
+      }),
   });
-  return { auth, codes };
+  return { auth, codes, links };
 };
 
 const post = (auth: ReturnType<typeof memoryAuth>, path: string, body: unknown, cookie?: string) =>
@@ -92,6 +97,40 @@ describe("email code sign-in through Better Auth", () => {
       const response = yield* post(auth, "/auth/sign-in/email-otp", { email: address, otp: wrong });
       expect(response.status).toBeGreaterThanOrEqual(400);
       expect(response.headers.get("set-cookie")).toBeNull();
+    }),
+  );
+});
+
+describe("Better Auth plugins", () => {
+  it.effect("signs in through the emailed link and gives the user the admin plugin's default role", () =>
+    Effect.gen(function* () {
+      const { auth, links } = harness();
+      const sent = yield* post(auth, "/auth/sign-in/magic-link", { email: address });
+      expect(sent.status).toBe(200);
+      expect(links).toHaveLength(1);
+
+      const link = new URL(links[0] ?? "");
+      expect(link.pathname).toBe("/auth/magic-link/verify");
+      expect((link.searchParams.get("token") ?? "").length).toBeGreaterThan(20);
+
+      const verified = yield* Effect.promise(() =>
+        auth.handler(new Request(link.toString(), { headers: { origin } })),
+      );
+      expect(verified.status).toBeLessThan(400);
+      const cookie = cookiePair(verified);
+      expect(cookie.startsWith(`${SESSION_COOKIE}=`)).toBe(true);
+
+      const session = yield* get(auth, "/auth/get-session", cookie);
+      const body: unknown = yield* Effect.promise(() => session.json());
+      expect(body).toMatchObject({ user: { email: address, role: "user" } });
+    }),
+  );
+
+  it.effect("keeps the passkey endpoints registered and closed to a visitor without a session", () =>
+    Effect.gen(function* () {
+      const { auth } = harness();
+      const response = yield* get(auth, "/auth/passkey/generate-register-options", "");
+      expect(response.status).toBe(401);
     }),
   );
 });

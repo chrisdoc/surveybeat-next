@@ -23,6 +23,7 @@ const signedIn = () =>
         Effect.sync(() => {
           codes.push(otp);
         }),
+      sendMagicLink: () => Effect.void,
     });
     yield* Effect.promise(() =>
       auth.handler(
@@ -86,6 +87,7 @@ describe("Better Auth identity provider", () => {
           Effect.sync(() => {
             codes.push(otp);
           }),
+        sendMagicLink: () => Effect.void,
       });
       const provider = betterAuthIdentityProvider({
         auth,
