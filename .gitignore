@@ -11,3 +11,4 @@ test-results
 .env.local
 .env.*.local
 !.env.schema
+test-report.junit.xml

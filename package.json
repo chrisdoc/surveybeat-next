@@ -15,6 +15,7 @@
     "test": "vitest run --project unit",
     "test:privacy": "vitest run --project privacy",
     "test:coverage": "vitest run --coverage",
+    "test:ci": "vitest run --coverage --reporter=default --reporter=junit --outputFile=test-report.junit.xml",
     "env:check": "varlock load",
     "test:e2e": "varlock run -- pnpm --filter @surveybeat/infra test:e2e",
     "test:lighthouse": "pnpm --filter @surveybeat/infra test:lighthouse",

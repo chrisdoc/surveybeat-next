@@ -3,6 +3,8 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, open, test } from "./fixtures.ts";
 
+const hasCapturedEmailRoute = process.env["E2E_BASE_URL"] === undefined;
+
 test("the app loads", async ({ page, pageErrors }) => {
   await open(page, "/");
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
@@ -78,6 +80,7 @@ test("a code mailed to the visitor signs them in and the session answers with th
   page,
   pageErrors,
 }) => {
+  test.skip(!hasCapturedEmailRoute, "the __test/email route is registered only on the local test_ stage");
   const email = "e2e-sign-in@example.com";
   await open(page, "/");
 
@@ -109,6 +112,7 @@ test("a code mailed to the visitor signs them in and the session answers with th
 });
 
 test("a wrong code is refused and leaves the visitor signed out", async ({ page }) => {
+  test.skip(!hasCapturedEmailRoute, "the __test/email route is registered only on the local test_ stage");
   const email = "e2e-wrong-code@example.com";
   await open(page, "/");
 
