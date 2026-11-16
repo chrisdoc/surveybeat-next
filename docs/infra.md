@@ -34,6 +34,8 @@ E2E_BASE_URL=<main-url> pnpm test:e2e      # the same specs against a deployed s
                                            # once: pnpm --filter @surveybeat/infra exec playwright install chromium
 ```
 
+Values for those commands come from `.env.schema`, which declares every variable the deploy, the e2e suite and the stage scripts read and is committed. Real values go in `.env.local`, which is not; `pnpm env:check` validates both. `pnpm infra:deploy` and `pnpm test:e2e` run under `varlock run`, so a missing or malformed value fails before Alchemy or Playwright starts.
+
 ## Preview stages in CI
 
 `.github/workflows/preview.yml` deploys `pr-<number>` on every push to a pull request, smoke tests the stage, and destroys it when the pull request closes. It needs the repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`, (no sign-in secret beyond `ORG_CREATION_ALLOWLIST`, which `infra/alchemy.run.ts` reads). Fork pull requests are skipped. After the deploy, two jobs run against the stage:

@@ -14,10 +14,11 @@
     "format:check": "oxfmt --check .",
     "test": "vitest run --project unit",
     "test:privacy": "vitest run --project privacy",
-    "test:e2e": "pnpm --filter @surveybeat/infra test:e2e",
+    "env:check": "varlock load",
+    "test:e2e": "varlock run -- pnpm --filter @surveybeat/infra test:e2e",
     "test:lighthouse": "pnpm --filter @surveybeat/infra test:lighthouse",
     "test:preview-privacy": "node infra/tests/privacy/canary-sweep.ts",
-    "infra:deploy": "alchemy deploy infra/alchemy.run.ts",
+    "infra:deploy": "varlock run -- alchemy deploy infra/alchemy.run.ts",
     "infra:destroy": "alchemy destroy infra/alchemy.run.ts",
     "check:observability": "node infra/scripts/check-observability.ts",
     "prepare": "node scripts/fence/install.mjs && effect-tsgo patch --typescript",
@@ -41,6 +42,7 @@
     "tsrs": "catalog:",
     "typescript": "catalog:",
     "ultracite": "catalog:",
+    "varlock": "catalog:",
     "vitest": "catalog:"
   },
   "engines": {

@@ -7,3 +7,7 @@ coverage
 dist-types
 .cloudflare/
 test-results
+.env
+.env.local
+.env.*.local
+!.env.schema
