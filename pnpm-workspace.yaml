@@ -42,7 +42,7 @@ catalog:
   "@types/react": 19.3.0
   "@types/react-dom": 19.3.0
   "@types/node": 26.6.6
-  react-email: 6.11.8
+  react-email: 6.11.12
   "@playwright/test": 1.65.0
   foldkit: 0.170.0
   "@foldkit/ui": 0.170.0
