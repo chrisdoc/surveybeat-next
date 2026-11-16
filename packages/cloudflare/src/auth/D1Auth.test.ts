@@ -25,9 +25,10 @@ const makeIndex = () => {
     all: () =>
       Effect.sync(() => ({ results: sqlite.prepare(sql).all(...(binds as Array<null | string | number>)) })),
     run: () =>
-      Effect.sync(
-        () => (sqlite.prepare(sql).run(...(binds as Array<null | string | number>)), { results: [] }),
-      ),
+      Effect.sync(() => {
+        sqlite.prepare(sql).run(...(binds as Array<null | string | number>));
+        return { results: [] };
+      }),
   });
   const client = {
     prepare: (sql: string) => statement(sql, []),

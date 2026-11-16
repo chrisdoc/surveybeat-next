@@ -37,7 +37,7 @@ describe("AiInput privacy", () => {
   });
 
   it("rejects a plain string where RedactedText is required", () => {
-    const plain: string = "not yet redacted";
+    const plain = "not yet redacted";
     const input: AiInput = {
       questions: [],
       // @ts-expect-error only RedactedText may reach the model

@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-const fixtures = fileURLToPath(new URL("./fixtures", import.meta.url));
+const fixtures = fileURLToPath(new URL("fixtures", import.meta.url));
 
 interface Diagnostic {
   readonly code: string;

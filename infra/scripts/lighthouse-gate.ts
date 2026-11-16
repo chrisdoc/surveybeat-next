@@ -226,7 +226,7 @@ async function main() {
   }
 }
 
-main().catch((err) => {
+main().catch((err: unknown) => {
   console.error("Error running Lighthouse gate:", err);
   process.exit(1);
 });

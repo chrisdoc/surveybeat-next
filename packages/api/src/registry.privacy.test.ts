@@ -504,7 +504,8 @@ const violations = (
 
   // ADR 0016: Comment themes are shown only to a Round that meets N, and only with two supporters.
   if (!roundMeetsN && (result.themes ?? []).length > 0) found.push("Comment themes shown below N");
-  if (!roundMeetsN && result.discussionGuide != null) found.push("discussion guide shown below N");
+  if (!roundMeetsN && result.discussionGuide !== null && result.discussionGuide !== undefined)
+    found.push("discussion guide shown below N");
   if (
     (result.themes ?? []).some(
       (theme) => theme.supportingComments !== undefined && theme.supportingComments < 2,

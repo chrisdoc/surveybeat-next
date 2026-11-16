@@ -8,7 +8,7 @@ let failed = false;
 for (const config of projects) {
   const result = fast ? run("pnpm", ["exec", "tsrs", "-p", config, "--noEmit"]) : effectText(config);
   const name = relative(process.cwd(), dirname(config));
-  const summary = fast ? "" : `  ${result.output.trim().split("\n").filter(Boolean).at(-1) ?? ""}`;
+  const summary = fast ? "" : `  ${result.output.trim().split("\n").at(-1) ?? ""}`;
   console.log(`${result.status === 0 ? "ok  " : "FAIL"} ${name}${summary}`);
   if (result.status !== 0 && !fast) console.log(result.output.trimEnd());
   if (result.status !== 0) failed = true;

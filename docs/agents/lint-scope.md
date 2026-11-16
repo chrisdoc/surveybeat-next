@@ -1,6 +1,6 @@
 # Lint scope
 
-`oxlint.config.ts` replaces the old `.oxlintrc.json`. It extends `ultracite/oxlint/core` 8.1.1, the config the rat-stack reference uses, and loads the plugins #205 names: `surveybeat`, `no-comments`, `foldkit` (scoped to the Foldkit app), `anti-slop`, `anti-slop-effect`, `effect-tests`, `patterns`, and `xstate-effect` (from `@xstate/effect/oxlint`). 398 rules run at `error`; the ones that are not at `error` are listed below by name.
+`oxlint.config.ts` replaces the old `.oxlintrc.json`. It extends `ultracite/oxlint/core` 8.1.1, the config the rat-stack reference uses, and loads the plugins #205 names: `surveybeat`, `no-comments`, `foldkit` (scoped to the Foldkit app), `anti-slop`, `anti-slop-effect`, `effect-tests`, `patterns`, and `xstate-effect` (from `@xstate/effect/oxlint`). 421 rules run at `error`; the ones that are not at `error` are listed below by name.
 
 ## Adopted surface
 
@@ -23,7 +23,7 @@ Each is an `overrides` entry that names the rule and the files it cannot apply t
 
 Adopting the reference's surface verbatim would have meant rewriting this tree: Ultracite core alone produced 6,713 findings here and the plugin set another 6,431. #205's rule is "`error` when clean, otherwise a counted baseline". Rather than carry a 14k baseline, the rules that need a repo-wide restyle are off by name in `restyleExceptionsOff`, with the count each one produced on 2026-11-14. The follow-up restyle is issue #216; as it lands, delete the rule's line from `restyleExceptionsOff` so it runs again at its reference severity.
 
-13832 findings across 151 rules are excepted, by namespace: `anti-slop` 11, `anti-slop-effect` 4, `eslint` 37, `foldkit` 9, `import` 3, `jsdoc` 2, `node` 1, `oxc` 2, `promise` 4, `typescript` 34, `unicorn` 44.
+13809 findings across 128 rules are excepted, by namespace: `anti-slop` 11, `anti-slop-effect` 4, `eslint` 27, `foldkit` 9, `import` 3, `jsdoc` 2, `oxc` 2, `promise` 3, `typescript` 31, `unicorn` 36.
 
 | Rule | Findings on adoption |
 | --- | ---: |
@@ -46,7 +46,6 @@ Adopting the reference's surface verbatim would have meant rewriting this tree: 
 | `eslint/complexity` | 24 |
 | `eslint/curly` | 629 |
 | `eslint/default-case` | 47 |
-| `eslint/eqeqeq` | 1 |
 | `eslint/func-names` | 321 |
 | `eslint/func-style` | 50 |
 | `eslint/max-classes-per-file` | 16 |
@@ -55,30 +54,21 @@ Adopting the reference's surface verbatim would have meant rewriting this tree: 
 | `eslint/no-duplicate-imports` | 2 |
 | `eslint/no-else-return` | 2 |
 | `eslint/no-empty` | 2 |
-| `eslint/no-eq-null` | 1 |
-| `eslint/no-fallthrough` | 1 |
 | `eslint/no-inline-comments` | 22 |
-| `eslint/no-loop-func` | 1 |
 | `eslint/no-negated-condition` | 49 |
 | `eslint/no-nested-ternary` | 35 |
-| `eslint/no-new` | 1 |
 | `eslint/no-plusplus` | 71 |
 | `eslint/no-promise-executor-return` | 2 |
 | `eslint/no-redeclare` | 153 |
-| `eslint/no-sequences` | 1 |
 | `eslint/no-shadow` | 35 |
 | `eslint/no-use-before-define` | 74 |
-| `eslint/no-useless-return` | 1 |
 | `eslint/no-void` | 7 |
 | `eslint/prefer-const` | 2 |
 | `eslint/prefer-destructuring` | 79 |
-| `eslint/prefer-exponentiation-operator` | 1 |
 | `eslint/prefer-named-capture-group` | 24 |
 | `eslint/prefer-template` | 6 |
-| `eslint/require-await` | 1 |
 | `eslint/require-unicode-regexp` | 136 |
 | `eslint/sort-keys` | 2570 |
-| `eslint/sort-vars` | 1 |
 | `foldkit/got-prefix-requires-submodel-payload` | 15 |
 | `foldkit/got-wrapper-carries-only-routing` | 15 |
 | `foldkit/keyed-required-for-mapped-rows` | 5 |
@@ -93,10 +83,8 @@ Adopting the reference's surface verbatim would have meant rewriting this tree: 
 | `import/no-mutable-exports` | 8 |
 | `jsdoc/require-param-description` | 45 |
 | `jsdoc/require-returns-description` | 16 |
-| `node/callback-return` | 1 |
 | `oxc/no-accumulating-spread` | 9 |
 | `oxc/no-barrel-file` | 8 |
-| `promise/always-return` | 1 |
 | `promise/avoid-new` | 3 |
 | `promise/param-names` | 2 |
 | `promise/prefer-await-to-callbacks` | 11 |
@@ -111,8 +99,6 @@ Adopting the reference's surface verbatim would have meant rewriting this tree: 
 | `typescript/no-deprecated` | 2 |
 | `typescript/no-floating-promises` | 6 |
 | `typescript/no-import-type-side-effects` | 2 |
-| `typescript/no-inferrable-types` | 1 |
-| `typescript/no-invalid-void-type` | 1 |
 | `typescript/no-non-null-assertion` | 43 |
 | `typescript/no-unnecessary-type-arguments` | 27 |
 | `typescript/no-unnecessary-type-assertion` | 12 |
@@ -133,14 +119,12 @@ Adopting the reference's surface verbatim would have meant rewriting this tree: 
 | `typescript/strict-boolean-expressions` | 40 |
 | `typescript/strict-void-return` | 15 |
 | `typescript/switch-exhaustiveness-check` | 4 |
-| `typescript/use-unknown-in-catch-callback-variable` | 1 |
 | `unicorn/catch-error-name` | 4 |
 | `unicorn/consistent-function-scoping` | 66 |
 | `unicorn/escape-case` | 8 |
 | `unicorn/filename-case` | 165 |
 | `unicorn/import-style` | 13 |
 | `unicorn/new-for-builtins` | 4 |
-| `unicorn/no-array-fill-with-reference-type` | 1 |
 | `unicorn/no-array-for-each` | 23 |
 | `unicorn/no-array-method-this-argument` | 48 |
 | `unicorn/no-array-reduce` | 3 |
@@ -156,25 +140,18 @@ Adopting the reference's surface verbatim would have meant rewriting this tree: 
 | `unicorn/no-useless-undefined` | 9 |
 | `unicorn/no-zero-fractions` | 12 |
 | `unicorn/numeric-separators-style` | 129 |
-| `unicorn/prefer-array-find` | 1 |
 | `unicorn/prefer-at` | 6 |
-| `unicorn/prefer-code-point` | 1 |
 | `unicorn/prefer-dom-node-append` | 18 |
-| `unicorn/prefer-dom-node-dataset` | 1 |
 | `unicorn/prefer-import-meta-properties` | 4 |
 | `unicorn/prefer-logical-operator-over-ternary` | 2 |
 | `unicorn/prefer-number-coercion` | 29 |
 | `unicorn/prefer-number-properties` | 30 |
 | `unicorn/prefer-query-selector` | 20 |
-| `unicorn/prefer-response-static-json` | 1 |
-| `unicorn/prefer-set-has` | 1 |
 | `unicorn/prefer-single-call` | 9 |
 | `unicorn/prefer-spread` | 3 |
 | `unicorn/prefer-string-replace-all` | 21 |
 | `unicorn/prefer-structured-clone` | 2 |
 | `unicorn/prefer-ternary` | 4 |
-| `unicorn/relative-url-style` | 1 |
-| `unicorn/require-module-specifiers` | 1 |
 | `unicorn/switch-case-braces` | 289 |
 | `unicorn/text-encoding-identifier-case` | 45 |
 | `unicorn/throw-new-error` | 33 |

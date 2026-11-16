@@ -56,7 +56,7 @@ const expectedBody = {
 };
 
 const reply = (content: unknown, status = 200) =>
-  new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(content) } }] }), { status });
+  Response.json({ choices: [{ message: { content: JSON.stringify(content) } }] }, { status });
 
 interface Call {
   readonly url: string;
@@ -66,7 +66,7 @@ interface Call {
 /** A `fetch` that answers each call with the next step; an `Error` step rejects the call. */
 const scriptedFetch = (steps: ReadonlyArray<Response | Error>) => {
   const calls: Array<Call> = [];
-  const fetchFn = async (input: string, init?: RequestInit): Promise<Response> => {
+  const fetchFn = (input: string, init?: RequestInit): Promise<Response> => {
     calls.push({ url: input, init: init ?? {} });
     const step = steps[calls.length - 1];
     if (step === undefined) {
@@ -75,7 +75,7 @@ const scriptedFetch = (steps: ReadonlyArray<Response | Error>) => {
     if (step instanceof Error) {
       throw step;
     }
-    return step;
+    return Promise.resolve(step);
   };
   return { fetch: fetchFn as unknown as typeof fetch, calls };
 };
@@ -185,13 +185,12 @@ describe("makeOpenRouterAiClient", () => {
     Effect.gen(function* () {
       const response = new Response("comment echoed back by the moderator", { status: 400 });
       let bodyRead = false;
+      const refuseBodyRead = (): never => {
+        bodyRead = true;
+        throw new Error("body must not be read");
+      };
       for (const method of ["text", "json", "arrayBuffer", "blob", "formData"] as const) {
-        Object.defineProperty(response, method, {
-          value: () => {
-            bodyRead = true;
-            throw new Error("body must not be read");
-          },
-        });
+        Object.defineProperty(response, method, { value: refuseBodyRead });
       }
       const fake = scriptedFetch([response]);
       const wait = recordingSleep();

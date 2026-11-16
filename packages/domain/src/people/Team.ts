@@ -18,7 +18,7 @@ const IANA_SHAPE = /^[A-Za-z][A-Za-z0-9_+-]*(?:\/[A-Za-z0-9_+-]+)*$/;
 export const isTimeZone = (name: string): boolean => {
   if (!IANA_SHAPE.test(name)) return false;
   try {
-    new Intl.DateTimeFormat("en", { timeZone: name });
+    Intl.DateTimeFormat("en", { timeZone: name });
     return true;
   } catch {
     return false;
