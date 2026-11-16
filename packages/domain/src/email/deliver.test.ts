@@ -92,7 +92,7 @@ describe("deliver", () => {
 
   it.effect("makes a concurrent duplicate wait for the lease instead of sending", () =>
     Effect.gen(function* () {
-      const release = yield* Deferred.make<void>();
+      const release = yield* Deferred.make<undefined>();
       const slow: Reply = Deferred.await(release).pipe(Effect.as({ messageId: "m-1" }));
       yield* withSend([slow], (sent) =>
         Effect.gen(function* () {

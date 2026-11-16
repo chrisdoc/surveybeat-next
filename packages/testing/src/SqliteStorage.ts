@@ -12,7 +12,7 @@ export interface SqliteStorage {
       readonly raw: () => IterableIterator<ReadonlyArray<unknown>>;
     };
   };
-  readonly transaction: <T>(callback: (txn: { readonly rollback: () => void }) => Promise<T>) => Promise<T>;
+  readonly transaction: <T>(body: (txn: { readonly rollback: () => void }) => Promise<T>) => Promise<T>;
 }
 
 export const makeSqliteStorage = (db: DatabaseSync): SqliteStorage => {
@@ -32,7 +32,7 @@ export const makeSqliteStorage = (db: DatabaseSync): SqliteStorage => {
         return { columnNames, raw: () => rows[Symbol.iterator]() };
       },
     },
-    transaction: async (callback) => {
+    transaction: async (body) => {
       const level = depth++;
       const savepoint = `storage_level_${level}`;
       db.exec(level === 0 ? "BEGIN" : `SAVEPOINT ${savepoint}`);
@@ -42,7 +42,7 @@ export const makeSqliteStorage = (db: DatabaseSync): SqliteStorage => {
         else db.exec(`ROLLBACK TO ${savepoint}; RELEASE ${savepoint}`);
       };
       try {
-        const result = await callback({
+        const result = await body({
           rollback: () => {
             rolledBack = true;
           },

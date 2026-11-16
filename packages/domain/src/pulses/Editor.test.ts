@@ -525,17 +525,27 @@ describe("the estimate and the warnings", () => {
   });
 
   it("warns above 7 Questions, not at 7", () => {
-    expect(pulseWarnings(Array(7).fill(rating), 5, 4)).toEqual([]);
-    expect(pulseWarnings(Array(8).fill(rating), 5, 4)).toEqual([
-      { _tag: "TooManyQuestions", count: 8, recommended: 7 },
-    ]);
+    expect(
+      pulseWarnings(
+        Array.from({ length: 7 }, () => rating),
+        5,
+        4,
+      ),
+    ).toEqual([]);
+    expect(
+      pulseWarnings(
+        Array.from({ length: 8 }, () => rating),
+        5,
+        4,
+      ),
+    ).toEqual([{ _tag: "TooManyQuestions", count: 8, recommended: 7 }]);
   });
 
   it("warns above 90 seconds, not at 90", () => {
-    expect(pulseWarnings([rating, longText, longText, ...Array(4).fill(choice)], 5, 4)).toEqual([
-      { _tag: "TooLong", seconds: 106, recommended: 90 },
-    ]);
-    expect(pulseWarnings([...Array(5).fill(rating), longText, longText], 5, 4)).toEqual([]);
+    expect(
+      pulseWarnings([rating, longText, longText, ...Array.from({ length: 4 }, () => choice)], 5, 4),
+    ).toEqual([{ _tag: "TooLong", seconds: 106, recommended: 90 }]);
+    expect(pulseWarnings([...Array.from({ length: 5 }, () => rating), longText, longText], 5, 4)).toEqual([]);
   });
 
   it("notes that one-tap needs a rating Question first", () => {

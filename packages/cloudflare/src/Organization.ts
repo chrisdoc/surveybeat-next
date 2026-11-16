@@ -1058,7 +1058,6 @@ export default class Organization extends Cloudflare.DurableObject<Organization>
                 case "GiveUp":
                   yield* rounds.giveUpThemes(roundId, now);
                   yield* rounds.markJobCompleted(jobId, now);
-                  return;
               }
             }),
           );

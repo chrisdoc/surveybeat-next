@@ -206,9 +206,7 @@ async function run(message: AnswerMessage): Promise<void> {
   }
 
   const scheduleValidation = () => {
-    void import("./schema-validate.ts").then((mod) => {
-      mod.validateRoundContext(rawContext);
-    });
+    void import("./schema-validate.ts").then((mod) => mod.validateRoundContext(rawContext));
   };
   setTimeout(scheduleValidation, 8000);
 
@@ -397,7 +395,7 @@ async function run(message: AnswerMessage): Promise<void> {
 
     questions.forEach((q, idx) => {
       const section = document.createElement("section");
-      section.setAttribute("data-question-screen", String(idx + 2));
+      section.dataset.questionScreen = String(idx + 2);
       section.className = "question-block";
 
       if (!isDesktop && idx > 0) {

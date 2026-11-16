@@ -4,8 +4,6 @@
 // @effect-diagnostics globalTimers:off -- a plain setTimeout in a script that has no Effect runtime.
 // @effect-diagnostics newPromise:off -- the script waits on a child process or a timeout with a plain Promise; there is no Effect runtime in it.
 
-export {};
-
 const [mainUrl, submissionUrl] = process.argv.slice(2);
 if (mainUrl === undefined) {
   console.error("Usage: smoke.ts <main-url> [<submission-url>]");
@@ -17,7 +15,7 @@ const DELAY_MS = 5000;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const request = async (url: string, init?: RequestInit): Promise<Response> => {
+export const request = async (url: string, init?: RequestInit): Promise<Response> => {
   let last = "no attempt";
   for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
     try {

@@ -436,13 +436,13 @@ describe("Lifecycle scheduling and time engine", () => {
   });
 });
 
-const ROUND_TAGS: ReadonlyArray<RoundCommandTag> = [
+const ROUND_TAGS: ReadonlySet<RoundCommandTag> = new Set([
   "CloseRoundEarly",
   "ShareResults",
   "RetryResult",
   "CancelRound",
   "ResendInvitation",
-];
+]);
 
 const CommandTag = Schema.Literals([
   "SkipWeek",
@@ -493,7 +493,7 @@ const MODEL: Record<RoundStatus, Partial<Record<RoundCommandTag, RoundStatus>>> 
 };
 
 const modelNext = (status: RoundStatus, tag: RoundCommandTag): RoundStatus | undefined =>
-  ROUND_TAGS.includes(tag) ? MODEL[status][tag] : status;
+  ROUND_TAGS.has(tag) ? MODEL[status][tag] : status;
 
 describe("the Round lifecycle table", () => {
   prop(

@@ -42,11 +42,11 @@ const digits = (values: ReadonlyArray<string>, atLeast: number, atMost: number):
 
 const germanNumber = (number: typeof GermanNumber.Type): string => {
   const area = digits(number.area, 2, 3);
-  const national = number.mobile ? `1${"567"[area.charCodeAt(0) % 3]}${area.slice(0, 1)}` : area;
+  const national = number.mobile ? `1${"567"[(area.codePointAt(0) ?? 0) % 3]}${area.slice(0, 1)}` : area;
   const subscriber = digits(number.subscriber, 6, 8);
   const separatorOf = (index: number) => number.separators[index % number.separators.length] ?? " ";
   let groups = "";
-  for (let index = 0, group = 0; index < subscriber.length; group += 1) {
+  for (let group = 0, index = 0; index < subscriber.length; group += 1) {
     const size = 2 + (group % 2);
     groups += `${separatorOf(group)}${subscriber.slice(index, index + size)}`;
     index += size;

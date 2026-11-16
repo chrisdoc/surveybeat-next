@@ -1569,13 +1569,6 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
               session: { _tag: "CreateOrganization", name: "", busy: false },
             },
           };
-        case "NotInOrganization":
-          return {
-            model: {
-              ...model,
-              session: { _tag: "NotInOrganization" },
-            },
-          };
         case "ChooseOrganization":
           return {
             model: {
@@ -1612,6 +1605,14 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
             ],
           };
         }
+
+        default:
+          return {
+            model: {
+              ...model,
+              session: { _tag: "NotInOrganization" },
+            },
+          };
       }
     }
 

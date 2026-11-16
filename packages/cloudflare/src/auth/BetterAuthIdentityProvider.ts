@@ -72,6 +72,7 @@ export const betterAuthIdentityProvider = (params: {
             .handler(authRequest("/auth/email-otp/send-verification-otp", { email, type: "sign-in" }))
             .then((response) => {
               if (!response.ok) throw new Error(`send-verification-otp answered ${response.status}`);
+              return response;
             }),
         catch: () => new AuthUnavailable(),
       }).pipe(Effect.asVoid),
