@@ -2,36 +2,44 @@
 -- Organization is known. Persons themselves live in their Organization's Durable Object; these
 -- rows only route to them. Emails are stored normalised (trimmed, lower case). No survey content.
 
--- Organization → the name the picker shows. The Organization objects are found by their own id;
--- there is no provider-side organization any more (ADR 0023).
+-- Organization → its WorkOS organization (one to one), and the name the picker shows.
 CREATE TABLE organization_index (
   organization_id TEXT NOT NULL PRIMARY KEY,
-  name TEXT NOT NULL
+  name TEXT NOT NULL,
+  workos_organization_id TEXT UNIQUE
 ) WITHOUT ROWID;
 
--- One row per Person. `auth_user_id` is NULL until the Person first signs in and is linked by an
--- exact match on a verified email; after that the row is found by user, not by email.
+-- One row per Person. `workos_user_id` is NULL until the Person first signs in and is linked by
+-- an exact match on a verified email; after that the row is found by user, not by email.
 CREATE TABLE person_index (
   organization_id TEXT NOT NULL,
   person_id TEXT NOT NULL,
   email TEXT NOT NULL CHECK (email = lower(trim(email))),
-  auth_user_id TEXT,
+  workos_user_id TEXT,
   PRIMARY KEY (organization_id, person_id)
 ) WITHOUT ROWID;
 
--- Signed-in user → Persons.
-CREATE INDEX person_index_by_user ON person_index (auth_user_id) WHERE auth_user_id IS NOT NULL;
+-- WorkOS user → Persons.
+CREATE INDEX person_index_by_user ON person_index (workos_user_id) WHERE workos_user_id IS NOT NULL;
 -- email → Organizations, for Persons not yet linked.
-CREATE INDEX person_index_unlinked_by_email ON person_index (email) WHERE auth_user_id IS NULL;
--- A signed-in user is at most one Person per Organization.
+CREATE INDEX person_index_unlinked_by_email ON person_index (email) WHERE workos_user_id IS NULL;
+-- A WorkOS user is at most one Person per Organization.
 CREATE UNIQUE INDEX person_index_one_per_organization
-  ON person_index (organization_id, auth_user_id) WHERE auth_user_id IS NOT NULL;
+  ON person_index (organization_id, workos_user_id) WHERE workos_user_id IS NOT NULL;
 
--- "Create an Organization" is idempotent per signed-in user: the first claim wins, and every
--- retry or double submit finishes that same Organization.
+-- "Create an Organization" is idempotent per WorkOS user: the first claim wins, and every retry
+-- or double submit finishes that same Organization.
 CREATE TABLE organization_claim (
-  auth_user_id TEXT NOT NULL PRIMARY KEY,
+  workos_user_id TEXT NOT NULL PRIMARY KEY,
   organization_id TEXT NOT NULL UNIQUE,
   name TEXT NOT NULL,
   admin_person_id TEXT NOT NULL
+) WITHOUT ROWID;
+
+-- The deny list: WorkOS sessions (`sid`) signed out or revoked. Checked on every request, because
+-- an access token stays valid until it expires. Keyed by session, not Organization, since one
+-- session moves between Organizations when it is refreshed into another one.
+CREATE TABLE revoked_session (
+  session_id TEXT NOT NULL PRIMARY KEY,
+  revoked_at INTEGER NOT NULL
 ) WITHOUT ROWID;
