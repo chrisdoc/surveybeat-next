@@ -31,7 +31,12 @@ jobs:
       - run: pnpm format:check
       - run: pnpm lint
       - run: pnpm --filter @surveybeat/web build
-      - run: pnpm test
+      - run: pnpm test:coverage
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          slug: chrisdoc/surveybeat-next
 
   # The privacy suite (SPEC §7): every `*.privacy.test.ts` across the packages. Required on every PR.
   privacy:

@@ -43,6 +43,7 @@ pnpm lint               # oxlint --type-aware
 pnpm format             # oxfmt; CI runs format:check
 pnpm test               # Vitest "unit" project only
 pnpm test:privacy       # Vitest "privacy" project only; NOT part of pnpm test
+pnpm test:coverage      # both projects with v8 coverage, written to coverage/lcov.info (CI uploads it to Codecov)
 pnpm test <path>        # one file, e.g. pnpm test packages/domain/src/people/SignIn.test.ts
 pnpm --filter @surveybeat/web build
 ```
