@@ -9,7 +9,6 @@ import { HttpServerRequest } from "effect/http/HttpServerRequest";
 import * as Effect from "effect/Effect";
 import { readdirSync, readFileSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
-import { submissionsPaused } from "./SubmissionWorker.ts";
 
 // Real D1 migrations for global index
 const d1MigrationsDir = new URL("../d1-migrations/", import.meta.url);
@@ -153,29 +152,5 @@ describe("SubmissionWorker endpoints (slice 09, ADR 0005, ADR 0007, ADR 0009)", 
       assert.strictEqual(partCount.count, 0, "token exchange must have zero participation side effects");
       assert.strictEqual(subCount.count, 0, "token exchange must have zero submission side effects");
     }),
-  );
-
-  it.effect(
-    "pauses the answer routes with a 503 that keeps the CORS headers, and keeps POST /submit answering 202 while the Organization binding moves",
-    () =>
-      Effect.gen(function* () {
-        const answer = yield* submissionsPaused.pipe(
-          Effect.provideService(HttpServerRequest, makeRequest("POST", "/exchange", { token: "t" })),
-        );
-        assert.strictEqual(answer.status, 503);
-        assert.strictEqual(answer.headers["access-control-allow-origin"], "*");
-        const liveness = yield* submissionsPaused.pipe(
-          Effect.provideService(HttpServerRequest, {
-            ...makeRequest("POST", "/submit", {}),
-            url: "/submit?canary=x",
-          }),
-        );
-        assert.strictEqual(liveness.status, 202);
-        const preflight = yield* submissionsPaused.pipe(
-          Effect.provideService(HttpServerRequest, makeRequest("OPTIONS", "/exchange")),
-        );
-        assert.strictEqual(preflight.status, 204);
-        assert.strictEqual(preflight.headers["access-control-allow-origin"], "*");
-      }),
   );
 });

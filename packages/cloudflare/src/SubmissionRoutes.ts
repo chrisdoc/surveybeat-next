@@ -284,6 +284,7 @@ export const submissionRoutes = (organizations: Organizations, database: Cloudfl
 
     return yield* HttpServerResponse.json({ error: "not found" }, { status: 404 });
   }).pipe(
+    Effect.catchCause(() => HttpServerResponse.json({ error: "Something went wrong" }, { status: 500 })),
     Effect.map((res) => HttpServerResponse.setHeaders(res, corsHeaders)),
     Effect.orDie,
   );
