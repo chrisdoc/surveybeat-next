@@ -276,8 +276,8 @@ catalogs:
       specifier: 5.1.0
       version: 5.1.0
     xstate:
-      specifier: 6.0.0-beta.1
-      version: 6.0.0-beta.1
+      specifier: 6.0.0-beta.2
+      version: 6.0.0-beta.2
 
 importers:
 
@@ -306,7 +306,7 @@ importers:
         version: 5.1.0(vitest@5.1.0)
       '@xstate/effect':
         specifier: 'catalog:'
-        version: 1.0.0-beta.0(@oxlint/plugins@1.93.0)(effect@4.1.2)(xstate@6.0.0-beta.1)
+        version: 1.0.0-beta.0(@oxlint/plugins@1.93.0)(effect@4.1.2)(xstate@6.0.0-beta.2)
       '@yielded/effect-tsrs':
         specifier: 'catalog:'
         version: 0.2.3
@@ -496,13 +496,13 @@ importers:
     dependencies:
       '@xstate/effect':
         specifier: 'catalog:'
-        version: 1.0.0-beta.0(@oxlint/plugins@1.93.0)(effect@4.1.2)(xstate@6.0.0-beta.1)
+        version: 1.0.0-beta.0(@oxlint/plugins@1.93.0)(effect@4.1.2)(xstate@6.0.0-beta.2)
       effect:
         specifier: 'catalog:'
         version: 4.1.2
       xstate:
         specifier: 'catalog:'
-        version: 6.0.0-beta.1
+        version: 6.0.0-beta.2
 
   packages/emails:
     dependencies:
@@ -3659,8 +3659,8 @@ packages:
       utf-8-validate:
         optional: true
 
-  xstate@6.0.0-beta.1:
-    resolution: {integrity: sha512-HzG+CdBxkxcqBv91aUfbscjKhREhnu949en+Ype3kIZ0cUVmK7LsPWU06GMyu+O7z9bIq52eDPQfzlUM7AtJ9g==}
+  xstate@6.0.0-beta.2:
+    resolution: {integrity: sha512-jFqR+aZbmPCfwMhOw4TPqamfjWWN8H9DAVKlOp3pWY4W9IaqYu3mlb0VvkY8R5pNBn4kz7JsVbAFkddoZlii1A==}
     hasBin: true
 
   y18n@5.0.8:
@@ -5003,10 +5003,10 @@ snapshots:
 
   '@vitest/spy@5.1.0': {}
 
-  '@xstate/effect@1.0.0-beta.0(@oxlint/plugins@1.93.0)(effect@4.1.2)(xstate@6.0.0-beta.1)':
+  '@xstate/effect@1.0.0-beta.0(@oxlint/plugins@1.93.0)(effect@4.1.2)(xstate@6.0.0-beta.2)':
     dependencies:
       effect: 4.1.2
-      xstate: 6.0.0-beta.1
+      xstate: 6.0.0-beta.2
     optionalDependencies:
       '@oxlint/plugins': 1.93.0
 
@@ -6187,7 +6187,7 @@ snapshots:
 
   ws@8.23.0: {}
 
-  xstate@6.0.0-beta.1: {}
+  xstate@6.0.0-beta.2: {}
 
   y18n@5.0.8: {}
 
