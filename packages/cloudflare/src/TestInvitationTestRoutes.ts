@@ -31,14 +31,15 @@ export const testInvitationTestRoutes = (
 ) =>
   Effect.gen(function* () {
     const request = yield* HttpServerRequest;
-    const run = new URL(request.url, "http://localhost").searchParams.get("run") ?? "";
+    const params = new URL(request.url, "http://localhost").searchParams;
+    const run = params.get("run") ?? "";
     const organizationId = `test-invitations-${run}`;
     const organization = organizations.getByName(organizationId);
     const admin = PersonId.make(`admin-${run}`);
     const member = PersonId.make(`member-${run}`);
     const teamId = TeamId.make(`team-${run}`);
     const pulseId = PulseId.make(`pulse-${run}`);
-    const now = 1_700_000_000_000;
+    const now = Number(params.get("now")) || 1_700_000_000_000;
     const signInUrl = "https://app.surveybeat.app/";
 
     yield* organization.createWithAdmin(organizationId, "Acme", admin, "admin@example.com", `user_${run}`);

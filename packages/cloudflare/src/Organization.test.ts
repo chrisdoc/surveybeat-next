@@ -6,8 +6,10 @@ import * as Cloudflare from "@alchemy.run/cloudflare";
 import * as Test from "@alchemy.run/test/Vitest";
 import * as Alchemy from "alchemy";
 import { assert } from "@effect/vitest";
+import * as Clock from "effect/Clock";
 import * as Effect from "effect/Effect";
 import MainWorker from "./MainWorker.ts";
+import SubmissionWorker from "./SubmissionWorker.ts";
 
 // The adapter on local workerd (`dev: true`): the real Main Worker and Organization Durable Object.
 const { test, beforeAll, deploy } = Test.make({
@@ -20,7 +22,8 @@ const Stack = Alchemy.Stack(
   { providers: Cloudflare.providers(), state: Alchemy.localState() },
   Effect.gen(function* () {
     const main = yield* MainWorker;
-    return { url: main.url.as<string>() };
+    const submission = yield* SubmissionWorker;
+    return { url: main.url.as<string>(), submissionUrl: submission.url.as<string>() };
   }),
 );
 
@@ -808,4 +811,40 @@ test(
     });
   }),
   { timeout: 240_000 },
+);
+
+test(
+  "the Submission Worker exchanges a test Invitation's token through the Organization hosted by the Main Worker",
+  Effect.gen(function* () {
+    const { url, submissionUrl } = yield* stack;
+    const run = crypto.randomUUID();
+    const now = yield* Clock.currentTimeMillis;
+    const seeded = yield* Effect.promise(() => fetch(`${url}/__test/test-invitations?run=${run}&now=${now}`));
+    assert.strictEqual(seeded.status, 200);
+
+    const captured = yield* Effect.promise(() =>
+      fetch(`${url}/__test/email?recipient=${encodeURIComponent("admin@example.com")}`),
+    );
+    const { text } = (yield* Effect.promise(() => captured.json())) as { text: string | null };
+    const token = /#t=([A-Za-z0-9_-]+)/.exec(text ?? "")?.[1] ?? "";
+    assert.isAbove(token.length, 0);
+
+    const exchanged = yield* Effect.promise(() =>
+      fetch(`${submissionUrl}/exchange`, {
+        method: "POST",
+        headers: { "content-type": "application/json", origin: "https://dashboard.surveybeat.app" },
+        body: JSON.stringify({ token }),
+      }),
+    );
+    assert.strictEqual(exchanged.status, 200);
+    assert.strictEqual(exchanged.headers.get("access-control-allow-origin"), "*");
+    const context = (yield* Effect.promise(() => exchanged.json())) as {
+      test?: boolean;
+      pulseName: string;
+      questions: Array<unknown>;
+    };
+    assert.strictEqual(context.test, true);
+    assert.strictEqual(context.pulseName, "Weekly team health");
+    assert.isAbove(context.questions.length, 0);
+  }),
 );

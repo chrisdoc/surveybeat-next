@@ -86,7 +86,7 @@ import { RESEND_EMAIL_TEST_ROUTE, resendEmailTestRoutes } from "./ResendEmailTes
 import { TEST_INVITATION_TEST_ROUTE, testInvitationTestRoutes } from "./TestInvitationTestRoutes.ts";
 import { RESULT_RECOVERY_TEST_ROUTE, resultRecoveryTestRoutes } from "./ResultRecoveryTestRoutes.ts";
 import { THEMES_TEST_ROUTE, themesTestRoutes } from "./ThemesTestRoutes.ts";
-import Organization from "./Organization.ts";
+import Organization, { OrganizationLive } from "./Organization.ts";
 import { pageRoutes } from "./PageRoutes.ts";
 import { Jobs, JobsDlq, type JobMessage } from "./Queues.ts";
 import { httpPlatformStub, mainWorkerAssets, randomHex32 } from "./WorkerWiring.ts";
@@ -335,6 +335,7 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
         Cloudflare.Email.SendBinding,
         Cloudflare.Queues.WriteQueueBinding,
         Cloudflare.Workers.CronEventSourceLive,
+        OrganizationLive,
       ),
     ),
   ),

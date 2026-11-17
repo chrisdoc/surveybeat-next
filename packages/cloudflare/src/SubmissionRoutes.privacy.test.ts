@@ -58,7 +58,7 @@ const setupD1 = (): { readonly d1: DatabaseSync; readonly queryDb: Cloudflare.D1
  * Fake Organizations that answers every method with the same Submission answers and records each
  * call. Any call, including `getByName` itself, lands in `calls`.
  */
-const recordingOrganizations = () => {
+const recordingOrganizations = (failing = false) => {
   const calls: Array<string> = [];
   const result = {
     _tag: "Success",
@@ -88,7 +88,10 @@ const recordingOrganizations = () => {
         get: (_target, method) => {
           if (typeof method !== "string") return undefined;
           calls.push(method);
-          return () => Effect.succeed(method in testResults ? testResults[method] : result);
+          return () =>
+            failing
+              ? Effect.die(new Error("organization unavailable"))
+              : Effect.succeed(method in testResults ? testResults[method] : result);
         },
       },
     );
@@ -148,7 +151,11 @@ type TestSeed = { readonly testInvitationExpiresAt?: number; readonly testSubmis
  * Seeds D1 with a Submission for EDIT_KEY and an Invitation for TOKEN, runs the request built from
  * the seeded hashes through the routes, and returns what came back.
  */
-const runWith = (build: (hashes: Hashes) => HttpServerRequest, testSeed: TestSeed = {}) =>
+const runWith = (
+  build: (hashes: Hashes) => HttpServerRequest,
+  testSeed: TestSeed = {},
+  failingOrganization = false,
+) =>
   Effect.gen(function* () {
     const { d1, queryDb } = setupD1();
     const editKeyHash = yield* Effect.promise(() => hashToken(EDIT_KEY));
@@ -172,7 +179,7 @@ const runWith = (build: (hashes: Hashes) => HttpServerRequest, testSeed: TestSee
         "INSERT INTO test_submission_index (edit_key_hash, organization_id, pulse_id, expires_at) VALUES (?, ?, ?, ?)",
       ).run(testEditKeyHash, "org-1", "pulse-1", testSeed.testSubmissionExpiresAt);
     }
-    const { organizations, calls } = recordingOrganizations();
+    const { organizations, calls } = recordingOrganizations(failingOrganization);
     const response = yield* submissionRoutes(organizations, queryDb).pipe(
       Effect.provideService(HttpServerRequest, build({ editKeyHash, freshHash })),
       // The Organization methods read the alchemy runtime; the fake needs only an empty one.
@@ -420,6 +427,21 @@ describe("Submission Worker takes credentials only from the POST body (ADR 0005,
           .prepare("SELECT edit_key_hash FROM submission_index WHERE edit_key_hash = ?")
           .all(freshHash);
         assert.strictEqual(rows.length, 1);
+      }),
+  );
+
+  it.effect(
+    "POST /exchange when the Organization fails answers a plain 500 that still carries the CORS headers",
+    () =>
+      Effect.gen(function* () {
+        const { response, text } = yield* runWith(
+          (hashes) => makeRequest("POST", "/exchange", validBody("/exchange", hashes)),
+          {},
+          true,
+        );
+        assert.strictEqual(response.status, 500);
+        assert.strictEqual(response.headers["access-control-allow-origin"], "*");
+        assert.deepStrictEqual(JSON.parse(text), { error: "Something went wrong" });
       }),
   );
 
