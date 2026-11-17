@@ -7,6 +7,7 @@
 production:
   - me@chrisdoc.dev
   - c.kieslich@gmail.com
+  - chrisdoc-hermes@agentmail.to
 
 staging:
   - me@chrisdoc.dev
