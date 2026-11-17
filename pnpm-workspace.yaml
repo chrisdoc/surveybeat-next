@@ -14,14 +14,14 @@ catalog:
   "@alchemy.run/better-auth": 2.0.0-beta.85
   better-auth: 1.7.23
   "@better-auth/passkey": 1.7.23
-  "@effect/sql-sqlite-do": 4.1.2
-  effect: 4.1.2
+  "@effect/sql-sqlite-do": 4.1.4
+  effect: 4.1.4
   xstate: 6.0.0-beta.1
   "@xstate/effect": 1.0.0-beta.0
-  "@effect/platform-node": 4.1.2
-  "@effect/vitest": 4.1.2
+  "@effect/platform-node": 4.1.4
+  "@effect/vitest": 4.1.4
   typescript: 7.0.2
-  "@effect/tsgo": 0.67.5
+  "@effect/tsgo": 0.69.0
   "@yielded/effect-tsrs": 0.2.3
   tsrs: 0.23.0-ts7.1.0-beta
   oxlint: 1.93.0
