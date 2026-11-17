@@ -8,10 +8,10 @@ allowBuilds:
   # react-email ships its preview CLI with esbuild; only its components and render are used.
   esbuild: false
 catalog:
-  alchemy: 2.0.0-beta.85
-  "@alchemy.run/cloudflare": 2.0.0-beta.85
-  "@alchemy.run/test": 2.0.0-beta.85
-  "@alchemy.run/better-auth": 2.0.0-beta.85
+  alchemy: 2.0.0-beta.87
+  "@alchemy.run/cloudflare": 2.0.0-beta.87
+  "@alchemy.run/test": 2.0.0-beta.87
+  "@alchemy.run/better-auth": 2.0.0-beta.87
   better-auth: 1.7.23
   "@better-auth/passkey": 1.7.23
   "@effect/sql-sqlite-do": 4.1.2
