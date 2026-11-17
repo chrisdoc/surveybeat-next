@@ -12,8 +12,8 @@ catalog:
   "@alchemy.run/cloudflare": 2.0.0-beta.87
   "@alchemy.run/test": 2.0.0-beta.87
   "@alchemy.run/better-auth": 2.0.0-beta.87
-  better-auth: 1.7.23
-  "@better-auth/passkey": 1.7.23
+  better-auth: 1.7.25
+  "@better-auth/passkey": 1.7.25
   "@effect/sql-sqlite-do": 4.1.4
   effect: 4.1.4
   xstate: 6.0.0-beta.2
@@ -43,7 +43,7 @@ catalog:
   "@types/react-dom": 19.3.0
   "@types/node": 26.6.6
   react-email: 6.11.12
-  "@playwright/test": 1.65.0
+  "@playwright/test": 1.65.1
   foldkit: 0.170.0
   "@foldkit/ui": 0.170.0
   "@foldkit/vite-plugin": 0.29.0
