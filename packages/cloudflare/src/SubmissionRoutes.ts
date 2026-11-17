@@ -87,7 +87,7 @@ const findTestSubmission = (database: Cloudflare.D1.QueryDatabaseClient, editKey
     .first<TestIndexRow>()
     .pipe(Effect.orDie);
 
-const corsHeaders = {
+export const corsHeaders = {
   "access-control-allow-origin": "*",
   "access-control-allow-methods": "POST, OPTIONS",
   "access-control-allow-headers": "Content-Type",
