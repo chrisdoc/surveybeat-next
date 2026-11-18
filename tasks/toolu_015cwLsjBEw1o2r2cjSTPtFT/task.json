@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_015cwLsjBEw1o2r2cjSTPtFT",
+  "agent_id": "a491d4edee363b970",
+  "subagent_type": "reviewer",
+  "task_description": "Review Round delivery fix",
+  "token_usage": {
+    "input_tokens": 18,
+    "cache_creation_tokens": 51184,
+    "cache_read_tokens": 289062,
+    "output_tokens": 8063,
+    "api_call_count": 9
+  },
+  "started_at": "2026-11-18T06:44:04.168873589Z",
+  "completed_at": "2026-11-18T06:45:34.102927434Z"
+}

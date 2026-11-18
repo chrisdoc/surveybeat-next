@@ -1,0 +1,58 @@
+{
+  "cli_version": "0.13.4",
+  "checkpoint_id": "01M7PPWWP88TST0Q4D591MM6C2",
+  "strategy": "manual-commit",
+  "branch": "t3/round-invitation-at-6",
+  "checkpoints_count": 5,
+  "files_touched": [
+    "packages/cloudflare/src/MainWorker.ts",
+    "packages/cloudflare/src/Organization.test.ts",
+    "packages/cloudflare/src/Organization.ts",
+    "packages/cloudflare/src/RoundDeliveryTestRoutes.ts",
+    "packages/cloudflare/src/RoundTestRoutes.ts",
+    "packages/cloudflare/src/SqlRounds.ts",
+    "packages/cloudflare/src/TestInvitationTestRoutes.ts",
+    "packages/cloudflare/src/WorkerWiring.ts",
+    "packages/cloudflare/src/organization/EmailOutbox.ts",
+    "packages/domain/src/rounds/Lifecycle.test.ts",
+    "packages/domain/src/rounds/Lifecycle.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 376,
+    "cache_creation_tokens": 300107,
+    "cache_read_tokens": 36993576,
+    "output_tokens": 109756,
+    "api_call_count": 177,
+    "subagent_tokens": {
+      "input_tokens": 18,
+      "cache_creation_tokens": 51184,
+      "cache_read_tokens": 289062,
+      "output_tokens": 8063,
+      "api_call_count": 9
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 18,
+    "layers": {
+      "betterleaks": 6,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 16,
+      "key_context": 4,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
