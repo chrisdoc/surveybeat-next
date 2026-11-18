@@ -261,7 +261,7 @@ const organizationObject = Effect.gen(function* () {
         tokenOf,
         appOrigin,
       }),
-      ...organizationRoundViews({ rounds, directory }),
+      ...organizationRoundViews({ rounds, directory, pulses }),
 
       ...organizationResults({ rounds, directory, actions }),
       ...organizationActions({ actions, rounds, directory, sql, randomId }),

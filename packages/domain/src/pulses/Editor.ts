@@ -198,7 +198,7 @@ const initialQuestionId = (pulseId: PulseId, key: TemplateQuestionKey): Question
 export const hasAnswers = (state: PulseState, questionId: QuestionId): boolean =>
   state.versions.some((version) => version.questionId === questionId && state.answered.includes(version.id));
 
-const findPulse = (state: PulseState, teamId: TeamId, pulseId: PulseId) =>
+export const findPulse = (state: PulseState, teamId: TeamId, pulseId: PulseId) =>
   state.pulses.find((pulse) => pulse.id === pulseId && pulse.teamId === teamId);
 
 const versionOf = (state: PulseState, versionId: QuestionVersionId) =>

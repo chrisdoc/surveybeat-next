@@ -461,6 +461,7 @@ test(
     const response = yield* Effect.promise(() => fetch(`${url}/__test/rounds?run=${run}`));
     assert.strictEqual(response.status, 200);
     const body = (yield* Effect.promise(() => response.json())) as {
+      crossTeamRefused: boolean;
       initialAlarm: unknown;
       earliestDue1: unknown;
       alarmPointsToEarliest1: boolean;
@@ -481,6 +482,7 @@ test(
       organizationId: string;
     };
     assert.strictEqual(body.alarmPointsToEarliest1, true);
+    assert.strictEqual(body.crossTeamRefused, true);
     assert.strictEqual(body.notDuplicated, true);
     assert.strictEqual(body.openIdempotent, true);
     assert.strictEqual(body.hasFailedInv, true);

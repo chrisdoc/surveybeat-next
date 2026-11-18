@@ -1,12 +1,10 @@
 import type { SqliteClient } from "@effect/sql-sqlite-do";
 import {
-  authorizeRoundAction,
+  decideRoundCommand,
   emailLocaleOf,
   hashToken,
   JobId,
-  nextEightWeeksCadenceDates,
   type PersonId,
-  roundCommandRejection,
   type RoundCommand,
   type RoundCommandResult,
   SendId,
@@ -49,7 +47,6 @@ export const organizationRoundCommands = ({
   tokenOf: (ref: InvitationTokenRef) => Effect.Effect<string>;
   appOrigin: string;
 }) => {
-  const both = Effect.all([directory.load, pulses.load]);
   const { scheduleNextRound } = scheduling;
   const { executeComputeJob, shareResults } = jobs;
 
@@ -58,60 +55,61 @@ export const organizationRoundCommands = ({
       sql
         .withTransaction(
           Effect.gen(function* () {
-            const [dirState, pulseState] = yield* both;
-            const auth = authorizeRoundAction(dirState, actorId, "team.manageRounds", command.teamId);
-            if (auth._tag === "Rejected") return auth satisfies RoundCommandResult;
+            const dirState = yield* directory.load;
+            const pulseState = yield* pulses.load;
+            const round = "roundId" in command ? yield* rounds.getRound(command.roundId) : null;
+            const invitation =
+              command._tag === "ResendInvitation"
+                ? yield* rounds.getInvitation(command.roundId, command.personId)
+                : null;
+            const computePending =
+              command._tag === "RetryResult" && round !== null
+                ? yield* rounds.hasPendingJob(round.id, "compute")
+                : false;
 
-            switch (command._tag) {
+            const decision = decideRoundCommand({
+              directory: dirState,
+              pulses: pulseState,
+              actorId,
+              command,
+              now,
+              round,
+              invitation,
+              computePending,
+            });
+            if (decision._tag === "Rejected") {
+              return { _tag: "Rejected", rejection: decision.rejection } satisfies RoundCommandResult;
+            }
+            if (decision._tag === "Unchanged") return { _tag: "Accepted" } satisfies RoundCommandResult;
+
+            const plan = decision.plan;
+            switch (plan._tag) {
               case "SkipWeek": {
-                const team = dirState.teams.find((t) => t.id === command.teamId);
-                const pulse = pulseState.pulses.find((p) => p.id === command.pulseId);
-                if (team === undefined) {
-                  return {
-                    _tag: "Rejected",
-                    rejection: { _tag: "TeamNotFound" },
-                  } satisfies RoundCommandResult;
-                }
-                if (pulse === undefined) {
-                  return {
-                    _tag: "Rejected",
-                    rejection: { _tag: "PulseNotFound" },
-                  } satisfies RoundCommandResult;
-                }
-
-                const validWeeks = nextEightWeeksCadenceDates(now, pulse.settings.cadence.day, team.timeZone);
-                if (!validWeeks.includes(command.plannedOpenDate)) {
-                  return {
-                    _tag: "Rejected",
-                    rejection: { _tag: "WeekOutOfRange" },
-                  } satisfies RoundCommandResult;
-                }
-
-                yield* rounds.skipWeek(command.pulseId, command.plannedOpenDate, now);
-                const scheduled = yield* rounds.findScheduledRound(command.pulseId);
-                if (scheduled !== null && scheduled.plannedOpenDate === command.plannedOpenDate) {
+                yield* rounds.skipWeek(plan.pulseId, plan.plannedOpenDate, now);
+                const scheduled = yield* rounds.findScheduledRound(plan.pulseId);
+                if (scheduled !== null && scheduled.plannedOpenDate === plan.plannedOpenDate) {
                   yield* rounds.cancelRound(scheduled.id, now);
                   yield* rounds.cancelJobsForRound(scheduled.id);
-                  yield* scheduleNextRound(command.pulseId, command.teamId, now);
+                  yield* scheduleNextRound(plan.pulseId, plan.teamId, now);
                 }
                 yield* repairAlarm();
                 return { _tag: "Accepted" } satisfies RoundCommandResult;
               }
 
               case "UnskipWeek": {
-                yield* rounds.unskipWeek(command.pulseId, command.plannedOpenDate);
-                const scheduled = yield* rounds.findScheduledRound(command.pulseId);
-                const open = yield* rounds.findOpenRound(command.pulseId);
+                yield* rounds.unskipWeek(plan.pulseId, plan.plannedOpenDate);
+                const scheduled = yield* rounds.findScheduledRound(plan.pulseId);
+                const open = yield* rounds.findOpenRound(plan.pulseId);
                 if (scheduled === null && open === null) {
-                  yield* scheduleNextRound(command.pulseId, command.teamId, now);
+                  yield* scheduleNextRound(plan.pulseId, plan.teamId, now);
                 }
                 yield* repairAlarm();
                 return { _tag: "Accepted" } satisfies RoundCommandResult;
               }
 
               case "PausePulse": {
-                yield* rounds.pausePulse(command.pulseId, now);
-                const scheduled = yield* rounds.findScheduledRound(command.pulseId);
+                yield* rounds.pausePulse(plan.pulseId, now);
+                const scheduled = yield* rounds.findScheduledRound(plan.pulseId);
                 if (scheduled !== null) {
                   yield* rounds.cancelRound(scheduled.id, now);
                   yield* rounds.cancelJobsForRound(scheduled.id);
@@ -121,45 +119,29 @@ export const organizationRoundCommands = ({
               }
 
               case "ResumePulse": {
-                yield* rounds.resumePulse(command.pulseId);
-                const scheduled = yield* rounds.findScheduledRound(command.pulseId);
-                const open = yield* rounds.findOpenRound(command.pulseId);
+                yield* rounds.resumePulse(plan.pulseId);
+                const scheduled = yield* rounds.findScheduledRound(plan.pulseId);
+                const open = yield* rounds.findOpenRound(plan.pulseId);
                 if (scheduled === null && open === null) {
-                  yield* scheduleNextRound(command.pulseId, command.teamId, now);
+                  yield* scheduleNextRound(plan.pulseId, plan.teamId, now);
                 }
                 yield* repairAlarm();
                 return { _tag: "Accepted" } satisfies RoundCommandResult;
               }
 
               case "CloseRoundEarly": {
-                const round = yield* rounds.getRound(command.roundId);
-                if (round === null || round.teamId !== command.teamId) {
-                  return {
-                    _tag: "Rejected",
-                    rejection: { _tag: "RoundNotFound" },
-                  } satisfies RoundCommandResult;
-                }
-                const rejection = roundCommandRejection(round.status, command);
-                if (rejection !== null) {
-                  return { _tag: "Rejected", rejection } satisfies RoundCommandResult;
-                }
-
-                const effectiveN = Math.max(
-                  dirState.minimumGroupSize,
-                  round.effectiveMinimumGroupSize ?? dirState.minimumGroupSize,
-                );
                 yield* rounds.closeRound(
-                  round.id,
+                  plan.roundId,
                   now,
-                  effectiveN,
-                  reviewEndsAtOf(pulseState, round.pulseId, now),
+                  plan.effectiveN,
+                  reviewEndsAtOf(pulseState, plan.pulseId, now),
                 );
-                yield* rounds.cancelJobsForRound(round.id, ["send", "remind", "close"]);
+                yield* rounds.cancelJobsForRound(plan.roundId, ["send", "remind", "close"]);
 
                 const computeJobId = JobId.make(randomId());
                 yield* rounds.insertJob({
                   id: computeJobId,
-                  roundId: round.id,
+                  roundId: plan.roundId,
                   type: "compute",
                   dueAt: now,
                   status: "pending",
@@ -167,67 +149,22 @@ export const organizationRoundCommands = ({
                   createdAt: now,
                   completedAt: null,
                 });
-                yield* executeComputeJob(computeJobId, round.id, now);
+                yield* executeComputeJob(computeJobId, plan.roundId, now);
                 yield* repairAlarm();
                 return { _tag: "Accepted" } satisfies RoundCommandResult;
               }
 
               case "ShareResults": {
-                const round = yield* rounds.getRound(command.roundId);
-                if (round === null || round.teamId !== command.teamId) {
-                  return {
-                    _tag: "Rejected",
-                    rejection: { _tag: "RoundNotFound" },
-                  } satisfies RoundCommandResult;
-                }
-                if (auth.actor.roles.get(command.teamId) !== "lead") {
-                  return {
-                    _tag: "Rejected",
-                    rejection: { _tag: "Forbidden" },
-                  } satisfies RoundCommandResult;
-                }
-                if (round.status === "shared") {
-                  return { _tag: "Accepted" } satisfies RoundCommandResult;
-                }
-                const rejection = roundCommandRejection(round.status, command);
-                if (rejection !== null) {
-                  return { _tag: "Rejected", rejection } satisfies RoundCommandResult;
-                }
-
-                yield* shareResults(round.id, now);
+                yield* shareResults(plan.roundId, now);
                 return { _tag: "Accepted" } satisfies RoundCommandResult;
               }
 
               case "RetryResult": {
-                const round = yield* rounds.getRound(command.roundId);
-                if (round === null || round.teamId !== command.teamId) {
-                  return {
-                    _tag: "Rejected",
-                    rejection: { _tag: "RoundNotFound" },
-                  } satisfies RoundCommandResult;
-                }
-                if (auth.actor.roles.get(command.teamId) !== "lead") {
-                  return {
-                    _tag: "Rejected",
-                    rejection: { _tag: "Forbidden" },
-                  } satisfies RoundCommandResult;
-                }
-                if (round.status === "ready" || round.status === "shared") {
-                  return { _tag: "Accepted" } satisfies RoundCommandResult;
-                }
-                const rejection = roundCommandRejection(round.status, command);
-                if (rejection !== null) {
-                  return { _tag: "Rejected", rejection } satisfies RoundCommandResult;
-                }
-                if (yield* rounds.hasPendingJob(round.id, "compute")) {
-                  return { _tag: "Accepted" } satisfies RoundCommandResult;
-                }
-
-                yield* rounds.deleteRoundResult(round.id);
+                yield* rounds.deleteRoundResult(plan.roundId);
                 const computeJobId = JobId.make(randomId());
                 yield* rounds.insertJob({
                   id: computeJobId,
-                  roundId: round.id,
+                  roundId: plan.roundId,
                   type: "compute",
                   dueAt: now,
                   status: "pending",
@@ -235,92 +172,34 @@ export const organizationRoundCommands = ({
                   createdAt: now,
                   completedAt: null,
                 });
-                yield* executeComputeJob(computeJobId, round.id, now);
+                yield* executeComputeJob(computeJobId, plan.roundId, now);
                 yield* repairAlarm();
                 return { _tag: "Accepted" } satisfies RoundCommandResult;
               }
 
               case "CancelRound": {
-                const round = yield* rounds.getRound(command.roundId);
-                if (round === null || round.teamId !== command.teamId) {
-                  return {
-                    _tag: "Rejected",
-                    rejection: { _tag: "RoundNotFound" },
-                  } satisfies RoundCommandResult;
-                }
-                const rejection = roundCommandRejection(round.status, command);
-                if (rejection !== null) {
-                  return { _tag: "Rejected", rejection } satisfies RoundCommandResult;
-                }
-
-                yield* rounds.cancelRound(round.id, now);
-                yield* rounds.cancelJobsForRound(round.id);
-                yield* rounds.revokeInvitationsForRound(round.id, now);
-                yield* rounds.deleteSubmissionsAndParticipations(round.id);
+                yield* rounds.cancelRound(plan.roundId, now);
+                yield* rounds.cancelJobsForRound(plan.roundId);
+                yield* rounds.revokeInvitationsForRound(plan.roundId, now);
+                yield* rounds.deleteSubmissionsAndParticipations(plan.roundId);
                 yield* repairAlarm();
                 return { _tag: "Accepted" } satisfies RoundCommandResult;
               }
 
               case "ResendInvitation": {
-                const round = yield* rounds.getRound(command.roundId);
-                if (round === null || round.teamId !== command.teamId) {
-                  return {
-                    _tag: "Rejected",
-                    rejection: { _tag: "RoundNotFound" },
-                  } satisfies RoundCommandResult;
-                }
-                const rejection = roundCommandRejection(round.status, command);
-                if (rejection !== null) {
-                  return { _tag: "Rejected", rejection } satisfies RoundCommandResult;
-                }
-
-                const inv = yield* rounds.getInvitation(command.roundId, command.personId);
-                if (inv === null) {
-                  return {
-                    _tag: "Rejected",
-                    rejection: { _tag: "InvitationNotFound" },
-                  } satisfies RoundCommandResult;
-                }
-
-                const [dirState, pulseState] = yield* both;
-                const person = dirState.people.find((p) => p.id === command.personId);
-                if (person === undefined || person.removedAt !== null) {
-                  return {
-                    _tag: "Rejected",
-                    rejection: { _tag: "InvitationNotFound" },
-                  } satisfies RoundCommandResult;
-                }
-
-                const pulse = pulseState.pulses.find((p) => p.id === round.pulseId);
-                if (pulse === undefined) {
-                  return {
-                    _tag: "Rejected",
-                    rejection: { _tag: "PulseNotFound" },
-                  } satisfies RoundCommandResult;
-                }
-
-                const invitation = {
-                  roundId: command.roundId,
-                  personId: command.personId,
-                  generation: inv.resendCount + 1,
-                };
-                const newTokenHash = yield* tokenOf(invitation).pipe(
+                const { round: target, person, pulse, generation } = plan;
+                const invitationRef = { roundId: target.id, personId: person.id, generation };
+                const newTokenHash = yield* tokenOf(invitationRef).pipe(
                   Effect.flatMap((token) => Effect.promise(() => hashToken(token))),
                 );
                 const newSendId = SendId.make(randomId());
-                yield* rounds.resendInvitation(
-                  command.roundId,
-                  command.personId,
-                  newSendId,
-                  newTokenHash,
-                  now,
-                );
+                yield* rounds.resendInvitation(target.id, person.id, newSendId, newTokenHash, now);
 
                 const ratingQuestion = firstRatingQuestionOf(pulse, pulseState);
                 const eligibleActions = yield* actions.getEligibleActionsForRound(
-                  round.teamId,
-                  round.pulseId,
-                  round.plannedOpenAt,
+                  target.teamId,
+                  target.pulseId,
+                  target.plannedOpenAt,
                 );
 
                 const invitationEmail: TransactionalEmail = {
@@ -328,7 +207,7 @@ export const organizationRoundCommands = ({
                   locale: emailLocaleOf(dirState, person.id),
                   pulseName: pulse.settings.name,
                   minimumGroupSize: dirState.minimumGroupSize,
-                  invitation,
+                  invitation: invitationRef,
                   baseUrl: appOrigin,
                   ratingQuestion,
                   actions: eligibleActions.slice(0, 3).map((a) => a.title),

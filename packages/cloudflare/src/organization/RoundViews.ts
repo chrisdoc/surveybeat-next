@@ -1,5 +1,6 @@
 import {
   authorizeRoundAction,
+  findPulse,
   PersonId,
   type PulseId,
   type RoundDetail,
@@ -12,14 +13,17 @@ import {
 } from "@surveybeat/domain";
 import * as Effect from "effect/Effect";
 import type { makeSqlDirectory } from "../SqlDirectory.ts";
+import type { makeSqlPulses } from "../SqlPulses.ts";
 import type { makeSqlRounds } from "../SqlRounds.ts";
 
 export const organizationRoundViews = ({
   rounds,
   directory,
+  pulses,
 }: {
   rounds: ReturnType<typeof makeSqlRounds>;
   directory: ReturnType<typeof makeSqlDirectory>;
+  pulses: ReturnType<typeof makeSqlPulses>;
 }) => ({
   viewRounds: (
     actorId: PersonId,
@@ -31,6 +35,10 @@ export const organizationRoundViews = ({
       const auth = authorizeRoundAction(dirState, actorId, "team.viewRounds", teamId);
       if (auth._tag === "Rejected") {
         const rejected: RoundViewed<RoundList> = auth;
+        return rejected;
+      }
+      if (findPulse(yield* pulses.load, teamId, pulseId) === undefined) {
+        const rejected: RoundViewed<RoundList> = { _tag: "Rejected", rejection: { _tag: "PulseNotFound" } };
         return rejected;
       }
       const all = yield* rounds.getRoundsForPulse(pulseId);
