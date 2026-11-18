@@ -1,6 +1,7 @@
 import foldkitRecommended from "@foldkit/oxlint-plugin/recommended.json" with { type: "json" };
 import { defineConfig } from "oxlint";
 import core from "ultracite/oxlint/core";
+import landmines from "ultracite/oxlint/landmines";
 
 const restyleExceptionsOff = {
   "anti-slop-effect/no-manual-tag-comparison": "off",
@@ -200,10 +201,6 @@ const pluginRules = {
   "anti-slop/require-readable-spacing": "error",
   "anti-slop/require-safety-comment-for-type-assertion": "error",
   "effect-tests/no-manual-effect-runtime-in-tests": "error",
-  "landmines-structure/colocated-tests": "error",
-  "landmines-structure/package-exports": "error",
-  "landmines-structure/test-file-names": "error",
-  "landmines-testing/no-fixed-sleep": "error",
   "landmines-testing/no-flake-masking": [
     "error",
     {
@@ -213,10 +210,6 @@ const pluginRules = {
       },
     },
   ],
-  "landmines-testing/no-test-doubles": "error",
-  "landmines-testing/no-unsignaled-poll": "error",
-  "landmines-testing/strict-msw": "error",
-  "landmines-types/no-explicit-return-types": "error",
   "patterns/acquire-release-constructs-in-acquire-body": "error",
   "patterns/no-module-level-mutable-state": "error",
   "patterns/no-shared-pending-cache": "error",
@@ -226,7 +219,7 @@ const pluginRules = {
 };
 
 export default defineConfig({
-  extends: [core],
+  extends: [core, landmines],
   ignorePatterns: [
     "**/dist/**",
     "**/dist-types/**",
@@ -253,9 +246,7 @@ export default defineConfig({
     { name: "anti-slop-effect", specifier: "./tools/oxlint/anti-slop/effect/index.ts" },
     "./tools/oxlint/effect-tests.ts",
     "./tools/oxlint/patterns.ts",
-    { name: "landmines-testing", specifier: "@interfere/landmines/testing" },
-    { name: "landmines-structure", specifier: "@interfere/landmines/structure" },
-    { name: "landmines-types", specifier: "@interfere/landmines/types" },
+    ...landmines.jsPlugins,
   ],
   options: { typeAware: true },
   overrides: [
@@ -285,6 +276,7 @@ export default defineConfig({
     ...restyleExceptionsOff,
     "no-comments/no-comments": "error",
     "no-comments/directive-reason": "error",
+    "landmines-style/no-comments": "off",
     "typescript/no-floating-promises": "error",
     "typescript/no-misused-promises": "error",
     "typescript/no-explicit-any": "error",
