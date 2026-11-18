@@ -63,6 +63,25 @@ const seed = (db: DatabaseSync): void => {
       JSON.stringify(result),
     );
   }
+  db.prepare(
+    `INSERT INTO pulse (id, team_id, name, cadence, weekday, send_time, answer_window_days, reminders, anonymity_mode, distribution, created_at)
+     VALUES ('pulse-2', 'team-1', 'Pulse 2', 'weekly', 'monday', '09:00', 3, 1, 'anonymous', 'invitation', 1000)`,
+  ).run();
+  db.prepare(
+    `INSERT INTO round (id, pulse_id, team_id, status, planned_open_date, planned_open_at, planned_close_at, pulse_name, answer_window_days, reminders, anonymity_mode, distribution, created_at, updated_at)
+     VALUES ('other-round', 'pulse-2', 'team-1', 'open', '2026-01-05', ?, ?, 'Pulse 2', 3, 1, 'anonymous', 'invitation', 1000, 1000)`,
+  ).run(start, start + 3 * 24 * 3600_000);
+  for (const person of ["p-1", "p-2", "p-3"]) {
+    db.prepare("INSERT INTO person (id, email) VALUES (?, ?)").run(person, `${person}@example.com`);
+  }
+  const invite = db.prepare(
+    `INSERT INTO invitation (round_id, person_id, token_hash, send_id, status, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, 1000, 1000)`,
+  );
+  invite.run("round-13", "p-1", "hash-13-1", "send-13-1", "sent");
+  invite.run("round-13", "p-2", "hash-13-2", "send-13-2", "revoked");
+  invite.run("round-12", "p-1", "hash-12-1", "send-12-1", "failed");
+  invite.run("other-round", "p-3", "hash-other-3", "send-other-3", "sent");
 };
 
 const openRounds = Effect.gen(function* () {
@@ -101,6 +120,22 @@ describe("getPastRoundsResultsForPulse", () => {
       assert.deepStrictEqual(
         history.map((h) => h.roundId),
         Array.from({ length: 11 }, (_, i) => `round-${i + 2}`),
+      );
+    }),
+  );
+});
+
+describe("getInvitedPersonIdsForPulse", () => {
+  it.effect("groups every Invitation of the Pulse's Rounds by Round, whatever its status", () =>
+    Effect.gen(function* () {
+      const rounds = yield* openRounds;
+      const invited = yield* rounds.getInvitedPersonIdsForPulse(PulseId.make("pulse-1"));
+      assert.deepStrictEqual(
+        new Map([...invited.entries()].map(([roundId, people]) => [roundId, new Set(people)])),
+        new Map([
+          [RoundId.make("round-12"), new Set(["p-1"])],
+          [RoundId.make("round-13"), new Set(["p-1", "p-2"])],
+        ]),
       );
     }),
   );

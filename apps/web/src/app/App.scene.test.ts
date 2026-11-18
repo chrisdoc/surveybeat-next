@@ -3211,6 +3211,7 @@ describe("App Scenes", () => {
       plannedCloseAt: instant(`${plannedOpenDate}T09:00:00Z`) + 3 * 86_400_000,
       closedAt: status === "closed" ? instant(`${plannedOpenDate}T09:00:00Z`) + 3 * 86_400_000 : null,
       pulseName: "Weekly check-in",
+      invitations: null,
     });
     const rounds = {
       pulseId,
@@ -3333,6 +3334,97 @@ describe("App Scenes", () => {
         Scene.expect(Scene.text("Closed")).toExist(),
         Scene.expect(Scene.text("75% response rate")).toExist(),
         Scene.expect(Scene.role("link", { name: "View Results" })).toExist(),
+      );
+    });
+
+    it("tells a Lead who was invited to a Round and who joined after it opened", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...given("lead"),
+          rounds: {
+            _tag: "Loaded" as const,
+            list: {
+              ...rounds,
+              rounds: [
+                {
+                  ...summary(openId, "open", "2026-11-09"),
+                  invitations: { invited: 1, joinedAfterOpen: 2 },
+                },
+                {
+                  ...summary(closedId, "closed", "2026-11-02"),
+                  invitations: { invited: 0, joinedAfterOpen: 0 },
+                },
+              ],
+            },
+          },
+          roundDetails: {},
+          roundRates: {},
+        }),
+        Scene.expect(Scene.text("Invited 1 Person")).toExist(),
+        Scene.expect(
+          Scene.text("2 People joined after this Round opened: invited from the next Round"),
+        ).toExist(),
+        Scene.expect(
+          Scene.text("Nobody to invite: the Team had no Members when this Round opened."),
+        ).toExist(),
+      );
+    });
+
+    it("tells a Lead about a Round with several invitees and a single late joiner", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...given("lead"),
+          rounds: {
+            _tag: "Loaded" as const,
+            list: {
+              ...rounds,
+              rounds: [
+                {
+                  ...summary(openId, "open", "2026-11-09"),
+                  invitations: { invited: 3, joinedAfterOpen: 1 },
+                },
+              ],
+            },
+          },
+          roundDetails: {},
+          roundRates: {},
+        }),
+        Scene.expect(Scene.text("Invited 3 People")).toExist(),
+        Scene.expect(
+          Scene.text("1 Person joined after this Round opened: invited from the next Round"),
+        ).toExist(),
+        Scene.expect(
+          Scene.text("Nobody to invite: the Team had no Members when this Round opened."),
+        ).toBeAbsent(),
+      );
+    });
+
+    it("does not show invitation counts to a Member", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...given("member"),
+          rounds: {
+            _tag: "Loaded" as const,
+            list: {
+              ...rounds,
+              rounds: [
+                {
+                  ...summary(openId, "open", "2026-11-09"),
+                  invitations: { invited: 3, joinedAfterOpen: 1 },
+                },
+              ],
+            },
+          },
+          roundDetails: {},
+          roundRates: {},
+        }),
+        Scene.expect(Scene.text("Invited 3 People")).toBeAbsent(),
+        Scene.expect(
+          Scene.text("1 Person joined after this Round opened: invited from the next Round"),
+        ).toBeAbsent(),
       );
     });
 

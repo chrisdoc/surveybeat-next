@@ -193,7 +193,7 @@ export const privacyRegistry: { readonly [K in EndpointKey<typeof SurveyBeatApi>
   },
   "rounds.listRounds": {
     _tag: "NoResultData",
-    why: "returns Round lifecycle status and timestamps; no Results",
+    why: "returns Round lifecycle status and timestamps, and invitation counts; no Results",
   },
   "rounds.getRound": {
     _tag: "NoResultData",

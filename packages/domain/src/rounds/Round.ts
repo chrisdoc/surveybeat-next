@@ -5,6 +5,7 @@ import { TeamSummary } from "../people/Team.ts";
 import { TeamId } from "../people/Team.ts";
 import { PulseId, AnswerWindowDays, ReminderCount, AnonymityMode, Distribution } from "../pulses/Pulse.ts";
 import { QuestionVersionId } from "../pulses/Question.ts";
+import { InvitationSummary } from "./InvitationSummary.ts";
 
 export const RoundId = Schema.String.pipe(Schema.brand("RoundId"));
 export type RoundId = typeof RoundId.Type;
@@ -72,6 +73,7 @@ export const RoundSummary = Schema.Struct({
   plannedCloseAt: Schema.Int,
   closedAt: Schema.NullOr(Schema.Int),
   pulseName: Schema.String,
+  invitations: Schema.NullOr(InvitationSummary),
 });
 export type RoundSummary = typeof RoundSummary.Type;
 

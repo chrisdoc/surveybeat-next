@@ -1,6 +1,7 @@
 import {
   authorizeRoundAction,
   findPulse,
+  invitationSummaryOf,
   PersonId,
   type PulseId,
   type RoundDetail,
@@ -42,6 +43,7 @@ export const organizationRoundViews = ({
         return rejected;
       }
       const all = yield* rounds.getRoundsForPulse(pulseId);
+      const invitedByRound = yield* rounds.getInvitedPersonIdsForPulse(pulseId);
       const paused = yield* rounds.isPulsePaused(pulseId);
       const viewed: RoundViewed<RoundList> = {
         _tag: "Viewed",
@@ -59,6 +61,11 @@ export const organizationRoundViews = ({
             plannedCloseAt: r.plannedCloseAt,
             closedAt: r.closedAt,
             pulseName: r.pulseName,
+            invitations: invitationSummaryOf({
+              round: r,
+              invitedPersonIds: invitedByRound.get(r.id) ?? new Set<PersonId>(),
+              memberships: dirState.memberships,
+            }),
           })),
         },
       };
