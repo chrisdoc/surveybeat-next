@@ -3,6 +3,7 @@ import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as HttpPlatform from "effect/http/HttpPlatform";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
+import { FLOW_TEST_ROUTE } from "./FlowTestRoutes.ts";
 import { assetsDirectory, httpPlatformStub, mainWorkerAssets, randomHex32 } from "./WorkerWiring.ts";
 
 describe("mainWorkerAssets", () => {
@@ -22,6 +23,8 @@ describe("mainWorkerAssets", () => {
     assert.notInclude(mainWorkerAssets("dev-someone").runWorkerFirst, "/__test/people");
     assert.include(mainWorkerAssets("test_ci").runWorkerFirst, "/__test/people");
     assert.include(mainWorkerAssets("test_ci").runWorkerFirst, "/__test/email");
+    assert.notInclude(mainWorkerAssets("production").runWorkerFirst, FLOW_TEST_ROUTE);
+    assert.include(mainWorkerAssets("test_ci").runWorkerFirst, FLOW_TEST_ROUTE);
   });
 
   it("resolves the asset directory from the module, not the working directory", () => {

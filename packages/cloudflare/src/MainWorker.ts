@@ -66,6 +66,7 @@ import {
   InvitationTokensLive,
 } from "./EmailDelivery.ts";
 import { emailTestRoutes, isTestStage, TEST_ROUTES } from "./EmailTestRoutes.ts";
+import { FLOW_TEST_ROUTE, flowTestRoutes } from "./FlowTestRoutes.ts";
 import { hostnameFor, mainWorkerDomainFor } from "./Hostnames.ts";
 import { noteHandlers } from "./NoteHandlers.ts";
 import { pulseHandlers } from "./PulseHandlers.ts";
@@ -301,6 +302,7 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
           if (path === TEST_INVITATION_TEST_ROUTE)
             return yield* testInvitationTestRoutes(organizations, database);
           if (path === RESEND_EMAIL_TEST_ROUTE) return yield* resendEmailTestRoutes(organizations, database);
+          if (path === FLOW_TEST_ROUTE) return yield* flowTestRoutes(organizations);
         }
 
         return yield* api;

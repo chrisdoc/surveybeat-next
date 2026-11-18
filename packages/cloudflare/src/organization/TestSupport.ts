@@ -106,6 +106,7 @@ export const organizationTestSupport = <E>({
   scheduleNextRound: (pulseId: string, teamId: string, now: number) =>
     scheduling.scheduleNextRound(PulseId.make(pulseId), TeamId.make(teamId), now),
   getEarliestPendingJobDueAt: () => rounds.getEarliestPendingJobDueAt(),
+  scheduledRoundFor: (pulseId: string) => rounds.findScheduledRound(PulseId.make(pulseId)),
   getRoundsCount: (pulseId: string) =>
     sql<{ count: number }>`SELECT count(*) as count FROM round WHERE pulse_id = ${pulseId}`.pipe(
       Effect.map((rows) => rows[0]?.count ?? 0),

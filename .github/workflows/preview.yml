@@ -89,7 +89,7 @@ jobs:
         if: steps.paths.outputs.required == 'true'
         run: pnpm test:preview-privacy --stage "$STAGE" "https://$STAGE.dashboard.surveybeat.app" "https://$STAGE.submit.surveybeat.app"
 
-  # The SPEC §7 end-to-end flow on the PR stage. It grows as the slices land.
+  # End-to-end tests: the suite on the PR stage, then the SPEC §7 flow on the runner's local stage.
   e2e:
     needs: deploy
     runs-on: ubuntu-latest
@@ -129,6 +129,9 @@ jobs:
         run: pnpm test:e2e
         env:
           E2E_BASE_URL: https://${{ env.STAGE }}.dashboard.surveybeat.app
+      # The flow needs the test routes and captured email, which only a test_ stage has, so it runs on the runner's local stage.
+      - name: SPEC §7 flow on the local stage
+        run: pnpm test:e2e flow.spec.ts --project chromium
       - if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

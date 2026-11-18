@@ -1,5 +1,5 @@
 import * as Cloudflare from "@alchemy.run/cloudflare";
-import { MainWorker } from "@surveybeat/cloudflare";
+import { MainWorker, SubmissionWorker } from "@surveybeat/cloudflare";
 import * as Alchemy from "alchemy";
 import * as Effect from "effect/Effect";
 
@@ -8,6 +8,7 @@ export default Alchemy.Stack(
   { providers: Cloudflare.providers(), state: Alchemy.localState() },
   Effect.gen(function* () {
     const main = yield* MainWorker;
-    return { mainUrl: main.url.as<string>() };
+    const submission = yield* SubmissionWorker;
+    return { mainUrl: main.url.as<string>(), submissionUrl: submission.url.as<string>() };
   }),
 );

@@ -3,6 +3,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { PEOPLE_TEST_ROUTE } from "./auth/PeopleTestRoutes.ts";
 import { isTestStage, TEST_ROUTES } from "./EmailTestRoutes.ts";
+import { FLOW_TEST_ROUTE } from "./FlowTestRoutes.ts";
 import { PULSES_TEST_ROUTE } from "./PulseTestRoutes.ts";
 import { RESEND_EMAIL_TEST_ROUTE } from "./ResendEmailTestRoutes.ts";
 import { RESULT_RECOVERY_TEST_ROUTE } from "./ResultRecoveryTestRoutes.ts";
@@ -49,6 +50,7 @@ export const mainWorkerAssets = (stage: string) => ({
           RESULT_RECOVERY_TEST_ROUTE,
           TEST_INVITATION_TEST_ROUTE,
           RESEND_EMAIL_TEST_ROUTE,
+          FLOW_TEST_ROUTE,
         ]
       : []),
   ],
