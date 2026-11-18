@@ -1,0 +1,89 @@
+did you receive the round invitation at 6
+
+---
+
+you should give me a better answer, check the data base
+
+---
+
+Yes create the fix and do it the ratstack way
+
+---
+
+<task-notification>
+<task-id>b3983hg0z</task-id>
+<tool-use-id>toolu_01B8EbfeF64ifVEUYaETBKQ9</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-ce5edeb0-dc00b1e3277f51fd/24bf2097-4a23-40ae-ab7f-5e51818792bb/tasks/b3983hg0z.output</output-file>
+<status>completed</status>
+<summary>Background command "Install dependencies in this worktree" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+Can we make use of temporal for date time handling with a backfill for safari?
+
+---
+
+<task-notification>
+<task-id>b4u5cp3mr</task-id>
+<tool-use-id>toolu_01WcjJz8rh1NT8bXXXspXDXy</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-ce5edeb0-dc00b1e3277f51fd/24bf2097-4a23-40ae-ab7f-5e51818792bb/tasks/b4u5cp3mr.output</output-file>
+<status>completed</status>
+<summary>Background command "Run the full unit test suite" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>a491d4edee363b970</task-id>
+<tool-use-id>toolu_015cwLsjBEw1o2r2cjSTPtFT</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-ce5edeb0-dc00b1e3277f51fd/24bf2097-4a23-40ae-ab7f-5e51818792bb/tasks/a491d4edee363b970.output</output-file>
+<status>completed</status>
+<summary>Agent "Review Round delivery fix" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>No blocking or major issues found.
+
+I read the diff, the full `EmailOutbox.ts`, the migration, the `SendStore` semantics and the alarm and transaction paths. `pnpm lint` is clean and `Lifecycle.test.ts` passes (20 tests). I did not run the slow adapter tests or check the Alchemy queue binding against a live deploy.
+
+**Things you asked about that hold up**
+
+- **No send bypasses the wrapped store.** Every send path in the DO (`Organization.ts` 402, 538, 588, 681, 1132, 1424, `SqlDirectory` `EmailRequested`, and `requeue` in `EmailVisibility`) goes through the wrapped `sends`. The only `INSERT INTO email_send` is in `SqlSendRepository`, behind the wrapped store.
+- **Rolled-back transactions.** The outbox row is inserted inside the same `sql.withTransaction` as the send, so it rolls back with it. A rollback can leave `setAlarm(now)` behind, which is harmless: the alarm fires, finds nothing to do, and `repairAlarm` resets it.
+- **Rows inserted during the `sendBatch` await.** `DELETE ... WHERE id &lt;= last.id` removes only the rows that were sent. Rows added while the await was open stay. The create path then calls `repairAlarm`, which sets an alarm, and the final `repairAlarm` in the handler re-arms it.
+- **Crash between `sendBatch` and `DELETE`.** This produces duplicate queue messages. The consumer acks on every non-retry path, and `claim` makes each send run once.
+- **No loop or starvation in `repairAlarm`.** With rows waiting it targets `min(now, nextJob)`. After a drain the handler's final call sets the next job time or deletes the alarm. A permanently failing `dispatch` throws, and the platform's alarm retry is bounded.
+- **Re-created sends.** `create` on an existing send returns the stored state, so a repeat of a Pending send adds a harmless extra outbox row.
+- **`id != ''` for `except = null`.** This is correct. Round ids are never empty, so every Round of the Pulse is returned. The `UNION` also deduplicates dates.
+- **`nextRoundSlot` semantics.** It keeps the old behaviour: the team-local date, the `openInstant &lt;= now` rule, and `+7` days per unavailable date, which preserves the weekday. Including every Round status matches `UNIQUE(pulse_id, planned_open_date)`. When the next Round is scheduled right after one opens, that Round's date is always at or before today, so it cannot collide.
+- **`SqlRounds.updateScheduledRound` now writes `planned_open_date`.** This fixes the stale date that `executeOpenJob` used to schedule Invitations.
+- **Privacy.** `email_outbox` stores only `send_id`. It holds no Person, submission or time data that SPEC §7 or ADR 0005 protect.
+
+**Findings**
+
+- **MINOR — `packages/cloudflare/src/Organization.ts:1044-1050`, alarm handler.** Platform alarm retries are bounded. If the Email queue is unavailable for longer than that, the alarm handler gives up and `email_outbox` rows sit there with no alarm. The next send creation, job run or `repairAlarm` call recovers them, and `runDueJobs` already had this weakness. Invitations would be late, not lost. A cheap hardening is to call `repairAlarm` once during DO activation, after `migrations.apply`, so a restarted DO re-arms itself. This is optional and does not block the merge.
+- **MINOR — `packages/cloudflare/src/organization/EmailOutbox.ts` `dispatchBatch`.** A row that can never be encoded would block the whole outbox. Examples are a `send_id` that fails decoding or a missing `organization` row. `Effect.die` makes every alarm run fail until the retries stop. It is unlikely, because `send_id` is only written from a typed `SendId` and the organization row exists before any send. If you want to be defensive, delete or skip undecodable rows rather than dying.
+- **MINOR — duplicate queue messages.** Worker-created sends now get two queue messages: one from the Worker-side EmailOutbox and one from the DO outbox. `claim` dedupes them, and you have already decided to keep this for now. The follow-up of removing the Worker-side queuing should get a ticket, so the double enqueue does not become permanent.
+- **MINOR — test fixtures.** The `RoundTestRoutes` and `Organization.test.ts` retries (the alarm-points-at-earliest-job wait and the 5xx retry on the exchange test) accommodate timing and local-D1 flakiness. They are acceptable. Both are bounded, and a 4xx is still asserted.</result>
+<usage><subagent_tokens>53139</subagent_tokens><tool_uses>10</tool_uses><duration_ms>91037</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>b8a71m0pj</task-id>
+<tool-use-id>toolu_015F9LwU59ThNthT3xUjCepE</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-ce5edeb0-dc00b1e3277f51fd/24bf2097-4a23-40ae-ab7f-5e51818792bb/tasks/b8a71m0pj.output</output-file>
+<status>completed</status>
+<summary>Background command "Run the full CI gate" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+Update on pull request #240 (https://github.com/chrisdoc/surveybeat-next/pull/240), which T3 Code is watching for you:
+- Checks failed on 9ff2127:
+  - codecov/patch https://app.codecov.io/gh/chrisdoc/surveybeat-next/pull/240
+  - codecov/project https://app.codecov.io/gh/chrisdoc/surveybeat-next/pull/240
+- 1 new comment:
+  - codecov: "## [Codecov](https://app.codecov.io/gh/chrisdoc/surveybeat-next/pull/240?dropdown=coverage&src=pr&el=h1&utm_medium=referral&utm_source=github&utm_content=comment&utm_campaign=pr+comments&utm_term=C..." https://github.com/chrisdoc/surveybeat-next/pull/240#issuecomment-6971463426
+
+Look into each item and act on it as your task requires. This PR stays linked and watched, so do not link, watch, or list it again. End your turn when you are done, and T3 Code wakes you on the next change. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.
