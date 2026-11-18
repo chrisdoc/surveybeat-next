@@ -267,8 +267,8 @@ catalogs:
       specifier: 7.0.2
       version: 7.0.2
     ultracite:
-      specifier: 8.2.0
-      version: 8.2.0
+      specifier: 8.2.1
+      version: 8.2.1
     varlock:
       specifier: 1.25.0
       version: 1.25.0
@@ -336,7 +336,7 @@ importers:
         version: 7.0.2
       ultracite:
         specifier: 'catalog:'
-        version: 8.2.0(oxfmt@0.78.0)(oxlint@1.93.0(oxlint-tsgolint@7.0.2007))(prettier@3.10.1)
+        version: 8.2.1(oxfmt@0.78.0)(oxlint@1.93.0(oxlint-tsgolint@7.0.2007))(prettier@3.10.1)
       varlock:
         specifier: 'catalog:'
         version: 1.25.0
@@ -3606,8 +3606,8 @@ packages:
     resolution: {integrity: sha512-8iAasVS4wUx0gPLjH8Xtz2PeDzTSiy8QiLGu2DT3X5GU+egFEQhpnbtkehbAwjvDcxIERmCYcysiODFmE3Ud0Q==}
     engines: {node: '>=18'}
 
-  ultracite@8.2.0:
-    resolution: {integrity: sha512-4g7+Lnx3ICVhdNKs4UXGHbhw9rHiECDy0YuDaS7/XaZOxU3vVBdzF804C9X2K5d6to+/+J8GWJ+h54BhQRmnEg==}
+  ultracite@8.2.1:
+    resolution: {integrity: sha512-+HAwOkdpdNaf6Fr+JEh0YkikJU4vjRO977kMAvtOsk8YWk+VG3rdy7gyFLgbO1Edv+k5hhL/3CKAiEmUlvt3ow==}
     engines: {node: ^22.22.2 || >=24.15.0}
     hasBin: true
     peerDependencies:
@@ -6334,7 +6334,7 @@ snapshots:
 
   uint8array-extras@1.6.0: {}
 
-  ultracite@8.2.0(oxfmt@0.78.0)(oxlint@1.93.0(oxlint-tsgolint@7.0.2007))(prettier@3.10.1):
+  ultracite@8.2.1(oxfmt@0.78.0)(oxlint@1.93.0(oxlint-tsgolint@7.0.2007))(prettier@3.10.1):
     dependencies:
       '@clack/prompts': 1.9.0
       cli-truncate: 6.2.0
