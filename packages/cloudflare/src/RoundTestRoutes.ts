@@ -68,6 +68,39 @@ export const roundTestRoutes = (organizations: Organizations, database: Cloudfla
     );
     yield* setReviewWindowDays(organization, admin, teamId, pulseId, 0, now);
 
+    const otherTeamId = TeamId.make(`other-team-${run}`);
+    const otherLead = PersonId.make(`other-lead-${run}`);
+    yield* organization.runDirectoryCommand(
+      admin,
+      {
+        _tag: "CreateTeam",
+        teamId: otherTeamId,
+        name: "Sales",
+        timeZone: TimeZone.make("Europe/Berlin"),
+        lead: {
+          email: EmailAddress.make("other-lead@example.com"),
+          personId: otherLead,
+          membershipId: MembershipId.make(`other-membership-${run}`),
+          signInUrl: "https://app.surveybeat.app/",
+        },
+      },
+      now,
+    );
+    const crossTeamView = yield* organization.viewRounds(otherLead, otherTeamId, pulseId);
+    const crossTeamPause = yield* organization.runRoundCommand(
+      otherLead,
+      { _tag: "PausePulse", teamId: otherTeamId, pulseId },
+      now,
+    );
+    const ownView = yield* organization.viewRounds(admin, teamId, pulseId);
+    const crossTeamRefused =
+      crossTeamView._tag === "Rejected" &&
+      crossTeamView.rejection._tag === "PulseNotFound" &&
+      crossTeamPause._tag === "Rejected" &&
+      crossTeamPause.rejection._tag === "PulseNotFound" &&
+      ownView._tag === "Viewed" &&
+      !ownView.value.paused;
+
     const earliestDue1 = yield* organization.getEarliestPendingJobDueAt();
     const initialAlarm = yield* organization.getAlarm().pipe(
       Effect.repeat({
@@ -252,6 +285,7 @@ export const roundTestRoutes = (organizations: Organizations, database: Cloudfla
     const hasComputedResult = resultAfterClose !== null;
 
     return yield* HttpServerResponse.json({
+      crossTeamRefused,
       initialAlarm,
       earliestDue1,
       alarmPointsToEarliest1,

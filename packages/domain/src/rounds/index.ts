@@ -8,3 +8,4 @@ export * from "./Themes.ts";
 export * from "./Retry.ts";
 export * from "./MemberHistory.ts";
 export * from "./TestInvitation.ts";
+export * from "./RoundCommand.ts";
