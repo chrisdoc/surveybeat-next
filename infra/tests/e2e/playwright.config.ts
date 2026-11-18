@@ -48,11 +48,13 @@ export default defineConfig({
     : {
         webServer: {
           command:
-            "pnpm --filter @surveybeat/web build && exec node_modules/.bin/alchemy dev -c infra/tests/e2e/stack.ts --stage test_e2e --no-input --log-level warn",
+            "pnpm --filter @surveybeat/web build && exec node_modules/.bin/alchemy dev -c infra/tests/e2e/stack.ts --stage test_e2e --no-input --log-level info",
           cwd: root,
-          url: `${localStageURL}/`,
+          // Main answers on 1337 while Alchemy is still updating the Submission Worker and the queue consumers, and those updates reset open connections. Playwright starts on the first of `url` and `wait`, so there is no `url`: the stage is ready once Main is on 1337 and the whole deploy is done.
+          wait: { stdout: /\[Main\] ready at http:\/\/localhost:1337\b[\s\S]*Done: \d+ succeeded/ },
           timeout: 180_000,
-          reuseExistingServer: process.env["CI"] === undefined,
+          reuseExistingServer: false,
+          gracefulShutdown: { signal: "SIGTERM", timeout: 15_000 },
           env: {
             ORG_CREATION_ALLOWLIST: ["nobody@example.invalid", ...flowLeads].join(","),
           },
