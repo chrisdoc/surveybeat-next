@@ -9,6 +9,8 @@ import {
   calculateRoundInstants,
   localToUtc,
   nextEightWeeksCadenceDates,
+  nextRoundSlot,
+  parseDateIso,
   roundCommandRejection,
   roundMachine,
   roundStatusAfter,
@@ -18,7 +20,7 @@ import {
 } from "./Lifecycle.ts";
 import { RoundId, RoundStatus as RoundStatusSchema, type RoundStatus } from "./Round.ts";
 import { PersonId } from "../people/Identity.ts";
-import { PulseId, SendTime } from "../pulses/Pulse.ts";
+import { PulseId, SendTime, Weekday } from "../pulses/Pulse.ts";
 import { TeamId } from "../people/Team.ts";
 
 describe("Lifecycle scheduling and time engine", () => {
@@ -594,4 +596,109 @@ describe("the Round machine", () => {
       }),
     ),
   );
+});
+
+describe("the next Round slot", () => {
+  const dayNumberOf = (dateIso: string) => {
+    const { year, month, day } = parseDateIso(dateIso);
+    return Date.UTC(year, month - 1, day) / 86_400_000;
+  };
+  const dateOfDayNumber = (days: number) => {
+    const z = days + 719_468;
+    const era = Math.floor(z / 146_097);
+    const doe = z - era * 146_097;
+    const yoe = Math.floor(
+      (doe - Math.floor(doe / 1460) + Math.floor(doe / 36_524) - Math.floor(doe / 146_096)) / 365,
+    );
+    const doy = doe - (365 * yoe + Math.floor(yoe / 4) - Math.floor(yoe / 100));
+    const mp = Math.floor((5 * doy + 2) / 153);
+    const day = doy - Math.floor((153 * mp + 2) / 5) + 1;
+    const month = mp < 10 ? mp + 3 : mp - 9;
+    const year = yoe + era * 400 + (month <= 2 ? 1 : 0);
+    return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  };
+  const weekdayOf = (dateIso: string) =>
+    ["thursday", "friday", "saturday", "sunday", "monday", "tuesday", "wednesday"][dayNumberOf(dateIso) % 7];
+  const shiftDays = (dateIso: string, days: number) => dateOfDayNumber(dayNumberOf(dateIso) + days);
+  const SlotTime = Schema.Literals(["06:00", "09:30", "14:45", "21:00"]);
+  const Zone = Schema.Literals(["Europe/Berlin", "America/Los_Angeles", "Asia/Tokyo", "UTC"]);
+
+  prop(
+    "is the earliest unskipped cadence day whose open instant is still ahead, and its instants belong to that date",
+    {
+      minutes: Schema.Int,
+      weekday: Weekday,
+      time: SlotTime,
+      team: Zone,
+      members: Schema.Array(Zone),
+      skips: Schema.Array(Schema.Literals([0, 1, 2, 3])),
+    },
+    ({ minutes, weekday, time, team, members, skips }) => {
+      const now = Date.UTC(2026, 0, 1) + (Math.abs(minutes) % (366 * 1440)) * 60_000;
+      const sendTime = SendTime.make(time);
+      const memberTimeZones = members.slice(0, 4);
+      const unskipped = nextRoundSlot({
+        now,
+        weekday,
+        sendTime,
+        teamTimeZone: team,
+        memberTimeZones,
+        answerWindowDays: 2,
+        unavailableDates: new Set(),
+      });
+      const unavailableDates = new Set(skips.map((week) => shiftDays(unskipped.plannedOpenDate, 7 * week)));
+      const slot = nextRoundSlot({
+        now,
+        weekday,
+        sendTime,
+        teamTimeZone: team,
+        memberTimeZones,
+        answerWindowDays: 2,
+        unavailableDates,
+      });
+      const recomputed = calculateRoundInstants(slot.plannedOpenDate, sendTime, memberTimeZones, team, 2);
+      let firstFree = unskipped.plannedOpenDate;
+      while (unavailableDates.has(firstFree)) firstFree = shiftDays(firstFree, 7);
+      return (
+        weekdayOf(slot.plannedOpenDate) === weekday &&
+        slot.instants.openInstant > now &&
+        slot.instants.openInstant === recomputed.openInstant &&
+        slot.instants.closeInstant === recomputed.closeInstant &&
+        slot.plannedOpenDate === firstFree &&
+        unskipped.instants.openInstant - now <= 8 * 86_400_000
+      );
+    },
+  );
+
+  it("skips a week when a member ahead of the team's zone would already have been sent to", () => {
+    const slot = nextRoundSlot({
+      now: Date.UTC(2026, 10, 16, 23, 0),
+      weekday: "tuesday",
+      sendTime: SendTime.make("06:00"),
+      teamTimeZone: "UTC",
+      memberTimeZones: ["Asia/Tokyo"],
+      answerWindowDays: 1,
+      unavailableDates: new Set<string>(),
+    });
+    expect(slot.plannedOpenDate).toBe("2026-11-24");
+    expect(slot.instants.openInstant).toBe(Date.UTC(2026, 10, 23, 21, 0));
+  });
+
+  it("moves the date with the open instant when a Pulse changes from Tuesday to Wednesday", () => {
+    const now = Date.UTC(2026, 10, 17, 20, 11);
+    const base = {
+      now,
+      sendTime: SendTime.make("06:00"),
+      teamTimeZone: "Europe/Berlin",
+      memberTimeZones: ["Europe/Berlin", "Europe/Berlin"],
+      answerWindowDays: 1,
+      unavailableDates: new Set<string>(),
+    };
+    const tuesday = nextRoundSlot({ ...base, weekday: "tuesday" });
+    const wednesday = nextRoundSlot({ ...base, weekday: "wednesday" });
+    expect(tuesday.plannedOpenDate).toBe("2026-11-24");
+    expect(wednesday.plannedOpenDate).toBe("2026-11-18");
+    expect(wednesday.instants.openInstant).toBe(Date.UTC(2026, 10, 18, 5, 0));
+    expect(wednesday.instants.closeInstant).toBe(Date.UTC(2026, 10, 19, 5, 0));
+  });
 });

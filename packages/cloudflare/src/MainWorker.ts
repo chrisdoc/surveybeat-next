@@ -80,6 +80,7 @@ import { noteHandlers } from "./NoteHandlers.ts";
 import { pulseHandlers } from "./PulseHandlers.ts";
 import { roundHandlers } from "./RoundHandlers.ts";
 import { PULSES_TEST_ROUTE, pulseTestRoutes } from "./PulseTestRoutes.ts";
+import { ROUND_DELIVERY_TEST_ROUTE, roundDeliveryTestRoutes } from "./RoundDeliveryTestRoutes.ts";
 import { ROUNDS_TEST_ROUTE, roundTestRoutes } from "./RoundTestRoutes.ts";
 import { REVIEW_TEST_ROUTE, reviewTestRoutes } from "./ReviewWindowTestRoutes.ts";
 import { RESEND_EMAIL_TEST_ROUTE, resendEmailTestRoutes } from "./ResendEmailTestRoutes.ts";
@@ -313,6 +314,7 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
           if (path === PEOPLE_TEST_ROUTE) return yield* peopleTestRoutes(organizations, database);
           if (path === PULSES_TEST_ROUTE) return yield* pulseTestRoutes(organizations);
           if (path === ROUNDS_TEST_ROUTE) return yield* roundTestRoutes(organizations, database);
+          if (path === ROUND_DELIVERY_TEST_ROUTE) return yield* roundDeliveryTestRoutes(organizations);
           if (path === THEMES_TEST_ROUTE) return yield* themesTestRoutes(organizations);
           if (path === REVIEW_TEST_ROUTE) return yield* reviewTestRoutes(organizations);
           if (path === RESULT_RECOVERY_TEST_ROUTE) return yield* resultRecoveryTestRoutes(organizations);

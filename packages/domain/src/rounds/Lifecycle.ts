@@ -219,6 +219,65 @@ export const calculateRoundInstants = (
   };
 };
 
+export interface RoundSlotInput {
+  readonly now: number;
+  readonly weekday: Weekday;
+  readonly sendTime: SendTime;
+  readonly teamTimeZone: string;
+  readonly memberTimeZones: ReadonlyArray<string>;
+  readonly answerWindowDays: number;
+  readonly unavailableDates: ReadonlySet<string>;
+}
+
+export interface RoundSlot {
+  readonly plannedOpenDate: string;
+  readonly instants: ReturnType<typeof calculateRoundInstants>;
+}
+
+const addDays = (dateIso: string, days: number): string => {
+  const { year, month, day } = parseDateIso(dateIso);
+  const d = new Date(Date.UTC(year, month - 1, day) + days * 86_400_000);
+  return formatDateIso(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate());
+};
+
+const teamToday = (now: number, timeZone: string) => {
+  const dtf = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const parts: Record<string, string> = {};
+  for (const p of dtf.formatToParts(new Date(now))) {
+    parts[p.type] = p.value;
+  }
+  return {
+    year: parseInt(parts.year ?? "0", 10),
+    month: parseInt(parts.month ?? "0", 10),
+    day: parseInt(parts.day ?? "0", 10),
+  };
+};
+
+export const nextRoundSlot = (input: RoundSlotInput): RoundSlot => {
+  const slotOn = (plannedOpenDate: string): RoundSlot => ({
+    plannedOpenDate,
+    instants: calculateRoundInstants(
+      plannedOpenDate,
+      input.sendTime,
+      input.memberTimeZones,
+      input.teamTimeZone,
+      input.answerWindowDays,
+    ),
+  });
+
+  const today = teamToday(input.now, input.teamTimeZone);
+  let slot = slotOn(nextWeekdayDate(today.year, today.month, today.day, input.weekday, true));
+  while (slot.instants.openInstant <= input.now || input.unavailableDates.has(slot.plannedOpenDate)) {
+    slot = slotOn(addDays(slot.plannedOpenDate, 7));
+  }
+  return slot;
+};
+
 export const calculateReminders = (
   sendInstant: number,
   answerWindowDays: number,

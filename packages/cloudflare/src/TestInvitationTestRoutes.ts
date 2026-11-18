@@ -42,7 +42,13 @@ export const testInvitationTestRoutes = (
     const now = Number(params.get("now")) || 1_700_000_000_000;
     const signInUrl = "https://app.surveybeat.app/";
 
-    yield* organization.createWithAdmin(organizationId, "Acme", admin, "admin@example.com", `user_${run}`);
+    yield* organization.createWithAdmin(
+      organizationId,
+      "Acme",
+      admin,
+      `admin-${run}@example.com`,
+      `user_${run}`,
+    );
     yield* organization.runDirectoryCommand(
       admin,
       {

@@ -1,14 +1,10 @@
-// @effect-diagnostics nodeBuiltinImport:off -- this file reads the repository from disk or spawns a process outside a Worker; the Effect FileSystem and ChildProcess services do not exist there.
-
 import { SqliteClient } from "@effect/sql-sqlite-do";
 import { assert, describe, it } from "@effect/vitest";
 import { RoundId, TeamId } from "@surveybeat/domain";
-import { SqliteStorage } from "@surveybeat/testing";
+import { migratedDatabase, SqliteStorage } from "@surveybeat/testing";
 import * as Effect from "effect/Effect";
 import * as Reactivity from "effect/reactivity/Reactivity";
 import * as Scope from "effect/Scope";
-import { readdirSync, readFileSync } from "node:fs";
-import { DatabaseSync } from "node:sqlite";
 import { makeSqlNotes } from "./SqlNotes.ts";
 
 const migrationsDir = new URL("../migrations/", import.meta.url);
@@ -17,13 +13,7 @@ const teamId = TeamId.make("team-1");
 
 /** The Organization's migrations in order, with one Team, one Pulse, and one Round to hold a Note. */
 const openNotes = Effect.gen(function* () {
-  const db = new DatabaseSync(":memory:");
-  db.exec("PRAGMA foreign_keys = ON");
-  for (const file of readdirSync(migrationsDir)
-    .filter((f) => f.endsWith(".sql"))
-    .sort()) {
-    db.exec(readFileSync(new URL(file, migrationsDir), "utf8"));
-  }
+  const db = migratedDatabase(migrationsDir);
   db.prepare("INSERT INTO team (id, name, time_zone) VALUES ('team-1', 'Team 1', 'UTC')").run();
   db.prepare(
     `INSERT INTO pulse (id, team_id, name, cadence, weekday, send_time, answer_window_days, reminders, anonymity_mode, distribution, created_at)

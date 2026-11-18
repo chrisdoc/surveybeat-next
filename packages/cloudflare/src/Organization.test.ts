@@ -8,6 +8,7 @@ import * as Alchemy from "alchemy";
 import { assert } from "@effect/vitest";
 import * as Clock from "effect/Clock";
 import * as Effect from "effect/Effect";
+import * as Schedule from "effect/Schedule";
 import MainWorker from "./MainWorker.ts";
 import SubmissionWorker from "./SubmissionWorker.ts";
 
@@ -240,7 +241,7 @@ test(
     ]);
     // The email goes to the sender's own address, marked as a test in its subject.
     assert.deepStrictEqual(body.captured, [
-      { recipient: "admin@example.com", subject: "Test: Weekly team health" },
+      { recipient: `admin-${run}@example.com`, subject: "Test: Weekly team health" },
     ]);
   }),
 );
@@ -340,7 +341,7 @@ test(
           {
             sendId: body.failing,
             kind: "TestInvitationEmail",
-            recipient: "admin@example.com",
+            recipient: `admin-${run}@example.com`,
             reason: "rejected",
             code: "E_SENDER_NOT_VERIFIED",
             failedAt: sentAt + 2,
@@ -502,6 +503,43 @@ test(
     // The Queue consumer derives the same token when it renders the email, so the link still works.
     assert.include(body.renderedText, `/a#t=${body.token0}`);
     assert.include(body.renderedText, "at least 4 people");
+  }),
+  { timeout: 120_000 },
+);
+
+test(
+  "a Round that opens on its job emails its Invitation through the queue, on the date its moved cadence names",
+  Effect.gen(function* () {
+    const { url } = yield* stack;
+    const run = crypto.randomUUID();
+    const response = yield* Effect.promise(() => fetch(`${url}/__test/round-delivery?run=${run}`));
+    assert.strictEqual(response.status, 200);
+    const body = (yield* Effect.promise(() => response.json())) as {
+      leadEmail: string;
+      plannedOpenAt: number;
+      openAtFromPlannedDate: number;
+      invitationSendIds: ReadonlyArray<string>;
+    };
+    assert.strictEqual(body.plannedOpenAt, body.openAtFromPlannedDate);
+    assert.strictEqual(body.invitationSendIds.length, 1);
+
+    const captured = Effect.promise(() =>
+      fetch(`${url}/__test/email?recipient=${encodeURIComponent(body.leadEmail)}`).then(
+        (each) => each.json() as Promise<{ text: string | null }>,
+      ),
+    );
+    const { text: invitationText } = yield* captured.pipe(
+      Effect.repeat({
+        until: ({ text }) => text?.includes("/a#t=") === true,
+        schedule: Schedule.spaced("500 millis"),
+        times: 60,
+      }),
+    );
+    assert.include(
+      invitationText ?? "",
+      "/a#t=",
+      "the Invitation reached the queue consumer and was captured",
+    );
   }),
   { timeout: 120_000 },
 );
@@ -823,17 +861,25 @@ test(
     assert.strictEqual(seeded.status, 200);
 
     const captured = yield* Effect.promise(() =>
-      fetch(`${url}/__test/email?recipient=${encodeURIComponent("admin@example.com")}`),
+      fetch(`${url}/__test/email?recipient=${encodeURIComponent(`admin-${run}@example.com`)}`),
     );
     const { text } = (yield* Effect.promise(() => captured.json())) as { text: string | null };
     const token = /#t=([A-Za-z0-9_-]+)/.exec(text ?? "")?.[1] ?? "";
     assert.isAbove(token.length, 0);
 
+    // Local D1 can fail a read transiently while the queue consumer is writing (D1_ERROR "Failed to get
+    // session commit token"); a 5xx is retried, a 4xx is an answer.
     const exchanged = yield* Effect.promise(() =>
       fetch(`${submissionUrl}/exchange`, {
         method: "POST",
         headers: { "content-type": "application/json", origin: "https://dashboard.surveybeat.app" },
         body: JSON.stringify({ token }),
+      }),
+    ).pipe(
+      Effect.repeat({
+        until: (response) => response.status < 500,
+        schedule: Schedule.spaced("250 millis"),
+        times: 8,
       }),
     );
     assert.strictEqual(exchanged.status, 200);

@@ -5,6 +5,7 @@ import * as Cloudflare from "@alchemy.run/cloudflare";
 import { SqliteClient } from "@effect/sql-sqlite-do";
 import { organizationActions } from "./organization/Actions.ts";
 import { organizationDirectory } from "./organization/Directory.ts";
+import { makeEmailOutbox } from "./organization/EmailOutbox.ts";
 import { organizationEmailVisibility } from "./organization/EmailVisibility.ts";
 import { organizationSubmissions } from "./organization/Submissions.ts";
 import { organizationNotes } from "./organization/Notes.ts";
@@ -40,8 +41,7 @@ import {
   type InvitationTokenRef,
   type StoredEmail,
   nextEightWeeksCadenceDates,
-  nextWeekdayDate,
-  parseDateIso,
+  nextRoundSlot,
   RoundId,
   JobId,
   type RoundRecord,
@@ -65,12 +65,14 @@ import {
 import * as Clock from "effect/Clock";
 import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Redacted from "effect/Redacted";
 import * as Reactivity from "effect/reactivity/Reactivity";
 import * as Schema from "effect/Schema";
 import * as Scope from "effect/Scope";
 import { makeOpenRouterAiClient } from "./ai/OpenRouterAiClient.ts";
+import { EmailQueue } from "./Email.ts";
 import { makeSqlActions } from "./SqlActions.ts";
 import { makeSqlNotes } from "./SqlNotes.ts";
 import { makeSqlDirectory } from "./SqlDirectory.ts";
@@ -108,6 +110,7 @@ const parseAttempts = (payload: string | null): number => {
 
 const organizationObject = Effect.gen(function* () {
   const migrations = yield* Cloudflare.SqlMigrations(migrationsDirectory);
+  const emailQueue = yield* Cloudflare.Queues.WriteQueue(yield* EmailQueue);
 
   // @effect-diagnostics-next-line returnEffectInGen:off -- the object setup must be returned, not yielded: flattening it would run the setup when the outer phase runs, not once per activation.
   return Effect.gen(function* () {
@@ -139,17 +142,15 @@ const organizationObject = Effect.gen(function* () {
 
     yield* migrations.apply().pipe(Effect.orDie);
 
-    const sends = makeSendStore(makeSqlSendRepository(sql), defaultSendPolicy);
-    const directory = makeSqlDirectory(sql, sends);
-    const pulses = makeSqlPulses(sql);
     const rounds = makeSqlRounds(sql, secureRandomBytes);
-    const actions = makeSqlActions(sql);
-    const notes = makeSqlNotes(sql);
-    const both = Effect.all([directory.load, pulses.load]);
+    const outbox = makeEmailOutbox(sql, emailQueue);
 
     const repairAlarm = () =>
       Effect.gen(function* () {
-        const earliest = yield* rounds.getEarliestPendingJobDueAt();
+        const nextJob = yield* rounds.getEarliestPendingJobDueAt();
+        const now = yield* Clock.currentTimeMillis;
+        const sendsWaiting = yield* outbox.isWaiting;
+        const earliest = sendsWaiting ? Math.min(now, nextJob ?? now) : nextJob;
         if (earliest !== null) {
           const currentAlarm = yield* Effect.promise(() => state.raw.storage.getAlarm());
           if (currentAlarm !== earliest) {
@@ -159,6 +160,16 @@ const organizationObject = Effect.gen(function* () {
           yield* Effect.promise(() => state.raw.storage.deleteAlarm());
         }
       }).pipe(Effect.orDie);
+
+    const sends = outbox.recording(
+      makeSendStore(makeSqlSendRepository(sql), defaultSendPolicy),
+      Effect.suspend(() => repairAlarm()),
+    );
+    const directory = makeSqlDirectory(sql, sends);
+    const pulses = makeSqlPulses(sql);
+    const actions = makeSqlActions(sql);
+    const notes = makeSqlNotes(sql);
+    const both = Effect.all([directory.load, pulses.load]);
 
     const activeMembersWithTimeZones = (dirState: DirectoryState, teamId: TeamId, teamTimeZone: string) =>
       Effect.gen(function* () {
@@ -186,54 +197,15 @@ const organizationObject = Effect.gen(function* () {
         if (team === undefined) return;
 
         const { memberTimeZones } = yield* activeMembersWithTimeZones(dirState, teamId, team.timeZone);
-        const skipped = yield* rounds.getSkippedWeeks(pulseId);
-
-        const dtf = new Intl.DateTimeFormat("en-US", {
-          timeZone: team.timeZone,
-          year: "numeric",
-          month: "2-digit",
-          day: "2-digit",
-        });
-        const parts: Record<string, string> = {};
-        for (const p of dtf.formatToParts(new Date(now))) {
-          parts[p.type] = p.value;
-        }
-        const curYear = parseInt(parts.year ?? "0", 10);
-        const curMonth = parseInt(parts.month ?? "0", 10);
-        const curDay = parseInt(parts.day ?? "0", 10);
-
-        let candidateDate = nextWeekdayDate(curYear, curMonth, curDay, pulse.settings.cadence.day, true);
-        let instants = calculateRoundInstants(
-          candidateDate,
-          pulse.settings.cadence.time,
+        const { plannedOpenDate, instants } = nextRoundSlot({
+          now,
+          weekday: pulse.settings.cadence.day,
+          sendTime: pulse.settings.cadence.time,
+          teamTimeZone: team.timeZone,
           memberTimeZones,
-          team.timeZone,
-          pulse.settings.answerWindowDays,
-        );
-
-        if (instants.openInstant <= now) {
-          candidateDate = nextWeekdayDate(curYear, curMonth, curDay, pulse.settings.cadence.day, false);
-          instants = calculateRoundInstants(
-            candidateDate,
-            pulse.settings.cadence.time,
-            memberTimeZones,
-            team.timeZone,
-            pulse.settings.answerWindowDays,
-          );
-        }
-
-        while (skipped.has(candidateDate)) {
-          const p = parseDateIso(candidateDate);
-          const d = new Date(Date.UTC(p.year, p.month - 1, p.day) + 7 * 86_400_000);
-          candidateDate = `${d.getUTCFullYear()}-${(d.getUTCMonth() + 1).toString().padStart(2, "0")}-${d.getUTCDate().toString().padStart(2, "0")}`;
-          instants = calculateRoundInstants(
-            candidateDate,
-            pulse.settings.cadence.time,
-            memberTimeZones,
-            team.timeZone,
-            pulse.settings.answerWindowDays,
-          );
-        }
+          answerWindowDays: pulse.settings.answerWindowDays,
+          unavailableDates: yield* rounds.getUnavailableRoundDates(pulseId, null),
+        });
 
         const roundId = RoundId.make(randomId());
         const round: RoundRecord = {
@@ -241,7 +213,7 @@ const organizationObject = Effect.gen(function* () {
           pulseId,
           teamId,
           status: "scheduled",
-          plannedOpenDate: candidateDate,
+          plannedOpenDate,
           plannedOpenAt: instants.openInstant,
           openedAt: null,
           plannedCloseAt: instants.closeInstant,
@@ -288,50 +260,25 @@ const organizationObject = Effect.gen(function* () {
           scheduled.teamId,
           team.timeZone,
         );
-
-        const dtf = new Intl.DateTimeFormat("en-US", {
-          timeZone: team.timeZone,
-          year: "numeric",
-          month: "2-digit",
-          day: "2-digit",
-        });
-        const parts: Record<string, string> = {};
-        for (const p of dtf.formatToParts(new Date(now))) {
-          parts[p.type] = p.value;
-        }
-        const curYear = parseInt(parts.year ?? "0", 10);
-        const curMonth = parseInt(parts.month ?? "0", 10);
-        const curDay = parseInt(parts.day ?? "0", 10);
-
-        let candidateDate = nextWeekdayDate(curYear, curMonth, curDay, pulse.settings.cadence.day, true);
-        let instants = calculateRoundInstants(
-          candidateDate,
-          pulse.settings.cadence.time,
-          memberTimeZones,
-          team.timeZone,
-          pulse.settings.answerWindowDays,
-        );
-
-        if (instants.openInstant <= now) {
-          candidateDate = nextWeekdayDate(curYear, curMonth, curDay, pulse.settings.cadence.day, false);
-          instants = calculateRoundInstants(
-            candidateDate,
-            pulse.settings.cadence.time,
-            memberTimeZones,
-            team.timeZone,
-            pulse.settings.answerWindowDays,
-          );
-        }
-
-        yield* rounds.updateScheduledRound(
-          scheduled.id,
-          pulse.settings.name,
-          pulse.settings.answerWindowDays,
-          pulse.settings.reminders,
-          instants.openInstant,
-          instants.closeInstant,
+        const { plannedOpenDate, instants } = nextRoundSlot({
           now,
-        );
+          weekday: pulse.settings.cadence.day,
+          sendTime: pulse.settings.cadence.time,
+          teamTimeZone: team.timeZone,
+          memberTimeZones,
+          answerWindowDays: pulse.settings.answerWindowDays,
+          unavailableDates: yield* rounds.getUnavailableRoundDates(pulseId, scheduled.id),
+        });
+
+        yield* rounds.updateScheduledRound(scheduled.id, {
+          pulseName: pulse.settings.name,
+          answerWindowDays: pulse.settings.answerWindowDays,
+          reminders: pulse.settings.reminders,
+          plannedOpenDate,
+          plannedOpenAt: instants.openInstant,
+          plannedCloseAt: instants.closeInstant,
+          now,
+        });
         yield* rounds.updateJobDueAt(scheduled.id, "open", instants.openInstant);
         yield* repairAlarm();
       });
@@ -1098,6 +1045,8 @@ const organizationObject = Effect.gen(function* () {
         Effect.gen(function* () {
           const now = yield* Clock.currentTimeMillis;
           yield* runDueJobs(now);
+          yield* outbox.dispatch;
+          yield* repairAlarm();
         }).pipe(Effect.orDie),
 
       runPulseCommand: (actorId: PersonId, command: PulseCommand, now: number) =>
@@ -1625,7 +1574,7 @@ const organizationObject = Effect.gen(function* () {
 
       ...organizationDirectory({ sql, sends, rounds, directory }),
 
-      ...organizationSends(sends),
+      ...organizationSends(sql, sends),
     };
   });
 });
@@ -1636,4 +1585,6 @@ export default class Organization extends Cloudflare.DurableObject<Organization,
   "Organization",
 ) {}
 
-export const OrganizationLive = Organization.make(organizationObject);
+export const OrganizationLive = Organization.make(organizationObject).pipe(
+  Layer.provide(Cloudflare.Queues.WriteQueueBinding),
+);
