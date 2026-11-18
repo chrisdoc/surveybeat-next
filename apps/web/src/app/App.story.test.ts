@@ -824,6 +824,7 @@ describe("App Stories", () => {
       plannedCloseAt: 1731400000000,
       closedAt: status === "closed" ? 1731400000000 : null,
       pulseName: "Weekly check-in",
+      invitations: null,
     });
     const list = { pulseId, paused: false, rounds: [summary(openId, "open"), summary(closedId, "closed")] };
     const teamAs = (yourRole: "lead" | null) => ({

@@ -115,6 +115,11 @@ const FailedInvitationRow = Schema.Struct({
   resend_count: Schema.Int,
 });
 
+const InvitedPersonRow = Schema.Struct({
+  round_id: RoundId,
+  person_id: PersonId,
+});
+
 export interface InvitationRecord {
   readonly roundId: RoundId;
   readonly personId: PersonId;
@@ -578,6 +583,25 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
     sql`SELECT * FROM invitation WHERE send_id = ${sendId}`.pipe(
       Effect.flatMap(rows(InvitationRow)),
       Effect.map((r) => (r[0] === undefined ? null : toInvitationRecord(r[0]))),
+      Effect.orDie,
+    );
+
+  const getInvitedPersonIdsForPulse = (
+    pulseId: PulseId,
+  ): Effect.Effect<ReadonlyMap<RoundId, ReadonlySet<PersonId>>> =>
+    sql`SELECT i.round_id, i.person_id FROM invitation i
+        JOIN round r ON r.id = i.round_id
+        WHERE r.pulse_id = ${pulseId}`.pipe(
+      Effect.flatMap(rows(InvitedPersonRow)),
+      Effect.map((all) => {
+        const byRound = new Map<RoundId, Set<PersonId>>();
+        for (const row of all) {
+          const personIds = byRound.get(row.round_id) ?? new Set<PersonId>();
+          personIds.add(row.person_id);
+          byRound.set(row.round_id, personIds);
+        }
+        return byRound;
+      }),
       Effect.orDie,
     );
 
@@ -1151,6 +1175,7 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
     getInvitationBySendId,
     updateInvitationStatus,
     getFailedInvitations,
+    getInvitedPersonIdsForPulse,
     resendInvitation,
     revokeInvitationsForRound,
     revokeInvitationForPerson,

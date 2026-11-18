@@ -4,6 +4,7 @@ import {
   type PulseId,
   RoundId,
   RoundList,
+  type InvitationSummary,
   type RoundStatus,
   type RoundSummary,
   type TeamId,
@@ -12,7 +13,7 @@ import type { RoundDetail } from "@surveybeat/domain";
 import { Predicate, Schema } from "effect";
 import type { Html, HtmlBuilder } from "foldkit/html";
 import { defineTaggedUnion } from "foldkit/schema";
-import { formatDate, formatPercent, message } from "../messages/locale.ts";
+import { formatDate, formatPercent, message, pluralMessage } from "../messages/locale.ts";
 import { Failure } from "./api.ts";
 import {
   appButton,
@@ -57,6 +58,11 @@ const roundDates = (round: RoundSummary): string =>
     from: roundOpenDate(round),
     to: dateText(round.closedAt ?? round.plannedCloseAt),
   });
+
+const invitationLines = (summary: InvitationSummary): ReadonlyArray<string> => [
+  summary.invited > 0 ? pluralMessage("rounds.invited", summary.invited) : message("rounds.nobodyInvited"),
+  ...(summary.joinedAfterOpen > 0 ? [pluralMessage("rounds.joinedAfterOpen", summary.joinedAfterOpen)] : []),
+];
 
 const hasResults = (round: RoundSummary): boolean =>
   round.status === "closed" || round.status === "ready" || round.status === "shared";
@@ -249,6 +255,14 @@ export const roundsScreenView = <Message>(
               ],
             ),
             h.p([h.Class("text-sm text-muted")], [roundDates(round)]),
+            lead && round.invitations !== null
+              ? h.div(
+                  [h.Class("flex flex-col gap-1")],
+                  invitationLines(round.invitations).map((line) =>
+                    h.p([h.Class("text-sm text-muted")], [line]),
+                  ),
+                )
+              : null,
             lead && hasResults(round) && rate !== undefined && rate !== null
               ? h.p(
                   [h.Class("text-sm text-muted")],

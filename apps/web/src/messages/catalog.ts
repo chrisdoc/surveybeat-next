@@ -310,6 +310,12 @@ export const catalog = {
   "confirm.dropBody": "Drop this action? It stays in the list as dropped.",
   "rounds.failedInvitations": "Invitations that could not be sent",
   "rounds.failedInvitation": "{email}: {reason}",
+  "rounds.invited.one": "Invited {count} Person",
+  "rounds.invited.other": "Invited {count} People",
+  "rounds.nobodyInvited": "Nobody to invite: the Team had no Members when this Round opened.",
+  "rounds.joinedAfterOpen.one": "{count} Person joined after this Round opened: invited from the next Round",
+  "rounds.joinedAfterOpen.other":
+    "{count} People joined after this Round opened: invited from the next Round",
   "rounds.resend": "Resend",
   "results.title": "Results",
   "results.roundDate": "Round {date}",
