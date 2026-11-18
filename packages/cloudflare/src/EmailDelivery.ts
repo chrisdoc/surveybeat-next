@@ -4,7 +4,6 @@ import {
   deriveInvitationToken,
   deriveTestInvitationToken,
   type DeliveryEventKind,
-  type EmailAddress,
   type EmailSender,
   type EmailTemplates,
   importInvitationTokenKey,
@@ -16,7 +15,6 @@ import {
   SendStore,
   type TestInvitationTokenRef,
   testInvitationLifetimeMs,
-  type TransactionalEmail,
 } from "@surveybeat/domain";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import * as Clock from "effect/Clock";
@@ -56,27 +54,6 @@ export const InvitationTokensLive = Layer.effect(
     };
   }).pipe(Effect.orDie),
 );
-
-export const queueEmail = (
-  organizations: Organizations,
-  queue: Cloudflare.Queues.WriteQueueClient,
-  request: {
-    readonly organizationId: OrganizationId;
-    readonly sendId: SendId;
-    readonly recipient: EmailAddress;
-    readonly email: TransactionalEmail;
-  },
-) =>
-  Effect.gen(function* () {
-    const state = yield* organizations
-      .getByName(request.organizationId)
-      .createEmailSend(request.sendId, request.recipient, request.email);
-    if (state._tag === "Pending") {
-      const message: EmailSendRequested = { organizationId: request.organizationId, sendId: request.sendId };
-      yield* queue.send(yield* Schema.encodeEffect(EmailSendRequested)(message));
-    }
-    return state;
-  });
 
 const decodeRequest = Schema.decodeUnknownOption(EmailSendRequested);
 

@@ -1,9 +1,7 @@
 import { describe, expect, it } from "@effect/vitest";
-import { EmailAddress, OrganizationId, SendId } from "@surveybeat/domain";
-import { RuntimeContext } from "alchemy/RuntimeContext";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
-import { handleDeadLetter, parseDeliveryEvent, queueEmail } from "./EmailDelivery.ts";
+import { handleDeadLetter, parseDeliveryEvent } from "./EmailDelivery.ts";
 
 // Shapes from https://developers.cloudflare.com/email-service/reference/event-subscriptions/
 const event = (type: string, payload: Record<string, unknown>) => ({
@@ -120,43 +118,6 @@ describe("handleDeadLetter", () => {
       yield* handleDeadLetter(organizations as never, message as never);
       expect(called).toBe(0);
       expect(acked).toBe(1);
-    });
-  });
-});
-
-describe("queueEmail", () => {
-  it.effect("creates the send and enqueues it once, and enqueues nothing for a settled send", () => {
-    const created: Array<string> = [];
-    const sent: Array<unknown> = [];
-    let settle = false;
-    const organizations = {
-      getByName: () => ({
-        createEmailSend: (sendId: string) => {
-          created.push(sendId);
-          return Effect.succeed(settle ? { _tag: "Sent" } : { _tag: "Pending" });
-        },
-      }),
-    };
-    const queue = {
-      send: (body: unknown) => {
-        sent.push(body);
-        return Effect.void;
-      },
-    };
-    const request = {
-      organizationId: OrganizationId.make("org-1"),
-      sendId: SendId.make("send-1"),
-      recipient: EmailAddress.make("a@b.co"),
-      email: { subject: "Hi", html: "<p>Hi</p>", text: "Hi" } as never,
-    };
-
-    return Effect.gen(function* () {
-      const runtime = Effect.provideService(RuntimeContext, {} as never);
-      yield* queueEmail(organizations as never, queue as never, request).pipe(runtime);
-      settle = true;
-      yield* queueEmail(organizations as never, queue as never, request).pipe(runtime);
-      expect(created).toEqual(["send-1", "send-1"]);
-      expect(sent).toHaveLength(1);
     });
   });
 });

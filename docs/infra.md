@@ -67,7 +67,7 @@ The Main Worker serves `/auth/login`, `/auth/email-code`, `/auth/email-code/veri
 
 **Organization admins** are held in the Organization's Durable Object (`person.organization_admin`) and nowhere else (ADR 0003). There is no outward role to keep in step: the auth layer knows who signed in, the Organization knows what they may do.
 
-**Teams and People** (`/api/*`, `packages/cloudflare/src/DirectoryHandlers.ts`, rules in `packages/domain/src/people/Directory.ts`, permissions in `Permissions.ts`). The Durable Object authorizes and commits each change in one transaction, then the Worker puts the D1 index and the email queue in step. Removing a Person marks them removed in the Durable Object (the per-request check denies them at once), deletes their `person_index` row, and ends their Memberships, with history kept.
+**Teams and People** (`/api/*`, `packages/cloudflare/src/DirectoryHandlers.ts`, rules in `packages/domain/src/people/Directory.ts`, permissions in `Permissions.ts`). The Durable Object authorizes and commits each change in one transaction, and records each new email in its outbox; the Worker then puts the D1 index in step, and the outbox puts the email on the email queue. Removing a Person marks them removed in the Durable Object (the per-request check denies them at once), deletes their `person_index` row, and ends their Memberships, with history kept.
 
 **D1 index** (`d1-migrations/0003_people_index.sql`): `organization_index` (Organization name), `person_index` (auth user → Persons; email → Organizations for Persons not yet linked; emails normalised), and `organization_claim` (one created Organization per auth user, which makes creation idempotent).
 

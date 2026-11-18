@@ -1,42 +1,15 @@
 import type * as Cloudflare from "@alchemy.run/cloudflare";
-import {
-  EmailAddress,
-  MembershipId,
-  OrganizationId,
-  PersonId,
-  PulseId,
-  type ResendResult,
-  SendId,
-  TeamId,
-  TimeZone,
-} from "@surveybeat/domain";
+import { EmailAddress, MembershipId, PersonId, PulseId, SendId, TeamId, TimeZone } from "@surveybeat/domain";
 import * as Clock from "effect/Clock";
 import * as Effect from "effect/Effect";
 import { HttpServerRequest } from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as Schedule from "effect/Schedule";
-import * as Schema from "effect/Schema";
-import { EmailSendRequested } from "./Email.ts";
 import type { Organizations } from "./EmailDelivery.ts";
 
 export const RESEND_EMAIL_TEST_ROUTE = "/__test/resend-email";
 
-const enqueue = (queue: Cloudflare.Queues.WriteQueueClient, organizationId: string, result: ResendResult) =>
-  result._tag === "Accepted" && result.queue
-    ? Effect.flatMap(
-        Schema.encodeEffect(EmailSendRequested)({
-          organizationId: OrganizationId.make(organizationId),
-          sendId: result.status.sendId,
-        }),
-        (message) => queue.send(message),
-      )
-    : Effect.void;
-
-export const resendEmailTestRoutes = (
-  organizations: Organizations,
-  queue: Cloudflare.Queues.WriteQueueClient,
-  db: Cloudflare.D1.QueryDatabaseClient,
-) =>
+export const resendEmailTestRoutes = (organizations: Organizations, db: Cloudflare.D1.QueryDatabaseClient) =>
   Effect.gen(function* () {
     const request = yield* HttpServerRequest;
     const run = new URL(request.url, "http://localhost").searchParams.get("run") ?? "";
@@ -147,12 +120,9 @@ export const resendEmailTestRoutes = (
     const otherResend = yield* other.resendFailedEmail(otherAdmin, added, now);
 
     const first = yield* organization.resendFailedEmail(admin, added, now);
-    yield* enqueue(queue, organizationId, first);
     const second = yield* organization.resendFailedEmail(admin, added, now);
-    yield* enqueue(queue, organizationId, second);
 
     const adaResend = yield* organization.resendFailedEmail(admin, adaSend, now);
-    yield* enqueue(queue, organizationId, adaResend);
     const leadRoundView = yield* organization.viewRound(admin, teamId, roundId);
     const failedInvitationsAfter =
       leadRoundView._tag === "Viewed"

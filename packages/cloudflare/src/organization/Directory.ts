@@ -6,8 +6,6 @@ import {
   type DirectoryCommand,
   localeOr,
   localeOrNull,
-  type makeSendStore,
-  type FollowUp,
   PersonId,
   settingsView,
   TeamId,
@@ -20,26 +18,15 @@ import type { makeSqlRounds } from "../SqlRounds.ts";
 
 export const organizationDirectory = ({
   sql,
-  sends,
   rounds,
   directory,
 }: {
   sql: SqliteClient.SqliteClient;
-  sends: ReturnType<typeof makeSendStore>;
   rounds: ReturnType<typeof makeSqlRounds>;
   directory: ReturnType<typeof makeSqlDirectory>;
 }) => {
   const deleteTestSendsForPerson = (personId: PersonId) =>
     sql`DELETE FROM test_send WHERE person_id = ${personId}`.pipe(Effect.asVoid, Effect.orDie);
-
-  const pendingOnly = (followUps: ReadonlyArray<FollowUp>) =>
-    Effect.filter(followUps, (step) =>
-      step._tag === "QueueEmail"
-        ? sends
-            .get(step.sendId)
-            .pipe(Effect.map((record) => record._tag === "Some" && record.value.state._tag === "Pending"))
-        : Effect.succeed(true),
-    );
 
   return {
     create: (id: string, name: string) =>
@@ -117,7 +104,7 @@ export const organizationDirectory = ({
             }
             return {
               _tag: "Accepted",
-              followUps: yield* pendingOnly(decision.followUps),
+              followUps: decision.followUps,
             } satisfies CommandResult;
           }),
         )

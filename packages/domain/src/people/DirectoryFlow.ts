@@ -74,11 +74,6 @@ export class OrganizationDirectory extends Context.Service<
   OrganizationDirectoryShape
 >()("@surveybeat/domain/OrganizationDirectory") {}
 
-export class EmailOutbox extends Context.Service<
-  EmailOutbox,
-  { readonly queue: (organizationId: OrganizationId, sendId: SendId) => Effect.Effect<void> }
->()("@surveybeat/domain/EmailOutbox") {}
-
 export type DirectoryError =
   | Forbidden
   | TeamNotFound
@@ -128,8 +123,6 @@ const followUp = Effect.fnUntraced(function* (organizationId: OrganizationId, st
       });
     case "UnindexPerson":
       return yield* index.removePerson(organizationId, step.personId);
-    case "QueueEmail":
-      return yield* (yield* EmailOutbox).queue(organizationId, step.sendId);
   }
 });
 
@@ -176,7 +169,6 @@ export const resendFailedEmail = (member: Member, sendId: SendId) =>
       yield* Clock.currentTimeMillis,
     );
     if (result._tag === "Rejected") return yield* fail(result.rejection);
-    if (result.queue) yield* (yield* EmailOutbox).queue(member.organization.id, sendId);
     return result.status;
   });
 

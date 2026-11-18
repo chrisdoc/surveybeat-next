@@ -1,19 +1,15 @@
 import type * as Cloudflare from "@alchemy.run/cloudflare";
-import { EmailAddress, OrganizationId, SendId } from "@surveybeat/domain";
+import { EmailAddress, OrganizationId, PersonId, SendId } from "@surveybeat/domain";
 import * as Effect from "effect/Effect";
 import { HttpServerRequest } from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
-import { type Organizations, queueEmail } from "./EmailDelivery.ts";
+import type { Organizations } from "./EmailDelivery.ts";
 
 export const isTestStage = (stage: string): boolean => stage.startsWith("test_");
 
 export const TEST_ROUTES = "/__test/email";
 
-export const emailTestRoutes = (
-  organizations: Organizations,
-  queue: Cloudflare.Queues.WriteQueueClient,
-  db: Cloudflare.D1.QueryDatabaseClient,
-) =>
+export const emailTestRoutes = (organizations: Organizations, db: Cloudflare.D1.QueryDatabaseClient) =>
   Effect.gen(function* () {
     const request = yield* HttpServerRequest;
     const params = new URL(request.url, "http://localhost").searchParams;
@@ -28,17 +24,20 @@ export const emailTestRoutes = (
     const organizationId = OrganizationId.make(params.get("organization") ?? "");
     const sendId = SendId.make(params.get("send") ?? "");
     if (request.method === "POST") {
-      const state = yield* queueEmail(organizations, queue, {
+      const organization = organizations.getByName(organizationId);
+      yield* organization.createWithAdmin(
         organizationId,
-        sendId,
-        recipient: EmailAddress.make("ada@example.com"),
-        email: {
-          _tag: "AddedToTeam",
-          locale: "en",
-          teamName: "Platform",
-          leadName: "Grace Hopper",
-          signInUrl: "https://app.surveybeat.app/",
-        },
+        "Acme",
+        PersonId.make("admin-email-test"),
+        "admin@example.com",
+        "user_email_test",
+      );
+      const state = yield* organization.createEmailSend(sendId, EmailAddress.make("ada@example.com"), {
+        _tag: "AddedToTeam",
+        locale: "en",
+        teamName: "Platform",
+        leadName: "Grace Hopper",
+        signInUrl: "https://app.surveybeat.app/",
       });
       return yield* HttpServerResponse.json({ state });
     }

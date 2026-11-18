@@ -2,7 +2,6 @@ import { BetterAuth } from "@alchemy.run/better-auth";
 import { CloudflareD1 } from "@alchemy.run/better-auth/CloudflareD1";
 import * as Cloudflare from "@alchemy.run/cloudflare";
 import {
-  EmailOutbox,
   EmailSender,
   MembershipId,
   OrganizationDirectory,
@@ -34,7 +33,6 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 import * as Redacted from "effect/Redacted";
-import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 import { HttpServerRequest } from "effect/http/HttpServerRequest";
 import * as Etag from "effect/http/Etag";
@@ -60,14 +58,7 @@ import { cloudflareEmailSender } from "./CloudflareEmailSender.ts";
 import { Database } from "./Database.ts";
 import { REPAIR_PAGE_SIZE, repairWindow } from "./CronSweep.ts";
 import { directoryHandlers } from "./DirectoryHandlers.ts";
-import {
-  EmailEvents,
-  EmailQueue,
-  EmailQueueDlq,
-  EmailSendRequested,
-  SendEmail,
-  sendsRealEmail,
-} from "./Email.ts";
+import { EmailEvents, EmailQueue, EmailQueueDlq, SendEmail, sendsRealEmail } from "./Email.ts";
 import {
   handleDeadLetter,
   handleDeliveryEvent,
@@ -188,7 +179,6 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
     const rounds = durableObjectRounds(organizations);
     const actions = durableObjectActions(organizations);
     const notes = durableObjectNotes(organizations);
-    const emailWrites = yield* Cloudflare.Queues.WriteQueue(emailQueue);
 
     yield* Cloudflare.Workers.cron("0 0 * * *", () =>
       Effect.gen(function* () {
@@ -209,15 +199,6 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
 
     const services = Effect.gen(function* () {
       const runtime = yield* Effect.context<RuntimeContext>();
-      const outbox = EmailOutbox.of({
-        queue: (organizationId, sendId) =>
-          Schema.encodeEffect(EmailSendRequested)({ organizationId, sendId }).pipe(
-            Effect.flatMap((message) => emailWrites.send(message)),
-            Effect.provideContext(runtime),
-            Effect.asVoid,
-            Effect.orDie,
-          ),
-      });
       const sessions = betterAuthIdentityProvider({
         auth: yield* authInstance.auth,
         chosenOrganization: (sessionId) =>
@@ -266,7 +247,6 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
         Context.add(OrganizationRounds, rounds),
         Context.add(OrganizationActions, actions),
         Context.add(OrganizationNotes, notes),
-        Context.add(EmailOutbox, outbox),
         Context.add(
           NewIds,
           NewIds.of({
@@ -297,7 +277,7 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
     );
 
     const pages = pageRoutes(organizations, database);
-    const testRoutes = isTestStage(stage) ? emailTestRoutes(organizations, emailWrites, database) : undefined;
+    const testRoutes = isTestStage(stage) ? emailTestRoutes(organizations, database) : undefined;
 
     return {
       fetch: Effect.gen(function* () {
@@ -319,9 +299,8 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
           if (path === REVIEW_TEST_ROUTE) return yield* reviewTestRoutes(organizations);
           if (path === RESULT_RECOVERY_TEST_ROUTE) return yield* resultRecoveryTestRoutes(organizations);
           if (path === TEST_INVITATION_TEST_ROUTE)
-            return yield* testInvitationTestRoutes(organizations, emailWrites, database);
-          if (path === RESEND_EMAIL_TEST_ROUTE)
-            return yield* resendEmailTestRoutes(organizations, emailWrites, database);
+            return yield* testInvitationTestRoutes(organizations, database);
+          if (path === RESEND_EMAIL_TEST_ROUTE) return yield* resendEmailTestRoutes(organizations, database);
         }
 
         return yield* api;
@@ -335,7 +314,6 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
         Cloudflare.Queues.EventSourceLive,
         Cloudflare.D1.QueryDatabaseBinding,
         Cloudflare.Email.SendBinding,
-        Cloudflare.Queues.WriteQueueBinding,
         Cloudflare.Workers.CronEventSourceLive,
         OrganizationLive,
       ),

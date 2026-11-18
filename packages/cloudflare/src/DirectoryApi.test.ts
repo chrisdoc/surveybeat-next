@@ -97,9 +97,8 @@ describe("an Organization admin", () => {
       email: "grace@example.com",
       userId: null,
     });
-    expect(world.outbox.queued).toHaveLength(1);
     const sends = [...(world.durable.organizations.get(acme.id)?.sends.entries() ?? [])];
-    expect(sends.map(([sendId]) => sendId)).toEqual(world.outbox.queued.map(({ sendId }) => sendId));
+    expect(sends).toHaveLength(1);
     expect(sends[0]?.[1]).toEqual({
       recipient: "grace@example.com",
       email: {
@@ -290,8 +289,9 @@ describe("an Organization admin", () => {
 
 describe("a Lead", () => {
   it("adds members by email, sending the email once per Membership", async () => {
-    const { world, lead, teamId } = await setup();
-    const before = world.outbox.queued.length;
+    const { world, acme, lead, teamId } = await setup();
+    const sendCount = () => world.durable.organizations.get(acme.id)?.sends.size ?? 0;
+    const before = sendCount();
     expect(
       (await lead.call("POST", `/api/teams/${teamId}/members`, { email: "Linus@Example.com" })).status,
     ).toBe(204);
@@ -300,10 +300,10 @@ describe("a Lead", () => {
       "member ada@example.com",
       "member linus@example.com",
     ]);
-    expect(world.outbox.queued).toHaveLength(before + 1);
-    // Adding again changes nothing; the same send is handed to the queue again, which delivers it once.
+    expect(sendCount()).toBe(before + 1);
+    // Adding again changes nothing, and makes no second send for the same Membership.
     await lead.call("POST", `/api/teams/${teamId}/members`, { email: "linus@example.com" });
-    expect(world.outbox.queued.at(-1)).toEqual(world.outbox.queued.at(-2));
+    expect(sendCount()).toBe(before + 1);
     expect(await roster(lead, teamId)).toHaveLength(3);
   });
 
@@ -527,23 +527,23 @@ describe("resending a failed email (issue 159)", () => {
     code: "E_SENDER_NOT_VERIFIED",
     failedAt: 30,
   };
-  const queuedFor = (world: SignInWorld, sendId: SendId) =>
-    world.outbox.queued.filter((each) => each.sendId === sendId).length;
+  const stateOf = (world: SignInWorld, sendId: SendId) =>
+    [...world.durable.organizations.values()]
+      .find((organization) => organization.sends.has(sendId))
+      ?.sends.get(sendId)?.state;
   const resendPath = (sendId: SendId) => `/api/organization/failed-emails/${sendId}/resend`;
   const statusPath = (sendId: SendId) => `/api/organization/failed-emails/${sendId}`;
 
-  it("sends a failed email again for an admin, under the same id, a repeat changes nothing but the queue", async () => {
+  it("sends a failed email again for an admin, under the same id, and a repeat changes nothing", async () => {
     const { world, admin } = await setup();
     const sendId = failedTo(world, "ada@example.com", rejected);
-    const before = queuedFor(world, sendId);
 
     const queued = { status: 200, body: { sendId, state: { _tag: "Queued", attempts: 0, lastCode: null } } };
     expect(await admin.call("POST", resendPath(sendId))).toEqual(queued);
-    expect(queuedFor(world, sendId)).toBe(before + 1);
-    // A double click: the second request answers the same. It hands the still-waiting send to the queue again,
-    // in case the first enqueue was lost; delivery claims a send once, so it is still sent once.
+    expect(stateOf(world, sendId)).toMatchObject({ _tag: "Pending" });
+    // A double click: the second request answers the same and leaves the send pending, so it is sent once.
     expect(await admin.call("POST", resendPath(sendId))).toEqual(queued);
-    expect(queuedFor(world, sendId)).toBe(before + 2);
+    expect(stateOf(world, sendId)).toMatchObject({ _tag: "Pending" });
 
     // The send is pending again, so the failed list no longer shows it, and the status reads as queued.
     expect(await admin.call("GET", "/api/organization/failed-emails")).toEqual({
@@ -580,15 +580,14 @@ describe("resending a failed email (issue 159)", () => {
     });
   });
 
-  it("is refused to a Lead and to a member, who are not Organization admins, and queues nothing", async () => {
+  it("is refused to a Lead and to a member, who are not Organization admins, and changes nothing", async () => {
     const { world, lead, member } = await setup();
     const sendId = failedTo(world, "ada@example.com", rejected);
-    const before = queuedFor(world, sendId);
     for (const browser of [lead, member]) {
       expect((await browser.call("POST", resendPath(sendId))).status).toBe(403);
       expect((await browser.call("GET", statusPath(sendId))).status).toBe(403);
     }
-    expect(queuedFor(world, sendId)).toBe(before);
+    expect(stateOf(world, sendId)).toMatchObject({ _tag: "Failed" });
   });
 
   it("answers 404 for a send the Organization does not have, and for another Organization's send", async () => {
@@ -604,14 +603,14 @@ describe("resending a failed email (issue 159)", () => {
     await outsider.session();
     expect((await outsider.call("POST", resendPath(sendId))).status).toBe(404);
     expect((await outsider.call("GET", statusPath(sendId))).status).toBe(404);
-    // Acme's send is still failed, and was not queued by the other Organization's admin.
+    // Acme's send is still failed, and was not changed by the other Organization's admin.
     expect(await admin.call("GET", statusPath(sendId))).toMatchObject({
       status: 200,
       body: { state: { _tag: "Failed" } },
     });
   });
 
-  it("refuses to send again an email that was complained about, and queues nothing", async () => {
+  it("refuses to send again an email that was complained about, and changes nothing", async () => {
     const { world, admin } = await setup();
     const sendId = failedTo(world, "ada@example.com", {
       _tag: "Failed",
@@ -619,9 +618,7 @@ describe("resending a failed email (issue 159)", () => {
       code: null,
       failedAt: 40,
     });
-    const before = queuedFor(world, sendId);
     expect((await admin.call("POST", resendPath(sendId))).status).toBe(409);
-    expect(queuedFor(world, sendId)).toBe(before);
     expect(await admin.call("GET", statusPath(sendId))).toMatchObject({
       status: 200,
       body: { state: { _tag: "Failed", reason: "complained" } },
