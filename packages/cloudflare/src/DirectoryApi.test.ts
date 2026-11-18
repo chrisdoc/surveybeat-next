@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "@effect/vitest";
 import { type OrganizationId, type PersonId, SendId, type SendState } from "@surveybeat/domain";
-import { Browser, ORIGIN, SignInWorld } from "./auth/testing.ts";
+import { Browser, ORIGIN, SignInWorld } from "./testing.ts";
 
 /**
  * The directory API over HTTP: real handlers, the real domain rules and permission table, and

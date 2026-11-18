@@ -30,7 +30,7 @@ import { Option, Schema } from "effect";
 import * as Scene from "foldkit/scene";
 import { setup } from "foldkit/test/vitest";
 import { fromString } from "foldkit/url";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import {
   type Model,
   AddMember,
@@ -103,13 +103,7 @@ const decodeSendId = Schema.decodeSync(SendId);
 
 const makeUrl = (str: string) => Option.getOrThrow(fromString(str));
 
-beforeEach(() => {
-  // No browser language unless a test sets one, so a Person's language resolves to English.
-  vi.stubGlobal("navigator", { languages: [] });
-});
-
 afterEach(() => {
-  vi.unstubAllGlobals();
   setLocale("en");
 });
 
@@ -134,7 +128,7 @@ describe("App Scenes", () => {
       Scene.scene(
         { update, view },
         Scene.given({
-          ...initialModel(makeUrl("https://app.surveybeat.com/")),
+          ...initialModel(makeUrl("https://app.surveybeat.com/"), []),
           session: {
             _tag: "SignedOut",
             failed: false,
@@ -155,7 +149,7 @@ describe("App Scenes", () => {
       Scene.scene(
         { update, view },
         Scene.given({
-          ...initialModel(makeUrl("https://app.surveybeat.com/")),
+          ...initialModel(makeUrl("https://app.surveybeat.com/"), []),
           session: {
             _tag: "SignedOut",
             failed: false,
@@ -175,7 +169,7 @@ describe("App Scenes", () => {
       Scene.scene(
         { update, view },
         Scene.given({
-          ...initialModel(makeUrl("https://app.surveybeat.com/?signin=failed")),
+          ...initialModel(makeUrl("https://app.surveybeat.com/?signin=failed"), []),
           session: {
             _tag: "SignedOut",
             failed: true,
@@ -194,7 +188,7 @@ describe("App Scenes", () => {
       Scene.scene(
         { update, view },
         Scene.given({
-          ...initialModel(makeUrl("https://app.surveybeat.com/")),
+          ...initialModel(makeUrl("https://app.surveybeat.com/"), []),
           session: { _tag: "CreateOrganization", name: "", busy: false },
         }),
         Scene.expect(Scene.role("heading", { name: "Create an Organization" })).toExist(),
@@ -229,7 +223,7 @@ describe("App Scenes", () => {
       Scene.scene(
         { update, view },
         Scene.given({
-          ...initialModel(makeUrl("https://app.surveybeat.com/")),
+          ...initialModel(makeUrl("https://app.surveybeat.com/"), []),
           session: { _tag: "NotInOrganization" },
         }),
         Scene.expect(Scene.role("heading", { name: "You're not part of an Organization yet" })).toExist(),
@@ -243,7 +237,7 @@ describe("App Scenes", () => {
       Scene.scene(
         { update, view },
         Scene.given({
-          ...initialModel(makeUrl("https://app.surveybeat.com/")),
+          ...initialModel(makeUrl("https://app.surveybeat.com/"), []),
           session: {
             _tag: "ChooseOrganization",
             organizations: [orgA, orgB],
@@ -334,7 +328,7 @@ describe("App Scenes", () => {
       Scene.scene(
         { update, view },
         Scene.given({
-          ...initialModel(makeUrl("https://app.surveybeat.com/")),
+          ...initialModel(makeUrl("https://app.surveybeat.com/"), []),
           session: signedInAdmin,
           ...home("closed", "committed"),
         }),
@@ -350,7 +344,7 @@ describe("App Scenes", () => {
       Scene.scene(
         { update, view },
         Scene.given({
-          ...initialModel(makeUrl("https://app.surveybeat.com/")),
+          ...initialModel(makeUrl("https://app.surveybeat.com/"), []),
           session: signedInAdmin,
           ...home("open", "done"),
         }),
@@ -364,7 +358,7 @@ describe("App Scenes", () => {
       Scene.scene(
         { update, view },
         Scene.given({
-          ...initialModel(makeUrl("https://app.surveybeat.com/")),
+          ...initialModel(makeUrl("https://app.surveybeat.com/"), []),
           session: signedInAdmin,
           ...home("shared", "done"),
         }),
@@ -378,7 +372,7 @@ describe("App Scenes", () => {
       Scene.scene(
         { update, view },
         Scene.given({
-          ...initialModel(makeUrl("https://app.surveybeat.com/")),
+          ...initialModel(makeUrl("https://app.surveybeat.com/"), []),
           session: signedInAdmin,
           teams: {
             _tag: "Loaded",
@@ -397,7 +391,7 @@ describe("App Scenes", () => {
       Scene.scene(
         { update, view },
         Scene.given({
-          ...initialModel(makeUrl("https://app.surveybeat.com/")),
+          ...initialModel(makeUrl("https://app.surveybeat.com/"), []),
           session: signedInAdmin,
           teams: { _tag: "Loaded", teams: [] },
         }),
@@ -425,7 +419,7 @@ describe("App Scenes", () => {
       Scene.scene(
         { update, view },
         Scene.given({
-          ...initialModel(makeUrl("https://app.surveybeat.com/")),
+          ...initialModel(makeUrl("https://app.surveybeat.com/"), []),
           session: signedInAdmin,
           teams: { _tag: "Loaded", teams: [teamSummary] },
         }),
@@ -502,7 +496,7 @@ describe("App Scenes", () => {
       Scene.scene(
         { update, view },
         Scene.given({
-          ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}`)),
+          ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}`), []),
           session: signedInAdmin,
           teamDetail: { _tag: "Loaded", detail },
           renameName: detail.team.name,
@@ -591,7 +585,7 @@ describe("App Scenes", () => {
       Scene.scene(
         { update, view },
         Scene.given({
-          ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}`)),
+          ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}`), []),
           session: signedInAdmin,
           teamDetail: { _tag: "Loaded", detail },
         }),
@@ -648,7 +642,7 @@ describe("App Scenes", () => {
         Scene.scene(
           { update, view },
           Scene.given({
-            ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}`)),
+            ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}`), []),
             session: signedInAdmin,
             teamDetail: { _tag: "Loaded", detail },
             pulses: {
@@ -672,7 +666,7 @@ describe("App Scenes", () => {
         Scene.scene(
           { update, view },
           Scene.given({
-            ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}`)),
+            ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}`), []),
             session: signedInAdmin,
             teamDetail: { _tag: "Loaded", detail },
             pulses: {
@@ -710,7 +704,7 @@ describe("App Scenes", () => {
         Scene.scene(
           { update, view },
           Scene.given({
-            ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}`)),
+            ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}`), []),
             session: signedInAdmin,
             teamDetail: { _tag: "Loaded", detail },
             pulses: {
@@ -807,7 +801,7 @@ describe("App Scenes", () => {
         Scene.scene(
           { update, view },
           Scene.given({
-            ...initialModel(teamUrl),
+            ...initialModel(teamUrl, []),
             session: signedInAdmin,
             teamDetail: { _tag: "Loaded", detail: detailWith(true) },
             teamOverview: { _tag: "Loaded", overview },
@@ -846,7 +840,7 @@ describe("App Scenes", () => {
         Scene.scene(
           { update, view },
           Scene.given({
-            ...initialModel(teamUrl),
+            ...initialModel(teamUrl, []),
             session: signedInAdmin,
             teamDetail: { _tag: "Loaded", detail: detailWith(false) },
             teamOverview: { _tag: "Loaded", overview },
@@ -859,7 +853,7 @@ describe("App Scenes", () => {
         Scene.scene(
           { update, view },
           Scene.given({
-            ...initialModel(teamUrl),
+            ...initialModel(teamUrl, []),
             session: signedInAdmin,
             teamDetail: { _tag: "Loaded", detail: detailWith(true) },
             teamOverview: { _tag: "Failed", failure: "Forbidden" },
@@ -870,7 +864,7 @@ describe("App Scenes", () => {
 
       it("ignores an overview that belongs to a Team the user has navigated away from", () => {
         const model = {
-          ...initialModel(teamUrl),
+          ...initialModel(teamUrl, []),
           session: signedInAdmin,
           teamDetail: { _tag: "Loaded" as const, detail: detailWith(true) },
         };
@@ -891,7 +885,7 @@ describe("App Scenes", () => {
 
       it("loads the overview alongside the Team when the Team page opens", () => {
         const result = update(
-          { ...initialModel(teamUrl), session: signedInAdmin },
+          { ...initialModel(teamUrl, []), session: signedInAdmin },
           Message.UrlChanged({ url: teamUrl }),
         );
         expect(result.model.teamOverview).toEqual({ _tag: "Loading" });
@@ -906,7 +900,7 @@ describe("App Scenes", () => {
         Scene.scene(
           { update, view },
           Scene.given({
-            ...initialModel(teamUrl),
+            ...initialModel(teamUrl, []),
             session: signedInAdmin,
             teamDetail: { _tag: "Loaded", detail: detailWith(true) },
             teamOverview: { _tag: "Loaded", overview },
@@ -927,7 +921,7 @@ describe("App Scenes", () => {
         Scene.scene(
           { update, view },
           Scene.given({
-            ...initialModel(teamUrl),
+            ...initialModel(teamUrl, []),
             session: signedInAdmin,
             teamDetail: { _tag: "Loaded", detail: detailWith(false) },
             teamOverview: { _tag: "Loaded", overview },
@@ -1013,7 +1007,7 @@ describe("App Scenes", () => {
     };
 
     const loaded = (rounds: ReadonlyArray<HistoryRound>, keptAnswers: KeptAnswers, cleared = false) => ({
-      ...initialModel(historyUrl),
+      ...initialModel(historyUrl, []),
       session: signedInAdmin,
       history: {
         _tag: "Loaded" as const,
@@ -1025,7 +1019,7 @@ describe("App Scenes", () => {
 
     it("loads the history when the screen opens", () => {
       const result = update(
-        { ...initialModel(makeUrl("https://app.surveybeat.com/teams")), session: signedInAdmin },
+        { ...initialModel(makeUrl("https://app.surveybeat.com/teams"), []), session: signedInAdmin },
         Message.UrlChanged({ url: historyUrl }),
       );
       expect(result.model.history).toEqual({ _tag: "Loading" });
@@ -1033,7 +1027,10 @@ describe("App Scenes", () => {
     });
 
     it("ignores a history response after the user has left the screen", () => {
-      const model = { ...initialModel(makeUrl("https://app.surveybeat.com/teams")), session: signedInAdmin };
+      const model = {
+        ...initialModel(makeUrl("https://app.surveybeat.com/teams"), []),
+        session: signedInAdmin,
+      };
       const stale = update(
         model,
         Message.GotMyHistory({ outcome: { _tag: "Success", history: { rounds: [shownRound] }, kept } }),
@@ -1140,7 +1137,7 @@ describe("App Scenes", () => {
       Scene.scene(
         { update, view },
         Scene.given({
-          ...initialModel(makeUrl("https://app.surveybeat.com/teams")),
+          ...initialModel(makeUrl("https://app.surveybeat.com/teams"), []),
           session: signedInAdmin,
           teams: { _tag: "Loaded", teams: [] },
         }),
@@ -1170,7 +1167,7 @@ describe("App Scenes", () => {
       Scene.scene(
         { update, view },
         Scene.given({
-          ...initialModel(makeUrl("https://app.surveybeat.com/settings")),
+          ...initialModel(makeUrl("https://app.surveybeat.com/settings"), []),
           session: signedInAdmin,
           settings: { _tag: "Loaded", settings },
           size: "4",
@@ -1218,7 +1215,7 @@ describe("App Scenes", () => {
       Scene.scene(
         { update, view },
         Scene.given({
-          ...initialModel(makeUrl("https://app.surveybeat.com/settings")),
+          ...initialModel(makeUrl("https://app.surveybeat.com/settings"), []),
           session: signedInAdmin,
           settings: { _tag: "Loaded", settings },
           size: "4",
@@ -1233,7 +1230,7 @@ describe("App Scenes", () => {
       Scene.scene(
         { update, view },
         Scene.given({
-          ...initialModel(makeUrl("https://app.surveybeat.com/settings")),
+          ...initialModel(makeUrl("https://app.surveybeat.com/settings"), []),
           session: signedInAdmin,
           settings: { _tag: "Loaded", settings },
           size: "4",
@@ -1281,7 +1278,7 @@ describe("App Scenes", () => {
       Scene.scene(
         { update, view },
         Scene.given({
-          ...initialModel(makeUrl("https://app.surveybeat.com/settings")),
+          ...initialModel(makeUrl("https://app.surveybeat.com/settings"), []),
           session: signedInAdmin,
           settings: { _tag: "Loaded", settings },
           size: "4",
@@ -1304,7 +1301,7 @@ describe("App Scenes", () => {
         resendable,
       });
       const listedModel = (resendable = true, resends: Record<string, FailedEmailResend> = {}) => ({
-        ...initialModel(makeUrl("https://app.surveybeat.com/settings")),
+        ...initialModel(makeUrl("https://app.surveybeat.com/settings"), []),
         session: signedInAdmin,
         settings: { _tag: "Loaded" as const, settings },
         size: "4",
@@ -1466,7 +1463,7 @@ describe("App Scenes", () => {
 
     it("loads the failed emails when the settings screen opens", () => {
       const result = update(
-        { ...initialModel(makeUrl("https://app.surveybeat.com/teams")), session: signedInAdmin },
+        { ...initialModel(makeUrl("https://app.surveybeat.com/teams"), []), session: signedInAdmin },
         Message.UrlChanged({ url: makeUrl("https://app.surveybeat.com/settings") }),
       );
       expect(result.model.failedEmails).toEqual({ _tag: "Loading" });
@@ -1495,7 +1492,7 @@ describe("App Scenes", () => {
       Scene.scene(
         { update, view },
         Scene.given({
-          ...initialModel(makeUrl("https://app.surveybeat.com/settings")),
+          ...initialModel(makeUrl("https://app.surveybeat.com/settings"), []),
           session: signedInAdmin,
           settings: { _tag: "Loaded", settings },
           size: "4",
@@ -1527,7 +1524,7 @@ describe("App Scenes", () => {
       Scene.scene(
         { update, view },
         Scene.given({
-          ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}/pulses`)),
+          ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}/pulses`), []),
           session: signedInAdmin,
           pulses: {
             _tag: "Loaded",
@@ -1554,7 +1551,7 @@ describe("App Scenes", () => {
       Scene.scene(
         { update, view },
         Scene.given({
-          ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}/pulses`)),
+          ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}/pulses`), []),
           session: signedInAdmin,
           pulses: {
             _tag: "Loaded",
@@ -1673,7 +1670,7 @@ describe("App Scenes", () => {
       Scene.scene(
         { update, view },
         Scene.given({
-          ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}/pulses/${pulseId}`)),
+          ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}/pulses/${pulseId}`), []),
           session: signedInAdmin,
           pulseDetail: { _tag: "Loaded", detail },
           settingsName: detail.settings.name,
@@ -1761,7 +1758,7 @@ describe("App Scenes", () => {
       templateQuestions: [],
     };
     const editorModel = () => ({
-      ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}/pulses/${pulseId}`)),
+      ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}/pulses/${pulseId}`), []),
       session: signedInAdmin,
       pulseDetail: { _tag: "Loaded" as const, detail },
       settingsName: detail.settings.name,
@@ -2061,7 +2058,7 @@ describe("App Scenes", () => {
       Scene.scene(
         { update, view },
         Scene.given({
-          ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}/rounds/${roundId}`)),
+          ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}/rounds/${roundId}`), []),
           session: signedInAdmin,
           results: { _tag: "Loaded", result: mockResult },
           teamDetail: { _tag: "Loaded", detail: leadTeamDetail(teamId) },
@@ -2129,7 +2126,7 @@ describe("App Scenes", () => {
       Scene.scene(
         { update, view },
         Scene.given({
-          ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}/rounds/${roundId}`)),
+          ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}/rounds/${roundId}`), []),
           session: signedInAdmin,
           results: { _tag: "Loaded", result: mockSubNResult },
           teamDetail: { _tag: "Loaded", detail: leadTeamDetail(teamId) },
@@ -2165,7 +2162,7 @@ describe("App Scenes", () => {
       Scene.scene(
         { update, view },
         Scene.given({
-          ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}/rounds/${roundId}`)),
+          ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}/rounds/${roundId}`), []),
           session: signedInAdmin,
           results: { _tag: "Loaded", result: mockOpenResult },
         }),
@@ -2241,7 +2238,7 @@ describe("App Scenes", () => {
       Scene.scene(
         { update, view },
         Scene.given({
-          ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}/rounds/${roundId}`)),
+          ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}/rounds/${roundId}`), []),
           session: signedInAdmin,
           results: { _tag: "Loaded", result: mockResult },
           teamDetail: { _tag: "Loaded", detail: mockTeamDetail },
@@ -2288,7 +2285,7 @@ describe("App Scenes", () => {
     it("asks before dropping an action, and cancelling leaves it untouched", () => {
       const actionId = Schema.decodeSync(ActionId)("action-1");
       const base = {
-        ...initialModel(makeUrl("https://app.surveybeat.com/teams/team-1/rounds/round-1")),
+        ...initialModel(makeUrl("https://app.surveybeat.com/teams/team-1/rounds/round-1"), []),
         session: signedInAdmin,
       };
       const asked = update(base, Message.AskDropAction({ actionId }));
@@ -2330,7 +2327,7 @@ describe("App Scenes", () => {
       Scene.scene(
         { update, view },
         Scene.given({
-          ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}/rounds/${roundId}`)),
+          ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}/rounds/${roundId}`), []),
           session: signedInAdmin,
           results: { _tag: "Loaded", result: mockSubNResult },
           teamDetail: { _tag: "Loaded", detail: leadTeamDetail(teamId) },
@@ -2405,7 +2402,7 @@ describe("App Scenes", () => {
 
     const trendScene = (rounds: number) =>
       Scene.given({
-        ...initialModel(makeUrl("https://app.surveybeat.com/teams/team-1/rounds/round-trend")),
+        ...initialModel(makeUrl("https://app.surveybeat.com/teams/team-1/rounds/round-trend"), []),
         session: signedInAdmin,
         results: { _tag: "Loaded" as const, result: trendResult(rounds) },
         teamDetail: { _tag: "Loaded" as const, detail: leadTeamDetail(decodeTeamId("team-1")) },
@@ -2434,7 +2431,7 @@ describe("App Scenes", () => {
 
     const bareScene = (result: RoundResult) =>
       Scene.given({
-        ...initialModel(makeUrl("https://app.surveybeat.com/teams/team-1/rounds/round-bare")),
+        ...initialModel(makeUrl("https://app.surveybeat.com/teams/team-1/rounds/round-bare"), []),
         session: signedInAdmin,
         results: { _tag: "Loaded" as const, result },
         teamDetail: { _tag: "Loaded" as const, detail: leadTeamDetail(decodeTeamId("team-1")) },
@@ -2533,7 +2530,7 @@ describe("App Scenes", () => {
 
       const flaggedScene = (result: RoundResult) =>
         Scene.given({
-          ...initialModel(makeUrl("https://app.surveybeat.com/teams/team-1/rounds/round-flagged")),
+          ...initialModel(makeUrl("https://app.surveybeat.com/teams/team-1/rounds/round-flagged"), []),
           session: signedInAdmin,
           results: { _tag: "Loaded", result },
           teamDetail: { _tag: "Loaded", detail: leadTeamDetail(decodeTeamId("team-1")) },
@@ -2627,7 +2624,7 @@ describe("App Scenes", () => {
       });
 
       const givenResults = (result: RoundResult, yourRole: "lead" | "member") => ({
-        ...initialModel(url),
+        ...initialModel(url, []),
         session: signedInAdmin,
         results: { _tag: "Loaded" as const, result },
         teamDetail: { _tag: "Loaded" as const, detail: teamDetail(yourRole) },
@@ -2857,7 +2854,7 @@ describe("App Scenes", () => {
       Scene.scene(
         { update, view },
         Scene.given({
-          ...initialModel(url),
+          ...initialModel(url, []),
           session: signedInAdmin,
           results: { _tag: "Loaded", result: closedResult },
           teamDetail: { _tag: "Loaded", detail: teamDetailFor("lead") },
@@ -2886,7 +2883,7 @@ describe("App Scenes", () => {
       Scene.scene(
         { update, view },
         Scene.given({
-          ...initialModel(url),
+          ...initialModel(url, []),
           session: signedInAdmin,
           results: { _tag: "Loaded", result: closedResult },
           teamDetail: { _tag: "Loaded", detail: teamDetailFor("member") },
@@ -2905,7 +2902,7 @@ describe("App Scenes", () => {
       Scene.scene(
         { update, view },
         Scene.given({
-          ...initialModel(url),
+          ...initialModel(url, []),
           session: signedInAdmin,
           results: { _tag: "Loaded", result: closedResult },
           teamDetail: { _tag: "Loaded", detail: teamDetailFor("member") },
@@ -2924,7 +2921,7 @@ describe("App Scenes", () => {
       Scene.scene(
         { update, view },
         Scene.given({
-          ...initialModel(url),
+          ...initialModel(url, []),
           session: signedInAdmin,
           results: { _tag: "Loaded", result: closedResult },
           teamDetail: { _tag: "Loaded", detail: teamDetailFor("lead") },
@@ -2950,7 +2947,7 @@ describe("App Scenes", () => {
       Scene.scene(
         { update, view },
         Scene.given({
-          ...initialModel(url),
+          ...initialModel(url, []),
           session: signedInAdmin,
           results: { _tag: "Loaded", result: openResult },
           teamDetail: { _tag: "Loaded", detail: teamDetailFor("lead") },
@@ -2969,7 +2966,7 @@ describe("App Scenes", () => {
       Scene.scene(
         { update, view },
         Scene.given({
-          ...initialModel(url),
+          ...initialModel(url, []),
           session: signedInAdmin,
           results: { _tag: "Loaded", result: closedResult },
           teamDetail: { _tag: "Loaded", detail: teamDetailFor("lead") },
@@ -3034,7 +3031,7 @@ describe("App Scenes", () => {
         Scene.scene(
           { update, view },
           Scene.given({
-            ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}/rounds/${roundId}`)),
+            ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}/rounds/${roundId}`), []),
             session: signedInAdmin,
             results: { _tag: "Loaded", result: readyResult },
             teamDetail: { _tag: "Loaded", detail: leadTeamDetail(teamId) },
@@ -3063,7 +3060,7 @@ describe("App Scenes", () => {
         Scene.scene(
           { update, view },
           Scene.given({
-            ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}/rounds/${roundId}`)),
+            ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}/rounds/${roundId}`), []),
             session: signedInAdmin,
             results: { _tag: "Loaded", result: readyResult },
             teamDetail: { _tag: "Loaded", detail: leadTeamDetail(teamId) },
@@ -3086,7 +3083,7 @@ describe("App Scenes", () => {
         Scene.scene(
           { update, view },
           Scene.given({
-            ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}/rounds/${roundId}`)),
+            ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}/rounds/${roundId}`), []),
             session: signedInAdmin,
             results: { _tag: "Loaded", result: readyResult },
             teamDetail: { _tag: "Loaded", detail: leadTeamDetail(teamId, "member") },
@@ -3128,7 +3125,7 @@ describe("App Scenes", () => {
         Scene.scene(
           { update, view },
           Scene.given({
-            ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}/rounds/${roundId}`)),
+            ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}/rounds/${roundId}`), []),
             session: signedInAdmin,
             results: { _tag: "Loaded", result: failedResult },
             teamDetail: { _tag: "Loaded", detail: leadTeamDetail(teamId) },
@@ -3158,7 +3155,7 @@ describe("App Scenes", () => {
         Scene.scene(
           { update, view },
           Scene.given({
-            ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}/rounds/${roundId}`)),
+            ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}/rounds/${roundId}`), []),
             session: signedInAdmin,
             results: { _tag: "Loaded", result: failedResult },
             teamDetail: { _tag: "Loaded", detail: leadTeamDetail(teamId) },
@@ -3180,7 +3177,7 @@ describe("App Scenes", () => {
         Scene.scene(
           { update, view },
           Scene.given({
-            ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}/rounds/${roundId}`)),
+            ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}/rounds/${roundId}`), []),
             session: signedInAdmin,
             results: { _tag: "Loaded", result: withoutFlag(failedResult) },
             teamDetail: { _tag: "Loaded", detail: leadTeamDetail(teamId, "member") },
@@ -3258,7 +3255,7 @@ describe("App Scenes", () => {
       createdAt: 1731100000000,
     };
     const given = (yourRole: "lead" | "member" | null) => ({
-      ...initialModel(url),
+      ...initialModel(url, []),
       session: signedInAdmin,
       teamDetail: { _tag: "Loaded" as const, detail: teamAs(yourRole) },
       rounds: { _tag: "Loaded" as const, list: rounds },
@@ -3473,7 +3470,7 @@ describe("App Scenes", () => {
       Scene.scene(
         { update, view },
         Scene.given({
-          ...initialModel(makeUrl("https://app.surveybeat.com/privacy")),
+          ...initialModel(makeUrl("https://app.surveybeat.com/privacy"), []),
           session: {
             _tag: "SignedOut",
             failed: false,
@@ -3502,7 +3499,7 @@ describe("App Scenes", () => {
       Scene.scene(
         { update, view },
         Scene.given({
-          ...initialModel(makeUrl("https://app.surveybeat.com/privacy")),
+          ...initialModel(makeUrl("https://app.surveybeat.com/privacy"), []),
           session: signedInAdmin,
         }),
         Scene.expect(Scene.role("link", { name: "Teams" })).toExist(),
@@ -3516,7 +3513,7 @@ describe("App Scenes", () => {
       Scene.scene(
         { update, view },
         Scene.given({
-          ...initialModel(makeUrl("https://app.surveybeat.com/")),
+          ...initialModel(makeUrl("https://app.surveybeat.com/"), []),
           session: {
             _tag: "SignedOut",
             failed: false,
@@ -3540,7 +3537,7 @@ describe("App Scenes", () => {
       Scene.scene(
         { update, view },
         Scene.given({
-          ...initialModel(makeUrl("https://app.surveybeat.com/")),
+          ...initialModel(makeUrl("https://app.surveybeat.com/"), []),
           session: {
             _tag: "SignedOut",
             failed: false,
@@ -3571,7 +3568,7 @@ describe("App Scenes", () => {
       Scene.scene(
         { update, view },
         Scene.given({
-          ...initialModel(teamsUrl),
+          ...initialModel(teamsUrl, []),
           session: signedInAdmin,
           teams: { _tag: "Loaded", teams: [] },
         }),
@@ -3595,7 +3592,7 @@ describe("App Scenes", () => {
       Scene.scene(
         { update, view },
         Scene.given({
-          ...initialModel(makeUrl("https://app.surveybeat.com/settings")),
+          ...initialModel(makeUrl("https://app.surveybeat.com/settings"), []),
           session: signedInAdmin,
           settings: { _tag: "Loaded", settings },
           size: "4",
@@ -3607,7 +3604,7 @@ describe("App Scenes", () => {
 
     describe("localeOf", () => {
       const modelWith = (browser: Locale | null, session: SessionModel) => ({
-        ...initialModel(teamsUrl),
+        ...initialModel(teamsUrl, []),
         browserLocale: browser,
         session,
       });
@@ -3637,7 +3634,7 @@ describe("App Scenes", () => {
   describe("Header and footer", () => {
     const teamsUrl = makeUrl("https://app.surveybeat.com/teams");
     const teamsModel = (session: SessionModel = signedInAdmin) => ({
-      ...initialModel(teamsUrl),
+      ...initialModel(teamsUrl, []),
       session,
       teams: { _tag: "Loaded" as const, teams: [] },
     });
@@ -3646,7 +3643,7 @@ describe("App Scenes", () => {
       Scene.scene(
         { update, view },
         Scene.given({
-          ...initialModel(makeUrl("https://app.surveybeat.com/history")),
+          ...initialModel(makeUrl("https://app.surveybeat.com/history"), []),
           session: signedInAdmin,
         }),
         Scene.expect(Scene.role("link", { name: "My history", current: "page" })).toExist(),
@@ -3658,7 +3655,7 @@ describe("App Scenes", () => {
       Scene.scene(
         { update, view },
         Scene.given({
-          ...initialModel(makeUrl("https://app.surveybeat.com/teams/team-1/pulses")),
+          ...initialModel(makeUrl("https://app.surveybeat.com/teams/team-1/pulses"), []),
           session: signedInAdmin,
         }),
         Scene.expect(Scene.role("link", { name: "Teams", current: "page" })).toExist(),
@@ -3699,7 +3696,7 @@ describe("App Scenes", () => {
       Scene.scene(
         { update, view },
         Scene.given({
-          ...initialModel(makeUrl("https://app.surveybeat.com/privacy")),
+          ...initialModel(makeUrl("https://app.surveybeat.com/privacy"), []),
           session: {
             _tag: "SignedOut",
             failed: false,
@@ -3718,7 +3715,7 @@ describe("App Scenes", () => {
       Scene.scene(
         { update, view },
         Scene.given({
-          ...initialModel(makeUrl("https://app.surveybeat.com/privacy")),
+          ...initialModel(makeUrl("https://app.surveybeat.com/privacy"), []),
           session: signedInAdmin,
         }),
         Scene.expect(Scene.role("heading", { name: "Privacy at SurveyBeat" })).toExist(),
@@ -3837,7 +3834,7 @@ describe("App Scenes", () => {
       },
     };
     const inOrganization = (url: string, extra: Partial<Model> = {}): Model => ({
-      ...initialModel(makeUrl(url)),
+      ...initialModel(makeUrl(url), []),
       session: signedInAdmin,
       ...extra,
     });
@@ -3964,7 +3961,7 @@ describe("App Scenes", () => {
 
     it("keeps the session and Privacy screens' own titles, all naming SurveyBeat", () => {
       const signedOut = (url: string): Model => ({
-        ...initialModel(makeUrl(url)),
+        ...initialModel(makeUrl(url), []),
         session: {
           _tag: "SignedOut",
           failed: false,
@@ -3977,19 +3974,19 @@ describe("App Scenes", () => {
       });
       expect(titleOf(signedOut("https://app.surveybeat.com/"))).toBe("Sign in to SurveyBeat");
       expect(titleOf(signedOut("https://app.surveybeat.com/privacy"))).toBe("Privacy at SurveyBeat");
-      expect(titleOf({ ...initialModel(teamsUrl), session: { _tag: "Loading" } })).toBe("SurveyBeat");
+      expect(titleOf({ ...initialModel(teamsUrl, []), session: { _tag: "Loading" } })).toBe("SurveyBeat");
       expect(
         titleOf({
-          ...initialModel(teamsUrl),
+          ...initialModel(teamsUrl, []),
           session: { _tag: "CreateOrganization", name: "", busy: false },
         }),
       ).toBe("Create an Organization — SurveyBeat");
-      expect(titleOf({ ...initialModel(teamsUrl), session: { _tag: "NotInOrganization" } })).toBe(
+      expect(titleOf({ ...initialModel(teamsUrl, []), session: { _tag: "NotInOrganization" } })).toBe(
         "You're not part of an Organization yet — SurveyBeat",
       );
       expect(
         titleOf({
-          ...initialModel(teamsUrl),
+          ...initialModel(teamsUrl, []),
           session: { _tag: "ChooseOrganization", organizations: [], busy: false },
         }),
       ).toBe("Choose an Organization — SurveyBeat");

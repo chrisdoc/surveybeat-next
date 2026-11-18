@@ -1,6 +1,6 @@
 # Lint scope
 
-`oxlint.config.ts` replaces the old `.oxlintrc.json`. It extends `ultracite/oxlint/core` 8.1.1, the config the rat-stack reference uses, and loads the plugins #205 names: `surveybeat`, `no-comments`, `foldkit` (scoped to the Foldkit app), `anti-slop`, `anti-slop-effect`, `effect-tests`, `patterns`, and `xstate-effect` (from `@xstate/effect/oxlint`). 421 rules run at `error`; the ones that are not at `error` are listed below by name.
+`oxlint.config.ts` replaces the old `.oxlintrc.json`. It extends `ultracite/oxlint/core` 8.1.1, the config the rat-stack reference uses, and loads the plugins #205 names: `surveybeat`, `no-comments`, `foldkit` (scoped to the Foldkit app), `anti-slop`, `anti-slop-effect`, `effect-tests`, `patterns`, and `xstate-effect` (from `@xstate/effect/oxlint`), plus three plugins from `@interfere/landmines`: `landmines-testing`, `landmines-structure` and `landmines-types`. 429 rules run at `error`; the ones that are not at `error` are listed below by name.
 
 ## Adopted surface
 
@@ -9,6 +9,8 @@
 - Vendored anti-slop: `tools/oxlint/anti-slop/` (18 generic rules and 5 Effect rules, MIT, `UPSTREAM.md` records `dmmulroy/anti-slop` at `c44ef22ca116d0ba62a3ff663a0bd13a3f3fa40b`).
 - `effect-tests/no-manual-effect-runtime-in-tests` at `error`. The three `Effect.runSync` calls in `Themes.privacy.test.ts` were moved to `it.effect`, not suppressed.
 - The five pattern rules at `error`: `no-module-level-mutable-state`, `no-shared-pending-cache`, `no-sleep-in-loop`, `shared-waiters`, `acquire-release-constructs-in-acquire-body`. `MainWorker`'s request-scoped `Effect.cached` was replaced with the plain `authSettings` Effect; the remaining `apps/web/src/messages/**` module state is exempted by scope (see below).
+- `@interfere/landmines` 0.1.0 ([interfere-inc/landmines](https://github.com/interfere-inc/landmines)): every `landmines-testing` and `landmines-structure` rule runs at `error`. On adoption the tree had two `vi.stubGlobal("navigator")` stubs, now replaced by passing the browser languages to `initialModel`, and six API tests that imported a harness from `auth/`; that harness moved to `packages/cloudflare/src/testing.ts`, beside the handlers it wires. `landmines-style` is not loaded: `no-comments/no-comments` already owns that policy and keeps `@effect-diagnostics … -- reason` directives and the JSDoc types the `checkJs` scripts need, which `landmines-style/no-comments` reports (575 findings).
+- `landmines-testing/no-flake-masking` carries an exact per-file allowance for the workerd adapter tests whose deploys need a raised timeout: `packages/cloudflare/src/Organization.test.ts` 5 and `packages/cloudflare/src/Email.test.ts` 1. The rule reports when a file drops below its allowance, so lower the number as timeouts go.
 - Every adopted rule has a fixture: `tools/oxlint/fixtures/` holds a violating file per rule and `tools/oxlint/rules.test.ts` runs real oxlint over them, the same way `tools/oxlint-plugin-surveybeat/index.test.ts` does. `xstate-inline.ts` and `xstate-declared.ts` are the pair for `xstate-effect/no-inline-effect`: the first discards an Effect in an inline `enq` action and spawns inline Effect logic, the second declares both in `setupEffect` and passes only their names.
 
 ## Scope exceptions
@@ -23,7 +25,7 @@ Each is an `overrides` entry that names the rule and the files it cannot apply t
 
 Adopting the reference's surface verbatim would have meant rewriting this tree: Ultracite core alone produced 6,713 findings here and the plugin set another 6,431. #205's rule is "`error` when clean, otherwise a counted baseline". Rather than carry a 14k baseline, the rules that need a repo-wide restyle are off by name in `restyleExceptionsOff`, with the count each one produced on 2026-11-14. The follow-up restyle is issue #216; as it lands, delete the rule's line from `restyleExceptionsOff` so it runs again at its reference severity.
 
-13809 findings across 128 rules are excepted, by namespace: `anti-slop` 11, `anti-slop-effect` 4, `eslint` 27, `foldkit` 9, `import` 3, `jsdoc` 2, `oxc` 2, `promise` 3, `typescript` 31, `unicorn` 36.
+14557 findings across 129 rules are excepted, by namespace: `anti-slop` 11, `anti-slop-effect` 4, `eslint` 27, `foldkit` 9, `import` 3, `jsdoc` 2, `landmines-types` 1, `oxc` 2, `promise` 3, `typescript` 31, `unicorn` 36.
 
 | Rule | Findings on adoption |
 | --- | ---: |
@@ -83,6 +85,7 @@ Adopting the reference's surface verbatim would have meant rewriting this tree: 
 | `import/no-mutable-exports` | 8 |
 | `jsdoc/require-param-description` | 45 |
 | `jsdoc/require-returns-description` | 16 |
+| `landmines-types/no-explicit-return-types` (adopted 2026-11-18) | 748 |
 | `oxc/no-accumulating-spread` | 9 |
 | `oxc/no-barrel-file` | 8 |
 | `promise/avoid-new` | 3 |
