@@ -1574,7 +1574,7 @@ const organizationObject = Effect.gen(function* () {
 
       ...organizationDirectory({ sql, sends, rounds, directory }),
 
-      ...organizationSends(sends),
+      ...organizationSends(sql, sends),
     };
   });
 });

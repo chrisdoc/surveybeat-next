@@ -272,10 +272,7 @@ export const nextRoundSlot = (input: RoundSlotInput): RoundSlot => {
 
   const today = teamToday(input.now, input.teamTimeZone);
   let slot = slotOn(nextWeekdayDate(today.year, today.month, today.day, input.weekday, true));
-  if (slot.instants.openInstant <= input.now) {
-    slot = slotOn(nextWeekdayDate(today.year, today.month, today.day, input.weekday, false));
-  }
-  while (input.unavailableDates.has(slot.plannedOpenDate)) {
+  while (slot.instants.openInstant <= input.now || input.unavailableDates.has(slot.plannedOpenDate)) {
     slot = slotOn(addDays(slot.plannedOpenDate, 7));
   }
   return slot;

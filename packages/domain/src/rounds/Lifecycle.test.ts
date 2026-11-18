@@ -670,6 +670,20 @@ describe("the next Round slot", () => {
     },
   );
 
+  it("skips a week when a member ahead of the team's zone would already have been sent to", () => {
+    const slot = nextRoundSlot({
+      now: Date.UTC(2026, 10, 16, 23, 0),
+      weekday: "tuesday",
+      sendTime: SendTime.make("06:00"),
+      teamTimeZone: "UTC",
+      memberTimeZones: ["Asia/Tokyo"],
+      answerWindowDays: 1,
+      unavailableDates: new Set<string>(),
+    });
+    expect(slot.plannedOpenDate).toBe("2026-11-24");
+    expect(slot.instants.openInstant).toBe(Date.UTC(2026, 10, 23, 21, 0));
+  });
+
   it("moves the date with the open instant when a Pulse changes from Tuesday to Wednesday", () => {
     const now = Date.UTC(2026, 10, 17, 20, 11);
     const base = {
