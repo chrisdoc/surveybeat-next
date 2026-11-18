@@ -16,6 +16,18 @@ describe("English catalog", () => {
   });
 });
 
+const literalNumberWithUnit =
+  /\b\d[\d,]*\s*-?(?:digit|minutes?|hours?|days?|seconds?|characters?|persons?|people|questions?|themes?|rounds?|tests?)\b/i;
+
+describe("policy numbers in English copy", () => {
+  it("states no literal number with a unit", () => {
+    const offenders = Object.entries(catalog)
+      .filter(([, text]) => literalNumberWithUnit.test(text))
+      .map(([key]) => key);
+    expect(offenders).toEqual([]);
+  });
+});
+
 describe("Mismatched", () => {
   it("catches a translation whose placeholder differs from English", () => {
     type BadTranslation = Omit<typeof catalog, "reminder.heading"> & {

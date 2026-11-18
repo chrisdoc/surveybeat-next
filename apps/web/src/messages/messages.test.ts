@@ -96,6 +96,19 @@ describe("placeholder type check", () => {
   });
 });
 
+const literalNumberWithUnit =
+  /\b\d[\d,]*\s*-?(?:digit|minutes?|hours?|days?|seconds?|characters?|persons?|people|questions?|themes?|rounds?|tests?)\b/i;
+const singularPluralLabelKeys = new Set(["results.trendLength.one"]);
+
+describe("policy numbers in English copy", () => {
+  it("states a policy number as a Policy placeholder, never a literal with a unit", () => {
+    const offenders = Object.entries(catalog)
+      .filter(([key, text]) => !singularPluralLabelKeys.has(key) && literalNumberWithUnit.test(text))
+      .map(([key]) => key);
+    expect(offenders).toEqual([]);
+  });
+});
+
 // Text in TSX and TS sources is checked by the `surveybeat/no-literal-ui-text` lint rule.
 // The HTML shells are checked here: they may hold no visible text at all.
 describe("HTML entries", () => {

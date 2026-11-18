@@ -1,4 +1,5 @@
 import { SurveyBeatApi } from "@surveybeat/api";
+import { Policy } from "@surveybeat/domain";
 import { Effect, Predicate, Schema } from "effect";
 import { FetchHttpClient } from "effect/http";
 import { HttpApiClient } from "effect/http-api";
@@ -48,7 +49,7 @@ export const failureMessage = (failure: Failure): string => {
     case "OrderMismatch":
       return message("error.OrderMismatch");
     case "TestSendLimitReached":
-      return message("error.TestSendLimitReached");
+      return message("error.TestSendLimitReached", { perHour: Policy.testSend.perHour });
     case "EmailNotResendable":
       return message("error.EmailNotResendable");
     case "Invalid":

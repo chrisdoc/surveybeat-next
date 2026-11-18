@@ -1,3 +1,5 @@
+import { Policy } from "../Policy.ts";
+
 export type RosterItem =
   | string
   | {
@@ -268,7 +270,10 @@ export const redact = (text: string, roster: Roster): string => {
   if (!text) return "";
 
   const normalized = text.normalize("NFC");
-  const bounded = normalized.length > 1000 ? normalized.slice(0, 1000) : normalized;
+  const bounded =
+    normalized.length > Policy.text.longTextMaxLength
+      ? normalized.slice(0, Policy.text.longTextMaxLength)
+      : normalized;
 
   let result = bounded.replace(URL_PATTERN, "[link]");
 

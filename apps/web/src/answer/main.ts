@@ -3,6 +3,7 @@
 // @effect-diagnostics globalFetch:off -- ADR 0008 keeps the answer entry free of Effect, so the page calls the platform fetch directly.
 // @effect-diagnostics globalTimers:off -- the page debounces its own input with setTimeout; it has no Effect runtime.
 
+import { Policy } from "@surveybeat/domain/policy";
 import type { AnswerMessage } from "./answer-messages.ts";
 import { keepAnswer } from "./kept-answers.ts";
 import { anonymityStatement, type QuestionData, parseRoundContext } from "./round-context.ts";
@@ -469,12 +470,14 @@ async function run(message: AnswerMessage): Promise<void> {
         const disclosure = document.createElement("p");
         disclosure.className = "comment-disclosure";
         disclosure.id = `disclosure_${q.id}`;
-        disclosure.textContent = message("answer.comment.disclosure");
+        disclosure.textContent = message("answer.comment.disclosure", {
+          groupSize: Policy.groupSize.defaultValue,
+        });
         commentDiv.appendChild(disclosure);
 
         const textarea = document.createElement("textarea");
         textarea.id = `comment_${q.id}`;
-        textarea.maxLength = 1000;
+        textarea.maxLength = Policy.text.longTextMaxLength;
         textarea.setAttribute("aria-describedby", `disclosure_${q.id}`);
 
         const leadP = document.createElement("p");

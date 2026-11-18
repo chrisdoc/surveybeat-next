@@ -27,6 +27,8 @@ export interface Messages {
   readonly pluralMessage: <B extends PluralKey>(base: B, count: number, params?: PluralParams<B>) => string;
   readonly formatDate: (date: Date, options?: Intl.DateTimeFormatOptions) => string;
 
+  readonly formatNumber: (value: number) => string;
+
   readonly formatScore: (score: number) => string;
 
   readonly formatChange: (change: number) => string;
@@ -66,6 +68,10 @@ const build = (locale: Locale): Messages => {
     return new Intl.DateTimeFormat(locale, options).format(date);
   }
 
+  function formatNumber(value: number): string {
+    return numberFormat.format(value);
+  }
+
   function formatScore(score: number): string {
     return scoreFormat.format(score);
   }
@@ -89,6 +95,7 @@ const build = (locale: Locale): Messages => {
     message,
     pluralMessage,
     formatDate,
+    formatNumber,
     formatScore,
     formatChange,
     formatPercent,
@@ -115,6 +122,7 @@ export const formatDuration = (seconds: number): string =>
     ? message("duration.minutes", { minutes: Math.round(seconds / 60) })
     : message("duration.seconds", { seconds });
 export let formatDate: Messages["formatDate"] = messagesFor("en").formatDate;
+export let formatNumber: Messages["formatNumber"] = messagesFor("en").formatNumber;
 export let formatScore: Messages["formatScore"] = messagesFor("en").formatScore;
 export let formatChange: Messages["formatChange"] = messagesFor("en").formatChange;
 export let formatPercent: Messages["formatPercent"] = messagesFor("en").formatPercent;
@@ -126,6 +134,7 @@ export const setLocale = (locale: Locale): void => {
   message = messages.message;
   pluralMessage = messages.pluralMessage;
   formatDate = messages.formatDate;
+  formatNumber = messages.formatNumber;
   formatScore = messages.formatScore;
   formatChange = messages.formatChange;
   formatPercent = messages.formatPercent;

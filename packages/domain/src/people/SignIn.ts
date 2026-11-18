@@ -3,8 +3,6 @@ import { OrganizationCreationAllowlist, type Identity, PersonId } from "./Identi
 import { Locale } from "./Locale.ts";
 import { OrganizationId } from "./Organization.ts";
 
-export const SIGN_IN_CODE_MINUTES = 10;
-
 export const OrganizationSummary = Schema.Struct({ id: OrganizationId, name: Schema.String });
 export type OrganizationSummary = typeof OrganizationSummary.Type;
 

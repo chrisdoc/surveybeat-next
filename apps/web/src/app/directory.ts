@@ -8,6 +8,7 @@ import {
   MinimumGroupSize,
   OrganizationSettings,
   PersonId,
+  Policy,
   SendId,
   TeamDetail,
   TeamName,
@@ -1098,7 +1099,10 @@ export const settingsScreenView = <Message>(
             },
             h,
           ),
-          h.p([h.Class("text-sm text-muted")], [message("settings.minimumGroupSize.help")]),
+          h.p(
+            [h.Class("text-sm text-muted")],
+            [message("settings.minimumGroupSize.help", { minimum: Policy.groupSize.minimum })],
+          ),
           problemView(state.sizeFailure, h),
           state.sizeSaved
             ? h.p(

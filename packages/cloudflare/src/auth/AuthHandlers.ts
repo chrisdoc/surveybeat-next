@@ -8,6 +8,7 @@ import {
   type OrganizationCreationAllowlist,
   type OrganizationPeople,
   type PeopleIndex,
+  Policy,
   type SessionOutcome,
   sessionState,
   SessionIdentityProvider,
@@ -15,6 +16,7 @@ import {
   Unauthenticated,
 } from "@surveybeat/domain";
 import type * as Context from "effect/Context";
+import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Redacted from "effect/Redacted";
@@ -25,7 +27,7 @@ import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
 
 export const SESSION_COOKIE = "__Host-surveybeat-session";
 
-const SESSION_MAX_AGE = "30 days";
+const SESSION_MAX_AGE = Duration.days(Policy.signIn.sessionDays);
 const cookieOptions = { path: "/", httpOnly: true, secure: true, sameSite: "lax" } as const;
 
 export type AuthServices = SessionIdentityProvider | PeopleIndex | OrganizationPeople | NewIds;

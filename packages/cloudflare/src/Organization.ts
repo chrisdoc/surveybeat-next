@@ -60,6 +60,7 @@ import {
   shouldRequestThemes,
   delayedRoundResult,
   nextRetryAt,
+  Policy,
 } from "@surveybeat/domain";
 import * as Clock from "effect/Clock";
 import * as Config from "effect/Config";
@@ -1499,7 +1500,11 @@ const organizationObject = Effect.gen(function* () {
           const questions = yield* rounds.getRoundQuestionsDetailed(rid);
           const submissions = yield* rounds.getSubmissionsForRound(rid);
           const eligibleMembersCount = yield* rounds.getRoundMembersCount(rid);
-          const pastHistory = yield* rounds.getPastRoundsResultsForPulse(r.pulseId, 12, r.plannedOpenDate);
+          const pastHistory = yield* rounds.getPastRoundsResultsForPulse(
+            r.pulseId,
+            Policy.trendRounds,
+            r.plannedOpenDate,
+          );
 
           const result = calculateRoundResult({
             roundId: rid,
