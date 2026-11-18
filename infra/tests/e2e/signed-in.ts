@@ -44,6 +44,7 @@ const ROUND = {
   plannedCloseAt: 1772528400000,
   closedAt: 1772528400000,
   pulseName: "Weekly Pulse",
+  invitations: { invited: 5, joinedAfterOpen: 0 },
 };
 
 const SETTINGS = {
