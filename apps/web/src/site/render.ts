@@ -2,7 +2,7 @@ import type { Locale } from "@surveybeat/domain";
 import type { KeysWithoutParams } from "../messages/index.ts";
 import { messagesFor } from "../messages/locale.ts";
 
-const pathFor = (locale: Locale): string => (locale === "en" ? "/" : `/${locale}/`);
+const OG_LOCALES = { en: "en_GB" } satisfies Record<Locale, string>;
 
 const APP_PATH = "/app";
 
@@ -41,23 +41,16 @@ export const renderSitePage = (locale: Locale, shell: string): string => {
   const { message } = messagesFor(locale);
   const t = (key: KeysWithoutParams): string => escape(message(key));
   const decimal = new Intl.NumberFormat(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-  const other: Locale = locale === "en" ? "de" : "en";
-  const otherLabel = escape(message(other === "de" ? "language.de" : "language.en"));
-  const home = pathFor(locale);
-
-  const languageLink = (className: string) =>
-    `<a href="${pathFor(other)}" hreflang="${other}" lang="${other}" class="${className}">${otherLabel}</a>`;
 
   const header = `<header class="sticky top-0 z-20 border-b border-line bg-stone/90 backdrop-blur-md">
   <div class="${wrap} flex min-h-16 items-center gap-6">
-    <a href="${home}" class="flex min-h-11 items-center gap-2.5">${brandMark(28)}<span class="text-[17px] font-bold tracking-tight">${t("app.title")}</span></a>
+    <a href="/" class="flex min-h-11 items-center gap-2.5">${brandMark(28)}<span class="text-[17px] font-bold tracking-tight">${t("app.title")}</span></a>
     <nav aria-label="${t("site.nav.label")}" class="hidden gap-7 text-[15px] md:flex">
       <a href="#loop" class="site-underline inline-flex min-h-11 items-center font-medium text-muted hover:text-ink">${t("site.nav.loop")}</a>
       <a href="#privacy" class="site-underline inline-flex min-h-11 items-center font-medium text-muted hover:text-ink">${t("site.nav.privacy")}</a>
       <a href="#results" class="site-underline inline-flex min-h-11 items-center font-medium text-muted hover:text-ink">${t("site.nav.results")}</a>
     </nav>
     <div class="ml-auto flex items-center gap-3 sm:gap-4">
-      ${languageLink("site-underline hidden min-h-11 items-center text-[15px] font-medium text-muted hover:text-ink sm:inline-flex")}
       <a href="${APP_PATH}" class="${secondaryButton}">${t("site.signIn")}</a>
     </div>
   </div>
@@ -235,7 +228,6 @@ export const renderSitePage = (locale: Locale, shell: string): string => {
   const footer = `<footer class="border-t border-line">
   <div class="${wrap} flex flex-col gap-4 py-8 text-[15px] text-muted sm:flex-row sm:items-center sm:justify-between">
     <span class="flex items-center gap-2.5">${brandMark(22)}<span>${t("site.footer.copyright")}</span></span>
-    <span class="flex items-center gap-2"><span>${t("site.footer.language")}</span>${languageLink("site-underline inline-flex min-h-11 items-center font-semibold text-ink")}</span>
   </div>
 </footer>`;
 
@@ -254,7 +246,7 @@ ${footer}`;
     <meta property="og:type" content="website" />
     <meta property="og:title" content="${t("site.title")}" />
     <meta property="og:description" content="${t("site.description")}" />
-    <meta property="og:locale" content="${locale === "en" ? "en_GB" : "de_DE"}" />
+    <meta property="og:locale" content="${OG_LOCALES[locale]}" />
     <meta name="theme-color" content="#f3f4f1" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#0b1f1b" media="(prefers-color-scheme: dark)" />
     <link rel="icon" href="${FAVICON}" type="image/svg+xml" />`;

@@ -1,6 +1,5 @@
 import type { Locale } from "@surveybeat/domain";
 import { catalog } from "./catalog.ts";
-import { de } from "./de.ts";
 
 type Catalog = typeof catalog;
 export type MessageKey = keyof Catalog;
@@ -23,7 +22,7 @@ export type Mismatched<T extends Translation> = {
   [K in MessageKey]: Same<Placeholders<Catalog[K]>, Placeholders<T[K]>> extends true ? never : K;
 }[MessageKey];
 
-const tables = { en: catalog, de } satisfies Record<Locale, Translation>;
+const tables = { en: catalog } satisfies Record<Locale, Translation>;
 
 function fill(template: string, params: Readonly<Record<string, Value>>): string {
   return template.replace(/\{(\w+)\}/g, (_, name: string) => String(params[name] ?? ""));

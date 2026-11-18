@@ -4,7 +4,8 @@ import {
   decide,
   DEFAULT_LOCALE,
   type DirectoryCommand,
-  Locale,
+  localeOr,
+  localeOrNull,
   type makeSendStore,
   type FollowUp,
   PersonId,
@@ -14,13 +15,9 @@ import {
   teamView,
 } from "@surveybeat/domain";
 import * as Effect from "effect/Effect";
-import * as Schema from "effect/Schema";
 import type { makeSqlDirectory } from "../SqlDirectory.ts";
 import type { makeSqlRounds } from "../SqlRounds.ts";
 
-const localeOrNull = (value: string | null): Locale | null => (Schema.is(Locale)(value) ? value : null);
-const localeOr = (value: string | null, fallback: Locale): Locale =>
-  Schema.is(Locale)(value) ? value : fallback;
 export const organizationDirectory = ({
   sql,
   sends,

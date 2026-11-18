@@ -493,14 +493,6 @@ export const catalog = {
   "history.team.notShared": "The Team's scores aren't shared with you.",
   "history.team.belowMinimum": "Too few people answered to show the Team's scores.",
   "nav.privacy": "Privacy",
-  "language.label": "Language",
-  "language.followBrowser": "Same as my browser",
-  "language.en": "English",
-  "language.de": "Deutsch",
-  "settings.defaultLanguage.field": "Language",
-  "settings.defaultLanguage": "Default language",
-  "settings.defaultLanguage.help":
-    "Used for People who have not chosen a language and whose browser language SurveyBeat does not offer, and for their emails.",
   "site.title": "SurveyBeat · Anonymous team check-ins by email",
   "site.description":
     "Short, recurring check-ins for teams. People answer the first question from the email in one tap, and the Lead sees combined results once at least 4 people have answered.",
@@ -583,5 +575,4 @@ export const catalog = {
   "site.close.lede":
     "SurveyBeat speaks English and German. Sign in with your work email and start from the Template.",
   "site.footer.copyright": "© 2026 SurveyBeat",
-  "site.footer.language": "Language",
 } as const;

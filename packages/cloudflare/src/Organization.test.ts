@@ -572,13 +572,13 @@ test(
     assert.include(unsubText, "Reminders for this Pulse are turned off.");
     assert.include(unsubPost.headers.get("content-type") ?? "", "charset=utf-8");
 
-    // 7. A German link renders the page in German (ADR 0018)
-    const unsubGetDe = yield* Effect.promise(() =>
+    // 7. A link in a language this build does not ship renders the page in English (ADR 0025)
+    const unsubGetOther = yield* Effect.promise(() =>
       fetch(`${url}/api/reminders/unsubscribe?t=${testToken}&lang=de`),
     );
-    const unsubGetDeHtml = yield* Effect.promise(() => unsubGetDe.text());
-    assert.include(unsubGetDeHtml, '<html lang="de">');
-    assert.include(unsubGetDeHtml, "Erinnerungen ausschalten");
+    const unsubGetOtherHtml = yield* Effect.promise(() => unsubGetOther.text());
+    assert.include(unsubGetOtherHtml, '<html lang="en">');
+    assert.include(unsubGetOtherHtml, "Turn off reminders");
   }),
 );
 

@@ -20,7 +20,9 @@ describe("Rating scale text on the answer page", () => {
     expect(scaleText(5, "Unclear", "")).toBe("5");
   });
 
-  it("keeps long German labels whole", () => {
-    expect(scaleText(5, "Nicht zu bewältigen", "Sehr gut zu bewältigen")).toBe("5 · Sehr gut zu bewältigen");
+  it("keeps long labels whole", () => {
+    expect(scaleText(5, "Not manageable at all", "Very manageable at the end of a long week")).toBe(
+      "5 · Very manageable at the end of a long week",
+    );
   });
 });

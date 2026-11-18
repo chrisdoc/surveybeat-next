@@ -7,7 +7,8 @@ import {
   type DirectoryChange,
   type DirectoryState,
   EmailAddress,
-  Locale,
+  localeOr,
+  localeOrNull,
   MembershipId,
   MembershipRole,
   PersonId,
@@ -23,7 +24,7 @@ const OrganizationRow = Schema.Struct({
   name: Schema.String,
   minimum_group_size: Schema.Int,
   ai_processing: Schema.Int,
-  default_locale: Locale,
+  default_locale: Schema.String,
 });
 const PersonRow = Schema.Struct({
   id: PersonId,
@@ -31,8 +32,8 @@ const PersonRow = Schema.Struct({
   auth_user_id: Schema.NullOr(AuthUserId),
   organization_admin: Schema.Int,
   removed_at: Schema.NullOr(Schema.Int),
-  locale: Schema.NullOr(Locale),
-  detected_locale: Schema.NullOr(Locale),
+  locale: Schema.NullOr(Schema.String),
+  detected_locale: Schema.NullOr(Schema.String),
 });
 const TeamRow = Schema.Struct({ id: TeamId, name: Schema.String, time_zone: TimeZone });
 const MembershipRow = Schema.Struct({
@@ -65,15 +66,15 @@ export const makeSqlDirectory = (sql: SqliteClient.SqliteClient, sends: SendStor
       organizationName: organization?.name ?? "",
       minimumGroupSize: organization?.minimum_group_size ?? DEFAULT_MINIMUM_GROUP_SIZE,
       aiProcessing: organization?.ai_processing === 1,
-      defaultLocale: organization?.default_locale ?? DEFAULT_LOCALE,
+      defaultLocale: localeOr(organization?.default_locale, DEFAULT_LOCALE),
       people: people.map((row) => ({
         id: row.id,
         email: row.email,
         authUserId: row.auth_user_id,
         organizationAdmin: row.organization_admin === 1,
         removedAt: row.removed_at,
-        locale: row.locale,
-        detectedLocale: row.detected_locale,
+        locale: localeOrNull(row.locale),
+        detectedLocale: localeOrNull(row.detected_locale),
       })),
       teams: teams.map((row) => ({ id: row.id, name: row.name, timeZone: row.time_zone })),
       memberships: memberships.map((row) => ({

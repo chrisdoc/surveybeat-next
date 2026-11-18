@@ -132,7 +132,7 @@ Requirements are grouped by the loop step they serve. Section 8 sequences them i
 - A member can change answers until the round closes. In anonymous rounds this needs a design that does not link the person to the submission on the server. The recommended approach is a random edit key that only the member's browser stores. If the member loses the key, they cannot edit, and that is acceptable.
 - After submitting, the member sees a thank-you screen and the team's current open actions. This reminds them that answering leads to change.
 - A member has a private history page that shows their own past attributed answers. It also shows their anonymous answers if their browser still holds those edit keys. Nobody else can see this page.
-- Interface languages at launch are English and German. All strings must be translatable from day one.
+- Interface language is English only for now (ADR 0025; German was planned for Release 2 under ADR 0018). All strings must be translatable from day one.
 
 ### 5.3 Anonymity and privacy
 
@@ -249,7 +249,7 @@ Each release is usable on its own. Ship a release to a real team (your own, firs
 Sign-in with an email code, plus organization and team setup by hand. Pulses from templates, with rating, choice, and text questions. Weekly cadence with time zones. Email invitations with one-tap first answers, and reminders. Anonymous mode with the minimum group size. Round results with trends and sample sizes. Actions with owner and status, shown in the next invitation. The full privacy test suite. Preview environments per pull request.
 
 **Release 2. Insight.**
-Comment redaction and themes. Discussion guide. Team health overview with action markers. Delayed sharing. The member's private history page. German translation.
+Comment redaction and themes. Discussion guide. Team health overview with action markers. Delayed sharing. The member's private history page. German translation, deferred: English only for now (ADR 0025).
 
 **Release 3. Organizations.**
 Enterprise SSO and Directory Sync. Nested teams and leadership roll-ups with subtraction-safe thresholds. Standard questions and cross-team comparison. Confidential mode. Audit log. Exports.

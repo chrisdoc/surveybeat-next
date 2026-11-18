@@ -30,57 +30,65 @@ const directory = () =>
     }).pipe(Effect.provideService(Scope.Scope, yield* Scope.make()), Effect.provide(Reactivity.layer));
     // Emails are not sent by these changes, so the send store is never reached.
     const sends = { create: () => Effect.void } as unknown as SendStoreShape;
-    return makeSqlDirectory(sql, sends);
+    return { store: makeSqlDirectory(sql, sends), db };
   });
 
 const ada = PersonId.make("ada");
 
-describe("the Organization's directory tables (ADR 0018)", () => {
-  it.effect("loads the Organization's default language, English until it is changed", () =>
+const adaRecord = {
+  id: ada,
+  email: EmailAddress.make("ada@example.com"),
+  authUserId: null,
+  organizationAdmin: false,
+  removedAt: null,
+  locale: null,
+  detectedLocale: null,
+};
+
+describe("the Organization's directory tables (ADR 0018, ADR 0025)", () => {
+  it.effect("loads the Organization's default language as English until it is changed", () =>
     Effect.gen(function* () {
-      const store = yield* directory();
+      const { store } = yield* directory();
       assert.strictEqual((yield* store.load).defaultLocale, "en");
       yield* store.apply([
-        {
-          _tag: "SettingsUpdated",
-          minimumGroupSize: 4,
-          aiProcessing: false,
-          defaultLocale: "de",
-        },
+        { _tag: "SettingsUpdated", minimumGroupSize: 4, aiProcessing: false, defaultLocale: "en" },
       ]);
-      assert.strictEqual((yield* store.load).defaultLocale, "de");
+      assert.strictEqual((yield* store.load).defaultLocale, "en");
     }),
   );
 
   it.effect("stores a Person's own language and the browser language, and clears the own one", () =>
     Effect.gen(function* () {
-      const store = yield* directory();
-      yield* store.apply([
-        {
-          _tag: "PersonAdded",
-          person: {
-            id: ada,
-            email: EmailAddress.make("ada@example.com"),
-            authUserId: null,
-            organizationAdmin: false,
-            removedAt: null,
-            locale: null,
-            detectedLocale: null,
-          },
-        },
-      ]);
+      const { store } = yield* directory();
+      yield* store.apply([{ _tag: "PersonAdded", person: adaRecord }]);
       assert.deepStrictEqual(
         (yield* store.load).people.map((person) => [person.locale, person.detectedLocale]),
         [[null, null]],
       );
 
-      yield* store.apply([{ _tag: "PersonLanguageSet", personId: ada, locale: "de", detectedLocale: "en" }]);
+      yield* store.apply([{ _tag: "PersonLanguageSet", personId: ada, locale: "en", detectedLocale: "en" }]);
       const [loaded] = (yield* store.load).people;
-      assert.deepStrictEqual([loaded?.locale, loaded?.detectedLocale], ["de", "en"]);
+      assert.deepStrictEqual([loaded?.locale, loaded?.detectedLocale], ["en", "en"]);
 
       yield* store.apply([{ _tag: "PersonLanguageSet", personId: ada, locale: null, detectedLocale: "en" }]);
       const [cleared] = (yield* store.load).people;
       assert.deepStrictEqual([cleared?.locale, cleared?.detectedLocale], [null, "en"]);
+    }),
+  );
+
+  it.effect("reads a stored German value as unset instead of failing to load (ADR 0025)", () =>
+    Effect.gen(function* () {
+      const { store, db } = yield* directory();
+      yield* store.apply([{ _tag: "PersonAdded", person: adaRecord }]);
+      db.prepare("UPDATE person SET locale = 'de', detected_locale = 'de' WHERE id = 'ada'").run();
+      db.prepare("UPDATE organization SET default_locale = 'de' WHERE id = 'org-1'").run();
+
+      const loaded = yield* store.load;
+      assert.strictEqual(loaded.defaultLocale, "en");
+      assert.deepStrictEqual(
+        loaded.people.map((person) => [person.locale, person.detectedLocale]),
+        [[null, null]],
+      );
     }),
   );
 });

@@ -9,7 +9,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 const distDir = resolve(import.meta.dirname, "../../dist");
 
-// One prerendered shell per locale (ADR 0018). Each must load only its own catalog.
+// One prerendered shell, English only (ADR 0025). A second locale adds a shell and its catalog here.
 const pages = [
   {
     name: "en",
@@ -17,17 +17,7 @@ const pages = [
     lang: "en",
     title: "Your answer",
     ownSave: "Save and continue",
-    otherSave: "Speichern und weiter",
     copies: ["a/index.html", "a.html"],
-  },
-  {
-    name: "de",
-    html: "de/answer.html",
-    lang: "de",
-    title: "Deine Antwort",
-    ownSave: "Speichern und weiter",
-    otherSave: "Save and continue",
-    copies: ["de/a/index.html", "de/a.html"],
   },
 ] as const;
 
@@ -105,12 +95,8 @@ describe.each(pages)("answer page performance budget ($name)", (page) => {
     expect(preloaded.sort()).toEqual([...counted].filter((name) => !entries.has(name)).sort());
     // The app's full catalog must stay off the answer page's critical path.
     expect([...counted].some((name) => name.startsWith("messages-"))).toBe(false);
-    // Each page loads its own locale's answer strings, and not the other's.
     expect(criticalPathSource, `${page.name} critical path should carry its own save label`).toContain(
       page.ownSave,
-    );
-    expect(criticalPathSource, `${page.name} critical path should not carry the other locale`).not.toContain(
-      page.otherSave,
     );
 
     expect(
@@ -123,7 +109,7 @@ describe.each(pages)("answer page performance budget ($name)", (page) => {
     expect(html).toContain(`<title>${page.title}</title>`);
 
     // The generic scale words are gone: the ends of the scale carry the Question's own labels.
-    for (const generic of ["Very poor", "Very good", "Sehr schlecht", "Sehr gut"]) {
+    for (const generic of ["Very poor", "Very good"]) {
       expect(html, `${page.name} shell should not carry the generic scale label "${generic}"`).not.toContain(
         generic,
       );
@@ -136,7 +122,7 @@ describe.each(pages)("answer page performance budget ($name)", (page) => {
     );
   });
 
-  it("writes the /a and /de/a copies of the shell", () => {
+  it("writes the /a copies of the shell", () => {
     for (const copy of page.copies) {
       expect(existsSync(resolve(distDir, copy)), `dist/${copy} should exist`).toBe(true);
     }

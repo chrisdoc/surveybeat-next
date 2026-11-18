@@ -571,13 +571,6 @@ function newTeam(world: World) {
 }
 
 describe("languages (ADR 0018)", () => {
-  const setPerson = (world: World, email: string, patch: Partial<DirectoryState["people"][number]>) => {
-    world.state = {
-      ...world.state,
-      people: world.state.people.map((person) => (person.email === email ? { ...person, ...patch } : person)),
-    };
-  };
-
   const addedEmailLocale = (world: World, teamId: TeamId, email: string) => {
     const decision = world.add(ADMIN, teamId, email);
     if (decision._tag !== "Accepted") throw new Error("rejected");
@@ -587,16 +580,16 @@ describe("languages (ADR 0018)", () => {
   };
 
   describe("emailLocaleOf", () => {
-    const base = (people: DirectoryState["people"], defaultLocale: "en" | "de"): DirectoryState => ({
+    const base = (people: DirectoryState["people"]): DirectoryState => ({
       organizationName: "Acme",
       minimumGroupSize: 4,
       aiProcessing: false,
-      defaultLocale,
+      defaultLocale: "en",
       people,
       teams: [],
       memberships: [],
     });
-    const ada = (locale: "en" | "de" | null, detectedLocale: "en" | "de" | null) => ({
+    const ada = (locale: "en" | null, detectedLocale: "en" | null) => ({
       id: PersonId.make("ada"),
       email: EmailAddress.make("ada@example.com"),
       authUserId: null,
@@ -606,16 +599,15 @@ describe("languages (ADR 0018)", () => {
       detectedLocale,
     });
 
-    it("prefers the Person's own choice, then the browser language, then the Organization default", () => {
+    it("is English for a Person with or without a recorded language", () => {
       const adaId = PersonId.make("ada");
-      expect(emailLocaleOf(base([ada("de", "en")], "en"), adaId)).toBe("de");
-      expect(emailLocaleOf(base([ada(null, "de")], "en"), adaId)).toBe("de");
-      expect(emailLocaleOf(base([ada(null, null)], "de"), adaId)).toBe("de");
-      expect(emailLocaleOf(base([ada(null, null)], "en"), adaId)).toBe("en");
+      expect(emailLocaleOf(base([ada("en", null)]), adaId)).toBe("en");
+      expect(emailLocaleOf(base([ada(null, "en")]), adaId)).toBe("en");
+      expect(emailLocaleOf(base([ada(null, null)]), adaId)).toBe("en");
     });
 
     it("is the Organization default for a Person who is not in the state", () => {
-      expect(emailLocaleOf(base([], "de"), PersonId.make("nobody"))).toBe("de");
+      expect(emailLocaleOf(base([]), PersonId.make("nobody"))).toBe("en");
     });
   });
 
@@ -626,25 +618,25 @@ describe("languages (ADR 0018)", () => {
     const grace = world.personWith("grace@example.com");
     const ada = world.personWith("ada@example.com");
 
-    world.ok(ada, { _tag: "UpdateOwnLanguage", detectedLocale: "de" });
+    world.ok(ada, { _tag: "UpdateOwnLanguage", detectedLocale: "en" });
     expect(world.state.people.find((person) => person.id === ada)).toMatchObject({
       locale: null,
-      detectedLocale: "de",
+      detectedLocale: "en",
     });
 
     const chosen = world.ok(ada, { _tag: "UpdateOwnLanguage", locale: "en" });
     expect(chosen.changes).toEqual([
-      { _tag: "PersonLanguageSet", personId: ada, locale: "en", detectedLocale: "de" },
+      { _tag: "PersonLanguageSet", personId: ada, locale: "en", detectedLocale: "en" },
     ]);
     expect(world.state.people.find((person) => person.id === ada)).toMatchObject({
       locale: "en",
-      detectedLocale: "de",
+      detectedLocale: "en",
     });
 
     world.ok(ada, { _tag: "UpdateOwnLanguage", locale: null });
     expect(world.state.people.find((person) => person.id === ada)).toMatchObject({
       locale: null,
-      detectedLocale: "de",
+      detectedLocale: "en",
     });
     expect(world.state.people.find((person) => person.id === grace)).toMatchObject({ locale: null });
   });
@@ -656,8 +648,8 @@ describe("languages (ADR 0018)", () => {
     const ada = world.personWith("ada@example.com");
     const grace = world.personWith("grace@example.com");
 
-    world.ok(grace, { _tag: "UpdateOwnLanguage", locale: "de" });
-    expect(world.state.people.find((person) => person.id === grace)).toMatchObject({ locale: "de" });
+    world.ok(grace, { _tag: "UpdateOwnLanguage", locale: "en" });
+    expect(world.state.people.find((person) => person.id === grace)).toMatchObject({ locale: "en" });
     expect(world.state.people.find((person) => person.id === ada)).toMatchObject({ locale: null });
   });
 
@@ -667,7 +659,7 @@ describe("languages (ADR 0018)", () => {
     world.add(ADMIN, platform, "ada@example.com");
     const ada = world.personWith("ada@example.com");
     world.ok(ADMIN, { _tag: "RemovePerson", personId: ada });
-    expect(rejection(world.run(ada, { _tag: "UpdateOwnLanguage", locale: "de" }))).toBe("Forbidden");
+    expect(rejection(world.run(ada, { _tag: "UpdateOwnLanguage", locale: "en" }))).toBe("Forbidden");
   });
 
   it("UpdateSettings sets the Organization default only for admins, and keeps it when omitted", () => {
@@ -675,37 +667,28 @@ describe("languages (ADR 0018)", () => {
     world.createTeam("Platform", "grace@example.com");
     expect(settingsView(world.state, ADMIN)).toMatchObject({ value: { defaultLocale: "en" } });
     const grace = world.personWith("grace@example.com");
-    expect(rejection(world.run(grace, { _tag: "UpdateSettings", defaultLocale: "de" }))).toBe("Forbidden");
+    expect(rejection(world.run(grace, { _tag: "UpdateSettings", defaultLocale: "en" }))).toBe("Forbidden");
 
-    const changed = world.ok(ADMIN, { _tag: "UpdateSettings", defaultLocale: "de" });
+    const changed = world.ok(ADMIN, { _tag: "UpdateSettings", defaultLocale: "en" });
     expect(changed.changes).toEqual([
-      { _tag: "SettingsUpdated", minimumGroupSize: 4, aiProcessing: false, defaultLocale: "de" },
+      { _tag: "SettingsUpdated", minimumGroupSize: 4, aiProcessing: false, defaultLocale: "en" },
     ]);
-    expect(settingsView(world.state, ADMIN)).toMatchObject({ value: { defaultLocale: "de" } });
+    expect(settingsView(world.state, ADMIN)).toMatchObject({ value: { defaultLocale: "en" } });
 
     world.ok(ADMIN, { _tag: "UpdateSettings", minimumGroupSize: 6 });
     expect(settingsView(world.state, ADMIN)).toMatchObject({
-      value: { defaultLocale: "de", minimumGroupSize: 6 },
+      value: { defaultLocale: "en", minimumGroupSize: 6 },
     });
   });
 
-  it("the 'You've been added' email follows the recipient's language", () => {
+  it("the 'You've been added' email is in English, the only shipped language (ADR 0025)", () => {
     const world = new World();
     const platform = world.createTeam("Platform", "grace@example.com");
 
-    // A brand-new Person has no language yet: the Organization default.
     expect(addedEmailLocale(world, platform, "new@example.com")).toBe("en");
-    world.ok(ADMIN, { _tag: "UpdateSettings", defaultLocale: "de" });
-    expect(addedEmailLocale(world, platform, "newer@example.com")).toBe("de");
-
-    // An existing Person's own choice, then their browser language.
     const ada = world.personWith("new@example.com");
-    world.ok(ada, { _tag: "UpdateOwnLanguage", locale: "de" });
+    world.ok(ada, { _tag: "UpdateOwnLanguage", locale: "en" });
     expect(addedEmailLocale(world, world.createTeam("Design", "linus@example.com"), "new@example.com")).toBe(
-      "de",
-    );
-    setPerson(world, "new@example.com", { locale: null, detectedLocale: "en" });
-    expect(addedEmailLocale(world, world.createTeam("Ops", "lena@example.com"), "new@example.com")).toBe(
       "en",
     );
   });

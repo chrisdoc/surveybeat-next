@@ -5,9 +5,8 @@ import tailwindcss from "@tailwindcss/vite";
 import { copyFileSync, mkdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { defineConfig, type Plugin } from "vite";
-import { answerCatalog, type AnswerTranslation } from "./src/messages/answer.ts";
+import { answerCatalog } from "./src/messages/answer.ts";
 import { answerMessages } from "./src/answer/answer-messages.ts";
-import { answerDe } from "./src/messages/answer.de.ts";
 
 const prerenderAnswer = (): Plugin => {
   let outDir = "dist";
@@ -75,8 +74,7 @@ const prerenderAnswer = (): Plugin => {
 })();
 </script>`;
 
-      const table: AnswerTranslation = ctx.path.endsWith("de/answer.html") ? answerDe : answerCatalog;
-      const message = answerMessages(table);
+      const message = answerMessages(answerCatalog);
 
       const scale = [1, 2, 3, 4, 5]
         .map((value) => {
@@ -117,16 +115,11 @@ const prerenderAnswer = (): Plugin => {
         .replace("<!--PRERENDER_BODY-->", body);
     },
     closeBundle() {
-      for (const [source, dir] of [
-        ["answer.html", ""],
-        ["de/answer.html", "de"],
-      ] as const) {
-        const answerHtmlPath = resolve(outDir, source);
-        const aDir = resolve(outDir, dir, "a");
-        mkdirSync(aDir, { recursive: true });
-        copyFileSync(answerHtmlPath, resolve(aDir, "index.html"));
-        copyFileSync(answerHtmlPath, resolve(outDir, dir, "a.html"));
-      }
+      const answerHtmlPath = resolve(outDir, "answer.html");
+      const aDir = resolve(outDir, "a");
+      mkdirSync(aDir, { recursive: true });
+      copyFileSync(answerHtmlPath, resolve(aDir, "index.html"));
+      copyFileSync(answerHtmlPath, resolve(outDir, "a.html"));
     },
   };
 };
@@ -161,7 +154,6 @@ export default defineConfig({
       input: {
         app: "index.html",
         answer: "answer.html",
-        "answer-de": "de/answer.html",
       },
     },
   },
