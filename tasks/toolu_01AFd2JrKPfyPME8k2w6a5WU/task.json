@@ -1,0 +1,36 @@
+{
+  "tool_use_id": "toolu_01AFd2JrKPfyPME8k2w6a5WU",
+  "agent_id": "a97a528b182c92bfe",
+  "subagent_type": "reviewer",
+  "task_description": "Review DateTime migration diff",
+  "files": [
+    ".githooks/post-commit",
+    "apps/web/src/app/App.scene.test.ts",
+    "apps/web/src/app/App.ts",
+    "apps/web/src/app/directory.ts",
+    "apps/web/src/app/keptAnswers.test.ts",
+    "apps/web/src/app/overview.test.ts",
+    "apps/web/src/app/overview.ts",
+    "apps/web/src/app/results.ts",
+    "apps/web/src/app/rounds.ts",
+    "apps/web/src/messages/index.ts",
+    "apps/web/src/messages/locale.ts",
+    "apps/web/src/messages/messages.test.ts",
+    "packages/api/src/registry.privacy.test.ts",
+    "packages/cloudflare/src/Organization.ts",
+    "packages/cloudflare/src/PastRounds.test.ts",
+    "packages/domain/src/rounds/Lifecycle.test.ts",
+    "packages/domain/src/rounds/Lifecycle.ts",
+    "packages/domain/src/rounds/TeamOverview.test.ts",
+    "scripts/ledger/diagnostics-ledger.json"
+  ],
+  "token_usage": {
+    "input_tokens": 26,
+    "cache_creation_tokens": 44472,
+    "cache_read_tokens": 430726,
+    "output_tokens": 6338,
+    "api_call_count": 13
+  },
+  "started_at": "2026-11-18T12:03:11.867316276Z",
+  "completed_at": "2026-11-18T12:03:11.868347925Z"
+}
