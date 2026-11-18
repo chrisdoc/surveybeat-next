@@ -1107,17 +1107,14 @@ export const LoadExternalUrl = Command.define("LoadExternalUrl", {
   execute: ({ href }) => Navigation.load(href).pipe(Effect.as(Message.Navigated())),
 });
 
-const detectBrowserLocale = (): Locale | null =>
-  typeof navigator === "undefined" ? null : (browserLocale(navigator.languages) ?? null);
-
-export const initialModel = (url: Url): Model => {
+export const initialModel = (url: Url, languages: ReadonlyArray<string>): Model => {
   const route = urlToAppRoute(url);
   const timeZone = typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC";
   return {
     url,
     route,
     session: { _tag: "Loading" },
-    browserLocale: detectBrowserLocale(),
+    browserLocale: browserLocale(languages) ?? null,
     navMenu: Popover.init({ id: "nav-menu" }),
     accountMenu: Popover.init({ id: "account-menu" }),
     teams: { _tag: "Loading" },
@@ -1356,7 +1353,7 @@ export const loadActiveRouteCommand = (route: AppRoute) => {
 };
 
 export const init = (url: Url): Update.Return<Model, Message> => ({
-  model: initialModel(url),
+  model: initialModel(url, typeof navigator === "undefined" ? [] : navigator.languages),
   commands: [LoadSession()],
 });
 

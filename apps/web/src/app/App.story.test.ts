@@ -15,7 +15,7 @@ import {
 import { Option, Schema } from "effect";
 import * as Story from "foldkit/story";
 import { fromString } from "foldkit/url";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import {
   AddMember,
   AddQuestionCmd,
@@ -67,13 +67,7 @@ const decodeSendTime = Schema.decodeSync(SendTime);
 
 const makeUrl = (str: string) => Option.getOrThrow(fromString(str));
 
-beforeEach(() => {
-  // No browser language unless a test sets one, so the default flows issue no language commands.
-  vi.stubGlobal("navigator", { languages: [] });
-});
-
 afterEach(() => {
-  vi.unstubAllGlobals();
   setLocale("en");
 });
 
@@ -82,7 +76,7 @@ describe("App Stories", () => {
     it("handles initial session loading and signed out state", () => {
       Story.story(
         update,
-        Story.given(initialModel(makeUrl("https://app.surveybeat.com/"))),
+        Story.given(initialModel(makeUrl("https://app.surveybeat.com/"), [])),
         Story.model((m) => {
           expect(m.session._tag).toBe("Loading");
         }),
@@ -103,7 +97,7 @@ describe("App Stories", () => {
     it("handles signin failed query parameter", () => {
       Story.story(
         update,
-        Story.given(initialModel(makeUrl("https://app.surveybeat.com/?signin=failed"))),
+        Story.given(initialModel(makeUrl("https://app.surveybeat.com/?signin=failed"), [])),
         Story.message(
           Message.GotSession({
             result: { _tag: "SignedOut" },
@@ -121,7 +115,7 @@ describe("App Stories", () => {
     it("handles retry session", () => {
       Story.story(
         update,
-        Story.given(initialModel(makeUrl("https://app.surveybeat.com/"))),
+        Story.given(initialModel(makeUrl("https://app.surveybeat.com/"), [])),
         Story.message(
           Message.GotSession({
             result: { _tag: "Failed" },
@@ -150,7 +144,7 @@ describe("App Stories", () => {
     it("handles create organization flow", () => {
       Story.story(
         update,
-        Story.given(initialModel(makeUrl("https://app.surveybeat.com/"))),
+        Story.given(initialModel(makeUrl("https://app.surveybeat.com/"), [])),
         Story.message(
           Message.GotSession({
             result: { _tag: "CreateOrganization" },
@@ -199,7 +193,7 @@ describe("App Stories", () => {
 
       Story.story(
         update,
-        Story.given(initialModel(makeUrl("https://app.surveybeat.com/"))),
+        Story.given(initialModel(makeUrl("https://app.surveybeat.com/"), [])),
         Story.message(
           Message.GotSession({
             result: {
@@ -252,7 +246,7 @@ describe("App Stories", () => {
 
       Story.story(
         update,
-        Story.given(initialModel(makeUrl("https://app.surveybeat.com/"))),
+        Story.given(initialModel(makeUrl("https://app.surveybeat.com/"), [])),
         Story.message(
           Message.GotSession({
             result: {
@@ -362,7 +356,7 @@ describe("App Stories", () => {
 
       Story.story(
         update,
-        Story.given(initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}`))),
+        Story.given(initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}`), [])),
         Story.message(
           Message.GotSession({
             result: {
@@ -484,7 +478,7 @@ describe("App Stories", () => {
 
       Story.story(
         update,
-        Story.given(initialModel(makeUrl("https://app.surveybeat.com/settings"))),
+        Story.given(initialModel(makeUrl("https://app.surveybeat.com/settings"), [])),
         Story.message(
           Message.GotSession({
             result: {
@@ -580,7 +574,7 @@ describe("App Stories", () => {
 
       Story.story(
         update,
-        Story.given(initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}/pulses`))),
+        Story.given(initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}/pulses`), [])),
         Story.message(
           Message.GotSession({
             result: {
@@ -719,7 +713,9 @@ describe("App Stories", () => {
 
       Story.story(
         update,
-        Story.given(initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}/pulses/${pulseId}`))),
+        Story.given(
+          initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}/pulses/${pulseId}`), []),
+        ),
         Story.message(
           Message.GotSession({
             result: {
@@ -842,7 +838,7 @@ describe("App Stories", () => {
       },
     });
     const signedIn = {
-      ...initialModel(url),
+      ...initialModel(url, []),
       session: {
         _tag: "SignedIn" as const,
         organization: { id: decodeOrgId("org-1"), name: "Acme" },

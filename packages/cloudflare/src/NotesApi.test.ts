@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "@effect/vitest";
 import { TeamId } from "@surveybeat/domain";
-import { Browser, SignInWorld } from "./auth/testing.ts";
+import { Browser, SignInWorld } from "./testing.ts";
 
 const setup = async () => {
   const world = new SignInWorld();

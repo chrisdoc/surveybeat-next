@@ -33,6 +33,7 @@
     "@effect/tsgo": "catalog:",
     "@effect/vitest": "catalog:",
     "@foldkit/oxlint-plugin": "catalog:",
+    "@interfere/landmines": "catalog:",
     "@oxlint/plugins": "catalog:",
     "@types/node": "catalog:",
     "@vitest/coverage-v8": "catalog:",

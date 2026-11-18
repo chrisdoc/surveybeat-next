@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "@effect/vitest";
 import { SESSION_COOKIE } from "./AuthHandlers.ts";
-import { Browser, ORIGIN, SignInWorld } from "./testing.ts";
+import { Browser, ORIGIN, SignInWorld } from "../testing.ts";
 
 /**
  * The sign-in API end to end over HTTP: real handlers, real domain flow, and in-memory stand-ins

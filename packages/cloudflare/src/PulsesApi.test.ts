@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "@effect/vitest";
 import { SendId, type SendState, weeklyTeamHealth } from "@surveybeat/domain";
-import { Browser, SignInWorld } from "./auth/testing.ts";
+import { Browser, SignInWorld } from "./testing.ts";
 
 /**
  * The Pulse editor API over HTTP: real handlers, the real editor rules and permission table, and

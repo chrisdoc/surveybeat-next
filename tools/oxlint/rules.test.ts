@@ -28,6 +28,14 @@ describe("the adopted rule set reports its own violations", () => {
     ["packages/slop/src/eager-acquire.ts", "patterns(acquire-release-constructs-in-acquire-body)"],
     ["packages/slop/src/runtime.test.ts", "effect-tests(no-manual-effect-runtime-in-tests)"],
     ["packages/slop/src/xstate-inline.ts", "xstate-effect(no-inline-effect)"],
+    ["packages/slop/src/fixed-sleep.test.ts", "landmines-testing(no-fixed-sleep)"],
+    ["packages/slop/src/flake-masking.test.ts", "landmines-testing(no-flake-masking)"],
+    ["packages/slop/src/test-doubles.test.ts", "landmines-testing(no-test-doubles)"],
+    ["packages/slop/src/unsignaled-poll.test.ts", "landmines-testing(no-unsignaled-poll)"],
+    ["packages/slop/src/strict-msw.test.ts", "landmines-testing(strict-msw)"],
+    ["packages/slop/src/thing.mocks.ts", "landmines-structure(test-file-names)"],
+    ["packages/detached/src/detached.test.ts", "landmines-structure(colocated-tests)"],
+    ["packages/open-exports/src/index.ts", "landmines-structure(package-exports)"],
   ])("reports %s as %s", (file, code) => {
     const diagnostics = lint(file);
     expect(diagnostics.map((diagnostic) => diagnostic.code)).toContain(code);

@@ -181,7 +181,7 @@ describe("Team health overview markers and tooltips", () => {
     Scene.scene(
       { update, view },
       Scene.given({
-        ...initialModel(teamUrl),
+        ...initialModel(teamUrl, []),
         session: signedInAdmin,
         teamDetail: loadedTeam,
         teamOverview: { _tag: "Loaded", overview },
@@ -207,7 +207,7 @@ describe("Team health overview markers and tooltips", () => {
     Scene.scene(
       { update, view },
       Scene.given({
-        ...initialModel(teamUrl),
+        ...initialModel(teamUrl, []),
         session: signedInAdmin,
         teamDetail: loadedTeam,
         teamOverview: { _tag: "Loaded", overview },
@@ -241,7 +241,7 @@ describe("Team health overview build time", () => {
     Scene.scene(
       { update, view },
       Scene.given({
-        ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}`)),
+        ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}`), []),
         session: signedInAdmin,
         teamDetail: loadedTeam,
         teamOverview: chart,
@@ -259,7 +259,7 @@ describe("Team health overview build time", () => {
       Scene.scene(
         { update, view },
         Scene.given({
-          ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}`)),
+          ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}`), []),
           session: signedInAdmin,
           teamDetail: loadedTeam,
           teamOverview: { _tag: "Loaded", overview: largeOverview() },

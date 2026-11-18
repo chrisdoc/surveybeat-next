@@ -87,12 +87,12 @@ import * as Redacted from "effect/Redacted";
 import * as HttpRouter from "effect/http/HttpRouter";
 import * as HttpServer from "effect/http/HttpServer";
 import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
-import { actionHandlers } from "../ActionHandlers.ts";
-import { directoryHandlers } from "../DirectoryHandlers.ts";
-import { noteHandlers } from "../NoteHandlers.ts";
-import { pulseHandlers } from "../PulseHandlers.ts";
-import { roundHandlers } from "../RoundHandlers.ts";
-import { authHandlers, SESSION_COOKIE } from "./AuthHandlers.ts";
+import { actionHandlers } from "./ActionHandlers.ts";
+import { directoryHandlers } from "./DirectoryHandlers.ts";
+import { noteHandlers } from "./NoteHandlers.ts";
+import { pulseHandlers } from "./PulseHandlers.ts";
+import { roundHandlers } from "./RoundHandlers.ts";
+import { authHandlers, SESSION_COOKIE } from "./auth/AuthHandlers.ts";
 
 interface FakeUser {
   readonly id: AuthUserId;

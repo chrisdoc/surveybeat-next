@@ -1,0 +1,7 @@
+{
+  "name": "open-exports",
+  "private": true,
+  "exports": {
+    "./*": "./src/*.ts"
+  }
+}
