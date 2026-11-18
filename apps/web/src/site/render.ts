@@ -1,5 +1,5 @@
-import type { Locale } from "@surveybeat/domain";
-import type { KeysWithoutParams } from "../messages/index.ts";
+import { type Locale, Policy } from "@surveybeat/domain";
+import type { KeysWithoutParams, KeysWithParams, Params } from "../messages/index.ts";
 import { messagesFor } from "../messages/locale.ts";
 
 const OG_LOCALES = { en: "en_GB" } satisfies Record<Locale, string>;
@@ -40,6 +40,32 @@ const icon = (paths: string): string =>
 export const renderSitePage = (locale: Locale, shell: string): string => {
   const { message } = messagesFor(locale);
   const t = (key: KeysWithoutParams): string => escape(message(key));
+  const tp = <K extends KeysWithParams>(key: K, params: Params<K>): string => escape(message(key, params));
+  const groupSize = Policy.groupSize.defaultValue;
+  const recommended = Policy.questions.recommended;
+  const description = tp("site.description", { groupSize });
+  const heroLede = tp("site.hero.lede", { groupSize, recommended });
+  const stepBody = {
+    ask: tp("site.loop.ask.body", { recommended }),
+    answer: t("site.loop.answer.body"),
+    understand: tp("site.loop.understand.body", { rounds: Policy.trendRounds }),
+    act: t("site.loop.act.body"),
+  };
+  const featureBody = {
+    themes: tp("site.results.themes.body", { themes: Policy.themes.maximum }),
+    guide: t("site.results.guide.body"),
+    note: t("site.results.note.body"),
+    actions: t("site.results.actions.body"),
+  };
+  const privacyCopy = {
+    storage: { title: t("site.privacy.storage.title"), body: t("site.privacy.storage.body") },
+    groupSize: {
+      title: tp("site.privacy.groupSize.title", { groupSize }),
+      body: tp("site.privacy.groupSize.body", { groupSize, minimum: Policy.groupSize.minimum }),
+    },
+    redaction: { title: t("site.privacy.redaction.title"), body: t("site.privacy.redaction.body") },
+    admins: { title: t("site.privacy.admins.title"), body: t("site.privacy.admins.body") },
+  };
   const decimal = new Intl.NumberFormat(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
   const header = `<header class="sticky top-0 z-20 border-b border-line bg-stone/90 backdrop-blur-md">
@@ -101,7 +127,7 @@ export const renderSitePage = (locale: Locale, shell: string): string => {
   <div class="site-enter max-w-[600px]">
     <p class="inline-flex items-center gap-2 rounded-full bg-primary-soft px-3 py-1 text-[14px] font-semibold text-primary"><span class="site-beat h-1.5 w-1.5 rounded-full bg-primary"></span>${t("site.hero.eyebrow")}</p>
     <h1 class="mt-6 font-display text-[44px] leading-[1.02] font-normal tracking-tight text-balance sm:text-[60px] lg:text-[68px]">${t("site.hero.title")}</h1>
-    <p class="mt-6 max-w-[34rem] text-[18px] leading-relaxed text-muted sm:text-[19px]">${t("site.hero.lede")}</p>
+    <p class="mt-6 max-w-[34rem] text-[18px] leading-relaxed text-muted sm:text-[19px]">${heroLede}</p>
     <div class="mt-9 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-6">
       <a href="${APP_PATH}" class="${primaryButton} min-h-12 px-6 text-[17px]">${t("site.start")}</a>
       <a href="#privacy" class="${textLink} justify-center sm:justify-start">${t("site.hero.privacyLink")}</a>
@@ -115,7 +141,7 @@ export const renderSitePage = (locale: Locale, shell: string): string => {
       (step, index) => `<li class="site-lift relative rounded-panel border border-line bg-stone p-6">
       <p class="font-display text-[40px] leading-none text-primary tabular-nums">${String(index + 1).padStart(2, "0")}</p>
       <h3 class="mt-5 text-[19px] leading-snug font-semibold">${t(`site.loop.${step}.title`)}</h3>
-      <p class="mt-2 text-[16px] leading-relaxed text-muted">${t(`site.loop.${step}.body`)}</p>
+      <p class="mt-2 text-[16px] leading-relaxed text-muted">${stepBody[step]}</p>
     </li>`,
     )
     .join("");
@@ -134,8 +160,8 @@ export const renderSitePage = (locale: Locale, shell: string): string => {
     .map(
       (key) => `<li class="rounded-panel border border-white/10 bg-evergreen-raised p-6 sm:p-7">
       <span class="inline-flex h-11 w-11 items-center justify-center rounded-control bg-mint/15 text-mint">${icon(icons[key])}</span>
-      <h3 class="mt-5 text-[19px] leading-snug font-semibold text-white">${t(`site.privacy.${key}.title`)}</h3>
-      <p class="mt-2 text-[16px] leading-relaxed text-mint-text">${t(`site.privacy.${key}.body`)}</p>
+      <h3 class="mt-5 text-[19px] leading-snug font-semibold text-white">${privacyCopy[key].title}</h3>
+      <p class="mt-2 text-[16px] leading-relaxed text-mint-text">${privacyCopy[key].body}</p>
     </li>`,
     )
     .join("");
@@ -193,7 +219,7 @@ export const renderSitePage = (locale: Locale, shell: string): string => {
     .map(
       (key) => `<li class="border-t border-line py-5 first:border-t-0 first:pt-0">
       <h3 class="text-[19px] leading-snug font-semibold">${t(`site.results.${key}.title`)}</h3>
-      <p class="mt-1.5 text-[16px] leading-relaxed text-muted">${t(`site.results.${key}.body`)}</p>
+      <p class="mt-1.5 text-[16px] leading-relaxed text-muted">${featureBody[key]}</p>
     </li>`,
     )
     .join("");
@@ -242,10 +268,10 @@ ${close}
 </main>
 ${footer}`;
 
-  const head = `<meta name="description" content="${t("site.description")}" />
+  const head = `<meta name="description" content="${description}" />
     <meta property="og:type" content="website" />
     <meta property="og:title" content="${t("site.title")}" />
-    <meta property="og:description" content="${t("site.description")}" />
+    <meta property="og:description" content="${description}" />
     <meta property="og:locale" content="${OG_LOCALES[locale]}" />
     <meta name="theme-color" content="#f3f4f1" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#0b1f1b" media="(prefers-color-scheme: dark)" />

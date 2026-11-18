@@ -14,7 +14,7 @@ export const catalog = {
   "signIn.failed": "Signing in did not work. Please try again.",
   "signIn.email": "Your email",
   "signIn.emailAction": "Email me a code",
-  "signIn.sent": "We sent a 6-digit code to {email}. It expires in {minutes} minutes.",
+  "signIn.sent": "We sent a {digits}-digit code to {email}. It expires in {minutes} minutes.",
   "signIn.code": "Sign-in code",
   "signIn.codeAction": "Sign in with this code",
   "signIn.sendFailed": "We could not send a code. Check your email address and try again.",
@@ -184,7 +184,7 @@ export const catalog = {
   "pulse.settings.name": "Name",
   "pulse.settings.day": "Day",
   "pulse.settings.time": "Time",
-  "pulse.settings.time.help": "In each member's local time, between 06:00 and 21:00.",
+  "pulse.settings.time.help": "In each member's local time, between {earliest} and {latest}.",
   "pulse.settings.answerWindow": "Open for",
   "pulse.settings.days.one": "{count} day",
   "pulse.settings.days.other": "{count} days",
@@ -205,7 +205,7 @@ export const catalog = {
   "question.highLabel": "Label for 5",
   "question.comment": 'Offer "Want to say more?"',
   "question.options": "Options, one per line",
-  "question.longText.help": "Answers can be up to 1,000 characters.",
+  "question.longText.help": "Answers can be up to {max} characters.",
   "question.dimension": "Dimension",
   "questionType.Rating": "Rating 1–5",
   "questionType.SingleChoice": "Single choice",
@@ -230,7 +230,7 @@ export const catalog = {
   "duration.minutes": "about {minutes} min",
   "settings.minimumGroupSize": "Minimum group size",
   "settings.minimumGroupSize.help":
-    "Results are shown only when at least this many people contributed. At least 3.",
+    "Results are shown only when at least this many people contributed. At least {minimum}.",
   "settings.save": "Save",
   "settings.saved": "Saved.",
   "settings.aiProcessing.title": "AI processing",
@@ -428,9 +428,9 @@ export const catalog = {
   "note.cancel": "Cancel",
   "note.label": "Note",
   "note.lastChanged": "Last changed {date}",
-  "note.count.one": "{count} of 2,000 characters",
-  "note.count.other": "{count} of 2,000 characters",
-  "note.tooLong": "Notes can be up to 2,000 characters. Shorten yours to save it.",
+  "note.count.one": "{count} of {max} characters",
+  "note.count.other": "{count} of {max} characters",
+  "note.tooLong": "Notes can be up to {max} characters. Shorten yours to save it.",
   "error.Unauthenticated": "Your session ended. Sign in again.",
   "error.Forbidden": "You can't do that here.",
   "error.NotFound": "That no longer exists.",
@@ -442,7 +442,7 @@ export const catalog = {
   "error.QuestionHasAnswers": "This Question has answers, so it can't be edited.",
   "error.PulseNeedsAQuestion": "A Pulse needs at least one Question.",
   "error.PulseFull": "This Pulse has as many Questions as it can hold.",
-  "error.TestSendLimitReached": "You've sent 5 tests in the last hour. Try again later.",
+  "error.TestSendLimitReached": "You've sent {perHour} tests in the last hour. Try again later.",
   "error.EmailNotResendable": "This email can no longer be sent.",
   "error.OrderMismatch": "Someone else changed this Pulse. Reload the page and try again.",
   "error.Invalid": "Check what you entered and try again.",
@@ -452,7 +452,7 @@ export const catalog = {
   "privacy.back": "Back",
   "privacy.groupSize.title": "Nothing shown below the minimum group size",
   "privacy.groupSize.body":
-    "Every average, chart and theme waits until at least 4 people have answered. Your Organization can raise that number, never below 3.",
+    "Every average, chart and theme waits until at least {groupSize} people have answered. Your Organization can raise that number, never below {minimum}.",
   "privacy.aiProcessing.title": "AI processing is off until an admin turns it on",
   "privacy.aiProcessing.body":
     "Themes and discussion guides are written only when an Organization admin turns AI processing on in Settings. Comments are sent to an AI service only after names, email addresses, phone numbers, handles and links are removed, and the service keeps nothing. Members are told on the answer page and in their emails.",
@@ -462,9 +462,9 @@ export const catalog = {
   "privacy.comments.title": "Comment redaction",
   "privacy.comments.body":
     "Comments are redacted before storage. Names of people in your Organization, email addresses, phone numbers, handles, and URLs are automatically stripped. Other phrasing is kept intact, so please leave out personal details.",
-  "privacy.restore.title": "30-day point-in-time restore window",
+  "privacy.restore.title": "{days}-day point-in-time restore window",
   "privacy.restore.body":
-    "Database backups are kept for up to 30 days point-in-time strictly for disaster recovery. Backups are encrypted at rest and purged permanently after 30 days.",
+    "Database backups are kept for up to {days} days point-in-time strictly for disaster recovery. Backups are encrypted at rest and purged permanently after {days} days.",
   "privacy.editKey.title": "Changing your answers",
   "privacy.editKey.body":
     "When you submit answers, an anonymous Edit key is stored solely in your local browser. Losing or clearing the Edit key means answers cannot be changed.",
@@ -495,7 +495,7 @@ export const catalog = {
   "nav.privacy": "Privacy",
   "site.title": "SurveyBeat · Anonymous team check-ins by email",
   "site.description":
-    "Short, recurring check-ins for teams. People answer the first question from the email in one tap, and the Lead sees combined results once at least 4 people have answered.",
+    "Short, recurring check-ins for teams. People answer the first question from the email in one tap, and the Lead sees combined results once at least {groupSize} people have answered.",
   "site.skip": "Skip to content",
   "site.nav.label": "Main",
   "site.nav.loop": "How it works",
@@ -506,7 +506,7 @@ export const catalog = {
   "site.hero.eyebrow": "Team check-ins for Leads",
   "site.hero.title": "Short, anonymous check-ins for your team",
   "site.hero.lede":
-    "Set up a Pulse once. Every Round, your Team gets 3 to 7 questions by email and answers the first in one tap. You see the combined result once at least 4 people have answered.",
+    "Set up a Pulse once. Every Round, your Team gets 3 to {recommended} questions by email and answers the first in one tap. You see the combined result once at least {groupSize} people have answered.",
   "site.hero.privacyLink": "Read what stays private",
   "site.mock.label": "A Round in SurveyBeat: the Invitation email and the Result",
   "site.mock.from": "SurveyBeat · Weekly team health",
@@ -523,13 +523,13 @@ export const catalog = {
   "site.loop.lede": "Every part of SurveyBeat serves one of these steps. Most tools stop after the third.",
   "site.loop.ask.title": "Ask",
   "site.loop.ask.body":
-    "Start from the weekly team health Template and pick a day and time. The Pulse opens each Round on its own, and the editor warns you when it grows past 7 questions.",
+    "Start from the weekly team health Template and pick a day and time. The Pulse opens each Round on its own, and the editor warns you when it grows past {recommended} questions.",
   "site.loop.answer.title": "Answer",
   "site.loop.answer.body":
     "Each rating in the email is a link. One tap opens the answer page with that value chosen, and it counts once the person confirms it. No sign-in, works on a phone.",
   "site.loop.understand.title": "Understand",
   "site.loop.understand.body":
-    "Every number shows how many people it rests on. Trends cover the last 12 Rounds, and comments are grouped into themes that paraphrase, never quote.",
+    "Every number shows how many people it rests on. Trends cover the last {rounds} Rounds, and comments are grouped into themes that paraphrase, never quote.",
   "site.loop.act.title": "Act",
   "site.loop.act.body":
     "Agree on an Action with an owner and a due date. The next Round shows it to the Team, so people see what changed because they answered.",
@@ -539,9 +539,9 @@ export const catalog = {
   "site.privacy.storage.title": "Nothing to trace back",
   "site.privacy.storage.body":
     "An anonymous Submission holds its Round and its answers. It has no Person on it and no time at all, so there is nothing to match against who answered when.",
-  "site.privacy.groupSize.title": "Nothing shown below 4",
+  "site.privacy.groupSize.title": "Nothing shown below {groupSize}",
   "site.privacy.groupSize.body":
-    "Every average, chart and theme waits until at least 4 people have answered. Your Organization can raise that number, never set it below 3.",
+    "Every average, chart and theme waits until at least {groupSize} people have answered. Your Organization can raise that number, never set it below {minimum}.",
   "site.privacy.redaction.title": "Comments redacted first",
   "site.privacy.redaction.body":
     "Names of people in your Organization, email addresses, phone numbers and links are removed before a comment is saved. The original text is never kept.",
@@ -553,7 +553,7 @@ export const catalog = {
     "When a Round closes, the Lead gets a picture of the Team, not a spreadsheet, and everything needed to run a short conversation about it.",
   "site.results.themes.title": "Themes from comments",
   "site.results.themes.body":
-    "Up to 5 themes, each a short label and one neutral sentence, backed by at least two comments.",
+    "Up to {themes} themes, each a short label and one neutral sentence, backed by at least two comments.",
   "site.results.guide.title": "A discussion guide",
   "site.results.guide.body":
     "Questions for the team conversation, prepared from the Result. Only the Lead sees it.",

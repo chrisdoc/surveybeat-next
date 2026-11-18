@@ -16,7 +16,7 @@ export const answerCatalog = {
   "answer.comment.label": "Want to say more?",
   "answer.comment.hint": "Optional. Names, emails and links are removed.",
   "answer.comment.disclosure":
-    "Your Lead reads comments word for word, once at least 4 people answer. We remove names of people in your organization, email addresses, phone numbers, handles and links. We don't remove other details, so leave out anything that identifies you.",
+    "Your Lead reads comments word for word, once at least {groupSize} people answer. We remove names of people in your organization, email addresses, phone numbers, handles and links. We don't remove other details, so leave out anything that identifies you.",
   "answer.comment.leadSees": "Your Lead will see: {text}",
   "answer.thanks.title": "Thank you!",
   "answer.thanks.body": "Your answer is saved. Here is what you can do next:",

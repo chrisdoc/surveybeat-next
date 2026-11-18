@@ -1,6 +1,7 @@
 import { Schema } from "effect";
 import { EmailAddress, SendId } from "../email/Email.ts";
 import { FailureReason } from "../email/SendState.ts";
+import { days, Policy } from "../Policy.ts";
 import { TeamSummary } from "../people/Team.ts";
 import { QuestionContent, QuestionId, QuestionVersionId } from "./Question.ts";
 import { TemplateQuestion, TemplateQuestionKey } from "./Template.ts";
@@ -24,15 +25,15 @@ export const Weekday = Schema.Literals([
 export type Weekday = typeof Weekday.Type;
 
 const CLOCK_TIME = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
-export const EARLIEST_SEND_TIME = "06:00";
-export const LATEST_SEND_TIME = "21:00";
-
 export const SendTime = Schema.String.pipe(
   Schema.check(
     Schema.isPattern(CLOCK_TIME),
-    Schema.makeFilter((time: string) => time >= EARLIEST_SEND_TIME && time <= LATEST_SEND_TIME, {
-      expected: `a time from ${EARLIEST_SEND_TIME} to ${LATEST_SEND_TIME}`,
-    }),
+    Schema.makeFilter(
+      (time: string) => time >= Policy.sendWindow.earliest && time <= Policy.sendWindow.latest,
+      {
+        expected: `a time from ${Policy.sendWindow.earliest} to ${Policy.sendWindow.latest}`,
+      },
+    ),
   ),
   Schema.brand("SendTime"),
 );
@@ -74,8 +75,7 @@ export type PulseSettings = typeof PulseSettings.Type;
 
 export const MIN_QUESTIONS = 1;
 
-export const MAX_QUESTIONS = 20;
-export const RECOMMENDED_MAX_QUESTIONS = 7;
+export const MAX_QUESTIONS = Policy.questions.maximum;
 export const RECOMMENDED_MAX_SECONDS = 90;
 
 export const PulseWarning = Schema.TaggedUnion({
@@ -176,9 +176,9 @@ export class OrderMismatch extends Schema.TaggedError<OrderMismatch, { readonly 
   { httpApiStatus: 409 },
 ) {}
 
-export const testSendsPerHour = 5;
+export const testSendsPerHour = Policy.testSend.perHour;
 
-export const testInvitationLifetimeMs = 7 * 24 * 60 * 60 * 1000;
+export const testInvitationLifetimeMs = days(Policy.testSend.lifetimeDays);
 
 export class TestSendLimitReached extends Schema.TaggedError<
   TestSendLimitReached,

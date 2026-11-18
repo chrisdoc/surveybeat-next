@@ -7,6 +7,7 @@
   },
   "dependencies": {
     "@better-auth/passkey": "catalog:",
+    "@surveybeat/domain": "workspace:*",
     "better-auth": "catalog:",
     "effect": "catalog:"
   },

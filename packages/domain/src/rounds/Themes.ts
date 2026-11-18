@@ -4,6 +4,7 @@ import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import { isUnhandled, setup, transition, types } from "xstate";
 import { AiClient, type AiInput, type AiRequest, RedactedText } from "../ai/AiClient.ts";
+import { Policy } from "../Policy.ts";
 import { redact, type Roster } from "../privacy/Redaction.ts";
 import { DiscussionGuide, enforceEffectiveNOnResult, type RoundResult } from "./Results.ts";
 import { nextRetryAt } from "./Retry.ts";
@@ -22,7 +23,7 @@ export type RoundThemesRecord =
   | { readonly status: "ready"; readonly themes: StoredThemes }
   | { readonly status: "failed" };
 
-export const MAX_THEMES = 5;
+export const MAX_THEMES = Policy.themes.maximum;
 export const MIN_SUPPORTING_COMMENTS = 2;
 export const QUOTE_RUN_WORDS = 6;
 

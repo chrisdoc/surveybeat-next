@@ -21,8 +21,6 @@ export const ScaleLabel = trimmed(40);
 
 export const ChoiceOption = trimmed(80);
 
-export const LONG_TEXT_MAX_LENGTH = 1000;
-
 export const QuestionType = Schema.TaggedUnion({
   Rating: { lowLabel: ScaleLabel, highLabel: ScaleLabel, comment: Schema.Boolean },
   SingleChoice: {

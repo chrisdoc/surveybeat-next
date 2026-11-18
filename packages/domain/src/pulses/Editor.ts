@@ -1,5 +1,6 @@
 import { Option } from "effect";
 import type { SendState } from "../email/SendState.ts";
+import { Policy } from "../Policy.ts";
 import {
   actorOf,
   type DirectoryState,
@@ -20,7 +21,6 @@ import {
   type PulseQuestion,
   type PulseSettings,
   type PulseWarning,
-  RECOMMENDED_MAX_QUESTIONS,
   RECOMMENDED_MAX_SECONDS,
   SendTime,
   type NewPulseQuestion,
@@ -175,11 +175,11 @@ export const pulseWarnings = (
   minimumGroupSize: number,
 ): ReadonlyArray<PulseWarning> => {
   const warnings: Array<PulseWarning> = [];
-  if (contents.length > RECOMMENDED_MAX_QUESTIONS) {
+  if (contents.length > Policy.questions.recommended) {
     warnings.push({
       _tag: "TooManyQuestions",
       count: contents.length,
-      recommended: RECOMMENDED_MAX_QUESTIONS,
+      recommended: Policy.questions.recommended,
     });
   }
   const seconds = estimateSeconds(contents);

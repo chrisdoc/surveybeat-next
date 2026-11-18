@@ -1,4 +1,5 @@
 import { Button, Checkbox, Input, Select, Textarea } from "@foldkit/ui";
+import { Policy } from "@surveybeat/domain";
 import { Option } from "effect";
 import type { Html, HtmlBuilder } from "foldkit/html";
 import { message } from "../messages/locale.ts";
@@ -544,17 +545,24 @@ export const privacyContent = <Message>(h: HtmlBuilder<Message>): ReadonlyArray<
         [h.Class("flex flex-col gap-6 leading-relaxed text-muted")],
         (
           [
-            ["privacy.groupSize.title", "privacy.groupSize.body"],
-            ["privacy.aiProcessing.title", "privacy.aiProcessing.body"],
-            ["privacy.anonymity.title", "privacy.anonymity.body"],
-            ["privacy.comments.title", "privacy.comments.body"],
-            ["privacy.restore.title", "privacy.restore.body"],
-            ["privacy.editKey.title", "privacy.editKey.body"],
-            ["privacy.restoreTrigger.title", "privacy.restoreTrigger.body"],
+            [
+              message("privacy.groupSize.title"),
+              message("privacy.groupSize.body", {
+                groupSize: Policy.groupSize.defaultValue,
+                minimum: Policy.groupSize.minimum,
+              }),
+            ],
+            [message("privacy.aiProcessing.title"), message("privacy.aiProcessing.body")],
+            [message("privacy.anonymity.title"), message("privacy.anonymity.body")],
+            [message("privacy.comments.title"), message("privacy.comments.body")],
+            [
+              message("privacy.restore.title", { days: Policy.backupRetentionDays }),
+              message("privacy.restore.body", { days: Policy.backupRetentionDays }),
+            ],
+            [message("privacy.editKey.title"), message("privacy.editKey.body")],
+            [message("privacy.restoreTrigger.title"), message("privacy.restoreTrigger.body")],
           ] as const
-        ).map(([title, body]) =>
-          h.div([], [subSectionTitle(message(title), h, 2), h.p([h.Class("mt-1")], [message(body)])]),
-        ),
+        ).map(([title, body]) => h.div([], [subSectionTitle(title, h, 2), h.p([h.Class("mt-1")], [body])])),
       ),
     ],
     h,

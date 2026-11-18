@@ -1,13 +1,14 @@
 import { passkey } from "@better-auth/passkey";
+import { days, minutes, Policy, toSeconds } from "@surveybeat/domain";
 import { betterAuth, type Auth, type BetterAuthOptions, type BetterAuthPlugin } from "better-auth";
 import { memoryAdapter } from "better-auth/adapters/memory";
 import { admin, emailOTP, magicLink, organization } from "better-auth/plugins";
 import * as Effect from "effect/Effect";
 
 export const SESSION_COOKIE = "__Host-surveybeat-session";
-export const SESSION_TTL_SECONDS = 30 * 24 * 60 * 60;
-export const CODE_TTL_SECONDS = 600;
-export const MAGIC_LINK_TTL_SECONDS = 300;
+export const SESSION_TTL_SECONDS = toSeconds(days(Policy.signIn.sessionDays));
+export const CODE_TTL_SECONDS = toSeconds(minutes(Policy.signIn.codeMinutes));
+export const MAGIC_LINK_TTL_SECONDS = toSeconds(minutes(Policy.signIn.magicLinkMinutes));
 
 export const AUTH_TABLES = {
   user: "auth_user",
@@ -35,9 +36,9 @@ export type SurveyBeatAuthOptions = Omit<BetterAuthOptions, "baseURL" | "databas
 
 export const authPlugins = (delivery: CodeDelivery): Array<BetterAuthPlugin> => [
   emailOTP({
-    otpLength: 6,
+    otpLength: Policy.signIn.codeDigits,
     expiresIn: CODE_TTL_SECONDS,
-    allowedAttempts: 5,
+    allowedAttempts: Policy.signIn.codeAttempts,
     sendVerificationOTP: ({ email, otp, type }) =>
       type === "sign-in" ? Effect.runPromise(delivery.sendSignInCode({ email, otp })) : Promise.resolve(),
   }),

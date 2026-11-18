@@ -1,6 +1,8 @@
 import {
   Dimension,
   type FailureReason,
+  minutes,
+  Policy,
   PulseDetail,
   PulseList,
   PulseSettings,
@@ -14,10 +16,10 @@ import {
   TestSendStatus,
   Weekday,
 } from "@surveybeat/domain";
-import { Option, Predicate, Schema } from "effect";
+import { Duration, Option, Predicate, Schema } from "effect";
 import type { Html, HtmlBuilder } from "foldkit/html";
 import { defineTaggedUnion } from "foldkit/schema";
-import { formatDuration, formatRoundDate, message, pluralMessage } from "../messages/locale.ts";
+import { formatDuration, formatNumber, formatRoundDate, message, pluralMessage } from "../messages/locale.ts";
 import { Failure } from "./api.ts";
 import {
   appButton,
@@ -65,11 +67,11 @@ export const TestSendResult = Schema.Union([
 ]);
 export type TestSendResult = typeof TestSendResult.Type;
 
-export const TEST_SEND_POLL_INTERVAL = "3 seconds";
+export const TEST_SEND_POLL_INTERVAL = Duration.seconds(Policy.testSend.pollSeconds);
 
-export const TEST_SEND_STALLED_MILLIS = 5 * 60_000;
+export const TEST_SEND_STALLED_MILLIS = minutes(Policy.testSend.stalledMinutes);
 
-export const TEST_SEND_GIVE_UP_MILLIS = 15 * 60_000;
+export const TEST_SEND_GIVE_UP_MILLIS = minutes(Policy.testSend.giveUpMinutes);
 
 export const testSendKeepsPolling = (status: TestSendStatus): boolean =>
   (status.state._tag === "Queued" || status.state._tag === "Sending") &&
@@ -401,7 +403,10 @@ export const questionFormView = <Message>(
           )
         : null,
       config.kind === "LongText"
-        ? h.p([h.Class("text-sm text-muted")], [message("question.longText.help")])
+        ? h.p(
+            [h.Class("text-sm text-muted")],
+            [message("question.longText.help", { max: formatNumber(Policy.text.longTextMaxLength) })],
+          )
         : null,
       selectField(
         {
@@ -828,7 +833,15 @@ export const pulseEditorView = <Message>(
           },
           h,
         ),
-        h.p([h.Class("text-sm text-muted")], [message("pulse.settings.time.help")]),
+        h.p(
+          [h.Class("text-sm text-muted")],
+          [
+            message("pulse.settings.time.help", {
+              earliest: Policy.sendWindow.earliest,
+              latest: Policy.sendWindow.latest,
+            }),
+          ],
+        ),
         selectField(
           {
             id: "pulse-setting-window",

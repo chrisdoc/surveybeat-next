@@ -12,8 +12,8 @@ import {
   type DiscussionGuide,
   type DistributionOption,
   type Highlight,
-  NOTE_MAX_LENGTH,
   PersonId,
+  Policy,
   type QuestionChange,
   type QuestionResult,
   RoundNote,
@@ -27,6 +27,7 @@ import { defineTaggedUnion } from "foldkit/schema";
 import {
   formatChange,
   formatDate,
+  formatNumber,
   formatPercent,
   formatRoundDate,
   formatScore,
@@ -571,7 +572,7 @@ const noteSection = <Message>(
 
   if (isLead && state.noteEditing) {
     const length = state.noteDraft.length;
-    const isTooLong = length > NOTE_MAX_LENGTH;
+    const isTooLong = length > Policy.text.noteMaxLength;
     body.push(
       textareaField(
         {
@@ -586,9 +587,11 @@ const noteSection = <Message>(
       ),
       h.p(
         [h.Class(`text-sm ${isTooLong ? "text-danger" : "text-muted"}`)],
-        [pluralMessage("note.count", length)],
+        [pluralMessage("note.count", length, { max: formatNumber(Policy.text.noteMaxLength) })],
       ),
-      isTooLong ? alertView(message("note.tooLong"), h) : null,
+      isTooLong
+        ? alertView(message("note.tooLong", { max: formatNumber(Policy.text.noteMaxLength) }), h)
+        : null,
       problemView(Option.getOrUndefined(state.noteFailure), h),
       h.div(
         [h.Class("flex flex-wrap justify-end gap-2")],

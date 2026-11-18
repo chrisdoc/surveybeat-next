@@ -1,9 +1,8 @@
 import { Schema } from "effect";
+import { Policy } from "../Policy.ts";
 import { RoundId } from "../rounds/Round.ts";
 
-export const NOTE_MAX_LENGTH = 2000;
-
-export const NoteText = Schema.String.pipe(Schema.check(Schema.isMaxLength(NOTE_MAX_LENGTH)));
+export const NoteText = Schema.String.pipe(Schema.check(Schema.isMaxLength(Policy.text.noteMaxLength)));
 export type NoteText = typeof NoteText.Type;
 
 export const RoundNote = Schema.Struct({

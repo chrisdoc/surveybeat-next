@@ -15,10 +15,10 @@ import {
   MemberHistory,
   MinimumGroupSize,
   NewPulseQuestion,
-  NOTE_MAX_LENGTH,
   OrganizationId,
   OrganizationSettings,
   PersonId,
+  Policy,
   PulseDetail,
   PulseId,
   PulseList,
@@ -33,7 +33,6 @@ import {
   RoundNoteView,
   RoundResult,
   SendId,
-  SIGN_IN_CODE_MINUTES,
   TeamDetail,
   TeamId,
   TeamName,
@@ -1611,7 +1610,11 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
             stage: message.sent ? "code" : model.session.stage,
             code: "",
             notice: message.sent
-              ? translate("signIn.sent", { email: model.session.email.trim(), minutes: SIGN_IN_CODE_MINUTES })
+              ? translate("signIn.sent", {
+                  email: model.session.email.trim(),
+                  digits: Policy.signIn.codeDigits,
+                  minutes: Policy.signIn.codeMinutes,
+                })
               : translate("signIn.sendFailed"),
           },
         },
@@ -3144,7 +3147,11 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       return { model: { ...model, noteEditing: false, noteFailure: Option.none() } };
 
     case "SubmitNote": {
-      if (model.route._tag !== "RoundResults" || model.noteBusy || model.noteDraft.length > NOTE_MAX_LENGTH) {
+      if (
+        model.route._tag !== "RoundResults" ||
+        model.noteBusy ||
+        model.noteDraft.length > Policy.text.noteMaxLength
+      ) {
         return { model };
       }
       return {

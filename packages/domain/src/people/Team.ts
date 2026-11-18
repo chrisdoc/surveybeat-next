@@ -1,5 +1,6 @@
 import { Schema } from "effect";
 import { EmailAddress } from "../email/Email.ts";
+import { Policy } from "../Policy.ts";
 import { PersonId } from "./Identity.ts";
 import { Locale } from "./Locale.ts";
 
@@ -38,9 +39,12 @@ export const AssignableRole = Schema.Literals(["lead", "member"]);
 export type AssignableRole = typeof AssignableRole.Type;
 
 export const MinimumGroupSize = Schema.Int.pipe(
-  Schema.check(Schema.isGreaterThanOrEqualTo(3), Schema.isLessThanOrEqualTo(100)),
+  Schema.check(
+    Schema.isGreaterThanOrEqualTo(Policy.groupSize.minimum),
+    Schema.isLessThanOrEqualTo(Policy.groupSize.maximum),
+  ),
 );
-export const DEFAULT_MINIMUM_GROUP_SIZE = 4;
+export const DEFAULT_MINIMUM_GROUP_SIZE = Policy.groupSize.defaultValue;
 
 export const TeamSummary = Schema.Struct({
   id: TeamId,
