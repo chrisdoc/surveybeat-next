@@ -7,6 +7,7 @@ import { PULSES_TEST_ROUTE } from "./PulseTestRoutes.ts";
 import { RESEND_EMAIL_TEST_ROUTE } from "./ResendEmailTestRoutes.ts";
 import { RESULT_RECOVERY_TEST_ROUTE } from "./ResultRecoveryTestRoutes.ts";
 import { REVIEW_TEST_ROUTE } from "./ReviewWindowTestRoutes.ts";
+import { ROUND_DELIVERY_TEST_ROUTE } from "./RoundDeliveryTestRoutes.ts";
 import { ROUNDS_TEST_ROUTE } from "./RoundTestRoutes.ts";
 import { TEST_INVITATION_TEST_ROUTE } from "./TestInvitationTestRoutes.ts";
 import { THEMES_TEST_ROUTE } from "./ThemesTestRoutes.ts";
@@ -42,6 +43,7 @@ export const mainWorkerAssets = (stage: string) => ({
           PEOPLE_TEST_ROUTE,
           PULSES_TEST_ROUTE,
           ROUNDS_TEST_ROUTE,
+          ROUND_DELIVERY_TEST_ROUTE,
           THEMES_TEST_ROUTE,
           REVIEW_TEST_ROUTE,
           RESULT_RECOVERY_TEST_ROUTE,

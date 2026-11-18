@@ -17,6 +17,7 @@ import * as Clock from "effect/Clock";
 import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as Schedule from "effect/Schedule";
 import * as Redacted from "effect/Redacted";
 import { HttpServerRequest } from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
@@ -67,8 +68,14 @@ export const roundTestRoutes = (organizations: Organizations, database: Cloudfla
     );
     yield* setReviewWindowDays(organization, admin, teamId, pulseId, 0, now);
 
-    const initialAlarm = yield* organization.getAlarm();
     const earliestDue1 = yield* organization.getEarliestPendingJobDueAt();
+    const initialAlarm = yield* organization.getAlarm().pipe(
+      Effect.repeat({
+        until: (alarm) => alarm === earliestDue1,
+        schedule: Schedule.spaced("100 millis"),
+        times: 50,
+      }),
+    );
     const alarmPointsToEarliest1 =
       initialAlarm !== null && earliestDue1 !== null && initialAlarm === earliestDue1;
 
@@ -221,8 +228,14 @@ export const roundTestRoutes = (organizations: Organizations, database: Cloudfla
       closeJobAfterFirst.status === "completed" &&
       closeJobAfterSecond.status === "completed";
 
-    const alarmAfter = yield* organization.getAlarm();
     const earliestDue2 = yield* organization.getEarliestPendingJobDueAt();
+    const alarmAfter = yield* organization.getAlarm().pipe(
+      Effect.repeat({
+        until: (alarm) => alarm === earliestDue2,
+        schedule: Schedule.spaced("100 millis"),
+        times: 50,
+      }),
+    );
     const alarmPointsToEarliest2 =
       alarmAfter !== null && earliestDue2 !== null && alarmAfter === earliestDue2;
 

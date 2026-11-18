@@ -324,16 +324,20 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
 
   const updateScheduledRound = (
     roundId: RoundId,
-    pulseName: string,
-    answerWindowDays: number,
-    reminders: number,
-    plannedOpenAt: number,
-    plannedCloseAt: number,
-    now: number,
+    slot: {
+      readonly pulseName: string;
+      readonly answerWindowDays: number;
+      readonly reminders: number;
+      readonly plannedOpenDate: string;
+      readonly plannedOpenAt: number;
+      readonly plannedCloseAt: number;
+      readonly now: number;
+    },
   ): Effect.Effect<void> =>
     sql`UPDATE round
-        SET pulse_name = ${pulseName}, answer_window_days = ${answerWindowDays}, reminders = ${reminders},
-            planned_open_at = ${plannedOpenAt}, planned_close_at = ${plannedCloseAt}, updated_at = ${now}
+        SET pulse_name = ${slot.pulseName}, answer_window_days = ${slot.answerWindowDays}, reminders = ${slot.reminders},
+            planned_open_date = ${slot.plannedOpenDate}, planned_open_at = ${slot.plannedOpenAt},
+            planned_close_at = ${slot.plannedCloseAt}, updated_at = ${slot.now}
         WHERE id = ${roundId} AND status = 'scheduled'`.pipe(Effect.asVoid, Effect.orDie);
 
   const openRound = (
@@ -449,10 +453,12 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
       Effect.orDie,
     );
 
-  const getSkippedWeeks = (pulseId: PulseId): Effect.Effect<ReadonlySet<string>> =>
-    sql<{
-      planned_open_date: string;
-    }>`SELECT planned_open_date FROM pulse_skip WHERE pulse_id = ${pulseId}`.pipe(
+  const getUnavailableRoundDates = (
+    pulseId: PulseId,
+    except: RoundId | null,
+  ): Effect.Effect<ReadonlySet<string>> =>
+    sql<{ planned_open_date: string }>`SELECT planned_open_date FROM pulse_skip WHERE pulse_id = ${pulseId}
+        UNION SELECT planned_open_date FROM round WHERE pulse_id = ${pulseId} AND id != ${except ?? ""}`.pipe(
       Effect.map((rows) => new Set(rows.map((r) => r.planned_open_date))),
       Effect.orDie,
     );
@@ -1129,7 +1135,7 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
     isPulsePaused,
     skipWeek,
     unskipWeek,
-    getSkippedWeeks,
+    getUnavailableRoundDates,
     insertJob,
     updateJobDueAt,
     markJobCompleted,
