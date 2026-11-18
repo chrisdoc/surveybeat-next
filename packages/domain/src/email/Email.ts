@@ -14,7 +14,10 @@ const HttpsUrl = Schema.String.pipe(Schema.check(Schema.isStartingWith("https://
 
 const AiProcessing = Schema.optionalKey(Schema.Boolean);
 
-const EmailLocale = Locale.pipe(Schema.withDecodingDefaultKey(Effect.succeed(DEFAULT_LOCALE)));
+const EmailLocale = Locale.pipe(
+  Schema.catchDecoding(() => Effect.succeedSome(DEFAULT_LOCALE)),
+  Schema.withDecodingDefaultKey(Effect.succeed(DEFAULT_LOCALE)),
+);
 
 export const AddedToTeam = Schema.TaggedStruct("AddedToTeam", {
   locale: EmailLocale,

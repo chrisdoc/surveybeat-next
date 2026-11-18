@@ -1,5 +1,7 @@
 # The landing page is prerendered static HTML, served by its own Site Worker
 
+> The German landing page at `/de/` is superseded for now by [ADR 0025](0025-english-only-for-now.md). The landing page is English only at `/`.
+
 The public marketing page for surveybeat.app is not part of the app. It is prerendered at build time from the web catalogs into `apps/web/dist-site`: English at `/`, German at `/de/`, with no JavaScript. The `apps/web` build runs `vite.site.config.ts` after the app build (`vite.config.ts`), so both outputs come from one package.
 
 - **Serving.** A separate Site Worker (`packages/cloudflare/src/SiteWorker.ts`) serves those files from static assets. Its one dynamic route is `/app`, which redirects to the app's origin. The Main Worker's routing, auth, and cookies stay untouched, and so does the Submission Worker's privacy posture (ADR 0005).

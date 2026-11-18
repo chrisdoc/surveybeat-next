@@ -2,7 +2,6 @@
 
 import type { Locale } from "@surveybeat/domain";
 import { catalog } from "./catalog.ts";
-import { de } from "./de.ts";
 import {
   fill,
   type KeysWithoutParams,
@@ -15,7 +14,7 @@ import {
   type Value,
 } from "./index.ts";
 
-const tables = { en: catalog, de } satisfies Record<Locale, Translation>;
+const tables = { en: catalog } satisfies Record<Locale, Translation>;
 
 interface MessageFn {
   <K extends KeysWithoutParams>(key: K): string;

@@ -68,23 +68,6 @@ describe.each(Object.values(examples))("$_tag", (email) => {
   });
 });
 
-describe.each(Object.values(examples))("$_tag in German", (example) => {
-  const email: typeof example = { ...example, locale: "de" };
-
-  it("renders the subject, HTML, and plain-text parts in German", async () => {
-    const rendered = await renderEmail(email);
-    expect(rendered.subject).toMatchSnapshot("subject");
-    expect(rendered.html).toMatchSnapshot("html");
-    expect(rendered.text).toMatchSnapshot("text");
-  });
-
-  it("sets the document language to German", async () => {
-    const { html } = await renderEmail(email);
-    expect(html).toContain('<html dir="ltr" lang="de">');
-    expect(html).not.toContain('lang="en"');
-  });
-});
-
 describe("a send stored before locales were recorded", () => {
   it("decodes as English and renders English", async () => {
     const stored = Schema.decodeSync(StoredEmail)({
@@ -174,14 +157,6 @@ const testCases = [
     reason: "You sent yourself this test from the Pulse editor.",
     memberReason: "you are a member of the team",
     answerPath: "/a",
-  },
-  {
-    locale: "de",
-    notice: "Dies ist ein Test. Deine Antworten werden nicht gespeichert.",
-    personalNotice: "Dieser Link ist persönlich.",
-    reason: "Du hast dir diesen Test aus dem Pulse-Editor selbst geschickt.",
-    memberReason: "du Mitglied des Teams bist",
-    answerPath: "/de/a",
   },
 ] as const;
 
@@ -310,18 +285,6 @@ describe("answer and delivery links follow the email's locale", () => {
   it.each([
     ["InvitationEmail", examples.InvitationEmail],
     ["ReminderEmail", examples.ReminderEmail],
-  ] as const)("%s in German opens /de/a and carries lang=de", async (_name, example) => {
-    const { html, text } = await renderEmail({ ...example, locale: "de" });
-    expect(html).toContain("/de/a#t=test-token-123");
-    expect(text).toContain("/de/a#t=test-token-123");
-    expect(html).toContain("lang=de");
-    expect(text).toContain("lang=de");
-    expect(text).toContain("https://app.surveybeat.app/delivery?token=test-token-123&lang=de");
-  });
-
-  it.each([
-    ["InvitationEmail", examples.InvitationEmail],
-    ["ReminderEmail", examples.ReminderEmail],
   ] as const)("%s in English opens /a and carries no language", async (_name, example) => {
     const { html, text } = await renderEmail(example);
     expect(html).toContain("/a#t=test-token-123");
@@ -333,16 +296,14 @@ describe("answer and delivery links follow the email's locale", () => {
     expect(text).not.toContain("lang=");
   });
 
-  it("keeps the unsubscribe link in German, including a legacy stored one", async () => {
+  it("keeps the unsubscribe link of a legacy stored one, with no language parameter", async () => {
     const { headers, text } = await renderEmail({
       ...examples.ReminderEmail,
-      locale: "de",
       unsubscribeUrl: "https://old.example/api/reminders/unsubscribe?t=old",
     });
-    expect(headers?.["List-Unsubscribe"]).toBe(
-      "<https://old.example/api/reminders/unsubscribe?t=old&lang=de>",
-    );
-    expect(text).toContain("https://old.example/api/reminders/unsubscribe?t=old&lang=de");
+    expect(headers?.["List-Unsubscribe"]).toBe("<https://old.example/api/reminders/unsubscribe?t=old>");
+    expect(text).toContain("https://old.example/api/reminders/unsubscribe?t=old");
+    expect(text).not.toContain("lang=");
   });
 });
 

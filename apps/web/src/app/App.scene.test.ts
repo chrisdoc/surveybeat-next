@@ -54,7 +54,6 @@ import {
   initialModel,
   ListRoundsCmd,
   ListTeams,
-  LoadSession,
   localeOf,
   PollFailedEmailCmd,
   PollTestSendCmd,
@@ -75,8 +74,6 @@ import {
   SendTestInvitationCmd,
   UpdatePulseSettingsCmd,
   UpdateAiProcessing,
-  UpdateDefaultLanguage,
-  UpdateOwnLanguage,
   UpdateSettings,
   UpdateTeam,
   view,
@@ -106,7 +103,7 @@ const decodeSendId = Schema.decodeSync(SendId);
 const makeUrl = (str: string) => Option.getOrThrow(fromString(str));
 
 beforeEach(() => {
-  // No browser language unless a test sets one, so the default flows issue no language commands.
+  // No browser language unless a test sets one, so a Person's language resolves to English.
   vi.stubGlobal("navigator", { languages: [] });
 });
 
@@ -115,7 +112,7 @@ afterEach(() => {
   setLocale("en");
 });
 
-/** Opens the header's account menu, where the Language choice and Sign out are. */
+/** Opens the header's account menu, where Sign out is. */
 const openAccountMenu = (organization: string, menu = "Account menu") => [
   Scene.click(Scene.role("button", { name: `${organization} ${menu}` })),
   Scene.Mount.resolve(Popover.AnchorPopover, Popover.Message.CompletedAnchorPopover()),
@@ -2470,7 +2467,7 @@ describe("App Scenes", () => {
       );
     });
 
-    describe("Highlights, German formats, and the Actions panel", () => {
+    describe("Highlights, number and date formats, and the Actions panel", () => {
       /** A closed Round with one flagged Question and one Dimension, so the badge and formats are on screen. */
       const flaggedResult = (direction: "rise" | "drop", questionScore: number): RoundResult => ({
         roundId: Schema.decodeSync(RoundId)("round-flagged"),
@@ -2531,10 +2528,10 @@ describe("App Scenes", () => {
         comments: [],
       });
 
-      const flaggedScene = (result: RoundResult, locale: Locale | null = null) =>
+      const flaggedScene = (result: RoundResult) =>
         Scene.given({
           ...initialModel(makeUrl("https://app.surveybeat.com/teams/team-1/rounds/round-flagged")),
-          session: { ...signedInAdmin, locale },
+          session: signedInAdmin,
           results: { _tag: "Loaded", result },
           teamDetail: { _tag: "Loaded", detail: leadTeamDetail(decodeTeamId("team-1")) },
           actions: { _tag: "Loaded", actions: [] },
@@ -2572,17 +2569,17 @@ describe("App Scenes", () => {
         );
       });
 
-      it("formats scores, changes, Round dates and percentages in German", () => {
+      it("formats scores, changes, Round dates and percentages in English", () => {
         Scene.scene(
           { update, view },
-          flaggedScene(flaggedResult("rise", 3.6), "de"),
-          Scene.expect(Scene.text("Runde vom 09.11.2026")).toExist(),
-          Scene.expect(Scene.text("4,0 / 5")).toExist(),
-          Scene.expect(Scene.text("3,6 / 5")).toExist(),
-          Scene.expect(Scene.text("+0,7 seit der letzten Runde (02.11.2026)")).toExist(),
-          Scene.expect(Scene.text("Bewegt sich zwischen Runden meist um etwa ±0,3")).toExist(),
-          Scene.expect(Scene.text("75\u00a0%")).toExist(),
-          Scene.expect(Scene.text("6 von 8")).toExist(),
+          flaggedScene(flaggedResult("rise", 3.6)),
+          Scene.expect(Scene.text("Round Nov 9, 2026")).toExist(),
+          Scene.expect(Scene.text("4.0 / 5")).toExist(),
+          Scene.expect(Scene.text("3.6 / 5")).toExist(),
+          Scene.expect(Scene.text("+0.7 since last Round (Nov 2, 2026)")).toExist(),
+          Scene.expect(Scene.text("Usually moves about ±0.3 between Rounds")).toExist(),
+          Scene.expect(Scene.text("75%")).toExist(),
+          Scene.expect(Scene.text("6 of 8")).toExist(),
         );
       });
     });
@@ -3567,38 +3564,7 @@ describe("App Scenes", () => {
       organizationLocale,
     });
 
-    it("shows the screens in the Person's language", () => {
-      Scene.scene(
-        { update, view },
-        Scene.given({
-          ...initialModel(teamsUrl),
-          session: { ...signedInAdmin, locale: "de" as const },
-          teams: { _tag: "Loaded", teams: [] },
-        }),
-        Scene.expect(Scene.role("link", { name: "Organisationseinstellungen" })).toExist(),
-        ...openAccountMenu("Acme", "Kontomenü"),
-        Scene.expect(Scene.role("button", { name: "Abmelden" })).toExist(),
-        Scene.expect(Scene.text("Du bist noch in keinem Team.")).toExist(),
-        Scene.expect(Scene.label("Sprache")).toExist(),
-      );
-    });
-
-    it("falls back to the Organization's default language when the Person has no choice", () => {
-      Scene.scene(
-        { update, view },
-        Scene.given({
-          ...initialModel(teamsUrl),
-          browserLocale: null,
-          session: { ...signedInAdmin, organizationLocale: "de" as const },
-          teams: { _tag: "Loaded", teams: [] },
-        }),
-        ...openAccountMenu("Acme", "Kontomenü"),
-        Scene.expect(Scene.text("Du bist noch in keinem Team.")).toExist(),
-        Scene.expect(Scene.label("Sprache")).toExist(),
-      );
-    });
-
-    it("switches the screens when the Person picks a language", () => {
+    it("shows the screens in English, with no language picker in the account menu", () => {
       Scene.scene(
         { update, view },
         Scene.given({
@@ -3606,35 +3572,15 @@ describe("App Scenes", () => {
           session: signedInAdmin,
           teams: { _tag: "Loaded", teams: [] },
         }),
+        Scene.expect(Scene.role("link", { name: "Organization settings" })).toExist(),
         ...openAccountMenu("Acme"),
-        Scene.change(Scene.label("Language"), "de"),
-        Scene.Command.expectHas(UpdateOwnLanguage),
-        Scene.expect(Scene.label("Sprache")).toExist(),
-        Scene.Command.resolve(
-          UpdateOwnLanguage,
-          Message.UpdatedOwnLanguage({ chosen: true, outcome: { _tag: "Success" } }),
-        ),
-        Scene.Command.expectHas(LoadSession),
-        Scene.Command.resolve(
-          LoadSession,
-          Message.GotSession({
-            result: {
-              _tag: "SignedIn",
-              organization: { id: decodeOrgId("org-1"), name: "Acme" },
-              organizationAdmin: true,
-              locale: "de",
-              detectedLocale: null,
-              organizationLocale: "en",
-            },
-          }),
-        ),
-        Scene.Command.expectHas(ListTeams),
-        Scene.Command.resolve(ListTeams, Message.GotTeams({ outcome: { _tag: "Success", teams: [] } })),
-        Scene.expect(Scene.label("Sprache")).toExist(),
+        Scene.expect(Scene.role("button", { name: "Sign out" })).toExist(),
+        Scene.expect(Scene.text("You're not in any Team yet.")).toExist(),
+        Scene.expect(Scene.label("Language")).toBeAbsent(),
       );
     });
 
-    it("offers the Organization's default language on the settings screen", () => {
+    it("has no default language on the settings screen", () => {
       const settings = {
         name: "Acme",
         minimumGroupSize: decodeSize(4),
@@ -3651,14 +3597,8 @@ describe("App Scenes", () => {
           settings: { _tag: "Loaded", settings },
           size: "4",
         }),
-        Scene.expect(Scene.label("Language")).toExist(),
-        Scene.change(Scene.label("Language"), "de"),
-        Scene.Command.expectHas(UpdateDefaultLanguage),
-        Scene.Command.resolve(
-          UpdateDefaultLanguage,
-          Message.UpdatedDefaultLanguage({ outcome: { _tag: "Failure", failure: "Forbidden" } }),
-        ),
-        Scene.expect(Scene.role("alert")).toExist(),
+        Scene.expect(Scene.label("Language")).toBeAbsent(),
+        Scene.expect(Scene.text("Default language")).toBeAbsent(),
       );
     });
 
@@ -3669,40 +3609,24 @@ describe("App Scenes", () => {
         session,
       });
 
-      it("prefers the Person's choice, then the browser's language, then the Organization's default", () => {
-        expect(localeOf(modelWith("en", signedIn("de", "en")))).toBe("de");
-        expect(localeOf(modelWith("de", signedIn(null, "en")))).toBe("de");
-        expect(localeOf(modelWith("en", signedIn(null, "de")))).toBe("en");
-        expect(localeOf(modelWith(null, signedIn(null, "de")))).toBe("de");
+      it("is English for a signed-in Person, whatever the choices recorded", () => {
+        expect(localeOf(modelWith("en", signedIn(null, "en")))).toBe("en");
+        expect(localeOf(modelWith(null, signedIn("en", "en")))).toBe("en");
+        expect(localeOf(modelWith(null, signedIn(null, "en")))).toBe("en");
       });
 
-      it("uses the browser's language, then English, when signed out", () => {
-        expect(
-          localeOf(
-            modelWith("de", {
-              _tag: "SignedOut",
-              failed: false,
-              stage: "email",
-              email: "",
-              code: "",
-              busy: false,
-              notice: null,
-            }),
-          ),
-        ).toBe("de");
-        expect(
-          localeOf(
-            modelWith(null, {
-              _tag: "SignedOut",
-              failed: false,
-              stage: "email",
-              email: "",
-              code: "",
-              busy: false,
-              notice: null,
-            }),
-          ),
-        ).toBe("en");
+      it("is English when signed out, with or without a browser language", () => {
+        const signedOut: SessionModel = {
+          _tag: "SignedOut",
+          failed: false,
+          stage: "email",
+          email: "",
+          code: "",
+          busy: false,
+          notice: null,
+        };
+        expect(localeOf(modelWith("en", signedOut))).toBe("en");
+        expect(localeOf(modelWith(null, signedOut))).toBe("en");
       });
     });
   });
@@ -3802,20 +3726,17 @@ describe("App Scenes", () => {
       );
     });
 
-    it("keeps the language choice and Sign out in the account menu until it opens", () => {
+    it("keeps Sign out in the account menu until it opens", () => {
       Scene.scene(
         { update, view },
         Scene.given(teamsModel()),
-        Scene.expect(Scene.label("Language")).toBeAbsent(),
         Scene.expect(Scene.role("button", { name: "Sign out" })).toBeAbsent(),
         ...openAccountMenu("Acme"),
-        Scene.expect(Scene.label("Language")).toExist(),
         Scene.expect(Scene.role("button", { name: "Sign out" })).toExist(),
         Scene.keydown(Scene.selector("#account-menu-panel"), "Escape"),
         // Escape returns focus to the account button and closes the panel.
         Scene.Command.resolve(Popover.FocusButton, Popover.Message.CompletedFocusButton()),
         Scene.Mount.expectEnded(Popover.AnchorPopover),
-        Scene.expect(Scene.label("Language")).toBeAbsent(),
         Scene.expect(Scene.role("button", { name: "Acme Account menu" })).toHaveAttr(
           "aria-expanded",
           "false",
@@ -3834,7 +3755,6 @@ describe("App Scenes", () => {
           Scene.expect(Scene.role("link", { name: "My history" })).toExist(),
           Scene.expect(Scene.role("link", { name: "Teams", current: "page" })).toExist(),
           Scene.expect(Scene.role("link", { name: "Organization settings" })).toExist(),
-          Scene.expect(Scene.label("Language")).toExist(),
         ),
       );
     });
@@ -4027,19 +3947,16 @@ describe("App Scenes", () => {
       ).toBe("Teams · Acme — SurveyBeat");
     });
 
-    it("gives the German titles the same shape", () => {
-      const german = { ...signedInAdmin, locale: "de" as const };
+    it("gives a Round's results title the Team's name, in English", () => {
+      const english = { ...signedInAdmin, locale: "en" as const };
       expect(
         titleOf(
           inOrganization("https://app.surveybeat.com/teams/team-1/rounds/round-1", {
-            session: german,
+            session: english,
             teamDetail: platform,
           }),
         ),
-      ).toBe("Ergebnisse · Platform Engineering — SurveyBeat");
-      expect(titleOf(inOrganization("https://app.surveybeat.com/settings", { session: german }))).toBe(
-        "Organisationseinstellungen · Acme — SurveyBeat",
-      );
+      ).toBe("Results · Platform Engineering — SurveyBeat");
     });
 
     it("keeps the session and Privacy screens' own titles, all naming SurveyBeat", () => {

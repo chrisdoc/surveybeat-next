@@ -242,26 +242,27 @@ describe("an Organization admin", () => {
     expect((await admin.call("GET", "/api/organization")).body).toMatchObject({ minimumGroupSize: 5 });
   });
 
-  it("reads and sets the Organization's default language, which the session carries (ADR 0018)", async () => {
+  it("reads the Organization's default language, which the session carries (ADR 0018, ADR 0025)", async () => {
     const { admin, lead } = await setup();
     expect((await admin.call("GET", "/api/organization")).body).toMatchObject({ defaultLocale: "en" });
     expect((await admin.session()).body).toMatchObject({ organizationLocale: "en" });
-    expect((await admin.call("PATCH", "/api/organization", { defaultLocale: "de" })).status).toBe(204);
-    expect((await admin.call("GET", "/api/organization")).body).toMatchObject({ defaultLocale: "de" });
-    expect((await admin.session()).body).toMatchObject({ organizationLocale: "de" });
+    expect((await admin.call("PATCH", "/api/organization", { defaultLocale: "en" })).status).toBe(204);
+    expect((await admin.call("PATCH", "/api/organization", { defaultLocale: "de" })).status).toBe(400);
+    expect((await admin.call("GET", "/api/organization")).body).toMatchObject({ defaultLocale: "en" });
     expect((await lead.call("PATCH", "/api/organization", { defaultLocale: "en" })).status).toBe(403);
   });
 
   it("lets each Person set their own language, which the session carries, and nobody else's", async () => {
     const { admin, member } = await setup();
     expect((await member.session()).body).toMatchObject({ locale: null, detectedLocale: null });
-    expect((await member.call("PATCH", "/api/me/language", { locale: "de" })).status).toBe(204);
-    expect((await member.session()).body).toMatchObject({ locale: "de", detectedLocale: null });
+    expect((await member.call("PATCH", "/api/me/language", { locale: "en" })).status).toBe(204);
+    expect((await member.session()).body).toMatchObject({ locale: "en", detectedLocale: null });
     expect((await member.call("PATCH", "/api/me/language", { detectedLocale: "en" })).status).toBe(204);
-    expect((await member.session()).body).toMatchObject({ locale: "de", detectedLocale: "en" });
+    expect((await member.session()).body).toMatchObject({ locale: "en", detectedLocale: "en" });
     expect((await member.call("PATCH", "/api/me/language", { locale: null })).status).toBe(204);
     expect((await member.session()).body).toMatchObject({ locale: null, detectedLocale: "en" });
     expect((await member.call("PATCH", "/api/me/language", { locale: "fr" })).status).toBe(400);
+    expect((await member.call("PATCH", "/api/me/language", { locale: "de" })).status).toBe(400);
     expect((await admin.session()).body).toMatchObject({ locale: null, detectedLocale: null });
   });
 
@@ -398,7 +399,7 @@ describe("every directory endpoint", () => {
     ["POST", "/api/organization/failed-emails/s/resend", undefined],
     ["GET", "/api/organization/failed-emails/s", undefined],
     ["PATCH", "/api/organization", { minimumGroupSize: 4 }],
-    ["PATCH", "/api/me/language", { locale: "de" }],
+    ["PATCH", "/api/me/language", { locale: "en" }],
     ["PUT", "/api/organization/admins/p", undefined],
     ["DELETE", "/api/organization/admins/p", undefined],
     ["DELETE", "/api/organization/people/p", undefined],

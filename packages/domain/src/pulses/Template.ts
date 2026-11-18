@@ -72,61 +72,6 @@ const WEEKLY_TEAM_HEALTH: { readonly [L in Locale]: Template } = {
       },
     ],
   },
-  de: {
-    name: "Wöchentlicher Team-Check",
-    questions: [
-      {
-        key: key("workload-manageable"),
-        dimension: "workload",
-        text: "Wie gut ließ sich dein Arbeitspensum diese Woche bewältigen?",
-        type: {
-          _tag: "Rating",
-          lowLabel: "Nicht zu bewältigen",
-          highLabel: "Sehr gut zu bewältigen",
-          comment: true,
-        },
-      },
-      {
-        key: key("safe-to-speak-up"),
-        dimension: "psychologicalSafety",
-        text: "Wie sicher hast du dich gefühlt, Bedenken oder Fehler im Team anzusprechen?",
-        type: { _tag: "Rating", lowLabel: "Nicht sicher", highLabel: "Völlig sicher", comment: true },
-      },
-      {
-        key: key("priorities-clear"),
-        dimension: "clarity",
-        text: "Wie klar waren deine Prioritäten diese Woche?",
-        type: { _tag: "Rating", lowLabel: "Sehr unklar", highLabel: "Sehr klar", comment: false },
-      },
-      {
-        key: key("work-recognised"),
-        dimension: "recognition",
-        text: "Wie sehr hast du dich diese Woche für deine Arbeit wertgeschätzt gefühlt?",
-        type: { _tag: "Rating", lowLabel: "Überhaupt nicht", highLabel: "Voll und ganz", comment: false },
-      },
-      {
-        key: key("biggest-obstacle"),
-        dimension: "workload",
-        text: "Was hat dich diese Woche am meisten ausgebremst?",
-        type: {
-          _tag: "SingleChoice",
-          options: [
-            "Unklare Ziele",
-            "Warten auf andere",
-            "Unterbrechungen",
-            "Zu viel Arbeit",
-            "Nichts Besonderes",
-          ],
-        },
-      },
-      {
-        key: key("shout-out"),
-        dimension: "recognition",
-        text: "Was lief diese Woche gut?",
-        type: { _tag: "LongText" },
-      },
-    ],
-  },
 };
 
 export const weeklyTeamHealth = (locale: Locale): Template => WEEKLY_TEAM_HEALTH[locale];

@@ -103,13 +103,13 @@ describe("testSendNoticeText", () => {
     );
   });
 
-  it("writes a failure in German with the German reason text", () => {
-    setLocale("de");
+  it("writes a complained failure and a stalled send in English", () => {
+    setLocale("en");
     expect(testSendNoticeText({ _tag: "Failed", reason: "complained", code: null })).toBe(
-      "Nicht gesendet: sie wurde als Spam markiert",
+      "Not sent: it was marked as spam",
     );
     expect(testSendNoticeText({ _tag: "Stalled", minutes: 3 })).toBe(
-      "Nach 3 Minuten noch in der Warteschlange. Der E-Mail-Dienst verarbeitet möglicherweise keine E-Mails.",
+      "Still queued after 3 minutes. The email service may not be processing sends.",
     );
   });
 });

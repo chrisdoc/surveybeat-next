@@ -42,7 +42,6 @@ async function main() {
     const distPath = resolve(import.meta.dirname, "../../apps/web/dist");
 
     const enHtml = readFileSync(resolve(distPath, "answer.html"), "utf8");
-    const deHtml = readFileSync(resolve(distPath, "de/answer.html"), "utf8");
 
     server = createServer((req, res) => {
       const url = new URL(req.url ?? "/", `http://${req.headers.host}`);
@@ -89,14 +88,11 @@ async function main() {
       }
 
       res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-      res.end(url.pathname.startsWith("/de/") ? deHtml : enHtml);
+      res.end(enHtml);
     });
 
     await new Promise<void>((res) => server?.listen(port, res));
-    targetUrls = [
-      `http://127.0.0.1:${port}/a#t=test-token-123&v=4`,
-      `http://127.0.0.1:${port}/de/a#t=test-token-123&v=4`,
-    ];
+    targetUrls = [`http://127.0.0.1:${port}/a#t=test-token-123&v=4`];
     console.log(`Local test server running at http://127.0.0.1:${port}`);
   }
 

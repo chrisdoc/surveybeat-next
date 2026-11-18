@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { answerCatalog } from "../messages/answer.ts";
-import { answerDe } from "../messages/answer.de.ts";
 import { answerMessages } from "./answer-messages.ts";
 import { anonymityStatement, parseRoundContext } from "./round-context.ts";
 
@@ -28,15 +27,6 @@ describe("answer page anonymity statement", () => {
     expect(context).not.toBeNull();
     expect(anonymityStatement(context!, en)).toBe(`${anonymity} ${aiNotice}`);
     expect(anonymityStatement(context!, en)).toBe(`${anonymity} ${en("answer.aiNotice")}`);
-  });
-
-  it("uses the German table when the German answer page passes it", () => {
-    const context = parseRoundContext(roundContext({ aiProcessing: true }));
-    const de = answerMessages(answerDe);
-    expect(anonymityStatement(context!, de)).toBe(
-      `${de("answer.anonymity", { n: 4 })} ${de("answer.aiNotice")}`,
-    );
-    expect(anonymityStatement(context!, de)).not.toBe(anonymityStatement(context!, en));
   });
 
   it("shows only the anonymity statement when AI processing is off", () => {

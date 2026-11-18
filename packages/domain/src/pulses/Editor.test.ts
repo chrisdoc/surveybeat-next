@@ -162,39 +162,29 @@ const withLeadLocale = (
   defaultLocale,
   people: directory.people.map((each) => (each.id === lead ? { ...each, locale, detectedLocale } : each)),
 });
-const german = withLeadLocale("de");
+const english = withLeadLocale("en");
 
-describe("the language of a Pulse (ADR 0018)", () => {
-  it("copies the Template in the Lead's language, with the Pulse's name", () => {
-    const view = detail(run([create], lead, EMPTY_PULSE_STATE, german), lead, german);
-    expect(view.settings).toEqual(defaultPulseSettings("de"));
-    expect(view.settings.name).toBe("Wöchentlicher Team-Check");
+describe("the language of a Pulse (ADR 0018, ADR 0025)", () => {
+  it("copies the Template in English, with the Pulse's name", () => {
+    const view = detail(run([create], lead, EMPTY_PULSE_STATE, english), lead, english);
+    expect(view.settings).toEqual(defaultPulseSettings("en"));
+    expect(view.settings.name).toBe("Weekly team health");
     expect(view.questions.map((question) => question.text)).toEqual(
-      weeklyTeamHealth("de").questions.map(({ text }) => text),
+      weeklyTeamHealth("en").questions.map(({ text }) => text),
     );
     expect(view.questions.map((question) => question.templateKey)).toEqual(questions().map(({ key }) => key));
   });
 
-  it.each([
-    ["the Lead's own choice", withLeadLocale("de", "en")],
-    ["the browser language seen at sign-in", withLeadLocale(null, "de", "en")],
-    ["the Organization's default", withLeadLocale(null, null, "de")],
-  ])("is German when the Lead's language comes from %s", (_, dir) => {
-    const view = detail(run([create], lead, EMPTY_PULSE_STATE, dir), lead, dir);
-    expect(view.settings.name).toBe("Wöchentlicher Team-Check");
-    expect(view.questions[0]?.text).toBe(weeklyTeamHealth("de").questions[0]?.text);
-  });
-
-  it("is English when the Lead chose English, even with a German browser and Organization", () => {
-    const dir = withLeadLocale("en", "de", "de");
+  it("is English whatever the source of the Lead's language", () => {
+    const dir = withLeadLocale(null, "en", "en");
     expect(detail(run([create], lead, EMPTY_PULSE_STATE, dir), lead, dir).settings.name).toBe(
       "Weekly team health",
     );
   });
 
-  it("copies a Template Question added by a German Lead in German", () => {
-    const start = run([create], lead, EMPTY_PULSE_STATE, german);
-    const [original] = detail(start, lead, german).questions.map(({ questionId }) => questionId);
+  it("copies a Template Question added by a Lead in English", () => {
+    const start = run([create], lead, EMPTY_PULSE_STATE, english);
+    const [original] = detail(start, lead, english).questions.map(({ questionId }) => questionId);
     if (original === undefined) throw new Error("no Questions");
     const state = run(
       [
@@ -209,11 +199,11 @@ describe("the language of a Pulse (ADR 0018)", () => {
       ],
       lead,
       start,
-      german,
+      english,
     );
-    expect(detail(state, lead, german).questions.at(-1)).toMatchObject({
+    expect(detail(state, lead, english).questions.at(-1)).toMatchObject({
       templateKey: "workload-manageable",
-      text: weeklyTeamHealth("de").questions[0]?.text,
+      text: weeklyTeamHealth("en").questions[0]?.text,
     });
   });
 
@@ -222,37 +212,8 @@ describe("the language of a Pulse (ADR 0018)", () => {
     const [original] = detail(start).questions.map(({ questionId }) => questionId);
     if (original === undefined) throw new Error("no Questions");
     const state = run([{ _tag: "RemoveQuestion", teamId: team, pulseId, questionId: original }], lead, start);
-    expect(detail(state, lead, german).templateQuestions).toEqual([weeklyTeamHealth("de").questions[0]]);
+    expect(detail(state, lead, english).templateQuestions).toEqual([weeklyTeamHealth("en").questions[0]]);
     expect(detail(state).templateQuestions).toEqual([weeklyTeamHealth("en").questions[0]]);
-  });
-
-  it("keeps the English text of a Pulse made in English after the Lead switches to German", () => {
-    const start = run([create]);
-    const englishTexts = questions().map(({ text }) => text);
-    const before = detail(start, lead, german);
-    expect(before.settings.name).toBe("Weekly team health");
-    expect(before.questions.map((question) => question.text)).toEqual(englishTexts);
-
-    const [original] = before.questions.map(({ questionId }) => questionId);
-    if (original === undefined) throw new Error("no Questions");
-    const state = run(
-      [
-        { _tag: "RemoveQuestion", teamId: team, pulseId, questionId: original },
-        {
-          _tag: "AddQuestion",
-          teamId: team,
-          pulseId,
-          questionId: QuestionId.make("again"),
-          question: { _tag: "FromTemplate", key: key("workload-manageable") },
-        },
-      ],
-      lead,
-      start,
-      german,
-    );
-    const after = detail(state, lead, german);
-    expect(after.settings.name).toBe("Weekly team health");
-    expect(after.questions.slice(0, -1).map((question) => question.text)).toEqual(englishTexts.slice(1));
   });
 });
 

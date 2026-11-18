@@ -5,7 +5,6 @@ import {
   EmailSendProgress,
   FailedEmail,
   FailedEmails,
-  Locale,
   MinimumGroupSize,
   OrganizationSettings,
   PersonId,
@@ -101,13 +100,6 @@ export const decodeZone = Schema.decodeUnknownOption(TimeZone);
 export const decodeEmail = Schema.decodeUnknownOption(EmailAddress);
 export const decodeSize = Schema.decodeUnknownOption(MinimumGroupSize);
 export const decodePerson = Schema.decodeUnknownOption(PersonId);
-
-export interface LanguageChoice<Message> {
-  readonly value: Locale | null;
-  readonly busy: boolean;
-  readonly failure?: Failure | undefined;
-  readonly onChange: (value: string) => Message;
-}
 
 export type NavSection = "teams" | "history" | "settings";
 
@@ -228,31 +220,12 @@ const headerMenu = <Message>(
 export const shellView = <Message>(
   header: ShellHeader<Message>,
   children: ReadonlyArray<Child>,
-  language: LanguageChoice<Message>,
   h: HtmlBuilder<Message>,
   wide = false,
 ): Html => {
   const sections: ReadonlyArray<NavSection> = header.organizationAdmin
     ? ["teams", "history", "settings"]
     : ["teams", "history"];
-
-  const languageField = (id: string): Html =>
-    selectField(
-      {
-        id,
-        label: message("language.label"),
-        value: language.value ?? "",
-        options: [
-          ["", message("language.followBrowser")],
-          ["en", message("language.en")],
-          ["de", message("language.de")],
-        ],
-        isDisabled: language.busy,
-        onChange: language.onChange,
-      },
-      h,
-    );
-  const languageProblem = (): Html | null => problemView(language.failure, h);
 
   const accountButton = (attributes: ReadonlyArray<ChildAttribute>): Html =>
     h.button(
@@ -274,12 +247,7 @@ export const shellView = <Message>(
   const accountPanel = (attributes: ReadonlyArray<ChildAttribute>): Html =>
     h.div(
       [...attributes, h.Class(menuPanelClass)],
-      [
-        h.div(
-          [h.Class("flex flex-col gap-3")],
-          [languageField("language"), languageProblem(), signOutView(h, true)].filter(Predicate.isNotNull),
-        ),
-      ],
+      [h.div([h.Class("flex flex-col gap-3")], [signOutView(h, true)])],
     );
 
   const menuButton = (attributes: ReadonlyArray<ChildAttribute>): Html =>
@@ -305,10 +273,8 @@ export const shellView = <Message>(
           [h.Class("mt-4 flex flex-col gap-3 border-t border-line-soft pt-4")],
           [
             h.p([h.Class("break-words text-sm font-semibold text-muted")], [header.organizationName]),
-            languageField("language-menu"),
-            languageProblem(),
             signOutView(h, true),
-          ].filter(Predicate.isNotNull),
+          ],
         ),
       ],
     );
@@ -1067,8 +1033,6 @@ export const settingsScreenView = <Message>(
     readonly sizeOpen: boolean;
     readonly aiBusy: boolean;
     readonly aiFailure?: Failure | undefined;
-    readonly defaultLanguageBusy: boolean;
-    readonly defaultLanguageFailure?: Failure | undefined;
     readonly peopleBusy: boolean;
     readonly peopleFailure?: Failure | undefined;
     readonly pendingRemovePerson: { readonly personId: PersonId; readonly email: string } | undefined;
@@ -1078,7 +1042,6 @@ export const settingsScreenView = <Message>(
     readonly onToggleSize: Message;
     readonly onSubmitSize: Message;
     readonly onAiProcessingToggle: (isOn: boolean) => Message;
-    readonly onDefaultLanguageChange: (value: string) => Message;
     readonly onGrantAdmin: (personId: PersonId) => Message;
     readonly onRevokeAdmin: (personId: PersonId) => Message;
     readonly onRemovePerson: (personId: PersonId) => Message;
@@ -1185,31 +1148,6 @@ export const settingsScreenView = <Message>(
         ),
         h.p([h.Class("text-sm text-muted")], [message("settings.aiProcessing.help")]),
         problemView(state.aiFailure, h),
-      ].filter(Predicate.isNotNull),
-    ),
-  );
-
-  children.push(
-    h.div(
-      [h.Class(formPanelClass)],
-      [
-        subSectionTitle(message("settings.defaultLanguage"), h, 2),
-        selectField(
-          {
-            id: "default-language",
-            label: message("settings.defaultLanguage.field"),
-            value: settings.defaultLocale,
-            options: [
-              ["en", message("language.en")],
-              ["de", message("language.de")],
-            ],
-            isDisabled: state.defaultLanguageBusy,
-            onChange: actions.onDefaultLanguageChange,
-          },
-          h,
-        ),
-        h.p([h.Class("text-sm text-muted")], [message("settings.defaultLanguage.help")]),
-        problemView(state.defaultLanguageFailure, h),
       ].filter(Predicate.isNotNull),
     ),
   );

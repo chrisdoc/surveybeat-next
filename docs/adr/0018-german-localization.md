@@ -1,5 +1,7 @@
 # German ships as typed catalogs per locale, a prerendered answer page per locale, and a bilingual Template
 
+> Superseded for now by [ADR 0025](0025-english-only-for-now.md): English is the only shipped language. The locale plumbing and typed catalogs stay so German can return.
+
 Release 2 adds German to the app, the answer page, and emails ([research](../research/german-localization.md)).
 
 - **Catalogs:** each catalog gets a `de.ts` beside the English one, typed so a missing key, an extra key, or a wrong `{placeholder}` fails typecheck. The message functions take the locale instead of the fixed `"en"`; plurals, dates, and numbers come from `Intl` for that locale.

@@ -114,8 +114,6 @@ export const Model = Schema.Struct({
   session: SessionModel,
 
   browserLocale: Schema.NullOr(Locale),
-  languageBusy: Schema.Boolean,
-  languageFailure: Schema.Option(Failure),
 
   navMenu: Popover.Model,
   accountMenu: Popover.Model,
@@ -165,8 +163,6 @@ export const Model = Schema.Struct({
   sizeOpen: Schema.Boolean,
   aiBusy: Schema.Boolean,
   aiFailure: Schema.Option(Failure),
-  defaultLanguageBusy: Schema.Boolean,
-  defaultLanguageFailure: Schema.Option(Failure),
   peopleBusy: Schema.Boolean,
   peopleFailure: Schema.Option(Failure),
   failedEmails: LoadedFailedEmails,
@@ -333,8 +329,6 @@ export const Message = defineMessageUnion({
   CreateOrgNameChanged: { name: Schema.String },
   SubmitCreateOrg: {},
   ChooseOrgClicked: { organizationId: OrganizationId },
-  LanguageChanged: { value: Schema.String },
-  UpdatedOwnLanguage: { chosen: Schema.Boolean, outcome: OutcomeVoid },
 
   GotNavMenuMessage: { message: Popover.Message },
   GotAccountMenuMessage: { message: Popover.Message },
@@ -380,8 +374,6 @@ export const Message = defineMessageUnion({
   UpdatedSettings: { outcome: OutcomeVoid },
   AiProcessingToggled: { isOn: Schema.Boolean },
   UpdatedAiProcessing: { outcome: OutcomeVoid },
-  DefaultLanguageChanged: { value: Schema.String },
-  UpdatedDefaultLanguage: { outcome: OutcomeVoid },
   GotFailedEmails: { outcome: OutcomeFailedEmails },
   ResendFailedEmailClicked: { sendId: SendId },
   ResentFailedEmail: { sendId: SendId, outcome: OutcomeFailedEmailStatus },
@@ -519,22 +511,6 @@ export const ChooseOrganization = Command.define("ChooseOrganization", {
     runSessionCall((api) => api.auth.chooseOrganization({ payload: { organizationId } })).pipe(
       Effect.map((result) => Message.GotSession({ result })),
     ),
-});
-
-export const UpdateOwnLanguage = Command.define("UpdateOwnLanguage", {
-  args: {
-    locale: Schema.optionalKey(Schema.NullOr(Locale)),
-    detectedLocale: Schema.optionalKey(Locale),
-  },
-  messages: [Message.UpdatedOwnLanguage],
-  execute: (args) => {
-    const chosen = args.locale !== undefined;
-    return runApi(
-      (api) => api.directory.updateOwnLanguage({ payload: args }),
-      () => Message.UpdatedOwnLanguage({ chosen, outcome: { _tag: "Success" } }),
-      (failure) => Message.UpdatedOwnLanguage({ chosen, outcome: { _tag: "Failure", failure } }),
-    );
-  },
 });
 
 export const ListTeams = Command.define("ListTeams", {
@@ -708,17 +684,6 @@ export const UpdateAiProcessing = Command.define("UpdateAiProcessing", {
       (api) => api.directory.updateSettings({ payload: { aiProcessing } }),
       () => Message.UpdatedAiProcessing({ outcome: { _tag: "Success" } }),
       (failure) => Message.UpdatedAiProcessing({ outcome: { _tag: "Failure", failure } }),
-    ),
-});
-
-export const UpdateDefaultLanguage = Command.define("UpdateDefaultLanguage", {
-  args: { defaultLocale: Locale },
-  messages: [Message.UpdatedDefaultLanguage],
-  execute: ({ defaultLocale }) =>
-    runApi(
-      (api) => api.directory.updateSettings({ payload: { defaultLocale } }),
-      () => Message.UpdatedDefaultLanguage({ outcome: { _tag: "Success" } }),
-      (failure) => Message.UpdatedDefaultLanguage({ outcome: { _tag: "Failure", failure } }),
     ),
 });
 
@@ -1155,8 +1120,6 @@ export const initialModel = (url: Url): Model => {
     route,
     session: { _tag: "Loading" },
     browserLocale: detectBrowserLocale(),
-    languageBusy: false,
-    languageFailure: Option.none(),
     navMenu: Popover.init({ id: "nav-menu" }),
     accountMenu: Popover.init({ id: "account-menu" }),
     teams: { _tag: "Loading" },
@@ -1195,8 +1158,6 @@ export const initialModel = (url: Url): Model => {
     sizeOpen: false,
     aiBusy: false,
     aiFailure: Option.none(),
-    defaultLanguageBusy: false,
-    defaultLanguageFailure: Option.none(),
     peopleBusy: false,
     peopleFailure: Option.none(),
     failedEmails: { _tag: "Loading" },
@@ -1401,11 +1362,6 @@ export const init = (url: Url): Update.Return<Model, Message> => ({
   commands: [LoadSession()],
 });
 
-const languageChoice = (value: string): Locale | null | undefined => {
-  if (value === "") return null;
-  return Schema.is(Locale)(value) ? value : undefined;
-};
-
 const foldNavMenu = Update.foldChild({
   update: Popover.update,
   read: (model: Model) => Option.some(model.navMenu),
@@ -1594,17 +1550,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
             },
           };
 
-          const detect =
-            sessionResult.locale === null &&
-            model.browserLocale !== null &&
-            model.browserLocale !== sessionResult.detectedLocale;
-          return {
-            model: nextModel,
-            commands: [
-              ...loadActiveRouteCommand(model.route),
-              ...(detect ? [UpdateOwnLanguage({ detectedLocale: model.browserLocale })] : []),
-            ],
-          };
+          return { model: nextModel, commands: loadActiveRouteCommand(model.route) };
         }
 
         default:
@@ -1722,39 +1668,6 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         };
       }
       return { model };
-
-    case "LanguageChanged": {
-      const choice = languageChoice(message.value);
-      if (choice === undefined || model.languageBusy || model.session._tag !== "SignedIn") return { model };
-      if (choice === model.session.locale) return { model };
-      return {
-        model: {
-          ...model,
-          session: { ...model.session, locale: choice },
-          languageBusy: true,
-          languageFailure: Option.none(),
-        },
-        commands: [UpdateOwnLanguage({ locale: choice })],
-      };
-    }
-
-    case "UpdatedOwnLanguage": {
-      const { chosen, outcome } = message;
-
-      const settled: Model = chosen ? { ...model, languageBusy: false } : model;
-      if (outcome._tag === "Success") {
-        return chosen ? { model: settled, commands: [LoadSession()] } : { model };
-      }
-      if (outcome.failure === "Unauthenticated") {
-        return { model: settled, commands: [LoadSession()] };
-      }
-      if (!chosen) return { model };
-
-      return {
-        model: { ...settled, languageFailure: Option.some(outcome.failure) },
-        commands: [LoadSession()],
-      };
-    }
 
     case "GotNavMenuMessage":
       return foldNavMenu(model, message.message);
@@ -2240,35 +2153,6 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       }
       return {
         model: { ...model, aiBusy: false, aiFailure: Option.some(message.outcome.failure) },
-      };
-    }
-
-    case "DefaultLanguageChanged": {
-      const defaultLocale = Schema.is(Locale)(message.value) ? message.value : undefined;
-      if (defaultLocale === undefined || model.defaultLanguageBusy) return { model };
-      return {
-        model: { ...model, defaultLanguageBusy: true, defaultLanguageFailure: Option.none() },
-        commands: [UpdateDefaultLanguage({ defaultLocale })],
-      };
-    }
-
-    case "UpdatedDefaultLanguage": {
-      const { outcome } = message;
-      if (outcome._tag === "Success") {
-        return {
-          model: { ...model, defaultLanguageBusy: false },
-          commands: [LoadSession()],
-        };
-      }
-      if (outcome.failure === "Unauthenticated") {
-        return { model: { ...model, defaultLanguageBusy: false }, commands: [LoadSession()] };
-      }
-      return {
-        model: {
-          ...model,
-          defaultLanguageBusy: false,
-          defaultLanguageFailure: Option.some(outcome.failure),
-        },
       };
     }
 
@@ -3391,7 +3275,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
     };
   }
 
-  const { organization, organizationAdmin, locale } = model.session;
+  const { organization, organizationAdmin } = model.session;
   const shellTitle = screenTitle({
     route: model.route,
     organizationName: organization.name,
@@ -3520,8 +3404,6 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
             sizeOpen: model.sizeOpen,
             aiBusy: model.aiBusy,
             aiFailure: Option.getOrUndefined(model.aiFailure),
-            defaultLanguageBusy: model.defaultLanguageBusy,
-            defaultLanguageFailure: Option.getOrUndefined(model.defaultLanguageFailure),
             peopleBusy: model.peopleBusy,
             peopleFailure: Option.getOrUndefined(model.peopleFailure),
             pendingRemovePerson: Option.getOrUndefined(model.pendingRemovePerson),
@@ -3533,7 +3415,6 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
             onToggleSize: Message.ToggleForm({ form: "minimumSize" }),
             onSubmitSize: Message.SubmitSize(),
             onAiProcessingToggle: (isOn) => Message.AiProcessingToggled({ isOn }),
-            onDefaultLanguageChange: (value) => Message.DefaultLanguageChanged({ value }),
             onGrantAdmin: (personId) => Message.GrantAdminClicked({ personId }),
             onRevokeAdmin: (personId) => Message.RevokeAdminClicked({ personId }),
             onRemovePerson: (personId) => Message.RemovePersonClicked({ personId }),
@@ -3727,12 +3608,6 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
         onAccountMenu: (message) => Message.GotAccountMenuMessage({ message }),
       },
       [screenContent],
-      {
-        value: locale,
-        busy: model.languageBusy,
-        failure: Option.getOrUndefined(model.languageFailure),
-        onChange: (value) => Message.LanguageChanged({ value }),
-      },
       h,
       model.route._tag === "RoundResults",
     ),

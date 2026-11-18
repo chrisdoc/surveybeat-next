@@ -145,8 +145,8 @@ describe("languages in the session (ADR 0018)", () => {
     const personId = world.addPerson(acme.id, "ada@example.com");
     const organization = world.durable.organizations.get(acme.id);
     if (organization === undefined) throw new Error("no Organization");
-    organization.state = { ...organization.state, defaultLocale: "de" };
-    world.durable.update(acme.id, personId, { locale: "en", detectedLocale: "de" });
+    organization.state = { ...organization.state, defaultLocale: "en" };
+    world.durable.update(acme.id, personId, { locale: "en", detectedLocale: "en" });
 
     browser.signIn(world.sessions.login("ada@example.com"));
 
@@ -154,8 +154,8 @@ describe("languages in the session (ADR 0018)", () => {
       _tag: "SignedIn",
       personId,
       locale: "en",
-      detectedLocale: "de",
-      organizationLocale: "de",
+      detectedLocale: "en",
+      organizationLocale: "en",
     });
   });
 });

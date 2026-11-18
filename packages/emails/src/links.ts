@@ -1,5 +1,9 @@
 import type { Locale } from "@surveybeat/domain";
 
-export const answerPath = (locale: Locale): string => (locale === "de" ? "/de/a" : "/a");
+const ANSWER_PATHS = { en: "/a" } satisfies Record<Locale, string>;
 
-export const langQuery = (locale: Locale): string => (locale === "de" ? "&lang=de" : "");
+const LANG_QUERIES = { en: "" } satisfies Record<Locale, string>;
+
+export const answerPath = (locale: Locale): string => ANSWER_PATHS[locale];
+
+export const langQuery = (locale: Locale): string => LANG_QUERIES[locale];

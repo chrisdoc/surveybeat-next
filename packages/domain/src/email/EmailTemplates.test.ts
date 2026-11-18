@@ -129,9 +129,10 @@ describe("stored email schemas", () => {
     expect(decodeWritable(added)).toMatchObject({ _tag: "AddedToTeam", locale: "en" });
   });
 
-  it("round-trip a stored email with its language", () => {
-    const german = { ...reminderEmail, locale: "de" as const };
-    expect(decodeStored(german)).toEqual(german);
+  it("decode a stored email in a language this build does not ship as English (ADR 0025)", () => {
+    const german = { ...reminderEmail, locale: "de" };
+    expect(decodeStored(german)).toEqual({ ...reminderEmail, locale: "en" });
+    expect(decodeWritable(german)).toEqual({ ...reminderEmail, locale: "en" });
   });
 
   it("round-trip a row with the AI processing flag", () => {
@@ -143,7 +144,7 @@ describe("stored email schemas", () => {
   it("round-trip a stored test send without a token", () => {
     const testSend: TestInvitationEmail = {
       _tag: "TestInvitationEmail",
-      locale: "de",
+      locale: "en",
       ...base,
       minimumGroupSize: 4,
       test: { pulseId: "pulse-1", personId: "person-1", testId: "test-7" },

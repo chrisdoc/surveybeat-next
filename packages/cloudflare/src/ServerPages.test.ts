@@ -26,32 +26,9 @@ describe("server pages", () => {
     expect(unsubscribe).toContain('<input type="hidden" name="lang" value="en" />');
   });
 
-  it("render German with the German title, heading and hidden lang input", () => {
-    const delivery = renderDeliveryPage("tok", "de");
-    expect(delivery).toContain('<html lang="de">');
-    expect(delivery).toContain("<title>Zustellzeit ändern · SurveyBeat</title>");
-    expect(delivery).toContain("<h1>Zustellzeit ändern</h1>");
-    expect(delivery).toContain("Einstellung speichern");
-    expect(delivery).toContain('<input type="hidden" name="lang" value="de" />');
-    expect(delivery).not.toContain("Change delivery time");
-
-    const saved = renderDeliverySuccessPage("Europe/Berlin", "de");
-    expect(saved).toContain('<html lang="de">');
-    expect(saved).toContain("<h1>Einstellungen aktualisiert</h1>");
-    expect(saved).toContain(
-      "Deine Zeitzone für die Zustellung ist jetzt auf <strong>Europe/Berlin</strong> eingestellt.",
-    );
-
-    const unsubscribe = renderUnsubscribePage("tok", "de");
-    expect(unsubscribe).toContain('<html lang="de">');
-    expect(unsubscribe).toContain("<title>Erinnerungen ausschalten · SurveyBeat</title>");
-    expect(unsubscribe).toContain('<input type="hidden" name="lang" value="de" />');
-    expect(unsubscribe).not.toContain("Turn off reminders");
-  });
-
   it("escape a token that tries to break out of the hidden field", () => {
     const token = `"><script>x</script>`;
-    for (const html of [renderDeliveryPage(token, "en"), renderUnsubscribePage(token, "de")]) {
+    for (const html of [renderDeliveryPage(token, "en"), renderUnsubscribePage(token, "en")]) {
       expect(html).not.toContain("<script>x</script>");
       expect(html).toContain("&quot;&gt;&lt;script&gt;x&lt;/script&gt;");
     }
@@ -66,15 +43,19 @@ describe("server pages", () => {
 
 describe("pageLocale", () => {
   it.each([
-    ["de", undefined, "de"],
-    ["DE", undefined, "de"],
+    ["en", undefined, "en"],
+    ["EN", undefined, "en"],
+    ["de", undefined, "en"],
     ["fr", undefined, "en"],
-    ["fr", "de", "de"],
-    [null, "de-AT,en;q=0.8", "de"],
+    ["fr", "de", "en"],
+    [null, "de-AT,en;q=0.8", "en"],
     [null, "fr,en", "en"],
     [null, undefined, "en"],
     [undefined, undefined, "en"],
-  ] as const)("lang %s with Accept-Language %s is %s", (lang, acceptLanguage, expected) => {
-    expect(pageLocale(lang, acceptLanguage)).toBe(expected);
-  });
+  ] as const)(
+    "lang %s with Accept-Language %s is %s (German is not shipped, ADR 0025)",
+    (lang, acceptLanguage, expected) => {
+      expect(pageLocale(lang, acceptLanguage)).toBe(expected);
+    },
+  );
 });
