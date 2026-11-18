@@ -1,6 +1,5 @@
 import { Clock, Context, Effect } from "effect";
 import type { EmailAddress, SendId } from "../email/Email.ts";
-import { EmailOutbox } from "../people/DirectoryFlow.ts";
 import type { PersonId } from "../people/Identity.ts";
 import type { OrganizationId } from "../people/Organization.ts";
 import { Forbidden } from "../people/SignIn.ts";
@@ -150,7 +149,6 @@ export const sendTestInvitation = Effect.fnUntraced(function* (
     yield* Clock.currentTimeMillis,
   );
   if (result._tag === "Rejected") return yield* fail(result.rejection);
-  yield* (yield* EmailOutbox).queue(member.organization.id, result.sendId);
   return { email: result.email, sendId: result.sendId };
 });
 

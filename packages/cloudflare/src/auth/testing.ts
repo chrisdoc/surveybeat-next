@@ -39,7 +39,6 @@ import {
   DEFAULT_MINIMUM_GROUP_SIZE,
   type DirectoryState,
   EmailAddress,
-  EmailOutbox,
   MembershipId,
   OrganizationDirectory,
   type PersonRecord,
@@ -378,12 +377,7 @@ export class MemoryOrganizations {
             });
           }
         }
-        return {
-          _tag: "Accepted",
-          followUps: decision.followUps.filter(
-            (step) => step._tag !== "QueueEmail" || organization.sends.has(step.sendId),
-          ),
-        };
+        return { _tag: "Accepted", followUps: decision.followUps };
       }),
     teams: (organizationId, actorId) =>
       Effect.sync(() => {
@@ -435,13 +429,12 @@ export class MemoryOrganizations {
           return {
             _tag: "Accepted",
             status: { sendId, state: progressOf(send.state) },
-            queue: send.state._tag === "Pending" && send.state.attempts === 0,
           };
         const facts = fakeResendFacts(organization, sendId, send.email, send.state.reason);
         if (!isResendable(sendId, facts))
           return { _tag: "Rejected", rejection: { _tag: "EmailNotResendable" } };
         organization.sends.set(sendId, { ...send, state: pending });
-        return { _tag: "Accepted", status: { sendId, state: progressOf(pending) }, queue: true };
+        return { _tag: "Accepted", status: { sendId, state: progressOf(pending) } };
       }),
     emailStatus: (organizationId, actorId, sendId) =>
       Effect.sync(() => {
@@ -757,18 +750,10 @@ export class MemoryOrganizations {
   }
 }
 
-export class MemoryOutbox {
-  readonly queued: Array<{ readonly organizationId: OrganizationId; readonly sendId: SendId }> = [];
-  readonly service = EmailOutbox.of({
-    queue: (organizationId, sendId) => Effect.sync(() => void this.queued.push({ organizationId, sendId })),
-  });
-}
-
 export class SignInWorld {
   readonly sessions = new FakeSessions();
   readonly index = new MemoryIndex();
   readonly durable = new MemoryOrganizations();
-  readonly outbox = new MemoryOutbox();
   private ids = 0;
 
   constructor(readonly allowlist = "") {}
@@ -843,7 +828,6 @@ export class SignInWorld {
       Context.add(OrganizationRounds, this.durable.rounds),
       Context.add(OrganizationActions, this.durable.actions),
       Context.add(OrganizationNotes, this.durable.notes),
-      Context.add(EmailOutbox, this.outbox.service),
       Context.add(
         NewIds,
         NewIds.of({

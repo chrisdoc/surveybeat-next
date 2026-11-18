@@ -2,7 +2,6 @@ import { SurveyBeatApi } from "@surveybeat/api";
 import {
   type DirectoryCommand,
   type EmailAddress,
-  type EmailOutbox,
   type Member,
   NewIds,
   type NewMember,
@@ -20,7 +19,7 @@ import * as Effect from "effect/Effect";
 import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
 import { type AuthServices, currentMember, requestOrigin, requireSameOrigin } from "./auth/AuthHandlers.ts";
 
-export type DirectoryServices = AuthServices | OrganizationDirectory | EmailOutbox;
+export type DirectoryServices = AuthServices | OrganizationDirectory;
 
 const signInUrl = Effect.map(requestOrigin, (origin) => {
   const url = new URL("/", origin);

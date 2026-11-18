@@ -1037,6 +1037,58 @@ const organizationObject = Effect.gen(function* () {
         yield* repairAlarm();
       }).pipe(Effect.orDie);
 
+    const queueTestSend = (
+      actorId: PersonId,
+      teamId: TeamId,
+      pulseId: PulseId,
+      now: number,
+      perHour: boolean,
+    ) =>
+      Effect.gen(function* () {
+        const [people, library] = yield* both;
+        const decision = decideTestSend(people, library, actorId, teamId, pulseId);
+        if (decision._tag === "Rejected")
+          return { _tag: "Rejected", rejection: decision.rejection } satisfies TestSendResult;
+        const { person, pulse } = decision;
+
+        if (perHour) {
+          const sentRecently = yield* sql`SELECT COUNT(*) AS n FROM test_send
+              WHERE person_id = ${actorId} AND sent_at > ${now - 3_600_000}`.pipe(
+            Effect.flatMap(Schema.decodeUnknownEffect(Schema.Array(TestSendCount))),
+            Effect.orDie,
+          );
+          if ((sentRecently[0]?.n ?? 0) >= testSendsPerHour)
+            return {
+              _tag: "Rejected",
+              rejection: { _tag: "TestSendLimitReached", perHour: testSendsPerHour },
+            } satisfies TestSendResult;
+        }
+
+        yield* sql`DELETE FROM test_send WHERE sent_at <= ${now - testInvitationLifetimeMs}`;
+
+        const ref = { pulseId, personId: actorId, testId: randomId() };
+        const token = yield* Effect.promise(() => deriveTestInvitationToken(invitationKey, ref));
+        const tokenHash = yield* Effect.promise(() => hashToken(token));
+        const sendId = SendId.make(randomId());
+        yield* sql`INSERT INTO test_send (send_id, person_id, pulse_id, token_hash, sent_at)
+            VALUES (${sendId}, ${actorId}, ${pulseId}, ${tokenHash}, ${now})`;
+
+        const eligibleActions = yield* actions.getEligibleActionsForRound(teamId, pulseId, now);
+        const testEmail: TransactionalEmail = {
+          _tag: "TestInvitationEmail",
+          locale: emailLocaleOf(people, actorId),
+          pulseName: pulse.settings.name,
+          minimumGroupSize: people.minimumGroupSize,
+          test: ref,
+          baseUrl: appOrigin,
+          ratingQuestion: firstRatingQuestionOf(pulse, library),
+          actions: eligibleActions.slice(0, 3).map((action) => action.title),
+          aiProcessing: people.aiProcessing,
+        };
+        yield* sends.create(sendId, person.email, testEmail);
+        return { _tag: "Accepted", sendId, email: person.email } satisfies TestSendResult;
+      });
+
     return {
       alarm: () =>
         Effect.gen(function* () {
@@ -1085,49 +1137,22 @@ const organizationObject = Effect.gen(function* () {
         both.pipe(Effect.map(([people, library]) => pulseView(people, library, actorId, teamId, pulseId))),
 
       sendTestInvitation: (actorId: PersonId, teamId: TeamId, pulseId: PulseId, now: number) =>
+        sql.withTransaction(queueTestSend(actorId, teamId, pulseId, now, true)).pipe(Effect.orDie),
+      createFailedTestSend: (actorId: PersonId, teamId: TeamId, pulseId: PulseId, now: number) =>
         sql
           .withTransaction(
             Effect.gen(function* () {
-              const [people, library] = yield* both;
-              const decision = decideTestSend(people, library, actorId, teamId, pulseId);
-              if (decision._tag === "Rejected")
-                return { _tag: "Rejected", rejection: decision.rejection } satisfies TestSendResult;
-              const { person, pulse } = decision;
-
-              const sentRecently = yield* sql`SELECT COUNT(*) AS n FROM test_send
-                  WHERE person_id = ${actorId} AND sent_at > ${now - 3_600_000}`.pipe(
-                Effect.flatMap(Schema.decodeUnknownEffect(Schema.Array(TestSendCount))),
-                Effect.orDie,
+              const result = yield* queueTestSend(actorId, teamId, pulseId, now, false);
+              if (result._tag === "Rejected")
+                return yield* Effect.die(`test send refused: ${result.rejection._tag}`);
+              yield* sends.claim(result.sendId, now + 1);
+              yield* sends.settle(
+                result.sendId,
+                1,
+                { _tag: "Rejected", code: "E_SENDER_NOT_VERIFIED", permanent: true },
+                now + 2,
               );
-              if ((sentRecently[0]?.n ?? 0) >= testSendsPerHour)
-                return {
-                  _tag: "Rejected",
-                  rejection: { _tag: "TestSendLimitReached", perHour: testSendsPerHour },
-                } satisfies TestSendResult;
-
-              yield* sql`DELETE FROM test_send WHERE sent_at <= ${now - testInvitationLifetimeMs}`;
-
-              const ref = { pulseId, personId: actorId, testId: randomId() };
-              const token = yield* Effect.promise(() => deriveTestInvitationToken(invitationKey, ref));
-              const tokenHash = yield* Effect.promise(() => hashToken(token));
-              const sendId = SendId.make(randomId());
-              yield* sql`INSERT INTO test_send (send_id, person_id, pulse_id, token_hash, sent_at)
-                  VALUES (${sendId}, ${actorId}, ${pulseId}, ${tokenHash}, ${now})`;
-
-              const eligibleActions = yield* actions.getEligibleActionsForRound(teamId, pulseId, now);
-              const testEmail: TransactionalEmail = {
-                _tag: "TestInvitationEmail",
-                locale: emailLocaleOf(people, actorId),
-                pulseName: pulse.settings.name,
-                minimumGroupSize: people.minimumGroupSize,
-                test: ref,
-                baseUrl: appOrigin,
-                ratingQuestion: firstRatingQuestionOf(pulse, library),
-                actions: eligibleActions.slice(0, 3).map((action) => action.title),
-                aiProcessing: people.aiProcessing,
-              };
-              yield* sends.create(sendId, person.email, testEmail);
-              return { _tag: "Accepted", sendId, email: person.email } satisfies TestSendResult;
+              return result.sendId;
             }),
           )
           .pipe(Effect.orDie),
@@ -1567,7 +1592,7 @@ const organizationObject = Effect.gen(function* () {
 
       ...organizationSubmissions({ rounds, directory, pulses, actions }),
 
-      ...organizationDirectory({ sql, sends, rounds, directory }),
+      ...organizationDirectory({ sql, rounds, directory }),
 
       ...organizationSends(sql, sends),
     };

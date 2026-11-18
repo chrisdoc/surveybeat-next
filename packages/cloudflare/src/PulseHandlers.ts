@@ -1,6 +1,5 @@
 import { SurveyBeatApi } from "@surveybeat/api";
 import {
-  EmailOutbox,
   NewIds,
   type OrganizationPulses,
   type PulseCommand,
@@ -17,7 +16,7 @@ import * as Effect from "effect/Effect";
 import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
 import { type AuthServices, currentMember, requireSameOrigin } from "./auth/AuthHandlers.ts";
 
-export type PulseServices = AuthServices | OrganizationPulses | EmailOutbox;
+export type PulseServices = AuthServices | OrganizationPulses;
 
 const change = <R>(teamId: TeamId, pulseId: PulseId, command: Effect.Effect<PulseCommand, never, R>) =>
   Effect.gen(function* () {

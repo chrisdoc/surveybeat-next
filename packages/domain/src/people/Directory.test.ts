@@ -124,7 +124,7 @@ describe("adding members by email", () => {
         locale: "en",
       },
     });
-    expect(decision.followUps.map((step) => step._tag)).toEqual(["IndexPerson", "QueueEmail"]);
+    expect(decision.followUps.map((step) => step._tag)).toEqual(["IndexPerson"]);
   });
 
   it("reuses the Person an email already has, in any Team", () => {
@@ -143,7 +143,7 @@ describe("adding members by email", () => {
     const again = world.add(ADMIN, platform, "ada@example.com");
     expect(again).toMatchObject({ _tag: "Accepted", changes: [] });
     if (again._tag === "Accepted") {
-      expect(again.followUps.map((step) => step._tag)).toEqual(["IndexPerson", "QueueEmail"]);
+      expect(again.followUps.map((step) => step._tag)).toEqual(["IndexPerson"]);
     }
     // Adding a Lead as a member does not demote them.
     expect(world.add(ADMIN, platform, "grace@example.com")).toMatchObject({ changes: [] });

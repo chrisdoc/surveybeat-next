@@ -2,7 +2,6 @@ import type * as Cloudflare from "@alchemy.run/cloudflare";
 import {
   EmailAddress,
   MembershipId,
-  OrganizationId,
   PersonId,
   PulseId,
   QuestionVersionId,
@@ -16,8 +15,6 @@ import * as Effect from "effect/Effect";
 import { HttpServerRequest } from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as Schedule from "effect/Schedule";
-import * as Schema from "effect/Schema";
-import { EmailSendRequested } from "./Email.ts";
 import type { Organizations } from "./EmailDelivery.ts";
 
 export const TEST_INVITATION_TEST_ROUTE = "/__test/test-invitations";
@@ -26,7 +23,6 @@ const outcome = (result: TestSendResult) => (result._tag === "Accepted" ? "Accep
 
 export const testInvitationTestRoutes = (
   organizations: Organizations,
-  queue: Cloudflare.Queues.WriteQueueClient,
   db: Cloudflare.D1.QueryDatabaseClient,
 ) =>
   Effect.gen(function* () {
@@ -95,15 +91,7 @@ export const testInvitationTestRoutes = (
     const queued = yield* organization.viewTestSend(admin, teamId, pulseId, sendId, now);
     const memberRead = yield* organization.viewTestSend(member, teamId, pulseId, sendId, now);
 
-    const accepted = burst.flatMap((result) => (result._tag === "Accepted" ? [result.sendId] : []));
-    const failing = SendId.make(accepted[1] ?? "none");
-    yield* organization.claimEmailSend(failing, now + 1);
-    yield* organization.settleEmailSend(
-      failing,
-      1,
-      { _tag: "Rejected", code: "E_SENDER_NOT_VERIFIED", permanent: true },
-      now + 2,
-    );
+    const failing = yield* organization.createFailedTestSend(admin, teamId, pulseId, now);
     const failedStatus = yield* organization.viewTestSend(admin, teamId, pulseId, failing, now + 3);
     const failedBefore = yield* organization.listFailedEmails(admin);
 
@@ -120,12 +108,6 @@ export const testInvitationTestRoutes = (
     }
     const failedAfter = yield* organization.listFailedEmails(admin);
 
-    yield* queue.send(
-      yield* Schema.encodeEffect(EmailSendRequested)({
-        organizationId: OrganizationId.make(organizationId),
-        sendId,
-      }),
-    );
     const tokenHash = record?.tokenHash ?? "";
     const indexed = yield* db
       .prepare("SELECT organization_id, pulse_id, expires_at FROM test_invitation_index WHERE token_hash = ?")

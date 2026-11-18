@@ -89,7 +89,7 @@ test(
       removed: { adaActive: none, adaIndexed: [], adaSignInAgain: { _tag: "NotInOrganization" } },
       // Ada's Membership ended with her removal; Eve, the Lead, stays.
       roster: [{ personId: eve, email: "eve@example.com", role: "lead" }],
-      queued: [`added-membership-1-${run}`, `added-membership-2-${run}`],
+      sendsCreated: [true, true],
     });
   }),
 );
@@ -390,9 +390,9 @@ test(
       memberResend: unknown;
       stillFailed: { _tag: string } | null;
       otherResend: unknown;
-      first: { _tag: string; queue: boolean; status: { sendId: string; state: { _tag: string } } };
-      second: { _tag: string; queue: boolean; status: { sendId: string; state: { _tag: string } } };
-      adaResend: { _tag: string; queue: boolean; status: { sendId: string; state: { _tag: string } } };
+      first: { _tag: string; status: { sendId: string; state: { _tag: string } } };
+      second: { _tag: string; status: { sendId: string; state: { _tag: string } } };
+      adaResend: { _tag: string; status: { sendId: string; state: { _tag: string } } };
       failedInvitationsAfter: Array<string>;
       sent: { _tag: string } | null;
       captured: Array<{ recipient: string; subject: string }>;
@@ -423,20 +423,17 @@ test(
       rejection: { _tag: "FailedEmailNotFound" },
     });
 
-    // The admin's double click: both queue the send (the second re-queues it while it waits); it is still sent once.
+    // The admin's double click: both answer Queued, and the second changes nothing while the send waits; it is still sent once.
     const queued = { _tag: "Queued", attempts: 0, lastCode: null };
     assert.deepStrictEqual(body.first, {
       _tag: "Accepted",
-      queue: true,
       status: { sendId: added, state: queued },
     });
     assert.strictEqual(body.second._tag, "Accepted");
-    assert.strictEqual(body.second.queue, true);
     assert.strictEqual(body.second.status.sendId, added);
 
     // Ada's current Invitation goes out again, and the Lead's failed list stops showing it.
     assert.strictEqual(body.adaResend._tag, "Accepted");
-    assert.strictEqual(body.adaResend.queue, true);
     assert.notInclude(body.failedInvitationsAfter, `member-${run}`);
 
     // The queue delivered the email once: one captured message to that address, and the send is sent.

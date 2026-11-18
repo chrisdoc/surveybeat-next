@@ -117,7 +117,6 @@ export const organizationEmailVisibility = ({
             return {
               _tag: "Accepted",
               status: { sendId, state: progressOf(state) },
-              queue: state._tag === "Pending" && state.attempts === 0,
             } satisfies ResendResult;
           const rows = yield* sql
             .unsafe<SendFactsRow>(`${SEND_FACTS_SQL} WHERE es.id = ?`, [sendId])
@@ -154,7 +153,6 @@ export const organizationEmailVisibility = ({
           return {
             _tag: "Accepted",
             status: { sendId, state: progressOf(pending) },
-            queue: true,
           } satisfies ResendResult;
         }),
       )

@@ -2,7 +2,6 @@ import type * as Cloudflare from "@alchemy.run/cloudflare";
 import {
   type CheckedSession,
   EmailAddress,
-  EmailOutbox,
   identityOf,
   MembershipId,
   OrganizationCreationAllowlist,
@@ -12,6 +11,7 @@ import {
   PeopleIndex,
   PersonId,
   runDirectoryCommand,
+  SendId,
   SessionId,
   SessionIdentityProvider,
   type SignedInSession,
@@ -80,15 +80,10 @@ export const peopleTestRoutes = (organizations: Organizations, database: Cloudfl
         Effect.sync(() => void chosen.set(sessionId, organizationId)),
       revokeSession: (sessionId) => Effect.sync(() => void chosen.delete(sessionId)),
     });
-    const queued: Array<string> = [];
     const services = Context.make(SessionIdentityProvider, sessions).pipe(
       Context.add(PeopleIndex, index),
       Context.add(OrganizationPeople, people),
       Context.add(OrganizationDirectory, durableObjectDirectory(organizations)),
-      Context.add(
-        EmailOutbox,
-        EmailOutbox.of({ queue: (_id, sendId) => Effect.sync(() => void queued.push(sendId)) }),
-      ),
     );
     const member: Member = {
       organization,
@@ -153,5 +148,13 @@ export const peopleTestRoutes = (organizations: Organizations, database: Cloudfl
     }).pipe(Effect.provideContext(services));
 
     const result = yield* flow;
-    return yield* HttpServerResponse.json({ ...creator, ...result, queued });
+    const sendsCreated = yield* Effect.forEach(
+      [`added-membership-1-${run}`, `added-membership-2-${run}`],
+      (sendId) =>
+        organizations
+          .getByName(organization.id)
+          .getEmailSend(SendId.make(sendId))
+          .pipe(Effect.map((record) => record !== null)),
+    );
+    return yield* HttpServerResponse.json({ ...creator, ...result, sendsCreated });
   }).pipe(Effect.orDie);

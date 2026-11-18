@@ -141,8 +141,7 @@ export interface PersonRef {
 
 export type FollowUp =
   | { readonly _tag: "IndexPerson"; readonly person: PersonRef }
-  | { readonly _tag: "UnindexPerson"; readonly personId: PersonId }
-  | { readonly _tag: "QueueEmail"; readonly sendId: SendId };
+  | { readonly _tag: "UnindexPerson"; readonly personId: PersonId };
 
 export type DirectoryRejection =
   | { readonly _tag: "Forbidden" }
@@ -169,7 +168,7 @@ export type Viewed<A> =
 
 export type ResendResult =
   | { readonly _tag: "Rejected"; readonly rejection: DirectoryRejection }
-  | { readonly _tag: "Accepted"; readonly status: FailedEmailStatus; readonly queue: boolean };
+  | { readonly _tag: "Accepted"; readonly status: FailedEmailStatus };
 
 const reject = (
   rejection: DirectoryRejection,
@@ -266,7 +265,7 @@ const putInTeam = (
   const index: FollowUp = { _tag: "IndexPerson", person: refOf(person) };
   const current = existing === undefined ? undefined : activeMembershipOf(state, team.id, existing.id);
   if (current !== undefined && (current.role === role || current.role === "lead")) {
-    return accept(changes, [index, { _tag: "QueueEmail", sendId: addedEmailSendId(current.id) }]);
+    return accept(changes, [index]);
   }
 
   const membership: MembershipRecord = {
@@ -298,7 +297,7 @@ const putInTeam = (
       },
     },
   );
-  return accept(changes, [index, { _tag: "QueueEmail", sendId }]);
+  return accept(changes, [index]);
 };
 
 export const decide = (
