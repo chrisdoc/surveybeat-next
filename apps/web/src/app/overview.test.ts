@@ -1,5 +1,4 @@
-// @effect-diagnostics globalDate:off -- the view formats or compares an instant that arrived from the API against the browser clock; nothing here is stored on the server.
-
+import * as DateTime from "effect/DateTime";
 import {
   ActionId,
   OrganizationId,
@@ -20,6 +19,8 @@ import { formatDate } from "../messages/locale.ts";
 import { plotPercent } from "./charts.ts";
 import { overviewXs, type LoadedOverview, teamOverviewView } from "./overview.ts";
 import type { SessionModel } from "./session.ts";
+
+const instant = (iso: string): number => DateTime.toEpochMillis(DateTime.makeUnsafe(iso));
 
 setup();
 
@@ -46,13 +47,13 @@ const signedInAdmin: SessionModel = {
 
 /** 104 weekly shared Rounds starting 2024-01-01, four Dimensions with every 9th point a gap, and 30 Action markers. */
 const largeOverview = (): TeamOverview => {
-  const start = Date.UTC(2024, 0, 1);
+  const start = instant("2024-01-01T00:00:00Z");
   const roundIds = Array.from({ length: ROUND_COUNT }, (_, i) =>
     Schema.decodeSync(RoundId)(`round-${String(i).padStart(3, "0")}`),
   );
   const rounds = roundIds.map((roundId, i) => ({
     roundId,
-    plannedOpenDate: new Date(start + i * WEEK_MS).toISOString().slice(0, 10),
+    plannedOpenDate: DateTime.formatIsoDate(DateTime.makeUnsafe(start + i * WEEK_MS)),
   }));
   const overviewDimensions = dimensions.map((dimension, d) => ({
     dimension,
@@ -111,7 +112,7 @@ describe("overviewXs", () => {
 
   it("extends the axis to a marker after the last Round, so the last Round sits before 1", () => {
     const overview = threeRounds();
-    const after = Date.parse("2026-11-20");
+    const after = instant("2026-11-20");
     const withMarker: TeamOverview = {
       ...overview,
       markers: [
@@ -142,16 +143,16 @@ describe("overviewXs", () => {
 
   it("clamps a marker time outside the Round range to the plot", () => {
     const { markerX } = overviewXs(threeRounds());
-    expect(markerX(Date.parse("2020-01-01"))).toBe(0);
-    expect(markerX(Date.parse("2030-01-01"))).toBe(1);
+    expect(markerX(instant("2020-01-01"))).toBe(0);
+    expect(markerX(instant("2030-01-01"))).toBe(1);
   });
 });
 
 describe("Team health overview markers and tooltips", () => {
   const roundId = (id: string) => Schema.decodeSync(RoundId)(id);
-  const earliest = Date.parse("2026-10-26");
-  const middle = Date.parse("2026-11-02");
-  const latest = Date.parse("2026-11-09");
+  const earliest = instant("2026-10-26");
+  const middle = instant("2026-11-02");
+  const latest = instant("2026-11-09");
   const overview: TeamOverview = {
     teamId,
     rounds: [
@@ -173,7 +174,7 @@ describe("Team health overview markers and tooltips", () => {
   };
   const teamUrl = makeUrl(`https://app.surveybeat.com/teams/${teamId}`);
   const markerLabel = (kind: "committed" | "done", at: number, title: string) =>
-    `${kind === "committed" ? "Committed" : "Done"} ${formatDate(new Date(at))}: ${title}`;
+    `${kind === "committed" ? "Committed" : "Done"} ${formatDate(DateTime.makeUnsafe(at))}: ${title}`;
 
   it("sets each marker button's left style to the plotPercent of its x", () => {
     const { markerX } = overviewXs(overview);

@@ -1,11 +1,10 @@
-// @effect-diagnostics globalDate:off -- the fixture supplies the instant; the test never reads the clock.
-// @effect-diagnostics globalDateInEffect:off -- the fixture supplies the instant; the test never reads the clock.
 // @effect-diagnostics nodeBuiltinImport:off -- this file reads the repository from disk or spawns a process outside a Worker; the Effect FileSystem and ChildProcess services do not exist there.
 
 import { SqliteClient } from "@effect/sql-sqlite-do";
 import { assert, describe, it } from "@effect/vitest";
 import { calculateRoundResult, PulseId, QuestionVersionId, RoundId, TeamId } from "@surveybeat/domain";
 import { SqliteStorage } from "@surveybeat/testing";
+import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Reactivity from "effect/reactivity/Reactivity";
 import * as Scope from "effect/Scope";
@@ -15,7 +14,7 @@ import { makeSqlRounds, secureRandomBytes } from "./SqlRounds.ts";
 
 const migrationsDir = new URL("../migrations/", import.meta.url);
 const weekMs = 7 * 24 * 3600_000;
-const start = Date.UTC(2026, 0, 5);
+const start = DateTime.toEpochMillis(DateTime.makeUnsafe({ year: 2026, month: 1, day: 5 }));
 const qv = QuestionVersionId.make("qv-1");
 
 /** 14 weekly shared Rounds with stored Results, ids round-0 (oldest) to round-13 (latest). */
@@ -28,7 +27,7 @@ const seed = (db: DatabaseSync): void => {
   ).run();
   for (let i = 0; i < 14; i++) {
     const openAt = start + i * weekMs;
-    const date = new Date(openAt).toISOString().slice(0, 10);
+    const date = DateTime.formatIsoDateUtc(DateTime.makeUnsafe(openAt));
     db.prepare(
       `INSERT INTO round (id, pulse_id, team_id, status, planned_open_date, planned_open_at, planned_close_at, effective_minimum_group_size, pulse_name, answer_window_days, reminders, anonymity_mode, distribution, created_at, updated_at)
        VALUES (?, 'pulse-1', 'team-1', 'shared', ?, ?, ?, 4, 'Pulse 1', 3, 1, 'anonymous', 'invitation', 1000, 1000)`,
@@ -97,7 +96,7 @@ describe("getPastRoundsResultsForPulse", () => {
   it.effect("before a date, returns the Rounds right before it, oldest first", () =>
     Effect.gen(function* () {
       const rounds = yield* openRounds;
-      const before = new Date(start + 13 * weekMs).toISOString().slice(0, 10);
+      const before = DateTime.formatIsoDateUtc(DateTime.makeUnsafe(start + 13 * weekMs));
       const history = yield* rounds.getPastRoundsResultsForPulse(PulseId.make("pulse-1"), 11, before);
       assert.deepStrictEqual(
         history.map((h) => h.roundId),

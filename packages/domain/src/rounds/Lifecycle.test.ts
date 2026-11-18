@@ -135,6 +135,44 @@ describe("Lifecycle scheduling and time engine", () => {
     assert.strictEqual(berlinOverlapUtc, expectedBerlinOverlapUtc);
   });
 
+  it("pins localToUtc at DST gaps (later instant) and overlaps (earlier instant) in Berlin and New York", () => {
+    // Berlin gap: 02:30 does not exist on 2026-03-29; it lands on 03:30 CEST (UTC+2).
+    assert.strictEqual(localToUtc(2026, 3, 29, 2, 30, "Europe/Berlin"), Date.UTC(2026, 2, 29, 1, 30));
+    // Berlin overlap: 02:30 happens twice on 2026-10-25; the CEST (UTC+2) occurrence wins.
+    assert.strictEqual(localToUtc(2026, 10, 25, 2, 30, "Europe/Berlin"), Date.UTC(2026, 9, 25, 0, 30));
+    // Berlin overlap ends: 03:00 is unambiguous CET (UTC+1) again.
+    assert.strictEqual(localToUtc(2026, 10, 25, 3, 0, "Europe/Berlin"), Date.UTC(2026, 9, 25, 2, 0));
+    // New York gap: 02:30 does not exist on 2026-03-08; it lands on 03:30 EDT (UTC-4).
+    assert.strictEqual(localToUtc(2026, 3, 8, 2, 30, "America/New_York"), Date.UTC(2026, 2, 8, 7, 30));
+    // New York overlap: 01:30 happens twice on 2026-11-01; the EDT (UTC-4) occurrence wins.
+    assert.strictEqual(localToUtc(2026, 11, 1, 1, 30, "America/New_York"), Date.UTC(2026, 10, 1, 5, 30));
+  });
+
+  it("pins nextEightWeeksCadenceDates across a year boundary, using the zone's local date", () => {
+    // 2026-12-31 23:30 UTC is already 2027-01-01 08:30 in Tokyo (a Friday) but still Thursday 2026-12-31 in UTC.
+    const nowMs = Date.UTC(2026, 11, 31, 23, 30);
+    assert.deepStrictEqual(nextEightWeeksCadenceDates(nowMs, "thursday", "Asia/Tokyo"), [
+      "2027-01-07",
+      "2027-01-14",
+      "2027-01-21",
+      "2027-01-28",
+      "2027-02-04",
+      "2027-02-11",
+      "2027-02-18",
+      "2027-02-25",
+    ]);
+    assert.deepStrictEqual(nextEightWeeksCadenceDates(nowMs, "thursday", "UTC"), [
+      "2026-12-31",
+      "2027-01-07",
+      "2027-01-14",
+      "2027-01-21",
+      "2027-01-28",
+      "2027-02-04",
+      "2027-02-11",
+      "2027-02-18",
+    ]);
+  });
+
   it("determines next 8 weeks of cadence dates", () => {
     // From a known date: Wednesday 2026-11-11
     const wednesdayMs = Date.UTC(2026, 10, 11, 12, 0, 0);
@@ -434,6 +472,27 @@ describe("Lifecycle scheduling and time engine", () => {
       calculateResultsReadyDeliveryTime(nowNight, "Europe/Berlin"),
       expectedTomorrow8am,
       "Night delivery waits until 08:00 tomorrow",
+    );
+  });
+
+  it("pins results-ready delivery across Berlin's DST changeovers", () => {
+    // 2026-03-28 21:00 CET (20:00 UTC) is after 20:00: tomorrow 08:00 on the spring-forward day is CEST (06:00 UTC).
+    assert.strictEqual(
+      calculateResultsReadyDeliveryTime(Date.UTC(2026, 2, 28, 20, 0), "Europe/Berlin"),
+      Date.UTC(2026, 2, 29, 6, 0),
+    );
+    // 2026-03-29 08:30 CEST (06:30 UTC) is daytime: delivery is immediate.
+    const springDaytime = Date.UTC(2026, 2, 29, 6, 30);
+    assert.strictEqual(calculateResultsReadyDeliveryTime(springDaytime, "Europe/Berlin"), springDaytime);
+    // 2026-10-25 06:30 UTC is 07:30 CET, before 08:00: today 08:00 CET (07:00 UTC).
+    assert.strictEqual(
+      calculateResultsReadyDeliveryTime(Date.UTC(2026, 9, 25, 6, 30), "Europe/Berlin"),
+      Date.UTC(2026, 9, 25, 7, 0),
+    );
+    // 2026-10-25 20:00 UTC is 21:00 CET, after 20:00: tomorrow 08:00 CET (07:00 UTC).
+    assert.strictEqual(
+      calculateResultsReadyDeliveryTime(Date.UTC(2026, 9, 25, 20, 0), "Europe/Berlin"),
+      Date.UTC(2026, 9, 26, 7, 0),
     );
   });
 });

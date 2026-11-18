@@ -1,6 +1,5 @@
-// @effect-diagnostics globalDate:off -- the fixture supplies the instant; the test never reads the clock.
-
 import { assert, describe, it } from "@effect/vitest";
+import * as DateTime from "effect/DateTime";
 import { ActionId } from "../actions/Action.ts";
 import { TeamId } from "../people/Team.ts";
 import { PulseId } from "../pulses/Pulse.ts";
@@ -329,16 +328,18 @@ describe("buildTeamOverview performance", () => {
     const results = Array.from({ length: 104 }, (_, week) =>
       computeRound({
         roundId: `round-${week}`,
-        plannedOpenDate: new Date(Date.UTC(2025, 0, 6 + 7 * week)).toISOString().slice(0, 10),
+        plannedOpenDate: DateTime.formatIsoDateUtc(
+          DateTime.add(DateTime.makeUnsafe({ year: 2025, month: 1, day: 6 }), { days: 7 * week }),
+        ),
         storedN: 3,
         submissions: submissions(5, [Q1, Q2]),
       }),
     ).reverse();
 
-    // Date.now(): the domain package has no Node or DOM timer types; millisecond resolution suffices for a 1500 ms bound.
-    const started = Date.now();
+    // DateTime.nowUnsafe() reads the wall clock directly; millisecond resolution suffices for a 1500 ms bound.
+    const started = DateTime.toEpochMillis(DateTime.nowUnsafe());
     const overview = overviewOf(results, 3);
-    const elapsedMs = Date.now() - started;
+    const elapsedMs = DateTime.toEpochMillis(DateTime.nowUnsafe()) - started;
 
     assert.isBelow(elapsedMs, 1500);
     assert.strictEqual(overview.rounds.length, 104);

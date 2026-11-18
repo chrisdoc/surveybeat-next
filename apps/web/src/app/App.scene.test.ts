@@ -1,5 +1,4 @@
-// @effect-diagnostics globalDate:off -- the view formats or compares an instant that arrived from the API against the browser clock; nothing here is stored on the server.
-
+import * as DateTime from "effect/DateTime";
 import {
   ActionId,
   type ActionItem,
@@ -82,6 +81,8 @@ import { formatDate, formatRoundDate, message, setLocale } from "../messages/loc
 import type { FailedEmailResend } from "./directory.ts";
 import type { KeptAnswers } from "./keptAnswers.ts";
 import type { SessionModel } from "./session.ts";
+
+const instant = (iso: string): number => DateTime.toEpochMillis(DateTime.makeUnsafe(iso));
 
 setup();
 
@@ -302,10 +303,10 @@ describe("App Scenes", () => {
       teamId,
       status,
       plannedOpenDate: "2026-11-09",
-      plannedOpenAt: Date.parse("2026-11-09T09:00:00Z"),
-      openedAt: status === "open" ? Date.parse("2026-11-09T09:00:00Z") : null,
-      plannedCloseAt: Date.parse("2026-11-13T09:00:00Z"),
-      closedAt: status === "open" ? null : Date.parse("2026-11-13T09:00:00Z"),
+      plannedOpenAt: instant("2026-11-09T09:00:00Z"),
+      openedAt: status === "open" ? instant("2026-11-09T09:00:00Z") : null,
+      plannedCloseAt: instant("2026-11-13T09:00:00Z"),
+      closedAt: status === "open" ? null : instant("2026-11-13T09:00:00Z"),
       pulseName: "Weekly check-in",
     });
     const action = (status: "committed" | "done") => ({
@@ -318,9 +319,9 @@ describe("App Scenes", () => {
       dueDate: "2026-11-20",
       dimension: null,
       status,
-      createdAt: Date.parse("2026-11-01T09:00:00Z"),
-      updatedAt: Date.parse("2026-11-01T09:00:00Z"),
-      doneAt: status === "done" ? Date.parse("2026-11-02T09:00:00Z") : null,
+      createdAt: instant("2026-11-01T09:00:00Z"),
+      updatedAt: instant("2026-11-01T09:00:00Z"),
+      doneAt: status === "done" ? instant("2026-11-02T09:00:00Z") : null,
     });
     const home = (status: "closed" | "open" | "shared", actionStatus: "committed" | "done") => ({
       teams: { _tag: "Loaded" as const, teams: [teamSummary] },
@@ -690,9 +691,9 @@ describe("App Scenes", () => {
                     teamId,
                     status: "scheduled" as const,
                     plannedOpenDate,
-                    plannedOpenAt: Date.parse("2026-11-09T09:00:00Z"),
+                    plannedOpenAt: instant("2026-11-09T09:00:00Z"),
                     openedAt: null,
-                    plannedCloseAt: Date.parse("2026-11-13T09:00:00Z"),
+                    plannedCloseAt: instant("2026-11-13T09:00:00Z"),
                     closedAt: null,
                     pulseName: "Weekly check-in",
                   },
@@ -728,10 +729,10 @@ describe("App Scenes", () => {
                     teamId,
                     status: "closed" as const,
                     plannedOpenDate: "2026-11-02",
-                    plannedOpenAt: Date.parse("2026-11-02T09:00:00Z"),
-                    openedAt: Date.parse("2026-11-02T09:00:00Z"),
-                    plannedCloseAt: Date.parse("2026-11-06T09:00:00Z"),
-                    closedAt: Date.parse("2026-11-06T09:00:00Z"),
+                    plannedOpenAt: instant("2026-11-02T09:00:00Z"),
+                    openedAt: instant("2026-11-02T09:00:00Z"),
+                    plannedCloseAt: instant("2026-11-06T09:00:00Z"),
+                    closedAt: instant("2026-11-06T09:00:00Z"),
                     pulseName: "Weekly check-in",
                   },
                 ],
@@ -749,8 +750,8 @@ describe("App Scenes", () => {
       const roundB = Schema.decodeSync(RoundId)("round-b");
       const roundC = Schema.decodeSync(RoundId)("round-c");
       const actionId = Schema.decodeSync(ActionId)("action-1");
-      const committedAt = Date.parse("2026-10-28T09:00:00Z");
-      const doneAt = Date.parse("2026-11-04T09:00:00Z");
+      const committedAt = instant("2026-10-28T09:00:00Z");
+      const doneAt = instant("2026-11-04T09:00:00Z");
 
       const overview: TeamOverview = {
         teamId,
@@ -816,13 +817,15 @@ describe("App Scenes", () => {
           Scene.expect(Scene.role("img", { name: "Clarity across all shared Rounds" })).toExist(),
           Scene.expect(
             Scene.role("button", {
-              name: `Committed ${formatDate(new Date(committedAt))}: Fix standups`,
+              name: `Committed ${formatDate(DateTime.makeUnsafe(committedAt))}: Fix standups`,
             }),
           ).toExist(),
-          Scene.expect(Scene.text(`Committed ${formatDate(new Date(committedAt))}: Fix standups`)).toExist(),
+          Scene.expect(
+            Scene.text(`Committed ${formatDate(DateTime.makeUnsafe(committedAt))}: Fix standups`),
+          ).toExist(),
           Scene.expect(
             Scene.role("button", {
-              name: `Done ${formatDate(new Date(doneAt))}: Fix standups`,
+              name: `Done ${formatDate(DateTime.makeUnsafe(doneAt))}: Fix standups`,
             }),
           ).toExist(),
           Scene.expect(Scene.text("Action committed")).toExist(),
@@ -1041,7 +1044,7 @@ describe("App Scenes", () => {
     it("shows the member's own answers beside the Team's score", () => {
       const meta = message("history.round.meta", {
         team: "Platform",
-        date: formatDate(new Date("2026-11-02T12:00:00Z")),
+        date: formatDate(DateTime.makeUnsafe("2026-11-02T12:00:00Z")),
       });
       Scene.scene(
         { update, view },
@@ -1268,7 +1271,7 @@ describe("App Scenes", () => {
         Scene.expect(Scene.text("grace@acme.com")).toExist(),
         Scene.expect(Scene.text("the outcome is unknown")).toExist(),
         Scene.expect(
-          Scene.text(formatDate(new Date(failedAt), { dateStyle: "medium", timeStyle: "short" })),
+          Scene.text(formatDate(DateTime.makeUnsafe(failedAt), { dateStyle: "medium", timeStyle: "short" })),
         ).toExist(),
         Scene.expect(Scene.text("No failed emails.")).toBeAbsent(),
       );
@@ -2439,7 +2442,7 @@ describe("App Scenes", () => {
       });
 
     it("puts Share with the team and the Review countdown in front of a Lead's Ready Results", () => {
-      const reviewEndsAt = Date.now() + 2 * 86_400_000 - 3_600_000;
+      const reviewEndsAt = DateTime.toEpochMillis(DateTime.nowUnsafe()) + 2 * 86_400_000 - 3_600_000;
       Scene.scene(
         { update, view },
         bareScene(bareResult({ status: "ready", reviewEndsAt })),
@@ -2874,7 +2877,7 @@ describe("App Scenes", () => {
           Message.SavedNote({ outcome: { _tag: "Success", view: { roundId, note: savedNote } } }),
         ),
         Scene.expect(Scene.text(noteText)).toExist(),
-        Scene.expect(Scene.text(`Last changed ${formatDate(new Date(updatedAt))}`)).toExist(),
+        Scene.expect(Scene.text(`Last changed ${formatDate(DateTime.makeUnsafe(updatedAt))}`)).toExist(),
         Scene.expect(Scene.role("button", { name: "Edit note" })).toExist(),
       );
     });
@@ -2892,7 +2895,7 @@ describe("App Scenes", () => {
         }),
         Scene.expect(Scene.role("heading", { name: "Note from your Lead" })).toExist(),
         Scene.expect(Scene.text(noteText)).toExist(),
-        Scene.expect(Scene.text(`Last changed ${formatDate(new Date(updatedAt))}`)).toExist(),
+        Scene.expect(Scene.text(`Last changed ${formatDate(DateTime.makeUnsafe(updatedAt))}`)).toExist(),
         Scene.expect(Scene.role("button", { name: "Edit note" })).toBeAbsent(),
         Scene.expect(Scene.role("button", { name: "Write note" })).toBeAbsent(),
       );
@@ -3005,7 +3008,7 @@ describe("App Scenes", () => {
       const roundId = Schema.decodeSync(RoundId)("round-ready");
       const pulseId = decodePulseId("pulse-1");
       const reviewEndsAt = 1731400000000;
-      const reviewDate = formatDate(new Date(reviewEndsAt));
+      const reviewDate = formatDate(DateTime.makeUnsafe(reviewEndsAt));
 
       const readyResult: RoundResult = {
         roundId,
@@ -3206,10 +3209,10 @@ describe("App Scenes", () => {
       teamId,
       status,
       plannedOpenDate,
-      plannedOpenAt: Date.parse(`${plannedOpenDate}T09:00:00Z`),
-      openedAt: status === "scheduled" ? null : Date.parse(`${plannedOpenDate}T09:00:00Z`),
-      plannedCloseAt: Date.parse(`${plannedOpenDate}T09:00:00Z`) + 3 * 86_400_000,
-      closedAt: status === "closed" ? Date.parse(`${plannedOpenDate}T09:00:00Z`) + 3 * 86_400_000 : null,
+      plannedOpenAt: instant(`${plannedOpenDate}T09:00:00Z`),
+      openedAt: status === "scheduled" ? null : instant(`${plannedOpenDate}T09:00:00Z`),
+      plannedCloseAt: instant(`${plannedOpenDate}T09:00:00Z`) + 3 * 86_400_000,
+      closedAt: status === "closed" ? instant(`${plannedOpenDate}T09:00:00Z`) + 3 * 86_400_000 : null,
       pulseName: "Weekly check-in",
     });
     const rounds = {
@@ -3305,8 +3308,8 @@ describe("App Scenes", () => {
       const staleId = Schema.decodeSync(RoundId)("round-stale");
       const stale: RoundSummary = {
         ...summary(staleId, "scheduled", "2026-11-24"),
-        plannedOpenAt: Date.parse("2026-11-18T09:00:00Z"),
-        plannedCloseAt: Date.parse("2026-11-19T09:00:00Z"),
+        plannedOpenAt: instant("2026-11-18T09:00:00Z"),
+        plannedCloseAt: instant("2026-11-19T09:00:00Z"),
       };
       Scene.scene(
         { update, view },

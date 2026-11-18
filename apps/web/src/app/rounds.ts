@@ -1,5 +1,4 @@
-// @effect-diagnostics globalDate:off -- the view formats or compares an instant that arrived from the API against the browser clock; nothing here is stored on the server.
-
+import * as DateTime from "effect/DateTime";
 import {
   type PersonId,
   type PulseId,
@@ -49,7 +48,7 @@ export type RoundConfirm = typeof RoundConfirm.Type;
 export const isLead = (team: LoadedTeam): boolean =>
   team._tag === "Loaded" && team.detail.team.yourRole === "lead";
 
-const dateText = (ms: number): string => formatDate(new Date(ms));
+const dateText = (ms: number): string => formatDate(DateTime.makeUnsafe(ms));
 
 export const roundOpenDate = (round: RoundSummary): string => dateText(round.openedAt ?? round.plannedOpenAt);
 

@@ -1,5 +1,4 @@
-// @effect-diagnostics globalDate:off -- the view formats or compares an instant that arrived from the API against the browser clock; nothing here is stored on the server.
-
+import * as DateTime from "effect/DateTime";
 import { Popover } from "@foldkit/ui";
 import {
   ActionId,
@@ -963,12 +962,12 @@ export const GetResultsCmd = Command.define("GetResultsCmd", {
 
 export const GetMyHistoryCmd = Command.define("GetMyHistoryCmd", {
   messages: [Message.GotMyHistory],
-  execute: Effect.suspend(() =>
+  execute: Effect.flatMap(DateTime.now, (now) =>
     runApi(
       (api) => api.rounds.getMyHistory({}),
       (history) => {
         const storage = browserStorage();
-        const kept = storage === null ? {} : readKeptAnswers(storage, Date.now());
+        const kept = storage === null ? {} : readKeptAnswers(storage, DateTime.toEpochMillis(now));
         return Message.GotMyHistory({ outcome: { _tag: "Success", history, kept } });
       },
       (failure) => Message.GotMyHistory({ outcome: { _tag: "Failure", failure } }),

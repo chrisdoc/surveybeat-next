@@ -1,5 +1,4 @@
-// @effect-diagnostics globalDate:off -- every instant here arrives as an argument; these functions only parse and format it in a fixed time zone.
-
+import * as DateTime from "effect/DateTime";
 import type { PersonId } from "../people/Identity.ts";
 import { actorOf, type DirectoryState } from "../people/Directory.ts";
 import { type Actor, can, type TeamAction } from "../people/Permissions.ts";
@@ -55,56 +54,13 @@ export const localToUtc = (
   hour: number,
   minute: number,
   timeZone: string,
-): number => {
-  const targetLocalAsUtc = Date.UTC(year, month - 1, day, hour, minute, 0);
-
-  const getLocal = (utcMs: number) => {
-    const dtf = new Intl.DateTimeFormat("en-US", {
-      timeZone,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      hour12: false,
-    });
-    const parts: Record<string, string> = {};
-    for (const p of dtf.formatToParts(new Date(utcMs))) {
-      parts[p.type] = p.value;
-    }
-    let h = parseInt(parts.hour ?? "0", 10);
-    if (h === 24) h = 0;
-    return {
-      year: parseInt(parts.year ?? "0", 10),
-      month: parseInt(parts.month ?? "0", 10),
-      day: parseInt(parts.day ?? "0", 10),
-      hour: h,
-      minute: parseInt(parts.minute ?? "0", 10),
-    };
-  };
-
-  const toAsUtc = (l: { year: number; month: number; day: number; hour: number; minute: number }) =>
-    Date.UTC(l.year, l.month - 1, l.day, l.hour, l.minute, 0);
-
-  const dayBeforeUtc = targetLocalAsUtc - 86_400_000;
-  const dayAfterUtc = targetLocalAsUtc + 86_400_000;
-  const offsetBefore = toAsUtc(getLocal(dayBeforeUtc)) - dayBeforeUtc;
-  const offsetAfter = toAsUtc(getLocal(dayAfterUtc)) - dayAfterUtc;
-
-  const offsets = [offsetBefore, offsetAfter].sort((a, b) => b - a);
-
-  for (const offset of offsets) {
-    const candidateUtc = targetLocalAsUtc - offset;
-    if (toAsUtc(getLocal(candidateUtc)) === targetLocalAsUtc) {
-      return candidateUtc;
-    }
-  }
-
-  const gap = Math.abs(offsetAfter - offsetBefore);
-  const adjustedTargetAsUtc = targetLocalAsUtc + gap;
-  return adjustedTargetAsUtc - offsetAfter;
-};
+): number =>
+  DateTime.toEpochMillis(
+    DateTime.makeZonedUnsafe(
+      { year, month, day, hour, minute },
+      { timeZone, adjustForTimeZone: true, disambiguation: "compatible" },
+    ),
+  );
 
 const WEEKDAY_NUMBERS: Record<Weekday, number> = {
   sunday: 0,
@@ -124,14 +80,24 @@ export const parseDateIso = (dateStr: string): { year: number; month: number; da
   return { year, month, day };
 };
 
-export const formatDateIso = (year: number, month: number, day: number): string =>
-  `${year.toString().padStart(4, "0")}-${month.toString().padStart(2, "0")}-${day.toString().padStart(2, "0")}`;
-
 export const parseSendTime = (sendTime: SendTime): { hour: number; minute: number } => {
   const parts = sendTime.split(":");
   const hour = parseInt(parts[0] ?? "0", 10);
   const minute = parseInt(parts[1] ?? "0", 10);
   return { hour, minute };
+};
+
+const utcDate = (year: number, month: number, day: number) => DateTime.makeUnsafe({ year, month, day });
+
+const nextWeekdayOn = (from: DateTime.Utc, targetWeekday: Weekday, includeToday: boolean): DateTime.Utc => {
+  const currentWeekday = DateTime.getPartUtc(from, "weekDay");
+  const targetDayNum = WEEKDAY_NUMBERS[targetWeekday];
+
+  let daysAhead = targetDayNum - currentWeekday;
+  if (daysAhead < 0 || (daysAhead === 0 && !includeToday)) {
+    daysAhead += 7;
+  }
+  return DateTime.add(from, { days: daysAhead });
 };
 
 export const nextWeekdayDate = (
@@ -140,46 +106,22 @@ export const nextWeekdayDate = (
   fromDay: number,
   targetWeekday: Weekday,
   includeToday: boolean,
-): string => {
-  const date = new Date(Date.UTC(fromYear, fromMonth - 1, fromDay));
-  const currentWeekday = date.getUTCDay();
-  const targetDayNum = WEEKDAY_NUMBERS[targetWeekday];
-
-  let daysAhead = targetDayNum - currentWeekday;
-  if (daysAhead < 0 || (daysAhead === 0 && !includeToday)) {
-    daysAhead += 7;
-  }
-  const nextDate = new Date(date.getTime() + daysAhead * 86_400_000);
-  return formatDateIso(nextDate.getUTCFullYear(), nextDate.getUTCMonth() + 1, nextDate.getUTCDate());
-};
+): string =>
+  DateTime.formatIsoDateUtc(
+    nextWeekdayOn(utcDate(fromYear, fromMonth, fromDay), targetWeekday, includeToday),
+  );
 
 export const nextEightWeeksCadenceDates = (
   nowMs: number,
   weekday: Weekday,
   timeZone: string,
 ): ReadonlyArray<string> => {
-  const dtf = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-  const parts: Record<string, string> = {};
-  for (const p of dtf.formatToParts(new Date(nowMs))) {
-    parts[p.type] = p.value;
-  }
-  const curYear = parseInt(parts.year ?? "0", 10);
-  const curMonth = parseInt(parts.month ?? "0", 10);
-  const curDay = parseInt(parts.day ?? "0", 10);
-
-  const firstDate = nextWeekdayDate(curYear, curMonth, curDay, weekday, true);
-  const firstParsed = parseDateIso(firstDate);
-  const firstDateObj = new Date(Date.UTC(firstParsed.year, firstParsed.month - 1, firstParsed.day));
+  const { year, month, day } = teamToday(nowMs, timeZone);
+  const first = nextWeekdayOn(utcDate(year, month, day), weekday, true);
 
   const result: Array<string> = [];
   for (let i = 0; i < 8; i++) {
-    const d = new Date(firstDateObj.getTime() + i * 7 * 86_400_000);
-    result.push(formatDateIso(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate()));
+    result.push(DateTime.formatIsoDateUtc(DateTime.add(first, { days: i * 7 })));
   }
   return result;
 };
@@ -236,26 +178,12 @@ export interface RoundSlot {
 
 const addDays = (dateIso: string, days: number): string => {
   const { year, month, day } = parseDateIso(dateIso);
-  const d = new Date(Date.UTC(year, month - 1, day) + days * 86_400_000);
-  return formatDateIso(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate());
+  return DateTime.formatIsoDateUtc(DateTime.add(utcDate(year, month, day), { days }));
 };
 
 const teamToday = (now: number, timeZone: string) => {
-  const dtf = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-  const parts: Record<string, string> = {};
-  for (const p of dtf.formatToParts(new Date(now))) {
-    parts[p.type] = p.value;
-  }
-  return {
-    year: parseInt(parts.year ?? "0", 10),
-    month: parseInt(parts.month ?? "0", 10),
-    day: parseInt(parts.day ?? "0", 10),
-  };
+  const { year, month, day } = DateTime.toParts(DateTime.makeZonedUnsafe(now, { timeZone }));
+  return { year, month, day };
 };
 
 export const nextRoundSlot = (input: RoundSlotInput): RoundSlot => {
@@ -304,44 +232,18 @@ export const calculateReminders = (
 };
 
 export const calculateResultsReadyDeliveryTime = (nowMs: number, timeZone: string): number => {
-  const dtf = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  });
-  const parts: Record<string, string> = {};
-  for (const p of dtf.formatToParts(new Date(nowMs))) {
-    parts[p.type] = p.value;
-  }
-  let h = parseInt(parts.hour ?? "0", 10);
-  if (h === 24) h = 0;
-  const year = parseInt(parts.year ?? "0", 10);
-  const month = parseInt(parts.month ?? "0", 10);
-  const day = parseInt(parts.day ?? "0", 10);
+  const { year, month, day, hour } = DateTime.toParts(DateTime.makeZonedUnsafe(nowMs, { timeZone }));
 
-  if (h >= 8 && h < 20) {
+  if (hour >= 8 && hour < 20) {
     return nowMs;
   }
 
-  if (h < 8) {
+  if (hour < 8) {
     return localToUtc(year, month, day, 8, 0, timeZone);
   }
 
-  const tomorrowUtc = Date.UTC(year, month - 1, day) + 86_400_000;
-  const tomDate = new Date(tomorrowUtc);
-  return localToUtc(
-    tomDate.getUTCFullYear(),
-    tomDate.getUTCMonth() + 1,
-    tomDate.getUTCDate(),
-    8,
-    0,
-    timeZone,
-  );
+  const tomorrow = DateTime.toPartsUtc(DateTime.add(utcDate(year, month, day), { days: 1 }));
+  return localToUtc(tomorrow.year, tomorrow.month, tomorrow.day, 8, 0, timeZone);
 };
 
 export type RoundCommand =

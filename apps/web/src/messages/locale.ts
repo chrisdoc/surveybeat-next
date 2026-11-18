@@ -1,6 +1,6 @@
-// @effect-diagnostics globalDate:off -- the view formats or compares an instant that arrived from the API against the browser clock; nothing here is stored on the server.
-
 import type { Locale } from "@surveybeat/domain";
+import * as DateTime from "effect/DateTime";
+import * as Option from "effect/Option";
 import { catalog } from "./catalog.ts";
 import {
   fill,
@@ -25,7 +25,7 @@ export interface Messages {
   readonly locale: Locale;
   readonly message: MessageFn;
   readonly pluralMessage: <B extends PluralKey>(base: B, count: number, params?: PluralParams<B>) => string;
-  readonly formatDate: (date: Date, options?: Intl.DateTimeFormatOptions) => string;
+  readonly formatDate: (date: DateTime.DateTime, options?: Intl.DateTimeFormatOptions) => string;
 
   readonly formatNumber: (value: number) => string;
 
@@ -64,8 +64,11 @@ const build = (locale: Locale): Messages => {
     return fill(template, { ...params, count: numberFormat.format(count) });
   }
 
-  function formatDate(date: Date, options: Intl.DateTimeFormatOptions = { dateStyle: "medium" }): string {
-    return new Intl.DateTimeFormat(locale, options).format(date);
+  function formatDate(
+    date: DateTime.DateTime,
+    options: Intl.DateTimeFormatOptions = { dateStyle: "medium" },
+  ): string {
+    return DateTime.formatIntl(date, new Intl.DateTimeFormat(locale, options));
   }
 
   function formatNumber(value: number): string {
@@ -85,9 +88,10 @@ const build = (locale: Locale): Messages => {
   }
 
   function formatRoundDate(isoDate: string): string {
-    const date = new Date(`${isoDate}T12:00:00Z`);
-    if (Number.isNaN(date.getTime())) return isoDate;
-    return formatDate(date, { dateStyle: "medium", timeZone: "UTC" });
+    return Option.match(DateTime.make(`${isoDate}T12:00:00Z`), {
+      onNone: () => isoDate,
+      onSome: (date) => formatDate(date, { dateStyle: "medium", timeZone: "UTC" }),
+    });
   }
 
   return {
