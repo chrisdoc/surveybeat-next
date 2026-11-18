@@ -153,7 +153,9 @@ export const warningMessage = (warning: PulseWarning): string => {
     case "NoOneTap":
       return message("pulse.warning.NoOneTap");
     case "TeamBelowMinimumGroupSize":
-      return message("pulse.warning.TeamBelowMinimumGroupSize", warning);
+      return pluralMessage("pulse.warning.TeamBelowMinimumGroupSize", warning.members, {
+        minimumGroupSize: warning.minimumGroupSize,
+      });
   }
 };
 

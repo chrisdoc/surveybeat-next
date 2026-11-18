@@ -7,14 +7,14 @@ export const catalog = {
   "app.retry": "Try again",
   "signIn.title": "Sign in to SurveyBeat",
   "signIn.framing": "Short check-ins that show how your Team is really doing.",
-  "signIn.intro": "Use a code sent to your email, or your Google or Microsoft account.",
+  "signIn.intro": "Use a code sent to your email.",
   "signIn.privacy": "Anonymous by design: answers are never stored with a name or a time.",
   "signIn.privacyLink": "How privacy works",
   "signIn.action": "Sign in",
   "signIn.failed": "Signing in did not work. Please try again.",
   "signIn.email": "Your email",
   "signIn.emailAction": "Email me a code",
-  "signIn.sent": "We sent a 6-digit code to {email}. It expires in 5 minutes.",
+  "signIn.sent": "We sent a 6-digit code to {email}. It expires in {minutes} minutes.",
   "signIn.code": "Sign-in code",
   "signIn.codeAction": "Sign in with this code",
   "signIn.sendFailed": "We could not send a code. Check your email address and try again.",
@@ -147,8 +147,10 @@ export const catalog = {
     "This takes about {seconds} seconds, more than about {recommended}. Shorter Pulses get more answers.",
   "pulse.warning.NoOneTap":
     "Members can answer from the email with one tap only when the first Question is a rating.",
-  "pulse.warning.TeamBelowMinimumGroupSize":
-    "This Team has {members} people, fewer than the {minimumGroupSize} needed before any Result is shown. You can still set up the Pulse.",
+  "pulse.warning.TeamBelowMinimumGroupSize.one":
+    "This Team has {count} person, fewer than the {minimumGroupSize} needed before any Result is shown. You can still set up the Pulse.",
+  "pulse.warning.TeamBelowMinimumGroupSize.other":
+    "This Team has {count} people, fewer than the {minimumGroupSize} needed before any Result is shown. You can still set up the Pulse.",
   "pulse.questions": "Questions",
   "pulse.question.numbered": "{number}. {text}",
   "pulse.question.meta": "{type} · {dimension} · {duration}",
