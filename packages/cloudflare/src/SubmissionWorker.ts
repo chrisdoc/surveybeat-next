@@ -22,6 +22,7 @@ export default class SubmissionWorker extends Cloudflare.Worker<SubmissionWorker
       logpush: false,
       tailConsumers: [],
       streamingTailConsumers: [],
+      dev: { port: 1338, strictPort: true },
       ...(hostname === undefined ? {} : { domain: hostname }),
     };
   }),

@@ -2,6 +2,7 @@
 
 import { defineConfig, devices } from "@playwright/test";
 import { resolve } from "node:path";
+import { flowAttempts, flowLeadFor } from "./flow-lead.ts";
 
 /**
  * End-to-end tests against a deployed stage (SPEC §7) or the app served by a local stage.
@@ -17,13 +18,20 @@ import { resolve } from "node:path";
 const root = resolve(import.meta.dirname, "../../..");
 const localStageURL = "http://localhost:1337";
 const baseURL = process.env["E2E_BASE_URL"] ?? localStageURL;
+const retries = process.env["CI"] === undefined ? 0 : 1;
+process.env["E2E_FLOW_RUN"] ??= Array.from(crypto.getRandomValues(new Uint8Array(4)), (byte) =>
+  byte.toString(16).padStart(2, "0"),
+).join("");
+const flowLeads = flowAttempts(retries).map((attempt) =>
+  flowLeadFor(process.env["E2E_FLOW_RUN"] ?? "", attempt),
+);
 
 export default defineConfig({
   testDir: ".",
   testMatch: "**/*.spec.ts",
   forbidOnly: process.env["CI"] !== undefined,
   // A fresh custom hostname can still be settling after the smoke test.
-  retries: process.env["CI"] === undefined ? 0 : 1,
+  retries,
   reporter: process.env["CI"] === undefined ? "list" : [["list"], ["github"]],
   outputDir: "../../../test-results/e2e",
   use: { baseURL, trace: "retain-on-failure" },
@@ -45,7 +53,9 @@ export default defineConfig({
           url: `${localStageURL}/`,
           timeout: 180_000,
           reuseExistingServer: process.env["CI"] === undefined,
-          env: { ORG_CREATION_ALLOWLIST: "nobody@example.invalid" },
+          env: {
+            ORG_CREATION_ALLOWLIST: ["nobody@example.invalid", ...flowLeads].join(","),
+          },
         },
       }),
 });

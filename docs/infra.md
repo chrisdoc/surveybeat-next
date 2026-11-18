@@ -41,7 +41,7 @@ Values for those commands come from `.env.schema`, which declares every variable
 `.github/workflows/preview.yml` deploys `pr-<number>` on every push to a pull request, smoke tests the stage, and destroys it when the pull request closes. It needs the repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`, (no sign-in secret beyond `ORG_CREATION_ALLOWLIST`, which `infra/alchemy.run.ts` reads). Fork pull requests are skipped. After the deploy, two jobs run against the stage:
 
 - `preview-privacy` reads back the Submission Worker's settings (below) on every PR. When the PR touches `packages/cloudflare`, `infra`, the answer entry (`apps/web/answer.html`, `src/answer`, `src/messages`, `vite.config.ts`), the dependency pins or this workflow, it also runs the canary sweep (`infra/tests/privacy/canary-sweep.ts`).
-- `e2e` runs the Playwright tests in `infra/tests/e2e/` (the SPEC §7 flow, which grows with the slices).
+- `e2e` runs the Playwright tests in `infra/tests/e2e/`, including the SPEC §7 flow (local stage only, see AGENTS.md).
 
 ## Sign-in (Better Auth, email codes)
 
