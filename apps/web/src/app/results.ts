@@ -1,5 +1,4 @@
-// @effect-diagnostics globalDate:off -- the view formats or compares an instant that arrived from the API against the browser clock; nothing here is stored on the server.
-
+import * as DateTime from "effect/DateTime";
 import {
   type ActionId,
   ActionItem,
@@ -326,7 +325,7 @@ const scoreOfFive = (score: number): string => message("results.scoreOf5", { sco
 
 const countdown = (reviewEndsAt: number | undefined): number | null => {
   if (reviewEndsAt === undefined) return null;
-  const days = Math.ceil((reviewEndsAt - Date.now()) / 86_400_000);
+  const days = Math.ceil((reviewEndsAt - DateTime.toEpochMillis(DateTime.nowUnsafe())) / 86_400_000);
   return days > 0 ? days : null;
 };
 
@@ -623,7 +622,7 @@ const noteSection = <Message>(
       h.p([h.Class("whitespace-pre-line text-[17px] leading-relaxed text-ink")], [note.text]),
       h.p(
         [h.Class("text-sm text-muted")],
-        [message("note.lastChanged", { date: formatDate(new Date(note.updatedAt)) })],
+        [message("note.lastChanged", { date: formatDate(DateTime.makeUnsafe(note.updatedAt)) })],
       ),
     );
     if (isLead) {
@@ -716,7 +715,8 @@ export const resultsScreenView = <Message>(
   const minimum = result.effectiveMinimumGroupSize;
   const isLead = state.teamDetail._tag === "Loaded" && state.teamDetail.detail.team.yourRole === "lead";
   const roster = state.teamDetail._tag === "Loaded" ? state.teamDetail.detail.roster : [];
-  const reviewDate = result.reviewEndsAt !== undefined ? formatDate(new Date(result.reviewEndsAt)) : null;
+  const reviewDate =
+    result.reviewEndsAt !== undefined ? formatDate(DateTime.makeUnsafe(result.reviewEndsAt)) : null;
 
   const isMemberReview =
     (result.status === "closed" || result.status === "ready") &&

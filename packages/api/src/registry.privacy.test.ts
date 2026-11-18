@@ -1,5 +1,3 @@
-// @effect-diagnostics globalDate:off -- the fixture supplies the instant; the test never reads the clock.
-
 import { assert, describe, it } from "@effect/vitest";
 import {
   buildMemberHistory,
@@ -21,6 +19,7 @@ import {
   viewRoundResult,
 } from "@surveybeat/domain";
 import * as Arbitrary from "effect/Arbitrary";
+import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import { HttpApi, type HttpApiEndpoint } from "effect/http-api";
 import * as Schema from "effect/Schema";
@@ -319,7 +318,9 @@ const buildResult = (scenario: RoundResultScenario): Built => {
         : null;
     return {
       roundId: RoundId.make(`past-${i}`),
-      plannedOpenDate: new Date(Date.UTC(2025, 0, 6 + 7 * i)).toISOString().slice(0, 10),
+      plannedOpenDate: DateTime.formatIsoDateUtc(
+        DateTime.add(DateTime.makeUnsafe({ year: 2025, month: 1, day: 6 }), { days: 7 * i }),
+      ),
       closedAt: 1_700_000_000_000 + i,
       effectiveMinimumGroupSize: past.effectiveMinimumGroupSize,
       submissionsCount: past.submissionsCount,

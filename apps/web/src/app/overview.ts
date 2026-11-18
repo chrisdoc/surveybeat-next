@@ -1,5 +1,5 @@
-// @effect-diagnostics globalDate:off -- the view formats or compares an instant that arrived from the API against the browser clock; nothing here is stored on the server.
-
+import * as DateTime from "effect/DateTime";
+import * as Option from "effect/Option";
 import {
   type ActionMarker,
   type DimensionOverview,
@@ -54,7 +54,7 @@ const eventGlyph = <Message>(kind: ActionMarker["kind"], h: HtmlBuilder<Message>
 
 const markerText = (marker: ActionMarker): string =>
   message(marker.kind === "committed" ? "overview.marker.committed" : "overview.marker.done", {
-    date: formatDate(new Date(marker.at)),
+    date: formatDate(DateTime.makeUnsafe(marker.at)),
     title: marker.title,
   });
 
@@ -89,12 +89,15 @@ export interface OverviewXs {
   readonly markerX: (at: number) => number;
 }
 
+const plannedOpenMillis = (isoDate: string): number =>
+  Option.match(DateTime.make(isoDate), { onNone: () => Number.NaN, onSome: DateTime.toEpochMillis });
+
 export const overviewXs = (overview: TeamOverview): OverviewXs => {
   let tMin = Number.POSITIVE_INFINITY;
   let tMax = Number.NEGATIVE_INFINITY;
   for (const round of overview.rounds) {
-    tMin = Math.min(tMin, Date.parse(round.plannedOpenDate));
-    tMax = Math.max(tMax, Date.parse(round.plannedOpenDate));
+    tMin = Math.min(tMin, plannedOpenMillis(round.plannedOpenDate));
+    tMax = Math.max(tMax, plannedOpenMillis(round.plannedOpenDate));
   }
   for (const marker of overview.markers) {
     tMin = Math.min(tMin, marker.at);
@@ -106,7 +109,7 @@ export const overviewXs = (overview: TeamOverview): OverviewXs => {
   };
   const rounds = new Map<RoundId, number>();
   for (const round of overview.rounds) {
-    rounds.set(round.roundId, markerX(Date.parse(round.plannedOpenDate)));
+    rounds.set(round.roundId, markerX(plannedOpenMillis(round.plannedOpenDate)));
   }
   return { rounds, markerX };
 };
@@ -238,7 +241,7 @@ const markersTable = <Message>(markers: ReadonlyArray<ActionMarker>, h: HtmlBuil
   dataTable(
     [message("overview.tableDate"), message("overview.tableAction"), message("overview.tableEvent")],
     markers.map((marker) => [
-      formatDate(new Date(marker.at)),
+      formatDate(DateTime.makeUnsafe(marker.at)),
       marker.title,
       message(marker.kind === "committed" ? "overview.event.committed" : "overview.event.done"),
     ]),

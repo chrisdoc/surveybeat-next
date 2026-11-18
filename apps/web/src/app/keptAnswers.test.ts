@@ -1,7 +1,8 @@
+import * as DateTime from "effect/DateTime";
 import { describe, expect, it } from "vitest";
 import { clearKeptAnswers, readKeptAnswers } from "./keptAnswers.ts";
 
-const now = Date.parse("2026-11-10T12:00:00Z");
+const now = DateTime.toEpochMillis(DateTime.makeUnsafe("2026-11-10T12:00:00Z"));
 const later = now + 60_000;
 
 /** A Map-backed Storage: enough of the Storage surface for the reader and the clearer. */

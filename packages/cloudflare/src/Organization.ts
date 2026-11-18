@@ -1,6 +1,3 @@
-// @effect-diagnostics globalDate:off -- the instant arrives as a method argument; Date.now is only the default at the RPC boundary.
-// @effect-diagnostics globalDateInEffect:off -- the handler formats an instant it was given; no clock is read inside the Effect.
-
 import * as Cloudflare from "@alchemy.run/cloudflare";
 import { SqliteClient } from "@effect/sql-sqlite-do";
 import { organizationActions } from "./organization/Actions.ts";
@@ -1540,7 +1537,9 @@ const organizationObject = Effect.gen(function* () {
       getInvitationByTokenHash: (tokenHash: string) => rounds.getInvitationByTokenHash(tokenHash),
       getInvitationBySendId: (sendId: string) => rounds.getInvitationBySendId(SendId.make(sendId)),
       optOutReminders: (pulseId: string, personId: string, now?: number) =>
-        rounds.optOutReminders(PulseId.make(pulseId), PersonId.make(personId), now ?? Date.now()),
+        Effect.flatMap(now === undefined ? Clock.currentTimeMillis : Effect.succeed(now), (at) =>
+          rounds.optOutReminders(PulseId.make(pulseId), PersonId.make(personId), at),
+        ),
       isOptedOut: (pulseId: string, personId: string) =>
         rounds.isOptedOut(PulseId.make(pulseId), PersonId.make(personId)),
       setPersonTimeZone: (personId: string, timeZone: string) =>
@@ -1562,12 +1561,8 @@ const organizationObject = Effect.gen(function* () {
       hasAnswered: (roundId: string, personId: string) =>
         rounds.hasAnswered(RoundId.make(roundId), PersonId.make(personId)),
       failInvitation: (roundId: string, personId: string, reason: string, now?: number) =>
-        rounds.updateInvitationStatus(
-          RoundId.make(roundId),
-          PersonId.make(personId),
-          "failed",
-          reason,
-          now ?? Date.now(),
+        Effect.flatMap(now === undefined ? Clock.currentTimeMillis : Effect.succeed(now), (at) =>
+          rounds.updateInvitationStatus(RoundId.make(roundId), PersonId.make(personId), "failed", reason, at),
         ),
 
       ...organizationSubmissions({ rounds, directory, pulses, actions }),

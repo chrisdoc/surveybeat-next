@@ -1,5 +1,4 @@
-// @effect-diagnostics globalDate:off -- the view formats or compares an instant that arrived from the API against the browser clock; nothing here is stored on the server.
-
+import * as DateTime from "effect/DateTime";
 import { afterEach, describe, expect, it } from "vitest";
 import answerHtml from "../../answer.html?raw";
 import indexHtml from "../../index.html?raw";
@@ -19,9 +18,9 @@ describe("message catalog", () => {
   });
 
   it("formats dates with Intl", () => {
-    expect(formatDate(new Date("2026-11-07T12:00:00Z"), { dateStyle: "medium", timeZone: "UTC" })).toBe(
-      "Nov 7, 2026",
-    );
+    expect(
+      formatDate(DateTime.makeUnsafe("2026-11-07T12:00:00Z"), { dateStyle: "medium", timeZone: "UTC" }),
+    ).toBe("Nov 7, 2026");
   });
 });
 
@@ -54,9 +53,9 @@ describe("messagesFor", () => {
     expect(en.pluralMessage("answer.remaining", 1)).toBe("1 Question left");
     expect(en.pluralMessage("answer.remaining", 3)).toBe("3 Questions left");
     expect(en.pluralMessage("pulse.questionCount", 1234)).toBe("1,234 Questions");
-    expect(en.formatDate(new Date("2026-11-07T12:00:00Z"), { dateStyle: "medium", timeZone: "UTC" })).toBe(
-      "Nov 7, 2026",
-    );
+    expect(
+      en.formatDate(DateTime.makeUnsafe("2026-11-07T12:00:00Z"), { dateStyle: "medium", timeZone: "UTC" }),
+    ).toBe("Nov 7, 2026");
   });
 
   it("fills English templates", () => {

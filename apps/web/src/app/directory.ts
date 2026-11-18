@@ -1,5 +1,4 @@
-// @effect-diagnostics globalDate:off -- the view formats or compares an instant that arrived from the API against the browser clock; nothing here is stored on the server.
-
+import * as DateTime from "effect/DateTime";
 import {
   EmailAddress,
   EmailSendProgress,
@@ -737,7 +736,7 @@ export const teamScreenView = <Message>(
                 badge("neutral", [roleName(entry.role)], h),
                 h.span(
                   [h.Class("text-sm text-muted")],
-                  [message("team.since", { date: formatDate(new Date(entry.since)) })],
+                  [message("team.since", { date: formatDate(DateTime.makeUnsafe(entry.since)) })],
                 ),
               ],
             ),
@@ -1009,7 +1008,7 @@ const failedEmailsView = <Message>(
                 message(`email.kind.${email.kind}`),
                 email.recipient,
                 failedEmailReasonText(email.reason, email.code),
-                formatDate(new Date(email.failedAt), { dateStyle: "medium", timeStyle: "short" }),
+                formatDate(DateTime.makeUnsafe(email.failedAt), { dateStyle: "medium", timeStyle: "short" }),
                 failedEmailActionView(email, state.failedEmailResends[email.sendId], onResend, h),
               ]),
               h,

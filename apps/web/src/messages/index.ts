@@ -1,3 +1,4 @@
+import * as DateTime from "effect/DateTime";
 import { catalog } from "./catalog.ts";
 
 type Catalog = typeof catalog;
@@ -56,8 +57,8 @@ export function pluralMessage<B extends PluralKey>(base: B, count: number, param
 }
 
 export function formatDate(
-  date: Date,
+  date: DateTime.DateTime,
   options: Intl.DateTimeFormatOptions = { dateStyle: "medium" },
 ): string {
-  return new Intl.DateTimeFormat(LOCALE, options).format(date);
+  return DateTime.formatIntl(date, new Intl.DateTimeFormat(LOCALE, options));
 }
