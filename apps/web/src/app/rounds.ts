@@ -13,7 +13,7 @@ import type { RoundDetail } from "@surveybeat/domain";
 import { Predicate, Schema } from "effect";
 import type { Html, HtmlBuilder } from "foldkit/html";
 import { defineTaggedUnion } from "foldkit/schema";
-import { formatDate, formatPercent, formatRoundDate, message } from "../messages/locale.ts";
+import { formatDate, formatPercent, message } from "../messages/locale.ts";
 import { Failure } from "./api.ts";
 import {
   appButton,
@@ -51,9 +51,11 @@ export const isLead = (team: LoadedTeam): boolean =>
 
 const dateText = (ms: number): string => formatDate(new Date(ms));
 
+export const roundOpenDate = (round: RoundSummary): string => dateText(round.openedAt ?? round.plannedOpenAt);
+
 const roundDates = (round: RoundSummary): string =>
   message("rounds.dates", {
-    from: dateText(round.openedAt ?? round.plannedOpenAt),
+    from: roundOpenDate(round),
     to: dateText(round.closedAt ?? round.plannedCloseAt),
   });
 
@@ -243,10 +245,7 @@ export const roundsScreenView = <Message>(
             h.div(
               [h.Class("flex items-center justify-between gap-4")],
               [
-                h.span(
-                  [h.Class("font-semibold")],
-                  [message("rounds.round", { date: formatRoundDate(round.plannedOpenDate) })],
-                ),
+                h.span([h.Class("font-semibold")], [message("rounds.round", { date: roundOpenDate(round) })]),
                 badge(statusVariant(round.status), [message(`rounds.status.${round.status}`)], h),
               ],
             ),

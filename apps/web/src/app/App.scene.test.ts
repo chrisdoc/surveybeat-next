@@ -165,7 +165,7 @@ describe("App Scenes", () => {
             email: "ada@example.com",
             code: "",
             busy: false,
-            notice: "We sent a 6-digit code to ada@example.com. It expires in 5 minutes.",
+            notice: "We sent a 6-digit code to ada@example.com. It expires in 10 minutes.",
           },
         }),
         Scene.expect(Scene.role("textbox", { name: "Sign-in code" })).toExist(),
@@ -3209,10 +3209,10 @@ describe("App Scenes", () => {
       teamId,
       status,
       plannedOpenDate,
-      plannedOpenAt: 1731140000000,
-      openedAt: status === "scheduled" ? null : 1731140000000,
-      plannedCloseAt: 1731400000000,
-      closedAt: status === "closed" ? 1731400000000 : null,
+      plannedOpenAt: Date.parse(`${plannedOpenDate}T09:00:00Z`),
+      openedAt: status === "scheduled" ? null : Date.parse(`${plannedOpenDate}T09:00:00Z`),
+      plannedCloseAt: Date.parse(`${plannedOpenDate}T09:00:00Z`) + 3 * 86_400_000,
+      closedAt: status === "closed" ? Date.parse(`${plannedOpenDate}T09:00:00Z`) + 3 * 86_400_000 : null,
       pulseName: "Weekly check-in",
     });
     const rounds = {
@@ -3301,6 +3301,27 @@ describe("App Scenes", () => {
         Scene.expect(Scene.text("Ready")).toExist(),
         Scene.expect(Scene.role("link", { name: "Review and share" })).toExist(),
         Scene.expect(Scene.role("link", { name: "View Results" })).toBeAbsent(),
+      );
+    });
+
+    it("titles a Round from its window's open date, not the date it was first planned", () => {
+      const staleId = Schema.decodeSync(RoundId)("round-stale");
+      const stale: RoundSummary = {
+        ...summary(staleId, "scheduled", "2026-11-24"),
+        plannedOpenAt: Date.parse("2026-11-18T09:00:00Z"),
+        plannedCloseAt: Date.parse("2026-11-19T09:00:00Z"),
+      };
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...given("lead"),
+          rounds: { _tag: "Loaded" as const, list: { ...rounds, rounds: [stale] } },
+          roundDetails: {},
+          roundRates: {},
+        }),
+        Scene.expect(Scene.text("Round Nov 18, 2026")).toExist(),
+        Scene.expect(Scene.text("Round Nov 24, 2026")).toBeAbsent(),
+        Scene.expect(Scene.text("Nov 18, 2026 to Nov 19, 2026")).toExist(),
       );
     });
 

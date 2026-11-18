@@ -33,6 +33,7 @@ import {
   RoundNoteView,
   RoundResult,
   SendId,
+  SIGN_IN_CODE_MINUTES,
   TeamDetail,
   TeamId,
   TeamName,
@@ -48,7 +49,7 @@ import { Command, Navigation, Update } from "foldkit";
 import type { Document, HtmlBuilder } from "foldkit/html";
 import { defineMessageUnion } from "foldkit/message";
 import { Url } from "foldkit/url";
-import { formatRoundDate, message, message as translate, setLocale } from "../messages/locale.ts";
+import { message, message as translate, setLocale } from "../messages/locale.ts";
 import { Failure, runApi } from "./api.ts";
 import { privacyContent, privacyView, screenView } from "./components.ts";
 import {
@@ -85,7 +86,7 @@ import {
   testSendKeepsPolling,
 } from "./pulses.ts";
 import { GuideCopy, LoadedActions, LoadedNote, LoadedResults, resultsScreenView } from "./results.ts";
-import { isLead, LoadedRounds, RoundConfirm, roundsScreenView } from "./rounds.ts";
+import { isLead, LoadedRounds, RoundConfirm, roundOpenDate, roundsScreenView } from "./rounds.ts";
 import {
   AppRoute,
   pulseHref,
@@ -1281,7 +1282,7 @@ const attentionItems = (model: Model): ReadonlyArray<AttentionItem> => {
               text: round.pulseName,
               detail: message("home.attention.shareDetail", {
                 team: team.name,
-                date: formatRoundDate(round.plannedOpenDate),
+                date: roundOpenDate(round),
               }),
               href: roundResultsHref(team.id, round.id),
             });
@@ -1291,7 +1292,7 @@ const attentionItems = (model: Model): ReadonlyArray<AttentionItem> => {
               text: round.pulseName,
               detail: message("home.attention.openDetail", {
                 team: team.name,
-                date: formatRoundDate(round.plannedOpenDate),
+                date: roundOpenDate(round),
               }),
               href: roundsHref(team.id, pulse.id),
             });
@@ -1354,7 +1355,7 @@ const firstRunChecklist = (model: Model): ReadonlyArray<ChecklistStep> | null =>
         scheduled === undefined
           ? message("team.checklist.round")
           : message("team.checklist.roundScheduled", {
-              date: formatRoundDate(scheduled.plannedOpenDate),
+              date: roundOpenDate(scheduled),
             }),
       href: firstPulse === undefined ? pulsesHref(route.teamId) : roundsHref(route.teamId, firstPulse.id),
       done: false,
@@ -1664,7 +1665,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
             stage: message.sent ? "code" : model.session.stage,
             code: "",
             notice: message.sent
-              ? translate("signIn.sent", { email: model.session.email.trim() })
+              ? translate("signIn.sent", { email: model.session.email.trim(), minutes: SIGN_IN_CODE_MINUTES })
               : translate("signIn.sendFailed"),
           },
         },

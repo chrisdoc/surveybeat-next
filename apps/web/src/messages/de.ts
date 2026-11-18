@@ -17,7 +17,7 @@ export const de = {
   "signIn.failed": "Anmelden hat nicht geklappt. Versuch es bitte noch einmal.",
   "signIn.email": "Deine E-Mail-Adresse",
   "signIn.emailAction": "Schick mir einen Code",
-  "signIn.sent": "Wir haben einen 6-stelligen Code an {email} geschickt. Er verfällt in 5 Minuten.",
+  "signIn.sent": "Wir haben einen 6-stelligen Code an {email} geschickt. Er verfällt in {minutes} Minuten.",
   "signIn.code": "Anmelde-Code",
   "signIn.codeAction": "Mit diesem Code anmelden",
   "signIn.sendFailed":
@@ -151,8 +151,10 @@ export const de = {
     "Das dauert etwa {seconds} Sekunden, mehr als etwa {recommended}. Kürzere Pulses bekommen mehr Antworten.",
   "pulse.warning.NoOneTap":
     "Mitglieder können nur dann mit einem Tipp direkt aus der E-Mail antworten, wenn die erste Frage eine Bewertung ist.",
-  "pulse.warning.TeamBelowMinimumGroupSize":
-    "Dieses Team hat {members} Personen, weniger als die {minimumGroupSize}, die vor der Anzeige eines Ergebnisses nötig sind. Du kannst den Pulse trotzdem einrichten.",
+  "pulse.warning.TeamBelowMinimumGroupSize.one":
+    "Dieses Team hat {count} Person, weniger als die {minimumGroupSize}, die vor der Anzeige eines Ergebnisses nötig sind. Du kannst den Pulse trotzdem einrichten.",
+  "pulse.warning.TeamBelowMinimumGroupSize.other":
+    "Dieses Team hat {count} Personen, weniger als die {minimumGroupSize}, die vor der Anzeige eines Ergebnisses nötig sind. Du kannst den Pulse trotzdem einrichten.",
   "pulse.questions": "Fragen",
   "pulse.question.numbered": "{number}. {text}",
   "pulse.question.meta": "{type} · {dimension} · {duration}",
