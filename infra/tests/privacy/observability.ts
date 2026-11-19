@@ -11,6 +11,9 @@
  * A single request then has a 99% chance of leaving no event, which is why the spike's few dozen
  * requests never showed up. The sweep therefore sends each canary many times.
  */
+import type * as Duration from "effect/Duration";
+import * as Effect from "effect/Effect";
+import * as Schedule from "effect/Schedule";
 import * as Schema from "effect/Schema";
 
 const api = "https://api.cloudflare.com/client/v4";
@@ -75,12 +78,33 @@ export const decodeEventCount = (body: unknown): EventCount => {
   };
 };
 
+/**
+ * Sends a request again when Cloudflare answers 5xx: the telemetry API returns "Internal error" now and then,
+ * and one such answer used to skip the production deploy. A 4xx, or the 5xx of the last attempt, comes back as is.
+ */
+export const retryingServerErrors = (
+  send: () => Promise<Response>,
+  retries = 2,
+  firstWait: Duration.Input = "2 seconds",
+): Effect.Effect<Response> => {
+  const attempt = Effect.promise(send);
+  return attempt.pipe(
+    Effect.flatMap((response) => (response.status >= 500 ? Effect.fail(response) : Effect.succeed(response))),
+    Effect.retry({ schedule: Schedule.exponential(firstWait), times: retries }),
+    Effect.catch((lastServerError: Response) => Effect.succeed(lastServerError)),
+  );
+};
+
 export const countEvents = async (account: Account, query: EventQuery): Promise<EventCount> => {
-  const response = await fetch(`${api}/accounts/${account.accountId}/workers/observability/telemetry/query`, {
-    method: "POST",
-    headers: { authorization: `Bearer ${account.token}`, "content-type": "application/json" },
-    body: JSON.stringify(queryBody(query)),
-  });
+  const response = await Effect.runPromise(
+    retryingServerErrors(() =>
+      fetch(`${api}/accounts/${account.accountId}/workers/observability/telemetry/query`, {
+        method: "POST",
+        headers: { authorization: `Bearer ${account.token}`, "content-type": "application/json" },
+        body: JSON.stringify(queryBody(query)),
+      }),
+    ),
+  );
   if (!response.ok) {
     throw new Error(`Observability query failed with HTTP ${response.status}: ${await response.text()}`);
   }
