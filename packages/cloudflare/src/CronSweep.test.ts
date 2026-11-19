@@ -7,13 +7,16 @@ describe("repairWindow (ADR 0006)", () => {
       for (const pageSize of [1, 10, 250]) {
         const { days } = repairWindow(total, 0, pageSize);
         const covered = new Set<number>();
+
         for (let day = 0; day < days; day++) {
           const { offset, limit } = repairWindow(total, day, pageSize);
+
           for (let index = offset; index < Math.min(offset + limit, total); index++) {
             assert.isFalse(covered.has(index), `index ${index} was read twice in one cycle`);
             covered.add(index);
           }
         }
+
         assert.strictEqual(covered.size, total, `total ${total}, page ${pageSize}`);
       }
     }

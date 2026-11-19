@@ -1,6 +1,7 @@
 import { Schema } from "effect";
 
 export const OrganizationId = Schema.String.pipe(Schema.brand("OrganizationId"));
+
 export type OrganizationId = typeof OrganizationId.Type;
 
 export class Organization extends Schema.Class<Organization, { readonly brand: unique symbol }>(
@@ -13,6 +14,7 @@ export class Organization extends Schema.Class<Organization, { readonly brand: u
 export const CreateOrganization = Schema.Struct({
   name: Schema.NonEmptyString,
 });
+
 export type CreateOrganization = typeof CreateOrganization.Type;
 
 export class OrganizationNotFound extends Schema.TaggedError<

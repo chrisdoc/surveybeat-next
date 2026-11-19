@@ -24,6 +24,7 @@ const Stack = Alchemy.Stack(
   Effect.gen(function* () {
     const main = yield* MainWorker;
     const submission = yield* SubmissionWorker;
+
     return { url: main.url.as<string>(), submissionUrl: submission.url.as<string>() };
   }),
 );
@@ -113,6 +114,7 @@ test(
     const run = crypto.randomUUID();
     const response = yield* Effect.promise(() => fetch(`${url}/__test/pulses?run=${run}`));
     assert.strictEqual(response.status, 200);
+
     const body = (yield* Effect.promise(() => response.json())) as {
       results: unknown;
       view: { _tag: string; value: Record<string, unknown> & { questions: Record<string, unknown>[] } };
@@ -120,6 +122,7 @@ test(
       first: string;
       rest: string[];
     };
+
     assert.deepStrictEqual(body.results, {
       created: "Accepted",
       createdAgain: "Accepted",
@@ -165,6 +168,7 @@ test(
       { _tag: "NoOneTap" },
       { _tag: "TeamBelowMinimumGroupSize", members: 1, minimumGroupSize: 4 },
     ]);
+
     const list = body.list as {
       _tag: string;
       value: {
@@ -172,10 +176,13 @@ test(
         pulses: readonly (Record<string, unknown> & { nextRoundDate?: string | null })[];
       };
     };
+
     assert.strictEqual(list._tag, "Viewed");
+
     if (list._tag !== "Viewed") {
       return;
     }
+
     // The list names each Pulse's state and next Round; the date comes from its scheduled Round.
     const { nextRoundDate, ...pulse } = list.value.pulses[0]!;
     assert.match(nextRoundDate ?? "", /^\d{4}-\d{2}-\d{2}$/);
@@ -205,6 +212,7 @@ test(
     const run = crypto.randomUUID();
     const response = yield* Effect.promise(() => fetch(`${url}/__test/test-invitations?run=${run}`));
     assert.strictEqual(response.status, 200);
+
     const body = (yield* Effect.promise(() => response.json())) as {
       burst: string[];
       afterAnHour: string;
@@ -216,6 +224,7 @@ test(
       asInvitation: unknown[];
       captured: { recipient: string; subject: string }[];
     };
+
     // Six sends in the same hour: the sixth is refused. An hour later the window has moved on.
     assert.deepStrictEqual(body.burst, [
       "Accepted",
@@ -255,6 +264,7 @@ test(
     const run = crypto.randomUUID();
     const response = yield* Effect.promise(() => fetch(`${url}/__test/test-invitations?run=${run}`));
     assert.strictEqual(response.status, 200);
+
     const body = (yield* Effect.promise(() => response.json())) as {
       expiresAt: number;
       testContext: {
@@ -272,6 +282,7 @@ test(
       preview: { shownToLead: string | null };
       noComment: { shownToLead: string | null };
     };
+
     // The context is the Pulse's own: no Round, nothing answered, closing when the test expires.
     assert.strictEqual(body.testContext?.test, true);
     assert.strictEqual(body.testContext?.roundId, `test-pulse-${run}`);
@@ -305,6 +316,7 @@ test(
     const run = crypto.randomUUID();
     const response = yield* Effect.promise(() => fetch(`${url}/__test/test-invitations?run=${run}`));
     assert.strictEqual(response.status, 200);
+
     const body = (yield* Effect.promise(() => response.json())) as {
       sentAt: number;
       queued: unknown;
@@ -314,6 +326,7 @@ test(
       failedBefore: unknown;
       failedAfter: unknown;
     };
+
     const sentAt = body.sentAt;
     // Queued before the queue has touched it: no attempts, and it reads as the Person's own send.
     assert.deepStrictEqual(body.queued, {
@@ -384,6 +397,7 @@ test(
     const run = crypto.randomUUID();
     const response = yield* Effect.promise(() => fetch(`${url}/__test/resend-email?run=${run}`));
     assert.strictEqual(response.status, 200);
+
     const body = (yield* Effect.promise(() => response.json())) as {
       failedBefore: { _tag: string; value: { emails: { recipient: string; resendable: boolean }[] } };
       revokedResend: unknown;
@@ -401,13 +415,16 @@ test(
       listedAfter: { _tag: string; value: { emails: { recipient: string }[] } };
       statusAfter: { _tag: string; value: { state: { _tag: string } } };
     };
+
     const added = `added-${run}`;
     const recipient = `resent-${run}@example.com`;
 
     // Failed Invitations: the current one may be resent; a revoked one and one re-sent since may not.
     assert.strictEqual(body.failedBefore._tag, "Viewed");
+
     const resendableOf = (address: string) =>
       body.failedBefore.value.emails.find((each) => each.recipient === address)?.resendable;
+
     assert.strictEqual(resendableOf("ada@example.com"), true);
     assert.strictEqual(resendableOf("bob@example.com"), false);
     assert.strictEqual(resendableOf("grace@example.com"), false);
@@ -462,6 +479,7 @@ test(
     const run = crypto.randomUUID();
     const response = yield* Effect.promise(() => fetch(`${url}/__test/rounds?run=${run}`));
     assert.strictEqual(response.status, 200);
+
     const body = (yield* Effect.promise(() => response.json())) as {
       crossTeamRefused: boolean;
       initialAlarm: unknown;
@@ -483,6 +501,7 @@ test(
       token0: string;
       organizationId: string;
     };
+
     assert.strictEqual(body.alarmPointsToEarliest1, true);
     assert.strictEqual(body.crossTeamRefused, true);
     assert.strictEqual(body.notDuplicated, true);
@@ -515,12 +534,14 @@ test(
     const run = crypto.randomUUID();
     const response = yield* Effect.promise(() => fetch(`${url}/__test/round-delivery?run=${run}`));
     assert.strictEqual(response.status, 200);
+
     const body = (yield* Effect.promise(() => response.json())) as {
       leadEmail: string;
       plannedOpenAt: number;
       openAtFromPlannedDate: number;
       invitationSendIds: readonly string[];
     };
+
     assert.strictEqual(body.plannedOpenAt, body.openAtFromPlannedDate);
     assert.strictEqual(body.invitationSendIds.length, 1);
 
@@ -529,6 +550,7 @@ test(
         (each) => each.json() as Promise<{ text: string | null }>,
       ),
     );
+
     const { text: invitationText } = yield* captured.pipe(
       Effect.repeat({
         until: ({ text }) => text?.includes("/a#t=") === true,
@@ -536,6 +558,7 @@ test(
         times: 60,
       }),
     );
+
     assert.include(
       invitationText ?? "",
       "/a#t=",
@@ -552,12 +575,14 @@ test(
     const run = crypto.randomUUID();
     const roundRes = yield* Effect.promise(() => fetch(`${url}/__test/rounds?run=${run}`));
     assert.strictEqual(roundRes.status, 200);
+
     const roundData = (yield* Effect.promise(() => roundRes.json())) as {
       testToken: string;
       organizationId: string;
       leadPersonId: string;
       pulseId: string;
     };
+
     const { testToken } = roundData;
 
     // 1. GET /delivery?token=... returns HTML (zero writes)
@@ -571,6 +596,7 @@ test(
     const delHead = yield* Effect.promise(() =>
       fetch(`${url}/delivery?token=${testToken}`, { method: "HEAD" }),
     );
+
     assert.strictEqual(delHead.status, 200);
 
     // 3. POST /delivery changes time zone in DO
@@ -581,6 +607,7 @@ test(
         body: JSON.stringify({ token: testToken, timeZone: "America/New_York" }),
       }),
     );
+
     assert.strictEqual(delPost.status, 200);
     const delPostJson = (yield* Effect.promise(() => delPost.json())) as { ok: boolean; timeZone: string };
     assert.strictEqual(delPostJson.ok, true);
@@ -596,6 +623,7 @@ test(
     const unsubHead = yield* Effect.promise(() =>
       fetch(`${url}/api/reminders/unsubscribe?t=${testToken}`, { method: "HEAD" }),
     );
+
     assert.strictEqual(unsubHead.status, 200);
 
     // 6. POST /api/reminders/unsubscribe (RFC 8058 one-click): returns 200, NO redirect
@@ -606,6 +634,7 @@ test(
         body: "List-Unsubscribe=One-Click",
       }),
     );
+
     assert.strictEqual(unsubPost.status, 200);
     const unsubText = yield* Effect.promise(() => unsubPost.text());
     assert.include(unsubText, "Reminders for this Pulse are turned off.");
@@ -615,6 +644,7 @@ test(
     const unsubGetOther = yield* Effect.promise(() =>
       fetch(`${url}/api/reminders/unsubscribe?t=${testToken}&lang=de`),
     );
+
     const unsubGetOtherHtml = yield* Effect.promise(() => unsubGetOther.text());
     assert.include(unsubGetOtherHtml, '<html lang="en">');
     assert.include(unsubGetOtherHtml, "Turn off reminders");
@@ -864,6 +894,7 @@ test(
     const captured = yield* Effect.promise(() =>
       fetch(`${url}/__test/email?recipient=${encodeURIComponent(`admin-${run}@example.com`)}`),
     );
+
     const { text } = (yield* Effect.promise(() => captured.json())) as { text: string | null };
     const token = /#t=([A-Za-z0-9_-]+)/.exec(text ?? "")?.[1] ?? "";
     assert.isAbove(token.length, 0);
@@ -883,13 +914,16 @@ test(
         times: 8,
       }),
     );
+
     assert.strictEqual(exchanged.status, 200);
     assert.strictEqual(exchanged.headers.get("access-control-allow-origin"), "*");
+
     const context = (yield* Effect.promise(() => exchanged.json())) as {
       test?: boolean;
       pulseName: string;
       questions: unknown[];
     };
+
     assert.strictEqual(context.test, true);
     assert.strictEqual(context.pulseName, "Weekly team health");
     assert.isAbove(context.questions.length, 0);

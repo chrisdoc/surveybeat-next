@@ -22,6 +22,7 @@ export const Failure = Schema.Literals([
   "Invalid",
   "Unavailable",
 ]);
+
 export type Failure = typeof Failure.Type;
 
 export const failureMessage = (failure: Failure): string => {
@@ -29,45 +30,59 @@ export const failureMessage = (failure: Failure): string => {
     case "Unauthenticated": {
       return message("error.Unauthenticated");
     }
+
     case "Forbidden": {
       return message("error.Forbidden");
     }
+
     case "NotFound": {
       return message("error.NotFound");
     }
+
     case "LastLead": {
       return message("error.LastLead");
     }
+
     case "LastAdmin": {
       return message("error.LastAdmin");
     }
+
     case "TeamNameTaken": {
       return message("error.TeamNameTaken");
     }
+
     case "QuestionAlreadyInPulse": {
       return message("error.QuestionAlreadyInPulse");
     }
+
     case "QuestionHasAnswers": {
       return message("error.QuestionHasAnswers");
     }
+
     case "PulseNeedsAQuestion": {
       return message("error.PulseNeedsAQuestion");
     }
+
     case "PulseFull": {
       return message("error.PulseFull");
     }
+
     case "OrderMismatch": {
       return message("error.OrderMismatch");
     }
+
     case "TestSendLimitReached": {
       return message("error.TestSendLimitReached", { perHour: Policy.testSend.perHour });
     }
+
     case "EmailNotResendable": {
       return message("error.EmailNotResendable");
     }
+
     case "Invalid": {
       return message("error.Invalid");
     }
+
     case "Unavailable": {
       return message("error.Unavailable");
     }
@@ -78,9 +93,11 @@ export const failureOf = (error: unknown): Failure => {
   if (Predicate.isTagged(error, "Unauthenticated")) {
     return "Unauthenticated";
   }
+
   if (Predicate.isTagged(error, "Forbidden")) {
     return "Forbidden";
   }
+
   if (
     Predicate.isTagged(error, "TeamNotFound") ||
     Predicate.isTagged(error, "PersonNotFound") ||
@@ -93,18 +110,23 @@ export const failureOf = (error: unknown): Failure => {
   ) {
     return "NotFound";
   }
+
   if (Predicate.isTagged(error, "OwnerNotInTeam")) {
     return "Invalid";
   }
+
   if (Predicate.isTagged(error, "LastLead")) {
     return "LastLead";
   }
+
   if (Predicate.isTagged(error, "LastAdmin")) {
     return "LastAdmin";
   }
+
   if (Predicate.isTagged(error, "TeamNameTaken")) {
     return "TeamNameTaken";
   }
+
   for (const tag of [
     "QuestionAlreadyInPulse",
     "QuestionHasAnswers",
@@ -118,15 +140,18 @@ export const failureOf = (error: unknown): Failure => {
       return tag;
     }
   }
+
   if (Predicate.isTagged(error, "HttpApiSchemaError") || Predicate.isTagged(error, "SchemaError")) {
     return "Invalid";
   }
+
   return "Unavailable";
 };
 
 export const clientEffect = HttpApiClient.make(SurveyBeatApi, {
   baseUrl: typeof window !== "undefined" ? window.location.origin : "http://localhost",
 });
+
 export type ApiClient = Effect.Success<typeof clientEffect>;
 
 export const runApi = <A, M>(

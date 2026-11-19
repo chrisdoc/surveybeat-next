@@ -7,12 +7,15 @@ import { QuestionVersionId } from "../pulses/Question.ts";
 import { InvitationSummary } from "./InvitationSummary.ts";
 
 export const RoundId = Schema.String.pipe(Schema.brand("RoundId"));
+
 export type RoundId = typeof RoundId.Type;
 
 export const JobId = Schema.String.pipe(Schema.brand("JobId"));
+
 export type JobId = typeof JobId.Type;
 
 export const RoundStatus = Schema.Literals(["scheduled", "open", "closed", "ready", "shared", "cancelled"]);
+
 export type RoundStatus = typeof RoundStatus.Type;
 
 export const PlannedOpenDate = Schema.String.pipe(
@@ -22,6 +25,7 @@ export const PlannedOpenDate = Schema.String.pipe(
   ),
   Schema.brand("PlannedOpenDate"),
 );
+
 export type PlannedOpenDate = typeof PlannedOpenDate.Type;
 
 export const ScheduleJobType = Schema.Literals([
@@ -33,9 +37,11 @@ export const ScheduleJobType = Schema.Literals([
   "themes",
   "share",
 ]);
+
 export type ScheduleJobType = typeof ScheduleJobType.Type;
 
 export const ScheduleJobStatus = Schema.Literals(["pending", "running", "completed", "cancelled"]);
+
 export type ScheduleJobStatus = typeof ScheduleJobStatus.Type;
 
 export const RoundQuestion = Schema.Struct({
@@ -43,6 +49,7 @@ export const RoundQuestion = Schema.Struct({
   position: Schema.Int,
   questionVersionId: QuestionVersionId,
 });
+
 export type RoundQuestion = typeof RoundQuestion.Type;
 
 export const RoundMember = Schema.Struct({
@@ -51,6 +58,7 @@ export const RoundMember = Schema.Struct({
   timeZone: Schema.String,
   sendAt: Schema.Int,
 });
+
 export type RoundMember = typeof RoundMember.Type;
 
 export const FailedInvitation = Schema.Struct({
@@ -59,6 +67,7 @@ export const FailedInvitation = Schema.Struct({
   reason: Schema.String,
   resendCount: Schema.Int,
 });
+
 export type FailedInvitation = typeof FailedInvitation.Type;
 
 export const RoundSummary = Schema.Struct({
@@ -74,6 +83,7 @@ export const RoundSummary = Schema.Struct({
   pulseName: Schema.String,
   invitations: Schema.NullOr(InvitationSummary),
 });
+
 export type RoundSummary = typeof RoundSummary.Type;
 
 export const RoundDetail = Schema.Struct({
@@ -96,6 +106,7 @@ export const RoundDetail = Schema.Struct({
   failedInvitations: Schema.Array(FailedInvitation),
   createdAt: Schema.Int,
 });
+
 export type RoundDetail = typeof RoundDetail.Type;
 
 export const RoundList = Schema.Struct({
@@ -103,6 +114,7 @@ export const RoundList = Schema.Struct({
   paused: Schema.Boolean,
   rounds: Schema.Array(RoundSummary),
 });
+
 export type RoundList = typeof RoundList.Type;
 
 export class RoundNotFound extends Schema.TaggedError<RoundNotFound, { readonly brand: unique symbol }>()(

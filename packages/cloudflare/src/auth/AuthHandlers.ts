@@ -30,6 +30,7 @@ import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
 export const SESSION_COOKIE = "__Host-surveybeat-session";
 
 const SESSION_MAX_AGE = Duration.days(Policy.signIn.sessionDays);
+
 const cookieOptions = { path: "/", httpOnly: true, secure: true, sameSite: "lax" } as const;
 
 export type AuthServices = SessionIdentityProvider | PeopleIndex | OrganizationPeople | NewIds;
@@ -56,6 +57,7 @@ const expireSessionCookie = HttpEffect.appendPreResponseHandler((_request, respo
 export const requireSameOrigin = Effect.gen(function* () {
   const request = yield* HttpServerRequest;
   const origin = request.headers.origin;
+
   if (origin !== undefined && origin !== (yield* requestOrigin)) {
     return yield* new Forbidden();
   }
@@ -71,9 +73,11 @@ const setSessionCookie = (token: Redacted.Redacted) =>
 
 const authenticated = Effect.gen(function* () {
   const cookie = yield* sessionCookie;
+
   if (Option.isNone(cookie)) {
     return yield* new Unauthenticated();
   }
+
   return yield* checkSession(cookie.value).pipe(
     Effect.tapError((error) => (error._tag === "Unauthenticated" ? expireSessionCookie : Effect.void)),
   );
@@ -81,9 +85,11 @@ const authenticated = Effect.gen(function* () {
 
 export const currentMember = Effect.gen(function* () {
   const checked = yield* authenticated;
+
   if (Option.isNone(checked.member)) {
     return yield* new Forbidden();
   }
+
   return checked.member.value;
 });
 
@@ -92,12 +98,14 @@ const respond = (outcome: SessionOutcome) => Effect.succeed(outcome.state);
 export const authHandlers = <R>({ services, allowlist }: AuthHandlerOptions<R>) => {
   const provide = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
     Effect.flatMap(services, (context) => Effect.provideContext(effect, context));
+
   return HttpApiBuilder.group(SurveyBeatApi, "auth", (handlers) =>
     handlers
       .handle("login", () =>
         provide(
           Effect.gen(function* () {
             const home = `${yield* requestOrigin}/`;
+
             return HttpServerResponse.redirect(home);
           }),
         ),
@@ -117,9 +125,11 @@ export const authHandlers = <R>({ services, allowlist }: AuthHandlerOptions<R>) 
             yield* requireSameOrigin;
             const sessions = yield* SessionIdentityProvider;
             const token = yield* sessions.verifySignInCode(payload.email, payload.code);
+
             if (Option.isSome(token)) {
               yield* setSessionCookie(Redacted.make(token.value));
             }
+
             return { verified: Option.isSome(token) };
           }),
         ),
@@ -130,10 +140,13 @@ export const authHandlers = <R>({ services, allowlist }: AuthHandlerOptions<R>) 
             yield* requireSameOrigin;
             yield* expireSessionCookie;
             const cookie = yield* sessionCookie;
+
             if (Option.isSome(cookie)) {
               yield* signOut(cookie.value);
             }
+
             const home = `${yield* requestOrigin}/`;
+
             return HttpServerResponse.redirect(home, { status: 303 });
           }),
         ),
@@ -142,6 +155,7 @@ export const authHandlers = <R>({ services, allowlist }: AuthHandlerOptions<R>) 
         provide(
           Effect.gen(function* () {
             const checked = yield* authenticated;
+
             return yield* sessionState(checked, yield* allowlist).pipe(
               Effect.flatMap(respond),
               Effect.catchTag("Forbidden", () => Effect.succeed({ _tag: "NotInOrganization" } as const)),
@@ -154,6 +168,7 @@ export const authHandlers = <R>({ services, allowlist }: AuthHandlerOptions<R>) 
           Effect.gen(function* () {
             yield* requireSameOrigin;
             const checked = yield* authenticated;
+
             return yield* respond(yield* createOrganization(checked, payload.name, yield* allowlist));
           }),
         ),
@@ -163,6 +178,7 @@ export const authHandlers = <R>({ services, allowlist }: AuthHandlerOptions<R>) 
           Effect.gen(function* () {
             yield* requireSameOrigin;
             const checked = yield* authenticated;
+
             return yield* respond(yield* chooseOrganization(checked, payload.organizationId));
           }),
         ),

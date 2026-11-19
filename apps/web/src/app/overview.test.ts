@@ -20,13 +20,18 @@ const instant = (iso: string): number => DateTime.toEpochMillis(DateTime.makeUns
 setup();
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
 const WEEK_MS = 7 * DAY_MS;
+
 const ROUND_COUNT = 104;
+
 const MARKER_COUNT = 30;
+
 /** The budget for building the overview, in milliseconds. */
 const BUDGET_MS = 1500;
 
 const teamId = Schema.decodeSync(TeamId)("team-perf");
+
 const dimensions = ["workload", "psychologicalSafety", "clarity", "recognition"] as const;
 
 const makeUrl = (str: string) => Option.getOrThrow(fromString(str));
@@ -43,13 +48,16 @@ const signedInAdmin: SessionModel = {
 /** 104 weekly shared Rounds starting 2024-01-01, four Dimensions with every 9th point a gap, and 30 Action markers. */
 const largeOverview = (): TeamOverview => {
   const start = instant("2024-01-01T00:00:00Z");
+
   const roundIds = Array.from({ length: ROUND_COUNT }, (_, i) =>
     Schema.decodeSync(RoundId)(`round-${String(i).padStart(3, "0")}`),
   );
+
   const rounds = roundIds.map((roundId, i) => ({
     roundId,
     plannedOpenDate: DateTime.formatIsoDate(DateTime.makeUnsafe(start + i * WEEK_MS)),
   }));
+
   const overviewDimensions = dimensions.map((dimension, d) => ({
     dimension,
     points: roundIds.map((roundId, i) => ({
@@ -57,12 +65,14 @@ const largeOverview = (): TeamOverview => {
       score: i % 9 === 0 ? null : 1 + ((i + d) % 5) * 0.8,
     })),
   }));
+
   const markers = Array.from({ length: MARKER_COUNT }, (_, k) => ({
     actionId: Schema.decodeSync(ActionId)(`action-${k}`),
     title: `Action ${k}`,
     kind: k % 2 === 0 ? ("committed" as const) : ("done" as const),
     at: start + k * 3 * WEEK_MS + 2 * DAY_MS,
   }));
+
   return { teamId, rounds, dimensions: overviewDimensions, markers };
 };
 
@@ -87,6 +97,7 @@ const loadedTeam = { _tag: "Loaded" as const, detail: teamDetail };
 
 describe("overviewXs", () => {
   const roundId = (id: string) => Schema.decodeSync(RoundId)(id);
+
   const threeRounds = (): TeamOverview => ({
     teamId,
     rounds: [
@@ -108,6 +119,7 @@ describe("overviewXs", () => {
   it("extends the axis to a marker after the last Round, so the last Round sits before 1", () => {
     const overview = threeRounds();
     const after = instant("2026-11-20");
+
     const withMarker: TeamOverview = {
       ...overview,
       markers: [
@@ -119,6 +131,7 @@ describe("overviewXs", () => {
         },
       ],
     };
+
     const { rounds, markerX } = overviewXs(withMarker);
     const last = rounds.get(roundId("r-3"));
     expect(last).toBeLessThan(1);
@@ -133,6 +146,7 @@ describe("overviewXs", () => {
       dimensions: [],
       markers: [],
     });
+
     expect(rounds.get(roundId("only"))).toBe(0.5);
   });
 
@@ -148,6 +162,7 @@ describe("Team health overview markers and tooltips", () => {
   const earliest = instant("2026-10-26");
   const middle = instant("2026-11-02");
   const latest = instant("2026-11-09");
+
   const overview: TeamOverview = {
     teamId,
     rounds: [
@@ -167,7 +182,9 @@ describe("Team health overview markers and tooltips", () => {
       { actionId: Schema.decodeSync(ActionId)("a-late"), title: "Late one", kind: "committed", at: latest },
     ],
   };
+
   const teamUrl = makeUrl(`https://app.surveybeat.com/teams/${teamId}`);
+
   const markerLabel = (kind: "committed" | "done", at: number, title: string) =>
     `${kind === "committed" ? "Committed" : "Done"} ${formatDate(DateTime.makeUnsafe(at))}: ${title}`;
 
@@ -263,8 +280,10 @@ describe("Team health overview build time", () => {
         Scene.expect(Scene.role("heading", { name: "Team health over time" })).toExist(),
         Scene.expectAll(Scene.all.role("row")).toHaveCount(ROUND_COUNT + 1 + (MARKER_COUNT + 1)),
       );
+
       return performance.now() - begin;
     })();
+
     expect(elapsed).toBeLessThan(BUDGET_MS);
   });
 });

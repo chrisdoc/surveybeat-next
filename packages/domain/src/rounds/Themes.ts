@@ -19,6 +19,7 @@ export const StoredThemes = Schema.Struct({
   ),
   guide: Schema.NullOr(DiscussionGuide),
 });
+
 export type StoredThemes = typeof StoredThemes.Type;
 
 export type RoundThemesRecord =
@@ -27,7 +28,9 @@ export type RoundThemesRecord =
   | { readonly status: "failed" };
 
 export const MAX_THEMES = Policy.themes.maximum;
+
 export const MIN_SUPPORTING_COMMENTS = 2;
+
 export const QUOTE_RUN_WORDS = 6;
 
 export const shouldRequestThemes = (result: RoundResult, aiProcessing: boolean): boolean =>
@@ -42,6 +45,7 @@ export const buildThemesInput = (
   roster: Roster,
 ): AiInput => {
   const questionPositions = new Map(result.questions.map((q) => [q.questionVersionId, q.position]));
+
   return {
     questions: result.questions.map((q) => ({
       position: q.position,
@@ -67,6 +71,7 @@ export const buildThemesInput = (
       : [],
     actions: openActionTitles.flatMap((title) => {
       const redacted = redact(title, roster);
+
       return redacted.trim() === "" ? [] : [{ title: RedactedText.make(redacted) }];
     }),
   };
@@ -167,14 +172,17 @@ const wordsOf = (text: string): readonly string[] =>
 const runsOf = (text: string): Set<string> => {
   const words = wordsOf(text);
   const runs = new Set<string>();
+
   for (let i = 0; i + QUOTE_RUN_WORDS <= words.length; i++) {
     runs.add(words.slice(i, i + QUOTE_RUN_WORDS).join(" "));
   }
+
   return runs;
 };
 
 export const repeatsCommentWords = (text: string, comments: readonly string[]): boolean => {
   const commentRuns = new Set(comments.flatMap((comment) => [...runsOf(comment)]));
+
   return [...runsOf(text)].some((run) => commentRuns.has(run));
 };
 
@@ -192,7 +200,9 @@ const ThemeReply = Schema.Struct({
 });
 
 const decodeEnvelope = Schema.decodeUnknownOption(ReplyEnvelope);
+
 const decodeThemeReply = Schema.decodeUnknownOption(ThemeReply);
+
 const decodeGuide = Schema.decodeUnknownOption(DiscussionGuide);
 
 export const checkThemesReply = (
@@ -200,18 +210,22 @@ export const checkThemesReply = (
   comments: readonly string[],
 ): Effect.Effect<StoredThemes, ThemesReplyInvalid> => {
   const envelope = Option.getOrNull(decodeEnvelope(reply));
+
   if (envelope === null) {
     return Effect.fail(new ThemesReplyInvalid());
   }
 
   const themes = envelope.themes.slice(0, MAX_THEMES).flatMap((entry) => {
     const decoded = Option.getOrNull(decodeThemeReply(entry));
+
     if (decoded === null) {
       return [];
     }
+
     const supporters = new Set(
       decoded.supportingCommentIndexes.filter((index) => index >= 0 && index < comments.length),
     ).size;
+
     if (supporters < MIN_SUPPORTING_COMMENTS) {
       return [];
     }
@@ -219,10 +233,12 @@ export const checkThemesReply = (
     if (repeatsCommentWords(`${decoded.label} ${decoded.sentence}`, comments)) {
       return [];
     }
+
     return [{ label: decoded.label, sentence: decoded.sentence, supportingComments: supporters }];
   });
 
   const guide = Option.getOrNull(decodeGuide(envelope.guide));
+
   const guideRepeats =
     guide === null ||
     [...guide.whatStoodOut, ...guide.whatPeopleRaised, ...guide.actionsToCheckOn, ...guide.questions].some(
@@ -285,6 +301,7 @@ export const themesRetryMachine = setup({
 const retryOrGiveUp = (context: { attempts: number; requestedAt: number; now: number }) => {
   const failedAttempts = context.attempts + 1;
   const dueAt = nextRetryAt(context.requestedAt, failedAttempts, context.now);
+
   return dueAt === null
     ? { target: "failed", context: { decision: { _tag: "GiveUp" } as const } }
     : {
@@ -303,11 +320,14 @@ const themesDecision = (
     value: "pending",
     context: { attempts: params.attempts, requestedAt: params.requestedAt, now: params.now, decision: null },
   });
+
   const [next, effects] = transition(themesRetryMachine, snapshot, event);
   const decision = isUnhandled(snapshot, [next, effects]) ? null : next.context.decision;
+
   if (decision === null) {
     throw new Error(`Themes retry refused ${event.type}`);
   }
+
   return decision;
 };
 
@@ -350,7 +370,9 @@ export const viewRoundResult = (params: {
     reviewEndsAt: _reviewEndsAt,
     ...r
   } = enforceEffectiveNOnResult(params.stored, params.organizationN);
+
   const status = params.round.status;
+
   const reviewEnds =
     status === "ready" && params.round.reviewEndsAt !== null
       ? { reviewEndsAt: params.round.reviewEndsAt }
@@ -370,6 +392,7 @@ export const viewRoundResult = (params: {
   }
 
   const couldNotCompute = params.isLead && status === "closed" && r.delayed && params.resultPending !== true;
+
   const shown: RoundResult = {
     ...r,
     ...reviewEnds,
@@ -387,6 +410,7 @@ export const viewRoundResult = (params: {
 
   const record = params.themes;
   const closed = status === "closed" || status === "ready" || status === "shared";
+
   if (!closed || !r.meetsMinimumGroupSize || record === null) {
     return hidden("notRequested");
   }
@@ -395,9 +419,11 @@ export const viewRoundResult = (params: {
     case "pending": {
       return hidden("preparing");
     }
+
     case "failed": {
       return hidden("unavailable");
     }
+
     case "ready": {
       if (!params.isLead) {
         return {
@@ -406,6 +432,7 @@ export const viewRoundResult = (params: {
           themes: record.themes.themes.map(({ label, sentence }) => ({ label, sentence })),
         };
       }
+
       return {
         ...shown,
         themesStatus: "ready",

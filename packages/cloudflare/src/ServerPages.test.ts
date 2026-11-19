@@ -28,6 +28,7 @@ describe("server pages", () => {
 
   it("escape a token that tries to break out of the hidden field", () => {
     const token = `"><script>x</script>`;
+
     for (const html of [renderDeliveryPage(token, "en"), renderUnsubscribePage(token, "en")]) {
       expect(html).not.toContain("<script>x</script>");
       expect(html).toContain("&quot;&gt;&lt;script&gt;x&lt;/script&gt;");

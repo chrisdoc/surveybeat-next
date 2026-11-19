@@ -31,50 +31,64 @@ const teamContext = (
 export const screenTitle = (source: TitleSource): string => {
   const { organizationName: organization } = source;
   const route = source.route;
+
   switch (route._tag) {
     case "Teams":
     case "NotFound": {
       return documentTitle(message("teams.title"), organization);
     }
+
     case "Team": {
       const name = teamNamed(route.teamId, detailTeam(source.teamDetail));
+
       return documentTitle(name ?? message("title.team"), organization);
     }
+
     case "Pulses": {
       const listTeam = source.pulses._tag === "Loaded" ? source.pulses.pulses.team : undefined;
       const context = teamContext(route.teamId, [listTeam, detailTeam(source.teamDetail)], organization);
+
       return documentTitle(message("title.pulses"), context);
     }
+
     case "Pulse": {
       const { pulseDetail } = source;
+
       const detail =
         pulseDetail._tag === "Loaded" && pulseDetail.detail.id === route.pulseId
           ? pulseDetail.detail
           : undefined;
+
       const screen = detail !== undefined ? detail.settings.name : message("title.pulse");
       const context = teamContext(route.teamId, [detail?.team, detailTeam(source.teamDetail)], organization);
+
       return documentTitle(screen, context);
     }
+
     case "Rounds": {
       return documentTitle(
         message("rounds.title"),
         teamContext(route.teamId, [detailTeam(source.teamDetail)], organization),
       );
     }
+
     case "RoundResults": {
       return documentTitle(
         message("results.title"),
         teamContext(route.teamId, [detailTeam(source.teamDetail)], organization),
       );
     }
+
     case "History": {
       return documentTitle(message("history.title"), organization);
     }
+
     case "Settings": {
       return source.organizationAdmin
         ? documentTitle(message("settings.title"), organization)
         : documentTitle(message("teams.title"), organization);
     }
+
     case "Privacy": {
       return message("privacy.title");
     }

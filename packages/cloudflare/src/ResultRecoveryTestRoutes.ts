@@ -12,10 +12,13 @@ import type { Cast } from "./ReviewWindowTestRoutes.ts";
 export const RESULT_RECOVERY_TEST_ROUTE = "/__test/result-recovery";
 
 const MINUTE_MS = 60_000;
+
 const HOUR_MS = 60 * MINUTE_MS;
+
 const DAY_MS = 24 * HOUR_MS;
 
 const AttemptsPayload = Schema.fromJsonString(Schema.Struct({ attempts: Schema.Int }));
+
 const attemptsOf = (payload: string | null): number =>
   payload === null ? 0 : Schema.decodeSync(AttemptsPayload)(payload).attempts;
 
@@ -40,13 +43,17 @@ const firstComputeJob = (cast: Cast) =>
   Effect.gen(function* () {
     const listed = yield* jobsOfType(cast, "compute");
     const first = listed[0];
+
     if (first === undefined) {
       return yield* Effect.die(new Error("no compute job"));
     }
+
     const job = yield* cast.organization.getJob(first.id);
+
     if (job === null) {
       return yield* Effect.die(new Error("compute job missing"));
     }
+
     return job;
   });
 
@@ -56,14 +63,17 @@ const closeAndGiveUp = (cast: Cast) =>
     yield* cast.organization.runScheduleJob(cast.closeJobId, cast.closeDue);
     const offsets: number[] = [0];
     let job = yield* firstComputeJob(cast);
+
     while (job.status === "pending") {
       if (offsets.length > 50) {
         return yield* Effect.die(new Error("compute job never gave up"));
       }
+
       offsets.push(minutesOf(job.dueAt - cast.closeDue));
       yield* cast.organization.runDueJobs(job.dueAt);
       job = yield* firstComputeJob(cast);
     }
+
     return offsets;
   });
 
@@ -89,6 +99,7 @@ export const resultRecoveryTestRoutes = (organizations: Organizations) =>
     yield* retried.organization.runScheduleJob(computeAtClose.id, retried.closeDue);
     yield* retried.organization.runDueJobs(retried.closeDue);
     const afterDoubled = yield* firstComputeJob(retried);
+
     const doubledAlarm = {
       status: afterDoubled.status,
       attempts: attemptsOf(afterDoubled.payload),
@@ -97,6 +108,7 @@ export const resultRecoveryTestRoutes = (organizations: Organizations) =>
 
     yield* retried.organization.runScheduleJob(computeAtClose.id, computeDueAfterFirst);
     const secondRetry = yield* firstComputeJob(retried);
+
     const afterSecondFailure = {
       status: secondRetry.status,
       attempts: attemptsOf(secondRetry.payload),
@@ -108,6 +120,7 @@ export const resultRecoveryTestRoutes = (organizations: Organizations) =>
     const readyRound = yield* retried.organization.getRound(retried.roundId);
     const shareJobs = yield* jobsOfType(retried, "share");
     const reviewEndsAt = readyRound?.reviewEndsAt ?? null;
+
     const failThenSucceed = {
       roundAtClose,
       computeAtClose: {
@@ -128,6 +141,7 @@ export const resultRecoveryTestRoutes = (organizations: Organizations) =>
 
     const given = yield* openedRound(organizations, `recovery-${run}-b`, 3, now);
     const giveUpOffsets = yield* closeAndGiveUp(given);
+
     const giveUpSummary = {
       attemptOffsetsMinutes: giveUpOffsets,
       withinWindow: giveUpOffsets.every((minutes) => minutes * MINUTE_MS <= DAY_MS),
@@ -138,6 +152,7 @@ export const resultRecoveryTestRoutes = (organizations: Organizations) =>
     };
 
     const retryAt = afterGiveUp(given, giveUpOffsets);
+
     const memberRetry = commandOutcome(
       yield* given.organization.runRoundCommand(
         given.member,
@@ -145,6 +160,7 @@ export const resultRecoveryTestRoutes = (organizations: Organizations) =>
         retryAt,
       ),
     );
+
     const adminRetry = commandOutcome(
       yield* given.organization.runRoundCommand(
         given.admin,
@@ -152,7 +168,9 @@ export const resultRecoveryTestRoutes = (organizations: Organizations) =>
         retryAt,
       ),
     );
+
     yield* given.organization.injectComputeFailures(given.roundId, 0);
+
     const leadFirstRetry = commandOutcome(
       yield* given.organization.runRoundCommand(
         given.lead,
@@ -160,6 +178,7 @@ export const resultRecoveryTestRoutes = (organizations: Organizations) =>
         retryAt,
       ),
     );
+
     const leadSecondRetry = commandOutcome(
       yield* given.organization.runRoundCommand(
         given.lead,
@@ -167,9 +186,11 @@ export const resultRecoveryTestRoutes = (organizations: Organizations) =>
         retryAt,
       ),
     );
+
     const givenRound = yield* given.organization.getRound(given.roundId);
     const givenReviewEndsAt = givenRound?.reviewEndsAt ?? null;
     const retryJobs = yield* jobsOfType(given, "compute");
+
     const retrySummary = {
       memberRetry,
       adminRetry,
@@ -185,6 +206,7 @@ export const resultRecoveryTestRoutes = (organizations: Organizations) =>
     const againOffsets = yield* closeAndGiveUp(again);
     const againRetryAt = afterGiveUp(again, againOffsets);
     yield* again.organization.injectComputeFailures(again.roundId, 1);
+
     const firstRetry = commandOutcome(
       yield* again.organization.runRoundCommand(
         again.lead,
@@ -192,6 +214,7 @@ export const resultRecoveryTestRoutes = (organizations: Organizations) =>
         againRetryAt,
       ),
     );
+
     const secondClick = commandOutcome(
       yield* again.organization.runRoundCommand(
         again.lead,
@@ -199,11 +222,15 @@ export const resultRecoveryTestRoutes = (organizations: Organizations) =>
         againRetryAt,
       ),
     );
+
     const pendingRetry = (yield* jobsOfType(again, "compute")).find((job) => job.status === "pending");
+
     if (pendingRetry === undefined) {
       return yield* Effect.die(new Error("no pending retry"));
     }
+
     const pendingJob = yield* again.organization.getJob(pendingRetry.id);
+
     const failedRetrySummary = {
       firstRetry,
       secondRetry: secondClick,
@@ -212,13 +239,16 @@ export const resultRecoveryTestRoutes = (organizations: Organizations) =>
       pendingDueMinutesLater: minutesOf(pendingRetry.due_at - againRetryAt),
       leadWhileRetrying: viewState(yield* viewOf(again, again.lead)),
     };
+
     yield* again.organization.runDueJobs(pendingRetry.due_at);
+
     const failedRetryDone = {
       roundStatus: yield* statusOf(again),
       leadAfterSuccess: viewState(yield* viewOf(again, again.lead)),
     };
 
     const idle = yield* openedRound(organizations, `recovery-${run}-e`, 3, now);
+
     const retryAs = (person: typeof idle.lead, teamId: TeamId) =>
       Effect.map(
         idle.organization.runRoundCommand(
@@ -228,6 +258,7 @@ export const resultRecoveryTestRoutes = (organizations: Organizations) =>
         ),
         rejectionOf,
       );
+
     const whileOpen = yield* retryAs(idle.lead, idle.teamId);
     const otherTeamId = TeamId.make(`team-recovery-${run}-e-design`);
     yield* idle.organization.runDirectoryCommand(
@@ -248,6 +279,7 @@ export const resultRecoveryTestRoutes = (organizations: Organizations) =>
     );
     const otherTeamLead = yield* retryAs(idle.member, otherTeamId);
     const ownLeadNamingOtherTeam = yield* retryAs(idle.lead, otherTeamId);
+
     const cancelled = commandOutcome(
       yield* idle.organization.runRoundCommand(
         idle.admin,
@@ -255,7 +287,9 @@ export const resultRecoveryTestRoutes = (organizations: Organizations) =>
         now,
       ),
     );
+
     const afterCancel = yield* retryAs(idle.lead, idle.teamId);
+
     const nothingToRetry = {
       whileOpen,
       otherTeamLead,

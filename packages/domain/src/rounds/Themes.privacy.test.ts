@@ -13,9 +13,13 @@ import type { RoundThemesRecord } from "./Themes.ts";
 const ratingType: QuestionType = { _tag: "Rating", lowLabel: "Low", highLabel: "High", comment: true };
 
 const ROUND_ID = RoundId.make("round-distinct-9f3a");
+
 const TEAM_ID = TeamId.make("team-distinct-7c1e");
+
 const PULSE_ID = PulseId.make("pulse-distinct-2b8d");
+
 const QV = QuestionVersionId.make("qv-distinct-5e6f.1");
+
 const CLOSED_AT = 1_731_140_123_456;
 
 const COMMENTS = [
@@ -107,37 +111,45 @@ const wordsOf = (text: string): readonly string[] =>
 const sixWordRuns = (text: string): readonly string[] => {
   const words = wordsOf(text);
   const runs: string[] = [];
+
   for (let i = 0; i + 6 <= words.length; i++) {
     runs.push(words.slice(i, i + 6).join(" "));
   }
+
   return runs;
 };
 
 const hasCommentRun = (text: string, comments: readonly string[]): boolean => {
   const commentRuns = new Set(comments.flatMap(sixWordRuns));
+
   return sixWordRuns(text).some((run) => commentRuns.has(run));
 };
 
 /** Deterministic pseudo-random numbers in [0, 1), so the generated cases are the same on every run. */
 const seededRandom = (seed: number) => {
   let state = seed;
+
   return () => {
     state = (state * 1_664_525 + 1_013_904_223) % 4_294_967_296;
+
     return state / 4_294_967_296;
   };
 };
 
 const pick = <A>(random: () => number, items: readonly A[]): A => {
   const item = items[Math.floor(random() * items.length)];
+
   if (item === undefined) {
     throw new Error("pick from an empty list");
   }
+
   return item;
 };
 
 /** Random replies: indexes in and out of range, duplicates, and sentences built from comment words. */
 const generatedReply = (random: () => number, commentCount: number) => {
   const themeCount = Math.floor(random() * 8);
+
   const themes = Array.from({ length: themeCount }, () => {
     const indexCount = Math.floor(random() * 5);
     const indexes = Array.from({ length: indexCount }, () => Math.floor(random() * (commentCount + 4)) - 2);
@@ -145,8 +157,10 @@ const generatedReply = (random: () => number, commentCount: number) => {
     const start = Math.floor(random() * source.length);
     const quoted = source.slice(start, start + 6 + Math.floor(random() * 3)).join(" ");
     const sentence = random() < 0.5 ? quoted : `A neutral point number ${Math.floor(random() * 100)}.`;
+
     return { label: `Theme ${Math.floor(random() * 100)}`, sentence, supportingCommentIndexes: indexes };
   });
+
   return { themes, guide };
 };
 
@@ -154,6 +168,7 @@ describe("Themes Privacy & Rule Table Invariants (ADR 0004, 0016, 0019)", () => 
   it("Invariant T1: no theme or guide is shown below N, to the Lead or to members", () => {
     // Stored at N = 4 with 6 submissions; the Organization raises N to 10, so the Round no longer meets it.
     const stored = resultFor(6, COMMENTS);
+
     for (const isLead of [true, false]) {
       const view = viewRoundResult({ stored, organizationN: 10, isLead, themes: readyRecord, round: SHARED });
       expect(view.meetsMinimumGroupSize).toBe(false);
@@ -162,6 +177,7 @@ describe("Themes Privacy & Rule Table Invariants (ADR 0004, 0016, 0019)", () => 
       const serialised = JSON.stringify(view);
       expect(serialised).not.toContain("Meetings crowd out focus");
       expect(serialised).not.toContain("Review standing meetings");
+
       if (isLead) {
         expect(view.discussionGuide).toBeNull();
       } else {
@@ -173,9 +189,11 @@ describe("Themes Privacy & Rule Table Invariants (ADR 0004, 0016, 0019)", () => 
   it.effect("Invariant T2: no stored theme has fewer than 2 supporting comments", () =>
     Effect.gen(function* () {
       const random = seededRandom(20_260_518);
+
       for (let trial = 0; trial < 300; trial++) {
         const reply = generatedReply(random, COMMENTS.length);
         const result = yield* checkThemesReply(reply, COMMENTS);
+
         for (const theme of result.themes) {
           expect(theme.supportingComments).toBeGreaterThanOrEqual(2);
         }
@@ -188,13 +206,16 @@ describe("Themes Privacy & Rule Table Invariants (ADR 0004, 0016, 0019)", () => 
     () =>
       Effect.gen(function* () {
         const random = seededRandom(7);
+
         for (let trial = 0; trial < 300; trial++) {
           const reply = generatedReply(random, COMMENTS.length);
           const result = yield* checkThemesReply(reply, COMMENTS);
+
           for (const theme of result.themes) {
             expect(hasCommentRun(theme.label, COMMENTS)).toBe(false);
             expect(hasCommentRun(theme.sentence, COMMENTS)).toBe(false);
           }
+
           if (result.guide !== null) {
             const guideStrings = [
               ...result.guide.whatStoodOut,
@@ -202,6 +223,7 @@ describe("Themes Privacy & Rule Table Invariants (ADR 0004, 0016, 0019)", () => 
               ...result.guide.actionsToCheckOn,
               ...result.guide.questions,
             ];
+
             for (const text of guideStrings) {
               expect(hasCommentRun(text, COMMENTS)).toBe(false);
             }
@@ -218,10 +240,13 @@ describe("Themes Privacy & Rule Table Invariants (ADR 0004, 0016, 0019)", () => 
       themes: readyRecord,
       round: SHARED,
     });
+
     expect(view.themes).toHaveLength(1);
+
     for (const theme of view.themes ?? []) {
       expect(Object.keys(theme).sort()).toEqual(["label", "sentence"]);
     }
+
     expect(JSON.stringify(view)).not.toContain("supportingComments");
   });
 
@@ -233,6 +258,7 @@ describe("Themes Privacy & Rule Table Invariants (ADR 0004, 0016, 0019)", () => 
       themes: readyRecord,
       round: SHARED,
     });
+
     expect(view.discussionGuide).toBeNull();
     expect(JSON.stringify(view)).not.toContain("Calendars fill up quickly");
   });
@@ -244,6 +270,7 @@ describe("Themes Privacy & Rule Table Invariants (ADR 0004, 0016, 0019)", () => 
       { status: "failed" },
       null,
     ];
+
     for (const themes of records) {
       const view = viewRoundResult({
         stored: resultFor(6, COMMENTS),
@@ -252,6 +279,7 @@ describe("Themes Privacy & Rule Table Invariants (ADR 0004, 0016, 0019)", () => 
         themes,
         round: SHARED,
       });
+
       expect(view).not.toHaveProperty("discussionGuide");
       expect(JSON.stringify(view)).not.toContain("Calendars fill up quickly");
     }
@@ -263,6 +291,7 @@ describe("Themes Privacy & Rule Table Invariants (ADR 0004, 0016, 0019)", () => 
         ...guide,
         whatPeopleRaised: ["Nobody protects the afternoons for real project work"],
       };
+
       const stored = yield* checkThemesReply({ themes: [], guide: quoting }, COMMENTS);
       expect(stored.guide).toBeNull();
     }),
@@ -271,12 +300,15 @@ describe("Themes Privacy & Rule Table Invariants (ADR 0004, 0016, 0019)", () => 
   it("Invariant G4: the model input never carries an Action owner, an id, or a time from the Result", () => {
     const roster: Roster = [{ name: "Owen Ridgeway", email: "owen.person@example.org" }];
     const stored = resultFor(6, COMMENTS);
+
     const input = buildThemesInput(
       stored,
       ["Check standing meetings with Owen Ridgeway", "Ask owen.person@example.org about planning"],
       roster,
     );
+
     const serialised = JSON.stringify(input);
+
     for (const forbidden of [
       "Owen",
       "Ridgeway",
@@ -291,6 +323,7 @@ describe("Themes Privacy & Rule Table Invariants (ADR 0004, 0016, 0019)", () => 
     ]) {
       expect(serialised).not.toContain(forbidden);
     }
+
     expect(Object.keys(input).sort()).toEqual(["actions", "comments", "dimensions", "questions"]);
   });
 });

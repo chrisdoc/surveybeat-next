@@ -1,15 +1,18 @@
 import { Schema } from "effect";
 
 export const QuestionId = Schema.String.pipe(Schema.brand("QuestionId"));
+
 export type QuestionId = typeof QuestionId.Type;
 
 export const QuestionVersionId = Schema.String.pipe(Schema.brand("QuestionVersionId"));
+
 export type QuestionVersionId = typeof QuestionVersionId.Type;
 
 export const firstVersionId = (questionId: QuestionId): QuestionVersionId =>
   QuestionVersionId.make(`${questionId}.1`);
 
 export const Dimension = Schema.Literals(["workload", "psychologicalSafety", "clarity", "recognition"]);
+
 export type Dimension = typeof Dimension.Type;
 
 const trimmed = (maximum: number) =>
@@ -36,6 +39,7 @@ export const QuestionType = Schema.TaggedUnion({
   },
   LongText: {},
 });
+
 export type QuestionType = typeof QuestionType.Type;
 
 export const QuestionContent = Schema.Struct({
@@ -44,4 +48,5 @@ export const QuestionContent = Schema.Struct({
 
   dimension: Schema.NullOr(Dimension),
 });
+
 export type QuestionContent = typeof QuestionContent.Type;

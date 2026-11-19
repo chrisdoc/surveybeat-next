@@ -33,6 +33,7 @@ describe("findViolations", () => {
         traces: { enabled: true, persist: true },
       },
     };
+
     assert.deepStrictEqual(findViolations(on), [
       "observability.enabled is on",
       "observability.logs.enabled is on",

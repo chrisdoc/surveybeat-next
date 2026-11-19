@@ -8,7 +8,9 @@ describe("English catalog", () => {
     const pluralBases = Object.keys(catalog)
       .filter((key) => key.endsWith(".other"))
       .map((key) => key.slice(0, -".other".length));
+
     const { pluralCategories } = new Intl.PluralRules("en").resolvedOptions();
+
     for (const base of pluralBases) {
       for (const category of pluralCategories) {
         expect(Object.keys(catalog), `en ${base}.${category}`).toContain(`${base}.${category}`);
@@ -25,6 +27,7 @@ describe("policy numbers in English copy", () => {
     const offenders = Object.entries(catalog)
       .filter(([, text]) => literalNumberWithUnit.test(text))
       .map(([key]) => key);
+
     expect(offenders).toEqual([]);
   });
 });
@@ -34,6 +37,7 @@ describe("Mismatched", () => {
     type BadTranslation = Omit<typeof catalog, "reminder.heading"> & {
       readonly "reminder.heading": "{puls}";
     };
+
     // @ts-expect-error -- "{puls}" is not the English placeholder "{pulse}", so the key is reported
     const checked: [Mismatched<BadTranslation>] extends [never] ? true : false = true;
     expect(checked).toBe(true);

@@ -140,6 +140,7 @@ export type PulseViewed<A> =
   | { readonly _tag: "Rejected"; readonly rejection: PulseRejection };
 
 const reject = (rejection: PulseRejection) => ({ _tag: "Rejected", rejection }) as const;
+
 const accept = (changes: readonly PulseChange[]): PulseDecision => ({ _tag: "Accepted", changes });
 
 export const defaultPulseSettings = (locale: Locale): PulseSettings => ({
@@ -169,6 +170,7 @@ export const pulseWarnings = (
   minimumGroupSize: number,
 ): readonly PulseWarning[] => {
   const warnings: PulseWarning[] = [];
+
   if (contents.length > Policy.questions.recommended) {
     warnings.push({
       _tag: "TooManyQuestions",
@@ -176,16 +178,21 @@ export const pulseWarnings = (
       recommended: Policy.questions.recommended,
     });
   }
+
   const seconds = estimateSeconds(contents);
+
   if (seconds > RECOMMENDED_MAX_SECONDS) {
     warnings.push({ _tag: "TooLong", seconds, recommended: RECOMMENDED_MAX_SECONDS });
   }
+
   if (contents[0]?.type._tag !== "Rating") {
     warnings.push({ _tag: "NoOneTap" });
   }
+
   if (members < minimumGroupSize) {
     warnings.push({ _tag: "TeamBelowMinimumGroupSize", members, minimumGroupSize });
   }
+
   return warnings;
 };
 
@@ -240,12 +247,15 @@ const authorize = (
   | { readonly _tag: "Rejected"; readonly rejection: PulseRejection }
   | { readonly _tag: "Allowed"; readonly actor: Actor } => {
   const actor = actorOf(directory, actorId);
+
   if (Option.isNone(actor) || !can(actor.value, action, { _tag: "Team", teamId })) {
     return reject({ _tag: "Forbidden" });
   }
+
   if (!directory.teams.some((team) => team.id === teamId)) {
     return reject({ _tag: "TeamNotFound" });
   }
+
   return { _tag: "Allowed", actor: actor.value };
 };
 
@@ -260,19 +270,25 @@ const addQuestion = (
   if (pulse.questions.length >= MAX_QUESTIONS) {
     return reject({ _tag: "PulseFull", maximum: MAX_QUESTIONS });
   }
+
   let added: Extract<PulseChange, { readonly _tag: "QuestionAdded" }>;
+
   if (question._tag === "Written") {
     added = newQuestion(questionId, null, contentOf(question), now);
   } else {
     const fromTemplate = templateQuestion(question.key, locale);
+
     if (fromTemplate === undefined) {
       return reject({ _tag: "QuestionNotFound" });
     }
+
     if (questionsOf(state, pulse).some(({ templateKey }) => templateKey === question.key)) {
       return reject({ _tag: "QuestionAlreadyInPulse" });
     }
+
     added = newQuestion(questionId, question.key, contentOf(fromTemplate), now);
   }
+
   return accept([
     added,
     { _tag: "PulseQuestionsSet", pulseId: pulse.id, questions: [...pulse.questions, added.version.id] },
@@ -288,6 +304,7 @@ export const decidePulse = (
 ): PulseDecision => {
   const action = command._tag === "CreatePulse" ? "team.createPulse" : "team.editPulse";
   const allowed = authorize(directory, actorId, action, command.teamId);
+
   if (allowed._tag === "Rejected") {
     return allowed;
   }
@@ -298,9 +315,11 @@ export const decidePulse = (
     if (state.pulses.some((pulse) => pulse.id === command.pulseId)) {
       return accept([]);
     }
+
     const added = weeklyTeamHealth(locale).questions.map((question) =>
       newQuestion(initialQuestionId(command.pulseId, question.key), question.key, contentOf(question), now),
     );
+
     return accept([
       ...added,
       {
@@ -317,6 +336,7 @@ export const decidePulse = (
   }
 
   const pulse = findPulse(state, command.teamId, command.pulseId);
+
   if (pulse === undefined) {
     return reject({ _tag: "PulseNotFound" });
   }
@@ -332,12 +352,15 @@ export const decidePulse = (
 
     case "EditQuestion": {
       const version = versionInPulse(state, pulse, command.questionId);
+
       if (version === undefined) {
         return reject({ _tag: "QuestionNotFound" });
       }
+
       if (hasAnswers(state, command.questionId)) {
         return reject({ _tag: "QuestionHasAnswers" });
       }
+
       return accept([
         {
           _tag: "QuestionRewritten",
@@ -350,12 +373,15 @@ export const decidePulse = (
 
     case "RemoveQuestion": {
       const version = versionInPulse(state, pulse, command.questionId);
+
       if (version === undefined) {
         return reject({ _tag: "QuestionNotFound" });
       }
+
       if (pulse.questions.length <= MIN_QUESTIONS) {
         return reject({ _tag: "PulseNeedsAQuestion" });
       }
+
       return accept([
         {
           _tag: "PulseQuestionsSet",
@@ -369,13 +395,17 @@ export const decidePulse = (
       const byQuestion = new Map(
         pulse.questions.flatMap((versionId) => {
           const version = versionOf(state, versionId);
+
           return version === undefined ? [] : [[version.questionId, version.id] as const];
         }),
       );
+
       const order = command.order.flatMap((questionId) => {
         const versionId = byQuestion.get(questionId);
+
         return versionId === undefined ? [] : [versionId];
       });
+
       if (
         command.order.length !== pulse.questions.length ||
         order.length !== pulse.questions.length ||
@@ -383,6 +413,7 @@ export const decidePulse = (
       ) {
         return reject({ _tag: "OrderMismatch" });
       }
+
       return accept([{ _tag: "PulseQuestionsSet", pulseId: pulse.id, questions: order }]);
     }
   }
@@ -405,20 +436,27 @@ export const decideTestSend = (
   pulseId: PulseId,
 ): TestSendDecision => {
   const allowed = authorize(directory, actorId, "team.editPulse", teamId);
+
   if (allowed._tag === "Rejected") {
     return allowed;
   }
+
   const pulse = findPulse(state, teamId, pulseId);
+
   if (pulse === undefined) {
     return reject({ _tag: "PulseNotFound" });
   }
+
   if (pulse.questions.length < MIN_QUESTIONS) {
     return reject({ _tag: "PulseNeedsAQuestion" });
   }
+
   const person = directory.people.find((each) => each.id === actorId);
+
   if (person === undefined) {
     return reject({ _tag: "Forbidden" });
   }
+
   return { _tag: "Allowed", person, pulse };
 };
 
@@ -428,13 +466,16 @@ export const applyPulseChanges = (state: PulseState, changes: readonly PulseChan
       ...current,
       pulses: current.pulses.map((pulse) => (pulse.id === pulseId ? update(pulse) : pulse)),
     });
+
     switch (change._tag) {
       case "PulseAdded": {
         return { ...current, pulses: [...current.pulses, change.pulse] };
       }
+
       case "PulseSettingsUpdated": {
         return updatePulse(change.pulseId, (pulse) => ({ ...pulse, settings: change.settings }));
       }
+
       case "QuestionAdded": {
         return {
           ...current,
@@ -442,6 +483,7 @@ export const applyPulseChanges = (state: PulseState, changes: readonly PulseChan
           versions: [...current.versions, change.version],
         };
       }
+
       case "QuestionRewritten": {
         return {
           ...current,
@@ -453,6 +495,7 @@ export const applyPulseChanges = (state: PulseState, changes: readonly PulseChan
           ),
         };
       }
+
       case "PulseQuestionsSet": {
         return updatePulse(change.pulseId, (pulse) => ({ ...pulse, questions: change.questions }));
       }
@@ -463,9 +506,11 @@ const questionsOf = (state: PulseState, pulse: PulseRecord): readonly PulseQuest
   pulse.questions.flatMap((versionId) => {
     const version = versionOf(state, versionId);
     const question = state.questions.find((each) => each.id === version?.questionId);
+
     if (version === undefined || question === undefined) {
       return [];
     }
+
     return [
       {
         questionId: question.id,
@@ -485,6 +530,7 @@ const viewAuthorized = <A>(
   view: (actor: Actor) => PulseViewed<A>,
 ): PulseViewed<A> => {
   const allowed = authorize(directory, actorId, "team.viewPulses", teamId);
+
   return allowed._tag === "Rejected" ? allowed : view(allowed.actor);
 };
 
@@ -498,15 +544,18 @@ export const pulsesView = (
 ): PulseViewed<PulseList> =>
   viewAuthorized(directory, actorId, teamId, (actor) => {
     const team = directory.teams.find((each) => each.id === teamId);
+
     if (team === undefined) {
       return reject({ _tag: "TeamNotFound" });
     }
+
     const pulses = state.pulses
       .filter((pulse) => pulse.teamId === teamId)
       .sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id, "en"))
       .map((pulse) => {
         const questions = questionsOf(state, pulse);
         const known = facts?.(pulse.id);
+
         return {
           id: pulse.id,
           name: pulse.settings.name,
@@ -516,6 +565,7 @@ export const pulsesView = (
           ...(known === undefined ? {} : { paused: known.paused, nextRoundDate: known.nextRoundDate }),
         };
       });
+
     return { _tag: "Viewed", value: { team: teamSummaryOf(team, actor), pulses } };
   });
 
@@ -528,15 +578,20 @@ export const pulseView = (
 ): PulseViewed<PulseDetail> =>
   viewAuthorized(directory, actorId, teamId, (actor) => {
     const team = directory.teams.find((each) => each.id === teamId);
+
     if (team === undefined) {
       return reject({ _tag: "TeamNotFound" });
     }
+
     const pulse = findPulse(state, teamId, pulseId);
+
     if (pulse === undefined) {
       return reject({ _tag: "PulseNotFound" });
     }
+
     const questions = questionsOf(state, pulse);
     const asked = new Set(questions.map((question) => question.templateKey));
+
     return {
       _tag: "Viewed",
       value: {
@@ -569,12 +624,15 @@ export const testSendStatusOf = (state: SendState, queuedAt: number, checkedAt: 
         state: { _tag: "Queued", attempts: state.attempts, lastCode: state.lastCode },
       };
     }
+
     case "Sending": {
       return { queuedAt, checkedAt, state: { _tag: "Sending", attempt: state.attempt } };
     }
+
     case "Sent": {
       return { queuedAt, checkedAt, state: { _tag: "Sent", sentAt: state.sentAt } };
     }
+
     case "Failed": {
       return {
         queuedAt,
@@ -594,9 +652,11 @@ export const testSendView = (
   now: number,
 ): PulseViewed<TestSendStatus> => {
   const allowed = authorize(directory, actorId, "team.editPulse", teamId);
+
   if (allowed._tag === "Rejected") {
     return allowed;
   }
+
   if (
     found === null ||
     found.personId !== actorId ||
@@ -605,5 +665,6 @@ export const testSendView = (
   ) {
     return reject({ _tag: "TestSendNotFound" });
   }
+
   return { _tag: "Viewed", value: testSendStatusOf(found.state, found.sentAt, now) };
 };

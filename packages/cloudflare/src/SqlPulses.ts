@@ -24,6 +24,7 @@ import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 
 const TypeJson = Schema.fromJsonString(QuestionType);
+
 const encodeType = Schema.encodeEffect(TypeJson);
 
 const QuestionRow = Schema.Struct({
@@ -31,6 +32,7 @@ const QuestionRow = Schema.Struct({
   template_key: Schema.NullOr(TemplateQuestionKey),
   created_at: Schema.Int,
 });
+
 const VersionRow = Schema.Struct({
   id: QuestionVersionId,
   question_id: QuestionId,
@@ -39,6 +41,7 @@ const VersionRow = Schema.Struct({
   dimension: Schema.NullOr(Dimension),
   type: TypeJson,
 });
+
 const PulseRow = Schema.Struct({
   id: PulseId,
   team_id: TeamId,
@@ -53,6 +56,7 @@ const PulseRow = Schema.Struct({
   distribution: Distribution,
   created_at: Schema.Int,
 });
+
 const PulseQuestionRow = Schema.Struct({ pulse_id: PulseId, question_version_id: QuestionVersionId });
 
 const rows = <S extends Schema.Top & { readonly DecodingServices: never }>(schema: S) =>
@@ -63,18 +67,22 @@ export const makeSqlPulses = (sql: SqliteClient.SqliteClient) => {
     const questions = yield* sql`SELECT id, template_key, created_at FROM question`.pipe(
       Effect.flatMap(rows(QuestionRow)),
     );
+
     const versions = yield* sql`
       SELECT id, question_id, number, text, dimension, type FROM question_version`.pipe(
       Effect.flatMap(rows(VersionRow)),
     );
+
     const pulses = yield* sql`
       SELECT id, team_id, name, cadence, weekday, send_time, answer_window_days, review_window_days,
              reminders, anonymity_mode, distribution, created_at
         FROM pulse`.pipe(Effect.flatMap(rows(PulseRow)));
+
     const asked = yield* sql`
       SELECT pulse_id, question_version_id FROM pulse_question ORDER BY pulse_id, position`.pipe(
       Effect.flatMap(rows(PulseQuestionRow)),
     );
+
     return {
       questions: questions.map((row) => ({
         id: row.id,
@@ -123,6 +131,7 @@ export const makeSqlPulses = (sql: SqliteClient.SqliteClient) => {
       case "PulseAdded": {
         const { pulse } = change;
         const { settings } = pulse;
+
         return Effect.andThen(
           sql`INSERT INTO pulse (id, team_id, name, cadence, weekday, send_time, answer_window_days,
                                  review_window_days, reminders, anonymity_mode, distribution, created_at)
@@ -132,8 +141,10 @@ export const makeSqlPulses = (sql: SqliteClient.SqliteClient) => {
           setQuestions(pulse.id, pulse.questions),
         );
       }
+
       case "PulseSettingsUpdated": {
         const { settings } = change;
+
         return sql`UPDATE pulse
           SET name = ${settings.name}, cadence = 'weekly', weekday = ${settings.cadence.day},
               send_time = ${settings.cadence.time}, answer_window_days = ${settings.answerWindowDays},
@@ -141,8 +152,10 @@ export const makeSqlPulses = (sql: SqliteClient.SqliteClient) => {
               distribution = ${settings.distribution}
           WHERE id = ${change.pulseId}`;
       }
+
       case "QuestionAdded": {
         const { question, version } = change;
+
         return Effect.gen(function* () {
           const type = yield* encodeType(version.content.type);
           yield* sql`INSERT INTO question (id, template_key, created_at)
@@ -152,6 +165,7 @@ export const makeSqlPulses = (sql: SqliteClient.SqliteClient) => {
                     ${version.content.dimension}, ${type})`;
         });
       }
+
       case "QuestionRewritten": {
         return Effect.gen(function* () {
           const type = yield* encodeType(change.content.type);
@@ -161,6 +175,7 @@ export const makeSqlPulses = (sql: SqliteClient.SqliteClient) => {
             WHERE id = ${change.versionId}`;
         });
       }
+
       case "PulseQuestionsSet": {
         return setQuestions(change.pulseId, change.questions);
       }

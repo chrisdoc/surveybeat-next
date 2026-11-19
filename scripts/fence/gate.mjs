@@ -17,6 +17,7 @@ const git = (args) => spawnSync("git", args, { encoding: "utf8" });
 
 for (const step of steps) {
   const result = spawnSync("pnpm", step.args, { stdio: "inherit" });
+
   if (result.status !== 0) {
     console.error(`fence: ${step.name} failed, so the commit is refused`);
     console.error("fence: fix the failure or use `git commit` again after it passes");
@@ -25,7 +26,9 @@ for (const step of steps) {
 }
 
 const tree = git(["write-tree"]);
+
 const gitDir = git(["rev-parse", "--git-dir"]);
+
 if (tree.status === 0 && gitDir.status === 0) {
   writeFileSync(join(gitDir.stdout.trim(), "surveybeat-fence"), `${tree.stdout.trim()}\n`);
 }

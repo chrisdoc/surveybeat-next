@@ -73,6 +73,7 @@ describe("resultsSummary", () => {
         ],
       }),
     );
+
     assert.strictEqual(
       summary,
       "7 of 9 people checked in. Workload dropped more than usual; everything else held steady.",
@@ -88,6 +89,7 @@ describe("resultsSummary", () => {
         ],
       }),
     );
+
     assert.strictEqual(
       summary,
       "7 of 9 people checked in. Workload dropped more than usual and Recognition rose more than usual.",

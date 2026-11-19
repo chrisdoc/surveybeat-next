@@ -24,46 +24,60 @@ function getSubmitOrigin(): string {
   if (typeof window.__sb_submitOrigin === "string" && window.__sb_submitOrigin.length > 0) {
     return window.__sb_submitOrigin;
   }
+
   const host = window.location.hostname;
+
   if (host === "dashboard.surveybeat.app" || host === "app.surveybeat.app") {
     return "https://submit.surveybeat.app";
   }
+
   if (host.endsWith(".dashboard.surveybeat.app")) {
     return `https://${host.replace(".dashboard.surveybeat.app", ".submit.surveybeat.app")}`;
   }
+
   if (host.endsWith(".app.surveybeat.app")) {
     return `https://${host.replace(".app.surveybeat.app", ".submit.surveybeat.app")}`;
   }
+
   return window.location.origin;
 }
 
 function getStoredToken(): string {
   const fromWindow = window.__sb_token;
+
   if (typeof fromWindow === "string" && fromWindow.length > 0) {
     return fromWindow;
   }
+
   const hash = window.location.hash;
+
   if (hash.length > 1) {
     const params = new URLSearchParams(hash.slice(1));
     const t = params.get("t");
+
     if (typeof t === "string" && t.length > 0) {
       window.sessionStorage.setItem("sb_token", t);
+
       return t;
     }
   }
+
   const stored = window.sessionStorage.getItem("sb_token");
+
   return typeof stored === "string" ? stored : "";
 }
 
 function generateEditKey(): string {
   const bytes = new Uint8Array(32);
   crypto.getRandomValues(bytes);
+
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 async function sha256Hex(text: string): Promise<string> {
   const data = new TextEncoder().encode(text);
   const hash = await crypto.subtle.digest("SHA-256", data);
+
   return Array.from(new Uint8Array(hash), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
@@ -79,11 +93,14 @@ async function postJson(url: string, body: unknown): Promise<unknown> {
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   });
+
   if (!res.ok) {
     const error = new Error(`HTTP ${res.status}`);
     throw Object.assign(error, { status: res.status });
   }
+
   const data: unknown = await res.json();
+
   return data;
 }
 
@@ -96,11 +113,13 @@ function extractShownToLead(data: unknown): string | null {
   ) {
     return data.shownToLead;
   }
+
   return null;
 }
 
 function showError(msg: string): void {
   const err = document.getElementById("err");
+
   if (err instanceof HTMLElement) {
     err.textContent = msg;
     err.hidden = false;
@@ -109,6 +128,7 @@ function showError(msg: string): void {
 
 function clearError(): void {
   const err = document.getElementById("err");
+
   if (err instanceof HTMLElement) {
     err.hidden = true;
     err.textContent = "";
@@ -118,6 +138,7 @@ function clearError(): void {
 function hideFormScreens(): void {
   for (const id of ["screen-1", "remaining-screens", "screen-thanks"]) {
     const el = document.getElementById(id);
+
     if (el instanceof HTMLElement) {
       el.hidden = true;
     }
@@ -126,6 +147,7 @@ function hideFormScreens(): void {
 
 function showStateMessage(msg: string): void {
   const box = document.getElementById("state-message");
+
   if (box instanceof HTMLElement) {
     box.className = "state-box";
     const p = document.createElement("p");
@@ -133,6 +155,7 @@ function showStateMessage(msg: string): void {
     box.replaceChildren(p);
     box.hidden = false;
   }
+
   hideFormScreens();
 }
 
@@ -147,11 +170,14 @@ async function run(message: AnswerMessage): Promise<void> {
   const saveBtn = document.getElementById("save");
 
   let preselectedV = typeof window.__sb_v === "number" ? window.__sb_v : undefined;
+
   if (preselectedV === undefined && window.location.hash.length > 1) {
     const params = new URLSearchParams(window.location.hash.slice(1));
     const vParam = params.get("v");
+
     if (typeof vParam === "string") {
       const parsed = Number.parseInt(vParam, 10);
+
       if (parsed >= 1 && parsed <= 5) {
         preselectedV = parsed;
       }
@@ -160,6 +186,7 @@ async function run(message: AnswerMessage): Promise<void> {
 
   if (typeof preselectedV === "number") {
     const initialRadio = document.querySelector(`input[name="q1"][value="${preselectedV}"]`);
+
     if (initialRadio instanceof HTMLInputElement) {
       initialRadio.checked = true;
     }
@@ -175,6 +202,7 @@ async function run(message: AnswerMessage): Promise<void> {
   if (!isWellFormedToken(token)) {
     window.sessionStorage.removeItem("sb_token");
     showStateMessage(message("answer.state.noLink"));
+
     return;
   }
 
@@ -182,21 +210,26 @@ async function run(message: AnswerMessage): Promise<void> {
   exchangePromise ??= postJson(`${submitOrigin}/exchange`, { token });
 
   let rawContext: unknown;
+
   try {
     rawContext = await exchangePromise;
   } catch {
     showFatalError(message("answer.error"));
+
     return;
   }
 
   const context = parseRoundContext(rawContext);
+
   if (context === null) {
     showFatalError(message("answer.error"));
+
     return;
   }
 
   if (context.test) {
     const testBanner = document.getElementById("test-banner");
+
     if (testBanner instanceof HTMLElement) {
       testBanner.textContent = message("answer.test.banner");
       testBanner.hidden = false;
@@ -204,6 +237,7 @@ async function run(message: AnswerMessage): Promise<void> {
   }
 
   const anonEl = document.getElementById("anon");
+
   if (anonEl instanceof HTMLElement) {
     anonEl.textContent = anonymityStatement(context, message);
   }
@@ -211,10 +245,12 @@ async function run(message: AnswerMessage): Promise<void> {
   const scheduleValidation = () => {
     void import("./schema-validate.ts").then((mod) => mod.validateRoundContext(rawContext));
   };
+
   setTimeout(scheduleValidation, 8000);
 
   if (context.state !== "open") {
     showStateMessage(message("answer.state.closed"));
+
     return;
   }
 
@@ -224,17 +260,21 @@ async function run(message: AnswerMessage): Promise<void> {
 
   if (context.hasAnswered && editKey.length === 0) {
     showStateMessage(message("answer.state.otherBrowser"));
+
     return;
   }
 
   const pulseEl = document.getElementById("pulse");
+
   if (pulseEl instanceof HTMLElement) {
     pulseEl.textContent = context.pulseName;
   }
 
   const q1 = context.questions[0];
+
   if (q1) {
     const q1text = document.getElementById("q1text");
+
     if (q1text instanceof HTMLElement) {
       q1text.textContent = q1.text;
     }
@@ -242,10 +282,13 @@ async function run(message: AnswerMessage): Promise<void> {
     const lowLabel = q1.type._tag === "Rating" ? q1.type.lowLabel : undefined;
     const highLabel = q1.type._tag === "Rating" ? q1.type.highLabel : undefined;
     const q1low = document.getElementById("q1low");
+
     if (q1low instanceof HTMLElement) {
       q1low.textContent = scaleText(1, lowLabel, highLabel);
     }
+
     const q1high = document.getElementById("q1high");
+
     if (q1high instanceof HTMLElement) {
       q1high.textContent = scaleText(5, lowLabel, highLabel);
     }
@@ -263,13 +306,17 @@ async function run(message: AnswerMessage): Promise<void> {
     if (firstSaved) {
       return;
     }
+
     if (saveBtn instanceof HTMLButtonElement) {
       saveBtn.disabled = true;
     }
+
     mark("first-save-start");
+
     try {
       editKey = generateEditKey();
       const editKeyHash = await sha256Hex(editKey);
+
       if (!context.test) {
         window.localStorage.setItem(roundStorageKey, editKey);
       }
@@ -285,6 +332,7 @@ async function run(message: AnswerMessage): Promise<void> {
       if (q1 && !context.test) {
         keepAnswer(() => window.localStorage, context.roundId, q1.id, { value: ratingVal }, Date.now());
       }
+
       firstSaved = true;
 
       window.sessionStorage.removeItem("sb_token");
@@ -296,9 +344,12 @@ async function run(message: AnswerMessage): Promise<void> {
     } catch (error: unknown) {
       if (typeof error === "object" && error !== null && "status" in error && error.status === 409) {
         showStateMessage(message("answer.state.alreadyAnswered"));
+
         return;
       }
+
       showError(message("answer.error"));
+
       if (saveBtn instanceof HTMLButtonElement) {
         saveBtn.disabled = false;
       }
@@ -306,10 +357,12 @@ async function run(message: AnswerMessage): Promise<void> {
   };
 
   const f1 = document.getElementById("f1");
+
   if (f1 instanceof HTMLFormElement) {
     f1.addEventListener("submit", (e) => {
       e.preventDefault();
       const checked = document.querySelector('input[name="q1"]:checked');
+
       if (checked instanceof HTMLInputElement) {
         void doFirstSave(Number(checked.value));
       }
@@ -327,13 +380,16 @@ async function run(message: AnswerMessage): Promise<void> {
 
   const goToRemainingScreens = () => {
     const s1 = document.getElementById("screen-1");
+
     if (s1 instanceof HTMLElement) {
       s1.hidden = true;
     }
 
     const remainingQuestions = context.questions.slice(1);
+
     if (remainingQuestions.length === 0) {
       goToThanksScreen();
+
       return;
     }
 
@@ -342,18 +398,23 @@ async function run(message: AnswerMessage): Promise<void> {
 
   const goToThanksScreen = () => {
     const s1 = document.getElementById("screen-1");
+
     if (s1 instanceof HTMLElement) {
       s1.hidden = true;
     }
+
     const rem = document.getElementById("remaining-screens");
+
     if (rem instanceof HTMLElement) {
       rem.hidden = true;
     }
 
     const thanks = document.getElementById("screen-thanks");
+
     if (thanks instanceof HTMLElement) {
       thanks.hidden = false;
       const h2 = thanks.querySelector("h2");
+
       if (h2 instanceof HTMLElement) {
         h2.focus();
       }
@@ -361,15 +422,18 @@ async function run(message: AnswerMessage): Promise<void> {
 
     const bodyEl = document.getElementById("thanks-body");
     const actionsUl = document.getElementById("actions");
+
     if (context.actions.length > 0) {
       if (bodyEl instanceof HTMLElement) {
         bodyEl.textContent = context.test ? message("answer.test.thanks") : message("answer.thanks.body");
       }
+
       if (actionsUl instanceof HTMLUListElement) {
         actionsUl.replaceChildren(
           ...context.actions.slice(0, 3).map((act) => {
             const li = document.createElement("li");
             li.textContent = act.title;
+
             return li;
           }),
         );
@@ -380,6 +444,7 @@ async function run(message: AnswerMessage): Promise<void> {
           ? message("answer.test.thanks")
           : message("answer.thanks.bodyNoActions");
       }
+
       if (actionsUl instanceof HTMLElement) {
         actionsUl.replaceChildren();
       }
@@ -388,6 +453,7 @@ async function run(message: AnswerMessage): Promise<void> {
 
   const renderRemainingQuestions = (questions: readonly QuestionData[]) => {
     const container = document.getElementById("remaining-screens");
+
     if (!(container instanceof HTMLElement)) {
       return;
     }
@@ -418,6 +484,7 @@ async function run(message: AnswerMessage): Promise<void> {
       if (q.type._tag === "Rating") {
         const scaleDiv = document.createElement("div");
         scaleDiv.className = "scale";
+
         for (let i = 1; i <= 5; i++) {
           const lbl = document.createElement("label");
           const radio = document.createElement("input");
@@ -435,6 +502,7 @@ async function run(message: AnswerMessage): Promise<void> {
           lbl.append(span);
           scaleDiv.append(lbl);
         }
+
         fieldset.append(scaleDiv);
       } else if (q.type._tag === "SingleChoice") {
         const scaleDiv = document.createElement("div");
@@ -492,12 +560,15 @@ async function run(message: AnswerMessage): Promise<void> {
 
         const saveComment = async () => {
           const val = textarea.value.trim();
+
           if (val.length === 0) {
             return;
           }
+
           try {
             const raw = await saveAnswer(q.id, { comment: val });
             const shownToLead = extractShownToLead(raw);
+
             if (shownToLead !== null) {
               leadP.textContent = message("answer.comment.leadSees", { text: shownToLead });
             }
@@ -529,9 +600,11 @@ async function run(message: AnswerMessage): Promise<void> {
         } else {
           section.hidden = true;
           const nextSec = questionSections[idx + 1];
+
           if (nextSec instanceof HTMLElement) {
             nextSec.hidden = false;
             const leg = nextSec.querySelector("legend");
+
             if (leg instanceof HTMLElement) {
               leg.focus();
             }
@@ -554,6 +627,7 @@ async function run(message: AnswerMessage): Promise<void> {
     container.append(finishBtn);
 
     const firstLegend = questionSections[0]?.querySelector("legend");
+
     if (firstLegend instanceof HTMLElement) {
       firstLegend.focus();
     }
@@ -570,11 +644,15 @@ async function run(message: AnswerMessage): Promise<void> {
       questionVersionId,
       ...body,
     });
+
     clearError();
+
     if (!context.test) {
       keepAnswer(() => window.localStorage, context.roundId, questionVersionId, body, Date.now());
     }
+
     mark("answer-save-end");
+
     return result;
   };
 }

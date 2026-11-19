@@ -25,7 +25,7 @@ Each is an `overrides` entry that names the rule and the files it cannot apply t
 
 Adopting the reference's surface verbatim would have meant rewriting this tree: Ultracite core alone produced 6,713 findings here and the plugin set another 6,431. #205's rule is "`error` when clean, otherwise a counted baseline". Rather than carry a 14k baseline, the rules that need a repo-wide restyle are off by name in `restyleExceptionsOff`, with the count each one produced on 2026-11-14. The follow-up restyle is issue #216; as it lands, delete the rule's line from `restyleExceptionsOff` so it runs again at its reference severity.
 
-12294 findings across 81 rules are excepted, by namespace: `anti-slop` 10, `anti-slop-effect` 4, `eslint` 19, `foldkit` 7, `import` 1, `jsdoc` 2, `landmines-types` 1, `oxc` 2, `promise` 3, `typescript` 15, `unicorn` 17.
+5680 findings across 79 rules are excepted, by namespace: `anti-slop` 9, `anti-slop-effect` 4, `eslint` 18, `foldkit` 7, `import` 1, `jsdoc` 2, `landmines-types` 1, `oxc` 2, `promise` 3, `typescript` 15, `unicorn` 17.
 
 | Rule | Findings on adoption |
 | --- | ---: |
@@ -37,7 +37,6 @@ Adopting the reference's surface verbatim would have meant rewriting this tree: 
 | `anti-slop/no-unknown-parameters` | 30 |
 | `anti-slop/no-unknown-returns` | 15 |
 | `anti-slop/no-unsafe-dictionary-type` | 43 |
-| `anti-slop/require-readable-spacing` | 4044 |
 | `anti-slop/require-safety-comment-for-type-assertion` | 151 |
 | `anti-slop-effect/no-manual-tag-comparison` | 406 |
 | `anti-slop-effect/no-manual-tagged-construction` | 1389 |
@@ -61,7 +60,6 @@ Adopting the reference's surface verbatim would have meant rewriting this tree: 
 | `eslint/prefer-destructuring` | 79 |
 | `eslint/prefer-named-capture-group` | 24 |
 | `eslint/require-unicode-regexp` | 136 |
-| `eslint/sort-keys` | 2570 |
 | `foldkit/got-prefix-requires-submodel-payload` | 15 |
 | `foldkit/got-wrapper-carries-only-routing` | 15 |
 | `foldkit/keyed-required-for-mapped-rows` | 5 |

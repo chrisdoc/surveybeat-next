@@ -45,11 +45,13 @@ const build = (locale: Locale): Messages => {
   const pluralRules = new Intl.PluralRules(locale);
   const numberFormat = new Intl.NumberFormat(locale);
   const scoreFormat = new Intl.NumberFormat(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+
   const changeFormat = new Intl.NumberFormat(locale, {
     minimumFractionDigits: 1,
     maximumFractionDigits: 1,
     signDisplay: "exceptZero",
   });
+
   const percentFormat = new Intl.NumberFormat(locale, { style: "percent", maximumFractionDigits: 0 });
 
   function message<K extends KeysWithoutParams>(key: K): string;
@@ -61,6 +63,7 @@ const build = (locale: Locale): Messages => {
   function pluralMessage<B extends PluralKey>(base: B, count: number, params?: PluralParams<B>): string {
     const specific = `${base}.${pluralRules.select(count)}`;
     const template = isMessageKey(table, specific) ? table[specific] : table[`${base}.other`];
+
     return fill(template, { ...params, count: numberFormat.format(count) });
   }
 
@@ -108,27 +111,38 @@ const cache = new Map<Locale, Messages>();
 
 export const messagesFor = (locale: Locale): Messages => {
   const cached = cache.get(locale);
+
   if (cached !== undefined) {
     return cached;
   }
+
   const messages = build(locale);
   cache.set(locale, messages);
+
   return messages;
 };
 
 export let currentLocale: Locale = "en";
+
 export let message: Messages["message"] = messagesFor("en").message;
+
 export let pluralMessage: Messages["pluralMessage"] = messagesFor("en").pluralMessage;
 
 export const formatDuration = (seconds: number): string =>
   seconds >= 60
     ? message("duration.minutes", { minutes: Math.round(seconds / 60) })
     : message("duration.seconds", { seconds });
+
 export let formatDate: Messages["formatDate"] = messagesFor("en").formatDate;
+
 export let formatNumber: Messages["formatNumber"] = messagesFor("en").formatNumber;
+
 export let formatScore: Messages["formatScore"] = messagesFor("en").formatScore;
+
 export let formatChange: Messages["formatChange"] = messagesFor("en").formatChange;
+
 export let formatPercent: Messages["formatPercent"] = messagesFor("en").formatPercent;
+
 export let formatRoundDate: Messages["formatRoundDate"] = messagesFor("en").formatRoundDate;
 
 export const setLocale = (locale: Locale): void => {
@@ -142,6 +156,7 @@ export const setLocale = (locale: Locale): void => {
   formatChange = messages.formatChange;
   formatPercent = messages.formatPercent;
   formatRoundDate = messages.formatRoundDate;
+
   if (typeof document !== "undefined") {
     document.documentElement.lang = locale;
   }

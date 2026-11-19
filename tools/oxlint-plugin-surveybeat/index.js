@@ -1,4 +1,5 @@
 const PLATFORM = [/^cloudflare:/, /^alchemy$/, /^alchemy\//, /^@alchemy\.run\//];
+
 const REACT = [
   /^react$/,
   /^react\//,
@@ -7,7 +8,9 @@ const REACT = [
   /^@base-ui\/react$/,
   /^@base-ui\/react\//,
 ];
+
 const FOLDKIT = [/^foldkit$/, /^foldkit\//, /^@foldkit\//];
+
 const API_CLIENT = [
   /^@surveybeat\/api$/,
   /^@surveybeat\/api\//,
@@ -38,14 +41,17 @@ const domainBoundary = {
   create(context) {
     const filename = toPath(context.filename);
     const zone = ZONES.find((z) => filename.includes(z.path));
+
     if (zone === undefined) {
       return {};
     }
+
     const check = (node, source) => {
       if (typeof source === "string" && zone.banned.some((re) => re.test(source))) {
         context.report({ node, messageId: "banned", data: { zone: zone.name, source } });
       }
     };
+
     return {
       ImportDeclaration: (node) => check(node, node.source.value),
       ExportNamedDeclaration: (node) => node.source && check(node, node.source.value),
@@ -64,6 +70,7 @@ const UI_ATTRIBUTES = new Set([
   "aria-description",
   "aria-placeholder",
 ]);
+
 const UI_H_ATTRIBUTES = new Set([
   "Title",
   "Placeholder",
@@ -75,8 +82,11 @@ const UI_H_ATTRIBUTES = new Set([
   "AriaRoleDescription",
   "LabelAttr",
 ]);
+
 const UI_PROPERTIES = new Set(["textContent", "innerText", "title", "placeholder"]);
+
 const hasLetters = (text) => /\p{L}/u.test(text);
+
 const isTextLiteral = (node) =>
   (node.type === "Literal" && typeof node.value === "string" && hasLetters(node.value)) ||
   (node.type === "TemplateLiteral" && node.quasis.some((q) => hasLetters(q.value.cooked ?? "")));
@@ -95,6 +105,7 @@ const noLiteralUiText = {
   },
   create(context) {
     const report = (node) => context.report({ node, messageId: "literal" });
+
     return {
       JSXText: (node) => hasLetters(node.value) && report(node),
       JSXExpressionContainer: (node) => {
@@ -106,30 +117,39 @@ const noLiteralUiText = {
         if (node.name.type !== "JSXIdentifier" || !UI_ATTRIBUTES.has(node.name.name)) {
           return;
         }
+
         const value = node.value;
+
         if (value === null) {
           return;
         }
+
         if (isTextLiteral(value)) {
           report(value);
         }
+
         if (value.type === "JSXExpressionContainer" && isTextLiteral(value.expression)) {
           report(value);
         }
       },
       CallExpression: (node) => {
         const callee = node.callee;
+
         if (callee.type === "MemberExpression" && !callee.computed && callee.object.type === "Identifier") {
           const objName = callee.object.name;
           const propName = callee.property.name;
+
           if (objName === "h" || objName === "inertHtml" || objName === "ih") {
             if (UI_H_ATTRIBUTES.has(propName)) {
               const arg = node.arguments[0];
+
               if (arg && isTextLiteral(arg)) {
                 report(arg);
               }
             }
+
             const children = node.arguments[1];
+
             if (children) {
               if (children.type === "ArrayExpression") {
                 for (const element of children.elements) {
@@ -146,6 +166,7 @@ const noLiteralUiText = {
       },
       AssignmentExpression: (node) => {
         const left = node.left;
+
         if (
           left.type === "MemberExpression" &&
           !left.computed &&
@@ -161,8 +182,11 @@ const noLiteralUiText = {
 };
 
 const ANONYMOUS_TABLES = /\b(?:submission|answer)\b/i;
+
 const IDENTIFIED_TABLES = /\b(?:participation|invitation|person)\b/i;
+
 const ROWID_PATTERN = /\b_?rowid_?\b/i;
+
 const UNORDERED_SELECT_STAR = /SELECT\s+\*\s+FROM\s+(?:submission|answer)\b/i;
 
 const privacyQuery = {
@@ -184,12 +208,15 @@ const privacyQuery = {
       if (typeof sqlText !== "string") {
         return;
       }
+
       if (ROWID_PATTERN.test(sqlText)) {
         context.report({ node, messageId: "rowid" });
       }
+
       if (ANONYMOUS_TABLES.test(sqlText) && IDENTIFIED_TABLES.test(sqlText)) {
         context.report({ node, messageId: "join" });
       }
+
       if (UNORDERED_SELECT_STAR.test(sqlText) && !/\bORDER\s+BY\b/i.test(sqlText)) {
         context.report({ node, messageId: "orderBy" });
       }
@@ -198,9 +225,11 @@ const privacyQuery = {
     return {
       TaggedTemplateExpression: (node) => {
         const tag = node.tag;
+
         const isSqlTag =
           (tag.type === "Identifier" && tag.name === "sql") ||
           (tag.type === "MemberExpression" && tag.property.name === "sql");
+
         if (isSqlTag && node.quasi && node.quasi.quasis) {
           const sqlText = node.quasi.quasis.map((q) => q.value.raw).join(" ? ");
           checkSql(node, sqlText);
@@ -208,12 +237,15 @@ const privacyQuery = {
       },
       CallExpression: (node) => {
         const callee = node.callee;
+
         const isPrepare =
           callee.type === "MemberExpression" &&
           callee.property.type === "Identifier" &&
           callee.property.name === "prepare";
+
         if (isPrepare && node.arguments.length > 0) {
           const arg = node.arguments[0];
+
           if (arg && arg.type === "Literal" && typeof arg.value === "string") {
             checkSql(node, arg.value);
           } else if (arg && arg.type === "TemplateLiteral") {

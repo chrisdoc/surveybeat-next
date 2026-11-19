@@ -20,6 +20,7 @@ export const renderEmail = async (email: RenderableEmail): Promise<RenderedEmail
         text: AddedToTeam.text(email),
       };
     }
+
     case "InvitationEmail": {
       return {
         subject: oneLine(InvitationEmail.subject(email)),
@@ -27,6 +28,7 @@ export const renderEmail = async (email: RenderableEmail): Promise<RenderedEmail
         text: InvitationEmail.text(email),
       };
     }
+
     case "ReminderEmail": {
       return {
         subject: oneLine(ReminderEmail.subject(email)),
@@ -38,6 +40,7 @@ export const renderEmail = async (email: RenderableEmail): Promise<RenderedEmail
         },
       };
     }
+
     case "ResultsReadyEmail": {
       return {
         subject: oneLine(ResultsReadyEmail.subject(email)),
@@ -52,6 +55,7 @@ export const EmailTemplatesLive = Layer.effect(
   EmailTemplates,
   Effect.gen(function* () {
     const tokens = yield* InvitationTokens;
+
     return {
       render: (email) =>
         withToken(email).pipe(

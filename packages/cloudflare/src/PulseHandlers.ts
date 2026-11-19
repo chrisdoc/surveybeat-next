@@ -21,12 +21,14 @@ const change = <R>(teamId: TeamId, pulseId: PulseId, command: Effect.Effect<Puls
     yield* requireSameOrigin;
     const member = yield* currentMember;
     yield* runPulseCommand(member, yield* command);
+
     return yield* viewPulse(member, teamId, pulseId);
   });
 
 export const pulseHandlers = <R>(services: Effect.Effect<Context.Context<PulseServices>, never, R>) => {
   const provide = <A, E, R2>(effect: Effect.Effect<A, E, R2>) =>
     Effect.flatMap(services, (context) => Effect.provideContext(effect, context));
+
   return HttpApiBuilder.group(SurveyBeatApi, "pulses", (handlers) =>
     handlers
       .handle("listPulses", ({ params }) =>
@@ -36,6 +38,7 @@ export const pulseHandlers = <R>(services: Effect.Effect<Context.Context<PulseSe
         provide(
           Effect.gen(function* () {
             const pulseId = yield* (yield* NewIds).pulseId;
+
             return yield* change(
               params.teamId,
               pulseId,
@@ -94,6 +97,7 @@ export const pulseHandlers = <R>(services: Effect.Effect<Context.Context<PulseSe
           Effect.gen(function* () {
             yield* requireSameOrigin;
             const member = yield* currentMember;
+
             return yield* sendTestInvitation(member, params.teamId, params.pulseId);
           }),
         ),

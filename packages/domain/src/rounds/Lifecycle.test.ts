@@ -26,6 +26,7 @@ describe("Lifecycle scheduling and time engine", () => {
   it("opens a Round at the earliest member's local cadence time when a member's zone is ahead of the Team's", () => {
     // Team in Europe/Berlin (UTC+1), one member in Asia/Tokyo (UTC+9): Monday 09:00 is 00:00 UTC in Tokyo.
     const sendTime = SendTime.make("09:00");
+
     const withOwnZone = calculateRoundInstants(
       "2026-11-09",
       sendTime,
@@ -33,6 +34,7 @@ describe("Lifecycle scheduling and time engine", () => {
       "Europe/Berlin",
       3,
     );
+
     const teamZoneOnly = calculateRoundInstants(
       "2026-11-09",
       sendTime,
@@ -40,6 +42,7 @@ describe("Lifecycle scheduling and time engine", () => {
       "Europe/Berlin",
       3,
     );
+
     const tokyoSend = Date.UTC(2026, 10, 9, 0, 0, 0);
     const berlinSend = Date.UTC(2026, 10, 9, 8, 0, 0);
     assert.strictEqual(withOwnZone.sends.find((s) => s.timeZone === "Asia/Tokyo")?.sendAt, tokyoSend);
@@ -226,6 +229,7 @@ describe("Lifecycle scheduling and time engine", () => {
         openedAt: startMs,
         updatedAt: startMs,
       };
+
       assert.strictEqual(openRound.status, "open");
       assert.strictEqual(openRound.openedAt, startMs);
 
@@ -234,6 +238,7 @@ describe("Lifecycle scheduling and time engine", () => {
 
       // 3. Close early control: Open -> Closed -> Shared
       const closeEarlyTime = yield* Clock.currentTimeMillis;
+
       const closedEarlyRound: RoundRecord = {
         ...openRound,
         status: "closed",
@@ -242,6 +247,7 @@ describe("Lifecycle scheduling and time engine", () => {
         effectiveMinimumGroupSize: 4, // Max of org N (4) and round N
         updatedAt: closeEarlyTime,
       };
+
       assert.strictEqual(closedEarlyRound.status, "closed");
       assert.strictEqual(closedEarlyRound.closedAt, closeEarlyTime);
       assert.strictEqual(closedEarlyRound.effectiveMinimumGroupSize, 4);
@@ -252,6 +258,7 @@ describe("Lifecycle scheduling and time engine", () => {
         status: "shared",
         updatedAt: closeEarlyTime,
       };
+
       assert.strictEqual(sharedRound.status, "shared");
 
       // 4. Cancel Open Round: Open -> Cancelled
@@ -260,12 +267,15 @@ describe("Lifecycle scheduling and time engine", () => {
         id: RoundId.make("round-2"),
         plannedOpenDate: "2026-11-16",
       };
+
       const cancelTime = yield* Clock.currentTimeMillis;
+
       const cancelledRound: RoundRecord = {
         ...roundToCancel,
         status: "cancelled",
         updatedAt: cancelTime,
       };
+
       assert.strictEqual(cancelledRound.status, "cancelled");
 
       // 5. Skip week: skipping the scheduled week cancels it
@@ -274,11 +284,13 @@ describe("Lifecycle scheduling and time engine", () => {
         id: RoundId.make("round-3"),
         plannedOpenDate: "2026-11-23",
       };
+
       const skippedRound: RoundRecord = {
         ...roundToSkip,
         status: "cancelled",
         updatedAt: cancelTime,
       };
+
       assert.strictEqual(skippedRound.status, "cancelled");
 
       // 6. Pause pulse: cancels scheduled round
@@ -287,11 +299,13 @@ describe("Lifecycle scheduling and time engine", () => {
         id: RoundId.make("round-4"),
         plannedOpenDate: "2026-11-30",
       };
+
       const pausedRound: RoundRecord = {
         ...roundToPause,
         status: "cancelled",
         updatedAt: cancelTime,
       };
+
       assert.strictEqual(pausedRound.status, "cancelled");
     }),
   );
@@ -350,6 +364,7 @@ describe("Lifecycle scheduling and time engine", () => {
       openedAt: instants2.openInstant,
       updatedAt: instants2.openInstant,
     };
+
     const frozenQuestions = ["v1", "v2"];
     const frozenWindow = openRound.answerWindowDays;
     const frozenCloseInstant = openRound.plannedCloseAt;
@@ -372,6 +387,7 @@ describe("Lifecycle scheduling and time engine", () => {
       const { deriveInvitationToken, hashToken, importInvitationTokenKey } = yield* Effect.promise(
         () => import("./Lifecycle.ts"),
       );
+
       const key = yield* Effect.promise(() => importInvitationTokenKey("k".repeat(32)));
       const otherKey = yield* Effect.promise(() => importInvitationTokenKey("o".repeat(32)));
       const ref = { roundId: "round-1", personId: "person-1", generation: 0 };
@@ -384,9 +400,11 @@ describe("Lifecycle scheduling and time engine", () => {
         { ...ref, personId: "person-2" },
         { ...ref, roundId: "round-2" },
       ];
+
       for (const variant of variants) {
         assert.notStrictEqual(yield* Effect.promise(() => deriveInvitationToken(key, variant)), token);
       }
+
       assert.notStrictEqual(yield* Effect.promise(() => deriveInvitationToken(otherKey, ref)), token);
 
       const hash = yield* Effect.promise(() => hashToken(token));
@@ -402,6 +420,7 @@ describe("Lifecycle scheduling and time engine", () => {
       Effect.gen(function* () {
         const { deriveInvitationToken, deriveTestInvitationToken, importInvitationTokenKey } =
           yield* Effect.promise(() => import("./Lifecycle.ts"));
+
         const key = yield* Effect.promise(() => importInvitationTokenKey("k".repeat(32)));
         const otherKey = yield* Effect.promise(() => importInvitationTokenKey("o".repeat(32)));
         const ref = { pulseId: "pulse-1", personId: "person-1", testId: "test-1" };
@@ -414,15 +433,18 @@ describe("Lifecycle scheduling and time engine", () => {
           { ...ref, personId: "person-2" },
           { ...ref, pulseId: "pulse-2" },
         ];
+
         for (const variant of variants) {
           assert.notStrictEqual(yield* Effect.promise(() => deriveTestInvitationToken(key, variant)), token);
         }
+
         assert.notStrictEqual(yield* Effect.promise(() => deriveTestInvitationToken(otherKey, ref)), token);
 
         // The same identifiers as an Invitation (roundId = pulseId, generation 0) give another token.
         const invitation = yield* Effect.promise(() =>
           deriveInvitationToken(key, { roundId: ref.pulseId, personId: ref.personId, generation: 0 }),
         );
+
         assert.notStrictEqual(token, invitation);
         assert.strictEqual(token.length, invitation.length);
       }),
@@ -521,31 +543,40 @@ const commandOf = (tag: RoundCommandTag): RoundCommand => {
   const pulseId = PulseId.make("pulse-1");
   const roundId = RoundId.make("round-1");
   const personId = PersonId.make("person-1");
+
   switch (tag) {
     case "SkipWeek": {
       return { _tag: "SkipWeek", teamId, pulseId, plannedOpenDate: "2026-11-09" };
     }
+
     case "UnskipWeek": {
       return { _tag: "UnskipWeek", teamId, pulseId, plannedOpenDate: "2026-11-09" };
     }
+
     case "PausePulse": {
       return { _tag: "PausePulse", teamId, pulseId };
     }
+
     case "ResumePulse": {
       return { _tag: "ResumePulse", teamId, pulseId };
     }
+
     case "CloseRoundEarly": {
       return { _tag: "CloseRoundEarly", teamId, roundId };
     }
+
     case "ShareResults": {
       return { _tag: "ShareResults", teamId, roundId };
     }
+
     case "RetryResult": {
       return { _tag: "RetryResult", teamId, roundId };
     }
+
     case "CancelRound": {
       return { _tag: "CancelRound", teamId, roundId };
     }
+
     case "ResendInvitation": {
       return { _tag: "ResendInvitation", teamId, roundId, personId };
     }
@@ -571,9 +602,11 @@ describe("the Round lifecycle table", () => {
     ({ status, tag }) => {
       const rejection = roundCommandRejection(status, commandOf(tag));
       const next = modelNext(status, tag);
+
       if (next === undefined) {
         return rejection !== null;
       }
+
       return rejection === null && roundStatusAfter(status, commandOf(tag)) === next;
     },
   );
@@ -583,25 +616,33 @@ describe("the Round lifecycle table", () => {
     { start: RoundStatusSchema, tags: Schema.Array(CommandTag) },
     ({ start, tags }) => {
       let status: RoundStatus = start;
+
       for (const tag of tags.slice(0, 25)) {
         const command = commandOf(tag);
         const rejection = roundCommandRejection(status, command);
         const next = modelNext(status, tag);
+
         if (next === undefined) {
           if (rejection === null) {
             return false;
           }
+
           continue;
         }
+
         if (rejection !== null) {
           return false;
         }
+
         const after = roundStatusAfter(status, command);
+
         if (after !== next) {
           return false;
         }
+
         status = after;
       }
+
       return true;
     },
   );
@@ -632,6 +673,7 @@ describe("the Round machine", () => {
             context: { status: "scheduled", rejection: null },
           }),
         });
+
         yield* sendAndAwait(actor, {
           type: "CancelRound",
           teamId: TeamId.make("team-1"),
@@ -663,6 +705,7 @@ describe("the Round machine", () => {
             context: { status: "open", rejection: null },
           }),
         });
+
         yield* sendAndAwait(actor, { type: "CloseRoundEarly", teamId: TeamId.make("team-1"), roundId });
         expect(actor.getSnapshot().value).toBe("closed");
         yield* sendAndAwait(actor, { type: "CloseRoundEarly", teamId: TeamId.make("team-1"), roundId });
@@ -676,24 +719,31 @@ describe("the Round machine", () => {
 describe("the next Round slot", () => {
   const dayNumberOf = (dateIso: string) => {
     const { year, month, day } = parseDateIso(dateIso);
+
     return Date.UTC(year, month - 1, day) / 86_400_000;
   };
+
   const dateOfDayNumber = (days: number) => {
     const z = days + 719_468;
     const era = Math.floor(z / 146_097);
     const doe = z - era * 146_097;
+
     const yoe = Math.floor(
       (doe - Math.floor(doe / 1460) + Math.floor(doe / 36_524) - Math.floor(doe / 146_096)) / 365,
     );
+
     const doy = doe - (365 * yoe + Math.floor(yoe / 4) - Math.floor(yoe / 100));
     const mp = Math.floor((5 * doy + 2) / 153);
     const day = doy - Math.floor((153 * mp + 2) / 5) + 1;
     const month = mp < 10 ? mp + 3 : mp - 9;
     const year = yoe + era * 400 + (month <= 2 ? 1 : 0);
+
     return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
   };
+
   const weekdayOf = (dateIso: string) =>
     ["thursday", "friday", "saturday", "sunday", "monday", "tuesday", "wednesday"][dayNumberOf(dateIso) % 7];
+
   const shiftDays = (dateIso: string, days: number) => dateOfDayNumber(dayNumberOf(dateIso) + days);
   const SlotTime = Schema.Literals(["06:00", "09:30", "14:45", "21:00"]);
   const Zone = Schema.Literals(["Europe/Berlin", "America/Los_Angeles", "Asia/Tokyo", "UTC"]);
@@ -712,6 +762,7 @@ describe("the next Round slot", () => {
       const now = Date.UTC(2026, 0, 1) + (Math.abs(minutes) % (366 * 1440)) * 60_000;
       const sendTime = SendTime.make(time);
       const memberTimeZones = members.slice(0, 4);
+
       const unskipped = nextRoundSlot({
         now,
         weekday,
@@ -721,7 +772,9 @@ describe("the next Round slot", () => {
         answerWindowDays: 2,
         unavailableDates: new Set(),
       });
+
       const unavailableDates = new Set(skips.map((week) => shiftDays(unskipped.plannedOpenDate, 7 * week)));
+
       const slot = nextRoundSlot({
         now,
         weekday,
@@ -731,11 +784,14 @@ describe("the next Round slot", () => {
         answerWindowDays: 2,
         unavailableDates,
       });
+
       const recomputed = calculateRoundInstants(slot.plannedOpenDate, sendTime, memberTimeZones, team, 2);
       let firstFree = unskipped.plannedOpenDate;
+
       while (unavailableDates.has(firstFree)) {
         firstFree = shiftDays(firstFree, 7);
       }
+
       return (
         weekdayOf(slot.plannedOpenDate) === weekday &&
         slot.instants.openInstant > now &&
@@ -757,12 +813,14 @@ describe("the next Round slot", () => {
       answerWindowDays: 1,
       unavailableDates: new Set<string>(),
     });
+
     expect(slot.plannedOpenDate).toBe("2026-11-24");
     expect(slot.instants.openInstant).toBe(Date.UTC(2026, 10, 23, 21, 0));
   });
 
   it("moves the date with the open instant when a Pulse changes from Tuesday to Wednesday", () => {
     const now = Date.UTC(2026, 10, 17, 20, 11);
+
     const base = {
       now,
       sendTime: SendTime.make("06:00"),
@@ -771,6 +829,7 @@ describe("the next Round slot", () => {
       answerWindowDays: 1,
       unavailableDates: new Set<string>(),
     };
+
     const tuesday = nextRoundSlot({ ...base, weekday: "tuesday" });
     const wednesday = nextRoundSlot({ ...base, weekday: "wednesday" });
     expect(tuesday.plannedOpenDate).toBe("2026-11-24");

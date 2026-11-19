@@ -30,6 +30,7 @@ describe("discussionGuideText", () => {
       actionsToCheckOn: ["Review the planning rhythm."],
       questions: [],
     };
+
     assert.strictEqual(
       discussionGuideText(sparse),
       ["Discussion guide", "Actions to check on\n- Review the planning rhythm."].join("\n\n"),
@@ -43,6 +44,7 @@ describe("discussionGuideText", () => {
       actionsToCheckOn: [],
       questions: ["First?", "Second?", "Third?"],
     };
+
     assert.strictEqual(
       discussionGuideText(onlyQuestions),
       ["Discussion guide", "Questions to ask the Team\n1. First?\n2. Second?\n3. Third?"].join("\n\n"),

@@ -5,6 +5,7 @@ import { Locale } from "./Locale.ts";
 import { OrganizationId } from "./Organization.ts";
 
 export const OrganizationSummary = Schema.Struct({ id: OrganizationId, name: Schema.String });
+
 export type OrganizationSummary = typeof OrganizationSummary.Type;
 
 export interface PersonCandidate {
@@ -26,9 +27,11 @@ export const candidatesFor = (
   unlinkedWithEmail: readonly PersonCandidate[],
 ): readonly PersonCandidate[] => {
   const byOrganization = new Map<OrganizationId, PersonCandidate>();
+
   for (const candidate of linked) {
     byOrganization.set(candidate.organization.id, candidate);
   }
+
   if (identity.emailMatchable) {
     for (const candidate of unlinkedWithEmail) {
       if (!byOrganization.has(candidate.organization.id)) {
@@ -36,6 +39,7 @@ export const candidatesFor = (
       }
     }
   }
+
   return [...byOrganization.values()].sort((a, b) => a.organization.name.localeCompare(b.organization.name));
 };
 
@@ -45,12 +49,15 @@ export const decideSignIn = (
   allowlist: OrganizationCreationAllowlist,
 ): SignInDecision => {
   const [only, ...rest] = candidates;
+
   if (only !== undefined && rest.length === 0) {
     return { _tag: "Enter", candidate: only };
   }
+
   if (only !== undefined) {
     return { _tag: "ChooseOrganization", candidates };
   }
+
   return allowlist.allows(identity) ? { _tag: "CreateOrganization" } : { _tag: "NotInOrganization" };
 };
 
@@ -71,6 +78,7 @@ export const SessionState = Schema.Union([
   Schema.TaggedStruct("CreateOrganization", {}),
   Schema.TaggedStruct("NotInOrganization", {}),
 ]);
+
 export type SessionState = typeof SessionState.Type;
 
 export class Unauthenticated extends Schema.TaggedError<Unauthenticated, { readonly brand: unique symbol }>()(

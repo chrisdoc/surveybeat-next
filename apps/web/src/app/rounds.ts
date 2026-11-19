@@ -36,12 +36,14 @@ export const LoadedRounds = defineTaggedUnion({
   Loaded: { list: RoundList },
   Failed: { failure: Failure },
 });
+
 export type LoadedRounds = typeof LoadedRounds.Type;
 
 export const RoundConfirm = Schema.Struct({
   kind: Schema.Literals(["close", "cancel"]),
   roundId: RoundId,
 });
+
 export type RoundConfirm = typeof RoundConfirm.Type;
 
 export const isLead = (team: LoadedTeam): boolean =>
@@ -105,10 +107,12 @@ export const roundsScreenView = <Message>(
   h: HtmlBuilder<Message>,
 ): Html => {
   const teamName = state.team._tag === "Loaded" ? state.team.detail.team.name : message("title.team");
+
   const pulseName =
     state.rounds._tag === "Loaded"
       ? (state.rounds.list.rounds[0]?.pulseName ?? message("title.pulse"))
       : message("title.pulse");
+
   const children: Child[] = [
     breadcrumbs(
       [
@@ -123,12 +127,16 @@ export const roundsScreenView = <Message>(
 
   if (state.team._tag === "Failed") {
     children.push(problemView(state.team.failure, h));
+
     return h.section([], children);
   }
+
   if (state.rounds._tag === "Failed") {
     children.push(problemView(state.rounds.failure, h));
+
     return h.section([], children);
   }
+
   if (state.rounds._tag !== "Loaded") {
     return h.section([], children);
   }
@@ -231,6 +239,7 @@ export const roundsScreenView = <Message>(
 
   if (rounds.length === 0) {
     children.push(emptyState({ title: message("rounds.empty.title"), body: message("rounds.empty") }, h));
+
     return h.section([], children);
   }
 
@@ -242,6 +251,7 @@ export const roundsScreenView = <Message>(
         const rate = state.rates[round.id];
         const confirming = state.confirm?.roundId === round.id ? state.confirm.kind : undefined;
         const failed = lead ? (detail?.failedInvitations ?? []) : [];
+
         return h.li(
           [h.Class("flex flex-col gap-2 rounded-panel border border-line bg-surface px-6 py-4")],
           [

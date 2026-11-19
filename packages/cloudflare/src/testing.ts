@@ -121,17 +121,21 @@ export class FakeSessions {
     const existing = [...this.users.values()].find(
       (user) => normaliseEmail(user.email) === normaliseEmail(email),
     );
+
     if (existing !== undefined) {
       return this.issue(existing.id);
     }
+
     const user = AuthUserId.make(`user_${++this.counter}`);
     this.users.set(user, { id: user, email, emailVerified });
+
     return this.issue(user);
   }
 
   private issue(user: AuthUserId): string {
     const token = `token_${++this.counter}`;
     this.sessions.set(token, { sessionId: SessionId.make(`session_${this.counter}`), userId: user });
+
     return token;
   }
 
@@ -139,9 +143,11 @@ export class FakeSessions {
     const found = [...this.users.values()].find(
       (user) => normaliseEmail(user.email) === normaliseEmail(email),
     );
+
     if (found === undefined) {
       throw new Error(`no user ${email}`);
     }
+
     return found.id;
   }
 
@@ -151,9 +157,11 @@ export class FakeSessions {
         const token = Redacted.value(cookie);
         const session = this.sessions.get(token);
         const user = session === undefined ? undefined : this.users.get(session.userId);
+
         if (session === undefined || user === undefined || this.revoked.has(token)) {
           return Effect.fail(new Unauthenticated());
         }
+
         return Effect.succeed<SignedInSession>({
           identity: identityOf(user.id, user.email, user.emailVerified),
           sessionId: session.sessionId,
@@ -171,13 +179,17 @@ export class FakeSessions {
     verifySignInCode: (email, code) =>
       Effect.sync(() => {
         const expected = this.codes.get(code);
+
         const user = [...this.users.values()].find(
           (each) => normaliseEmail(each.email) === normaliseEmail(email),
         );
+
         if (expected !== normaliseEmail(email) || user === undefined) {
           return Option.none<string>();
         }
+
         this.codes.delete(code);
+
         return Option.some(this.issue(user.id));
       }),
     revokeSession: (sessionId) =>
@@ -185,12 +197,15 @@ export class FakeSessions {
         if (this.failRevoke) {
           return Effect.fail(new AuthUnavailable());
         }
+
         this.revocations.push(sessionId);
+
         for (const [token, session] of this.sessions) {
           if (session.sessionId === sessionId) {
             this.revoked.add(token);
           }
         }
+
         return Effect.void;
       }),
   });
@@ -206,6 +221,7 @@ export class MemoryIndex {
 
   private candidate(organizationId: OrganizationId, personId: PersonId, linked: boolean): PersonCandidate {
     const organization = this.organizations.get(organizationId);
+
     return { organization: { id: organizationId, name: organization?.name ?? "" }, personId, linked };
   }
 
@@ -246,6 +262,7 @@ export class MemoryIndex {
     linkPerson: (organizationId, personId, userId) =>
       Effect.sync(() => {
         const person = this.persons.get(`${organizationId}/${personId}`);
+
         if (person !== undefined && person.userId === null) {
           person.userId = userId;
         }
@@ -253,17 +270,21 @@ export class MemoryIndex {
     claimOrganization: (userId, proposed) =>
       Effect.sync(() => {
         const existing = this.claims.get(userId);
+
         if (existing !== undefined) {
           return existing;
         }
+
         const claim = { ...proposed, completed: false };
         this.claims.set(userId, claim);
+
         return claim;
       }),
     claimOf: (userId) => Effect.sync(() => Option.fromNullishOr(this.claims.get(userId))),
     completeClaim: (userId) =>
       Effect.sync(() => {
         const claim = this.claims.get(userId);
+
         if (claim !== undefined) {
           this.claims.set(userId, { ...claim, completed: true });
         }
@@ -306,9 +327,11 @@ export class MemoryOrganizations {
 
   private organization(organizationId: OrganizationId): MemoryOrganization {
     const found = this.organizations.get(organizationId);
+
     if (found !== undefined) {
       return found;
     }
+
     return {
       state: {
         organizationName: "",
@@ -335,6 +358,7 @@ export class MemoryOrganizations {
         if (this.organizations.has(organization.id)) {
           return;
         }
+
         this.organizations.set(organization.id, {
           state: {
             organizationName: organization.name,
@@ -367,23 +391,30 @@ export class MemoryOrganizations {
     linkPerson: (organizationId, personId, userId, email) =>
       Effect.sync(() => {
         const organization = this.organizations.get(organizationId);
+
         if (organization === undefined) {
           return false;
         }
+
         const { people } = organization.state;
         const person = people.find((each) => each.id === personId);
+
         if (person === undefined || person.removedAt !== null) {
           return false;
         }
+
         if (person.email !== normaliseEmail(email)) {
           return false;
         }
+
         if (people.some((other) => other.id !== personId && other.authUserId === userId)) {
           return false;
         }
+
         if (person.authUserId === null) {
           this.update(organizationId, personId, { authUserId: userId });
         }
+
         return this.person(organizationId, personId)?.authUserId === userId;
       }),
     activePerson: (organizationId, userId) =>
@@ -391,7 +422,9 @@ export class MemoryOrganizations {
         const found = this.organization(organizationId).state.people.find(
           (person) => person.authUserId === userId && person.removedAt === null,
         );
+
         const organizationLocale = this.organization(organizationId).state.defaultLocale;
+
         return Option.map(Option.fromNullishOr(found), (person) => ({
           personId: person.id,
           organizationAdmin: person.organizationAdmin,
@@ -406,14 +439,19 @@ export class MemoryOrganizations {
     run: (organizationId, actorId, command, now) =>
       Effect.sync((): CommandResult => {
         const organization = this.organizations.get(organizationId);
+
         if (organization === undefined) {
           return { _tag: "Rejected", rejection: { _tag: "Forbidden" } };
         }
+
         const decision = decide(organization.state, actorId, command, now);
+
         if (decision._tag === "Rejected") {
           return decision;
         }
+
         organization.state = applyChanges(organization.state, decision.changes);
+
         for (const change of decision.changes) {
           if (change._tag === "EmailRequested" && !organization.sends.has(change.sendId)) {
             organization.sends.set(change.sendId, {
@@ -423,11 +461,13 @@ export class MemoryOrganizations {
             });
           }
         }
+
         return { _tag: "Accepted", followUps: decision.followUps };
       }),
     teams: (organizationId, actorId) =>
       Effect.sync(() => {
         const view = teamsView(this.organization(organizationId).state, actorId);
+
         return view._tag === "Viewed"
           ? {
               _tag: "Viewed" as const,
@@ -442,11 +482,13 @@ export class MemoryOrganizations {
     failedEmails: (organizationId, actorId) =>
       Effect.sync(() => {
         const organization = this.organization(organizationId);
+
         const failed = [...organization.sends]
           .flatMap(([sendId, send]): readonly FailedEmail[] => {
             if (send.state._tag !== "Failed") {
               return [];
             }
+
             return [
               {
                 sendId,
@@ -464,35 +506,45 @@ export class MemoryOrganizations {
           })
           .sort((a, b) => b.failedAt - a.failedAt)
           .slice(0, 50);
+
         return failedEmailsView(organization.state, actorId, failed);
       }),
     resendFailedEmail: (organizationId, actorId, sendId, _now) =>
       Effect.sync((): ResendResult => {
         const organization = this.organization(organizationId);
+
         if (!isEmailAdmin(organization.state, actorId)) {
           return { _tag: "Rejected", rejection: { _tag: "Forbidden" } };
         }
+
         const send = organization.sends.get(sendId);
+
         if (send === undefined) {
           return { _tag: "Rejected", rejection: { _tag: "FailedEmailNotFound" } };
         }
+
         if (send.state._tag !== "Failed") {
           return {
             _tag: "Accepted",
             status: { sendId, state: progressOf(send.state) },
           };
         }
+
         const facts = fakeResendFacts(organization, sendId, send.email, send.state.reason);
+
         if (!isResendable(sendId, facts)) {
           return { _tag: "Rejected", rejection: { _tag: "EmailNotResendable" } };
         }
+
         organization.sends.set(sendId, { ...send, state: pending });
+
         return { _tag: "Accepted", status: { sendId, state: progressOf(pending) } };
       }),
     emailStatus: (organizationId, actorId, sendId) =>
       Effect.sync(() => {
         const organization = this.organization(organizationId);
         const send = organization.sends.get(sendId);
+
         return emailStatusView(
           organization.state,
           actorId,
@@ -505,20 +557,26 @@ export class MemoryOrganizations {
     run: (organizationId, actorId, command, now) =>
       Effect.sync((): PulseCommandResult => {
         const organization = this.organizations.get(organizationId);
+
         if (organization === undefined) {
           return { _tag: "Rejected", rejection: { _tag: "Forbidden" } };
         }
+
         const decision = decidePulse(organization.state, organization.pulses, actorId, command, now);
+
         if (decision._tag === "Rejected") {
           return decision;
         }
+
         organization.pulses = applyPulseChanges(organization.pulses, decision.changes);
+
         return { _tag: "Accepted" };
       }),
     pulses: (organizationId, actorId, teamId) =>
       Effect.sync(() => {
         const organization = this.organization(organizationId);
         const view = pulsesView(organization.state, organization.pulses, actorId, teamId);
+
         return view._tag === "Viewed"
           ? {
               _tag: "Viewed" as const,
@@ -536,6 +594,7 @@ export class MemoryOrganizations {
     pulse: (organizationId, actorId, teamId, pulseId) =>
       Effect.sync(() => {
         const organization = this.organization(organizationId);
+
         return pulseView(organization.state, organization.pulses, actorId, teamId, pulseId);
       }),
     testSend: (organizationId, actorId, teamId, pulseId, sendId, now) =>
@@ -543,24 +602,31 @@ export class MemoryOrganizations {
         const organization = this.organization(organizationId);
         const test = organization.testSends.get(sendId);
         const send = organization.sends.get(sendId);
+
         const found: TestSendFound | null =
           test === undefined ? null : { ...test, state: send?.state ?? pending };
+
         return testSendView(organization.state, actorId, teamId, pulseId, found, now);
       }),
     sendTest: (organizationId, actorId, teamId, pulseId, now) =>
       Effect.sync((): TestSendResult => {
         const organization = this.organization(organizationId);
         const decision = decideTestSend(organization.state, organization.pulses, actorId, teamId, pulseId);
+
         if (decision._tag === "Rejected") {
           return decision;
         }
+
         const { person, pulse } = decision;
         const recent = (organization.testSendTimes.get(actorId) ?? []).filter((at) => at > now - 3_600_000);
+
         if (recent.length >= testSendsPerHour) {
           return { _tag: "Rejected", rejection: { _tag: "TestSendLimitReached", perHour: testSendsPerHour } };
         }
+
         organization.testSendTimes.set(actorId, [...recent, now]);
         const first = organization.pulses.versions.find((version) => version.id === pulse.questions[0]);
+
         const testEmail: TransactionalEmail = {
           _tag: "TestInvitationEmail",
           locale: emailLocaleOf(organization.state, actorId),
@@ -579,9 +645,11 @@ export class MemoryOrganizations {
           actions: [],
           aiProcessing: organization.state.aiProcessing,
         };
+
         const sendId = SendId.make(crypto.randomUUID());
         organization.sends.set(sendId, { recipient: person.email, email: testEmail, state: pending });
         organization.testSends.set(sendId, { personId: actorId, pulseId, sentAt: now });
+
         return { _tag: "Accepted", sendId, email: person.email };
       }),
   });
@@ -598,9 +666,11 @@ export class MemoryOrganizations {
       Effect.sync((): RoundViewed<TeamOverview> => {
         const organization = this.organization(organizationId);
         const auth = authorizeRoundAction(organization.state, actorId, "team.viewResults", teamId);
+
         if (auth._tag === "Rejected") {
           return auth;
         }
+
         return { _tag: "Viewed", value: { teamId, rounds: [], dimensions: [], markers: [] } };
       }),
     history: () => Effect.succeed({ rounds: [] }),
@@ -611,36 +681,44 @@ export class MemoryOrganizations {
       Effect.sync((): NoteViewed<RoundNoteView> => {
         const organization = this.organization(organizationId);
         const auth = authorizeRoundAction(organization.state, actorId, "team.viewNote", teamId);
+
         if (auth._tag === "Rejected") {
           return {
             _tag: "Rejected",
             rejection: { _tag: auth.rejection._tag === "TeamNotFound" ? "TeamNotFound" : "Forbidden" },
           };
         }
+
         if (organization.rounds.get(roundId) !== teamId) {
           return { _tag: "Rejected", rejection: { _tag: "RoundNotFound" } };
         }
+
         return { _tag: "Viewed", value: { roundId, note: organization.notes.get(roundId) ?? null } };
       }),
     save: (organizationId, actorId, teamId, roundId, text, now) =>
       Effect.sync((): NoteViewed<RoundNoteView> => {
         const organization = this.organization(organizationId);
         const auth = authorizeRoundAction(organization.state, actorId, "team.writeNote", teamId);
+
         if (auth._tag === "Rejected") {
           return {
             _tag: "Rejected",
             rejection: { _tag: auth.rejection._tag === "TeamNotFound" ? "TeamNotFound" : "Forbidden" },
           };
         }
+
         if (organization.rounds.get(roundId) !== teamId) {
           return { _tag: "Rejected", rejection: { _tag: "RoundNotFound" } };
         }
+
         const change = noteChange(text);
+
         if (change._tag === "Delete") {
           organization.notes.delete(roundId);
         } else {
           organization.notes.set(roundId, { roundId, text: change.text, updatedAt: now });
         }
+
         return { _tag: "Viewed", value: { roundId, note: organization.notes.get(roundId) ?? null } };
       }),
   });
@@ -650,17 +728,22 @@ export class MemoryOrganizations {
       Effect.sync((): ActionViewed<ActionList> => {
         const organization = this.organization(organizationId);
         const auth = authorizeRoundAction(organization.state, actorId, "team.viewActions", teamId);
+
         if (auth._tag === "Rejected") {
           return {
             _tag: "Rejected",
             rejection: { _tag: auth.rejection._tag === "TeamNotFound" ? "TeamNotFound" : "Forbidden" },
           };
         }
+
         const team = organization.state.teams.find((t) => t.id === teamId);
+
         if (team === undefined) {
           return { _tag: "Rejected", rejection: { _tag: "TeamNotFound" } };
         }
+
         const all: ActionItem[] = [];
+
         for (const act of organization.actions.values()) {
           if (act.teamId === teamId) {
             const owner = organization.state.people.find((p) => p.id === act.ownerId);
@@ -680,31 +763,40 @@ export class MemoryOrganizations {
             });
           }
         }
+
         all.sort((a, b) => a.createdAt - b.createdAt);
+
         return { _tag: "Viewed", value: { teamId, actions: all } };
       }),
     create: (organizationId, actorId, teamId, payload, now) =>
       Effect.sync((): ActionViewed<ActionItem> => {
         const organization = this.organization(organizationId);
         const auth = authorizeRoundAction(organization.state, actorId, "team.createAction", teamId);
+
         if (auth._tag === "Rejected") {
           return {
             _tag: "Rejected",
             rejection: { _tag: auth.rejection._tag === "TeamNotFound" ? "TeamNotFound" : "Forbidden" },
           };
         }
+
         const team = organization.state.teams.find((t) => t.id === teamId);
+
         if (team === undefined) {
           return { _tag: "Rejected", rejection: { _tag: "TeamNotFound" } };
         }
+
         const isMember = organization.state.memberships.some(
           (m) => m.teamId === teamId && m.personId === payload.ownerId && m.endedAt === null,
         );
+
         if (!isMember) {
           return { _tag: "Rejected", rejection: { _tag: "OwnerNotInTeam" } };
         }
+
         const owner = organization.state.people.find((p) => p.id === payload.ownerId);
         const actionId = ActionId.make(`action-${organization.actions.size + 1}`);
+
         const record: ActionRecord = {
           id: actionId,
           teamId,
@@ -718,7 +810,9 @@ export class MemoryOrganizations {
           updatedAt: now,
           doneAt: null,
         };
+
         organization.actions.set(actionId, record);
+
         return {
           _tag: "Viewed",
           value: {
@@ -741,34 +835,44 @@ export class MemoryOrganizations {
       Effect.sync((): ActionViewed<ActionItem> => {
         const organization = this.organization(organizationId);
         const auth = authorizeRoundAction(organization.state, actorId, "team.updateAction", teamId);
+
         if (auth._tag === "Rejected") {
           return {
             _tag: "Rejected",
             rejection: { _tag: auth.rejection._tag === "TeamNotFound" ? "TeamNotFound" : "Forbidden" },
           };
         }
+
         const team = organization.state.teams.find((t) => t.id === teamId);
+
         if (team === undefined) {
           return { _tag: "Rejected", rejection: { _tag: "TeamNotFound" } };
         }
+
         const existing = organization.actions.get(actionId);
+
         if (existing === undefined || existing.teamId !== teamId) {
           return { _tag: "Rejected", rejection: { _tag: "ActionNotFound" } };
         }
+
         if (payload.ownerId !== undefined) {
           const isMember = organization.state.memberships.some(
             (m) => m.teamId === teamId && m.personId === payload.ownerId && m.endedAt === null,
           );
+
           if (!isMember) {
             return { _tag: "Rejected", rejection: { _tag: "OwnerNotInTeam" } };
           }
         }
+
         let newDoneAt: number | null = existing.doneAt;
+
         if (payload.status === "done" && existing.status !== "done") {
           newDoneAt = now;
         } else if (payload.status !== undefined && payload.status !== "done") {
           newDoneAt = null;
         }
+
         const updated: ActionRecord = {
           ...existing,
           title: payload.title ?? existing.title,
@@ -779,8 +883,10 @@ export class MemoryOrganizations {
           updatedAt: now,
           doneAt: newDoneAt,
         };
+
         organization.actions.set(actionId, updated);
         const owner = organization.state.people.find((p) => p.id === updated.ownerId);
+
         return {
           _tag: "Viewed",
           value: {
@@ -807,9 +913,11 @@ export class MemoryOrganizations {
 
   update(organizationId: OrganizationId, personId: PersonId, patch: Partial<PersonRecord>) {
     const organization = this.organizations.get(organizationId);
+
     if (organization === undefined) {
       throw new Error(`no Organization ${organizationId}`);
     }
+
     organization.state = {
       ...organization.state,
       people: organization.state.people.map((person) =>
@@ -855,25 +963,31 @@ export class SignInWorld {
       testSends: new Map(),
       testSendTimes: new Map(),
     });
+
     return { id, name };
   }
 
   addRound(organizationId: OrganizationId, teamId: TeamId): RoundId {
     const roundId = RoundId.make(`round-${++this.ids}`);
     const organization = this.durable.organizations.get(organizationId);
+
     if (organization === undefined) {
       throw new Error(`no Organization ${organizationId}`);
     }
+
     organization.rounds.set(roundId, teamId);
+
     return roundId;
   }
 
   addPerson(organizationId: OrganizationId, email: string, organizationAdmin = false): PersonId {
     const personId = PersonId.make(`person-${++this.ids}`);
     const organization = this.durable.organizations.get(organizationId);
+
     if (organization === undefined) {
       throw new Error(`no Organization ${organizationId}`);
     }
+
     const normalised = EmailAddress.make(normaliseEmail(email));
     organization.state = {
       ...organization.state,
@@ -896,6 +1010,7 @@ export class SignInWorld {
       email: normalised,
       userId: null,
     });
+
     return personId;
   }
 
@@ -920,10 +1035,12 @@ export class SignInWorld {
         }),
       ),
     );
+
     const auth = authHandlers({
       services: Effect.succeed(services),
       allowlist: Effect.sync(() => new OrganizationCreationAllowlist(this.allowlist)),
     });
+
     const { handler } = HttpRouter.toWebHandler(
       HttpApiBuilder.layer(SurveyBeatApi).pipe(
         Layer.provide([
@@ -937,6 +1054,7 @@ export class SignInWorld {
         Layer.provide(HttpServer.layerServices),
       ),
     );
+
     return (request) => handler(request);
   };
 }
@@ -953,24 +1071,30 @@ export class Browser {
 
   async fetch(path: string, init: RequestInit = {}): Promise<Response> {
     const headers = new Headers(init.headers);
+
     if (this.cookies.size > 0) {
       headers.set("cookie", [...this.cookies].map(([name, value]) => `${name}=${value}`).join("; "));
     }
+
     const response = await this.handle(
       new Request(`${ORIGIN}${path}`, { ...init, headers, redirect: "manual" }),
     );
+
     for (const header of response.headers.getSetCookie()) {
       const [pair = "", ...attributes] = header.split(";").map((part) => part.trim());
       const [name = "", value = ""] = pair.split("=");
+
       const expired = attributes.some(
         (attribute) => /^max-age=0$/i.test(attribute) || /^expires=.*1970/i.test(attribute),
       );
+
       if (expired || value === "") {
         this.cookies.delete(name);
       } else {
         this.cookies.set(name, value);
       }
     }
+
     return response;
   }
 
@@ -992,6 +1116,7 @@ export class Browser {
   async call(method: string, path: string, body?: unknown): Promise<{ status: number; body: unknown }> {
     const response = await this.send(method, path, body);
     const text = await response.text();
+
     return { status: response.status, body: text === "" ? null : JSON.parse(text) };
   }
 
@@ -1001,6 +1126,7 @@ export class Browser {
 
   async session(): Promise<{ status: number; body: unknown }> {
     const response = await this.get("/auth/session");
+
     return { status: response.status, body: await response.json() };
   }
 }

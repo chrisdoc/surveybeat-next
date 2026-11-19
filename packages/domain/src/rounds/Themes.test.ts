@@ -27,7 +27,9 @@ import {
 import type { RoundThemesRecord, ThemesJobDecision } from "./Themes.ts";
 
 const MINUTE = 60_000;
+
 const HOUR = 3_600_000;
+
 const REQUESTED_AT = 1_731_140_000_000;
 
 const COMMENTS = [
@@ -38,7 +40,9 @@ const COMMENTS = [
 ];
 
 const QA = QuestionVersionId.make("qv-themes-a.1");
+
 const QB = QuestionVersionId.make("qv-themes-b.1");
+
 const ratingType: QuestionType = { _tag: "Rating", lowLabel: "Low", highLabel: "High", comment: true };
 
 const highlight = (larger: boolean): Highlight => ({
@@ -215,6 +219,7 @@ describe("checkThemesReply (ADR 0016, 0019)", () => {
         { themes: [theme("Dup", "One voice again.", [1, 1, 1])], guide },
         COMMENTS,
       );
+
       expect(stored.themes).toEqual([]);
     }),
   );
@@ -225,12 +230,14 @@ describe("checkThemesReply (ADR 0016, 0019)", () => {
         { themes: [theme("Out", "Out of range.", [1, 9, -1])], guide },
         COMMENTS,
       );
+
       expect(onlyOneValid.themes).toEqual([]);
 
       const twoValid = yield* checkThemesReply(
         { themes: [theme("Out", "Out of range.", [1, 2, 9, -1])], guide },
         COMMENTS,
       );
+
       expect(twoValid.themes).toEqual([{ label: "Out", sentence: "Out of range.", supportingComments: 2 }]);
     }),
   );
@@ -247,6 +254,7 @@ describe("checkThemesReply (ADR 0016, 0019)", () => {
         },
         COMMENTS,
       );
+
       expect(stored.themes.map((t) => t.label)).toEqual(["Afternoons"]);
     }),
   );
@@ -257,6 +265,7 @@ describe("checkThemesReply (ADR 0016, 0019)", () => {
         { themes: [theme("Too many meetings", "and no quiet time.", [1, 2])], guide },
         COMMENTS,
       );
+
       expect(stored.themes).toEqual([]);
     }),
   );
@@ -266,6 +275,7 @@ describe("checkThemesReply (ADR 0016, 0019)", () => {
       const seven = Array.from({ length: 7 }, (_, i) =>
         theme(`Theme ${i + 1}`, `Point ${i + 1} is neutral.`, [0, 1]),
       );
+
       const stored = yield* checkThemesReply({ themes: seven, guide }, COMMENTS);
       expect(stored.themes.map((t) => t.label)).toEqual([
         "Theme 1",
@@ -290,6 +300,7 @@ describe("checkThemesReply (ADR 0016, 0019)", () => {
         },
         COMMENTS,
       );
+
       expect(stored.themes.map((t) => t.label)).toEqual(["Valid"]);
     }),
   );
@@ -310,6 +321,7 @@ describe("checkThemesReply (ADR 0016, 0019)", () => {
         },
         COMMENTS,
       );
+
       expect(stored.guide).toBeNull();
     }),
   );
@@ -320,6 +332,7 @@ describe("checkThemesReply (ADR 0016, 0019)", () => {
         { themes: [], guide: { ...guide, questions: ["a?", "b?", "c?", "d?"] } },
         COMMENTS,
       );
+
       expect(stored.guide).toBeNull();
     }),
   );
@@ -337,6 +350,7 @@ describe("checkThemesReply (ADR 0016, 0019)", () => {
   it.effect("fails when the top level is not an object with a themes array", () =>
     Effect.gen(function* () {
       const replies: readonly unknown[] = ["oops", null, [], { themes: "x", guide }, { guide }];
+
       for (const reply of replies) {
         const error = yield* checkThemesReply(reply, COMMENTS).pipe(Effect.flip);
         expect(error).toBeInstanceOf(ThemesReplyInvalid);
@@ -381,6 +395,7 @@ describe("buildThemesInput (ADR 0015, 0019)", () => {
       ["Ask Anna Berg about @anna", ""],
       [{ name: "Anna Berg" }],
     );
+
     expect(built.actions).toHaveLength(1);
     const serialised = JSON.stringify(built.actions);
     expect(serialised).not.toContain("Anna");
@@ -424,15 +439,19 @@ const driveThemesJob = (themesInput: AiInput, requestedAt: number) =>
     const decisions: ThemesJobDecision[] = [];
     let attempts = 0;
     let now = requestedAt;
+
     for (let step = 0; step < 50; step++) {
       const decision = yield* runThemesAttempt({ input: themesInput, requestedAt, attempts, now });
       decisions.push(decision);
+
       if (decision._tag !== "RetryAt") {
         break;
       }
+
       attempts = decision.attempts;
       now = decision.dueAt;
     }
+
     return decisions;
   });
 
@@ -456,6 +475,7 @@ describe("themes job lifecycle (ADR 0016)", () => {
         Effect.fail(new AiUnavailable({ reason: "timeout" })),
         Effect.succeed(validReply),
       ]);
+
       const decisions = yield* driveThemesJob(input(), REQUESTED_AT).pipe(Effect.provide(fake.layer));
 
       expect(decisions).toEqual([
@@ -483,18 +503,22 @@ describe("themes job lifecycle (ADR 0016)", () => {
       // is at t_k + min(5 min * 2^(k-1), 4 h), and the job stops once that would pass 24 h.
       const gap = (k: number) => Math.min(5 * MINUTE * 2 ** (k - 1), 4 * HOUR);
       const attemptTimes: number[] = [REQUESTED_AT];
+
       while (attemptTimes.length <= 100) {
         const failures = attemptTimes.length;
         const next = (attemptTimes[failures - 1] ?? 0) + gap(failures);
+
         if (next > REQUESTED_AT + RETRY_WINDOW_MS) {
           break;
         }
+
         attemptTimes.push(next);
       }
 
       const fake = yield* fakeAiClient(
         attemptTimes.map(() => Effect.fail(new AiUnavailable({ reason: "timeout" }))),
       );
+
       const decisions = yield* driveThemesJob(input(), REQUESTED_AT).pipe(Effect.provide(fake.layer));
 
       expect(decisions).toHaveLength(attemptTimes.length);
@@ -502,9 +526,11 @@ describe("themes job lifecycle (ADR 0016)", () => {
       decisions.slice(0, -1).forEach((decision, i) => {
         expect(decision).toEqual({ _tag: "RetryAt", dueAt: attemptTimes[i + 1], attempts: i + 1 });
       });
+
       for (const time of attemptTimes) {
         expect(time).toBeLessThanOrEqual(REQUESTED_AT + RETRY_WINDOW_MS);
       }
+
       const requests = yield* fake.requests;
       expect(requests).toHaveLength(attemptTimes.length);
     }),
@@ -523,6 +549,7 @@ describe("themes job lifecycle (ADR 0016)", () => {
   it.effect("retries an invalid reply", () =>
     Effect.gen(function* () {
       const fake = yield* fakeAiClient([Effect.succeed("oops")]);
+
       const decision = yield* runThemesAttempt({
         input: input(),
         requestedAt: REQUESTED_AT,
@@ -539,16 +566,19 @@ describe("viewRoundResult: the Review window (issue 106)", () => {
   const VIEW_ROUND_ID = RoundId.make("round-view-4d2c");
   const VIEW_QV = QuestionVersionId.make("qv-view-8a1b.1");
   const REVIEW_ENDS_AT = 1_731_400_000_000;
+
   const VIEW_COMMENTS = [
     "Calendars fill up before anyone can plan deep work",
     "Too many meetings and no quiet time",
   ];
+
   const VIEW_GUIDE = {
     whatStoodOut: ["Clarity scores held steady"],
     whatPeopleRaised: ["Calendars fill up quickly"],
     actionsToCheckOn: [],
     questions: ["What would give you protected time?"],
   };
+
   const VIEW_STORED_THEMES = {
     themes: [
       {
@@ -559,6 +589,7 @@ describe("viewRoundResult: the Review window (issue 106)", () => {
     ],
     guide: VIEW_GUIDE,
   };
+
   const VIEW_THEMES: RoundThemesRecord = { status: "ready", themes: VIEW_STORED_THEMES };
 
   /** A Result with 6 submissions, stored under N = 4 with status closed, so it meets N. */
@@ -691,6 +722,7 @@ describe("viewRoundResult: the Review window (issue 106)", () => {
 
 describe("viewRoundResult: a Result that could not be computed (Issue #128)", () => {
   const DELAYED_ROUND = RoundId.make("round-failed-3c9e");
+
   const stored = (): RoundResult =>
     delayedRoundResult({
       roundId: DELAYED_ROUND,
@@ -713,6 +745,7 @@ describe("viewRoundResult: a Result that could not be computed (Issue #128)", ()
       themes: null,
       round: { status: "closed", reviewEndsAt: REQUESTED_AT + 3 * 24 * HOUR },
     });
+
     expect(lead.couldNotCompute).toBe(true);
     expect(lead.delayed).toBe(true);
   });
@@ -725,6 +758,7 @@ describe("viewRoundResult: a Result that could not be computed (Issue #128)", ()
       themes: null,
       round: { status: "closed", reviewEndsAt: REQUESTED_AT + 3 * 24 * HOUR },
     });
+
     expect(member.delayed).toBe(true);
     expect(member).not.toHaveProperty("couldNotCompute");
   });
@@ -738,6 +772,7 @@ describe("viewRoundResult: a Result that could not be computed (Issue #128)", ()
       round: { status: "closed", reviewEndsAt: null },
       resultPending: true,
     });
+
     expect(lead.delayed).toBe(true);
     expect(lead).not.toHaveProperty("couldNotCompute");
   });
@@ -750,6 +785,7 @@ describe("viewRoundResult: a Result that could not be computed (Issue #128)", ()
       themes: null,
       round: { status: "ready", reviewEndsAt: REQUESTED_AT + 3 * 24 * HOUR },
     });
+
     expect(lead).not.toHaveProperty("couldNotCompute");
   });
 });
@@ -776,6 +812,7 @@ describe("the themes retry machine", () => {
         const late = yield* createEffectActor(themesRetryMachine, {
           snapshot: at(3, REQUESTED_AT + RETRY_WINDOW_MS),
         });
+
         yield* sendAndAwait(late, { type: "Invalid" });
         expect(late.getSnapshot().value).toBe("failed");
         expect(late.getSnapshot().context.decision).toEqual({ _tag: "GiveUp" });
@@ -809,6 +846,7 @@ describe("the themes retry machine", () => {
         value: "ready",
         context: { attempts: 1, requestedAt: REQUESTED_AT, now: REQUESTED_AT, decision: null },
       });
+
       expect(
         isUnhandled(
           finished,
@@ -836,6 +874,7 @@ describe("the themes retry machine", () => {
 
   it.each(["ready", "failed"] as const)("refuses every event once it is %s", (value) => {
     const snapshot = snapshotAt(value);
+
     for (const event of events) {
       expect(
         isUnhandled(snapshot, transition(themesRetryMachine, snapshot, event)),

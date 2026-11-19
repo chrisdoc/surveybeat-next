@@ -2,24 +2,28 @@ import { Option, Schema } from "effect";
 import { isUnhandled, setup, transition, types } from "xstate";
 
 export const FailureReason = Schema.Literals(["unknown", "rejected", "abandoned", "bounced", "complained"]);
+
 export type FailureReason = typeof FailureReason.Type;
 
 export const Pending = Schema.TaggedStruct("Pending", {
   attempts: Schema.Int,
   lastCode: Schema.NullOr(Schema.String),
 });
+
 export type Pending = typeof Pending.Type;
 
 export const Sending = Schema.TaggedStruct("Sending", {
   attempt: Schema.Int,
   leaseExpiresAt: Schema.Int,
 });
+
 export type Sending = typeof Sending.Type;
 
 export const Sent = Schema.TaggedStruct("Sent", {
   messageId: Schema.String,
   sentAt: Schema.Int,
 });
+
 export type Sent = typeof Sent.Type;
 
 export const Failed = Schema.TaggedStruct("Failed", {
@@ -27,9 +31,11 @@ export const Failed = Schema.TaggedStruct("Failed", {
   code: Schema.NullOr(Schema.String),
   failedAt: Schema.Int,
 });
+
 export type Failed = typeof Failed.Type;
 
 export const SendState = Schema.Union([Pending, Sending, Sent, Failed]);
+
 export type SendState = typeof SendState.Type;
 
 export interface SendPolicy {
@@ -106,12 +112,14 @@ export const sendMachine = setup({
           if (context.state._tag === "Sending" && event.now < context.state.leaseExpiresAt) {
             return { target: "sending" };
           }
+
           return { target: "failed", context: { state: failedState("unknown", null, event.now) } };
         },
         Settle: ({ context, event }) => {
           if (context.state._tag !== "Sending" || context.state.attempt !== event.attempt) {
             return;
           }
+
           switch (event.outcome._tag) {
             case "Accepted": {
               return {
@@ -119,6 +127,7 @@ export const sendMachine = setup({
                 context: { state: { _tag: "Sent", messageId: event.outcome.messageId, sentAt: event.now } },
               };
             }
+
             case "Rejected": {
               return event.outcome.permanent || event.attempt >= event.policy.maxAttempts
                 ? {
@@ -132,6 +141,7 @@ export const sendMachine = setup({
                     },
                   };
             }
+
             case "Unknown": {
               return {
                 target: "failed",
@@ -152,6 +162,7 @@ export const sendMachine = setup({
           if (event.kind === "delivered" || event.kind === "deferred") {
             return;
           }
+
           return {
             target: "failed",
             context: {
@@ -193,29 +204,35 @@ const snapshotFor = (state: SendState) =>
 const step = (state: SendState, event: Parameters<typeof transition<typeof sendMachine>>[2]) => {
   const snapshot = snapshotFor(state);
   const [next, effects] = transition(sendMachine, snapshot, event);
+
   return { next, refused: isUnhandled(snapshot, [next, effects]), snapshot };
 };
 
 export const requeue = (state: SendState): Option.Option<SendState> => {
   const { next, refused } = step(state, { type: "Requeue" });
+
   return refused ? Option.none() : Option.some(next.context.state);
 };
 
 export const claim = (state: SendState, now: number, policy: SendPolicy): ClaimDecision => {
   const { next } = step(state, { type: "Claim", now, policy });
   const settled = next.context.state;
+
   switch (settled._tag) {
     case "Sending": {
       return state._tag === "Pending"
         ? { _tag: "Send", state: settled }
         : { _tag: "Wait", until: settled.leaseExpiresAt };
     }
+
     case "Failed": {
       return { _tag: "Finished", state: settled, changed: state._tag !== "Failed" };
     }
+
     case "Sent": {
       return { _tag: "Finished", state: settled, changed: false };
     }
+
     case "Pending": {
       throw new Error("Send.claim leaves no state Pending");
     }
@@ -230,11 +247,13 @@ export const settle = (
   policy: SendPolicy,
 ): Option.Option<SendState> => {
   const { next, refused } = step(state, { type: "Settle", attempt, outcome, now, policy });
+
   return refused ? Option.none() : Option.some(next.context.state);
 };
 
 export const abandon = (state: SendState, now: number): Option.Option<SendState> => {
   const { next, refused } = step(state, { type: "Abandon", now });
+
   return refused ? Option.none() : Option.some(next.context.state);
 };
 
@@ -245,6 +264,7 @@ export const recordDeliveryEvent = (
   now: number,
 ): Option.Option<SendState> => {
   const { next, refused } = step(state, { type: "Delivery", kind, code, now });
+
   return refused ? Option.none() : Option.some(next.context.state);
 };
 

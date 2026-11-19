@@ -106,9 +106,11 @@ export const testInvitationTestRoutes = (
       });
       yield* organization.abandonEmailSend(bulk, now + 100 + i);
     }
+
     const failedAfter = yield* organization.listFailedEmails(admin);
 
     const tokenHash = record?.tokenHash ?? "";
+
     const indexed = yield* db
       .prepare("SELECT organization_id, pulse_id, expires_at FROM test_invitation_index WHERE token_hash = ?")
       .bind(tokenHash)
@@ -121,6 +123,7 @@ export const testInvitationTestRoutes = (
           times: 80,
         }),
       );
+
     const asInvitation = yield* db
       .prepare("SELECT token_hash FROM invitation_index WHERE token_hash = ?")
       .bind(tokenHash)
@@ -129,6 +132,7 @@ export const testInvitationTestRoutes = (
     const expiresAt = now + testInvitationLifetimeMs;
     const testContext = yield* organization.getTestSubmissionContext(pulseId, expiresAt);
     const view = yield* organization.viewPulse(admin, teamId, pulseId);
+
     const preview = yield* organization.previewTestAnswers([
       {
         questionVersionId: QuestionVersionId.make("qv-preview"),
@@ -136,12 +140,14 @@ export const testInvitationTestRoutes = (
         comment: "Grace, the review was clear",
       },
     ]);
+
     const noComment = yield* organization.previewTestAnswers([
       { questionVersionId: QuestionVersionId.make("qv-preview"), value: 4, comment: null },
     ]);
 
     const state = yield* organization.getEmailSend(sendId);
     const messageId = state?.state._tag === "Sent" ? state.state.messageId : "";
+
     const captured = yield* db
       .prepare("SELECT recipient, subject FROM captured_email WHERE message_id = ?")
       .bind(messageId)

@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const here = import.meta.dirname;
+
 const root = join(here, "..", "..");
 
 /** @typedef {{ references?: { path: string }[] }} RootConfig */
@@ -21,6 +22,7 @@ export const readProjects = () =>
 export const run = (command, args) => {
   const result = spawnSync(command, args, { cwd: root, encoding: "utf8" });
   const output = `${result.stdout ?? ""}${result.stderr ?? ""}`;
+
   return { status: result.status ?? 1, output };
 };
 

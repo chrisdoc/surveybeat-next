@@ -46,9 +46,11 @@ const mapRejection = (rejection: NoteRejection): NoteError => {
     case "Forbidden": {
       return new Forbidden();
     }
+
     case "TeamNotFound": {
       return new TeamNotFound();
     }
+
     case "RoundNotFound": {
       return new RoundNotFound();
     }
@@ -66,6 +68,7 @@ export const getRoundNote = (
   Effect.gen(function* () {
     const notes = yield* OrganizationNotes;
     const result = yield* notes.get(member.organization.id, member.personId, teamId, roundId);
+
     return yield* unwrap(result);
   });
 
@@ -78,6 +81,7 @@ export const saveRoundNote = (
   Effect.gen(function* () {
     const notes = yield* OrganizationNotes;
     const now = yield* Clock.currentTimeMillis;
+
     const result = yield* notes.save(
       member.organization.id,
       member.personId,
@@ -86,5 +90,6 @@ export const saveRoundNote = (
       payload.text,
       now,
     );
+
     return yield* unwrap(result);
   });

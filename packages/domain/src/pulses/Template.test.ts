@@ -29,10 +29,12 @@ describe("the weekly team health Template", () => {
           dimension: question.dimension,
         }),
       ).toBe(true);
+
       if (question.type._tag === "Rating") {
         expect(Schema.is(ScaleLabel)(question.type.lowLabel)).toBe(true);
         expect(Schema.is(ScaleLabel)(question.type.highLabel)).toBe(true);
       }
+
       if (question.type._tag === "SingleChoice") {
         for (const option of question.type.options) {
           expect(Schema.is(ChoiceOption)(option)).toBe(true);

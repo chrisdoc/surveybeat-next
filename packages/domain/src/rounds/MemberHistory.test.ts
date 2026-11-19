@@ -12,11 +12,15 @@ import type { RoundStatus } from "./Round.ts";
 import type { SubmissionAnswer } from "./Submission.ts";
 
 const TEAM = TeamId.make("team-1");
+
 const PULSE = PulseId.make("pulse-1");
+
 const Q1 = QuestionVersionId.make("q-1.1");
+
 const Q2 = QuestionVersionId.make("q-2.1");
 
 const ratingType: QuestionType = { _tag: "Rating", lowLabel: "Low", highLabel: "High", comment: false };
+
 const choiceType: QuestionType = { _tag: "SingleChoice", options: ["A", "B"] };
 
 const WORKLOAD: QuestionInput = {
@@ -26,6 +30,7 @@ const WORKLOAD: QuestionInput = {
   type: ratingType,
   dimension: "workload",
 };
+
 const CLARITY: QuestionInput = {
   id: Q2,
   position: 1,
@@ -33,6 +38,7 @@ const CLARITY: QuestionInput = {
   type: ratingType,
   dimension: "clarity",
 };
+
 const BOTH: readonly QuestionInput[] = [WORKLOAD, CLARITY];
 
 /** Submissions that answer every given Question with the same value. */
@@ -149,6 +155,7 @@ describe("buildMemberHistory", () => {
         },
       ],
     });
+
     const [round] = build([roundInput({ result })]).rounds;
     assert.strictEqual(round?.teamResult, "shown");
     assert.deepStrictEqual(
@@ -168,6 +175,7 @@ describe("buildMemberHistory", () => {
       type: choiceType,
       dimension: null,
     };
+
     const result = computeResult({
       roundId: "round-1",
       storedN: 2,
@@ -180,6 +188,7 @@ describe("buildMemberHistory", () => {
         ],
       })),
     });
+
     const [round] = build([roundInput({ questions: [WORKLOAD, choice], result })]).rounds;
     assert.strictEqual(round?.teamResult, "shown");
     assert.deepStrictEqual(

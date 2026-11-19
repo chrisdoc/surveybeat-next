@@ -7,7 +7,9 @@ import { previewAnswers, testSubmissionContext } from "./TestInvitation.ts";
 import { SubmissionRoundContext } from "./Submission.ts";
 
 const PULSE = PulseId.make("pulse-1");
+
 const ratingType: QuestionType = { _tag: "Rating", lowLabel: "Low", highLabel: "High", comment: true };
+
 const EXPIRES_AT = 1_700_000_000_000 + 7 * 24 * 60 * 60 * 1000;
 
 const questions = [1, 2, 3, 4].map((n) => ({
@@ -70,6 +72,7 @@ describe("testSubmissionContext (ADR 0021, issue #136)", () => {
       expiresAt: EXPIRES_AT,
       aiProcessing: true,
     });
+
     assert.strictEqual(built.minimumGroupSize, 7);
     assert.strictEqual(built.aiProcessing, true);
   });
@@ -117,6 +120,7 @@ describe("previewAnswers (ADR 0021, issue #136)", () => {
       ],
       roster,
     );
+
     assert.isNotNull(preview.shownToLead);
     assert.notInclude(preview.shownToLead ?? "", "Grace");
     assert.include(preview.shownToLead ?? "", "[name]");
@@ -130,6 +134,7 @@ describe("previewAnswers (ADR 0021, issue #136)", () => {
       ],
       roster,
     );
+
     assert.deepStrictEqual(preview, { shownToLead: null });
   });
 

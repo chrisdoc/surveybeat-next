@@ -23,6 +23,7 @@ const pages = [
 
 beforeAll(() => {
   const allBuilt = pages.every((page) => existsSync(resolve(distDir, page.html)));
+
   if (!allBuilt) {
     execSync("pnpm --filter @surveybeat/web build", {
       cwd: resolve(import.meta.dirname, "../../../.."),
@@ -68,27 +69,34 @@ describe.each(pages)("answer page performance budget ($name)", (page) => {
     const pending = scriptSrcMatches.map((src) => src.split("/").pop() ?? "");
     let criticalPathJsGz = 0;
     let criticalPathSource = "";
+
     while (pending.length > 0) {
       const fileName = pending.pop() ?? "";
+
       if (!fileName.endsWith(".js") || counted.has(fileName) || !existsSync(resolve(assetsDir, fileName))) {
         continue;
       }
+
       counted.add(fileName);
       const fileContent = readFileSync(resolve(assetsDir, fileName));
       criticalPathJsGz += gzipSync(fileContent, { level: 9 }).length;
       const source = fileContent.toString("utf8");
       criticalPathSource += source;
+
       for (const m of source.matchAll(
         /(?:^|[;\s}])(?:import|export)\s*(?:[^"'()]*?\bfrom\s*)?["']\.\/([^"']+\.js)["']/g,
       )) {
         pending.push(m[1] ?? "");
       }
     }
+
     expect(counted.size).toBeGreaterThanOrEqual(scriptSrcMatches.length);
+
     // Every imported chunk is preloaded, so the browser fetches the whole graph in one round trip.
     const preloaded = [...html.matchAll(/<link rel="modulepreload"[^>]*href="\/assets\/([^"]+)"/g)].map(
       (m) => m[1] ?? "",
     );
+
     const entries = new Set(scriptSrcMatches.map((src) => src.split("/").pop() ?? ""));
     expect(preloaded.sort()).toEqual([...counted].filter((name) => !entries.has(name)).sort());
     // The app's full catalog must stay off the answer page's critical path.

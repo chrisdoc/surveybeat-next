@@ -45,13 +45,16 @@ import type { makeScheduling } from "./Scheduling.ts";
 const THEMES_LEASE_MS = 10 * 60_000;
 
 const AttemptsPayload = Schema.Struct({ attempts: Schema.Int });
+
 const parseAttempts = (payload: string | null): number => {
   if (payload === null) {
     return 0;
   }
+
   try {
     const p: unknown = JSON.parse(payload);
     const decoded = Schema.decodeUnknownOption(AttemptsPayload)(p);
+
     return Option.match(decoded, {
       onNone: () => 0,
       onSome: (val) => val.attempts,
@@ -63,6 +66,7 @@ const parseAttempts = (payload: string | null): number => {
 
 export const reviewEndsAtOf = (pulseState: PulseState, pulseId: PulseId, now: number) => {
   const pulse = pulseState.pulses.find((p) => p.id === pulseId);
+
   return now + (pulse?.settings.reviewWindowDays ?? 0) * 86_400_000;
 };
 
@@ -71,8 +75,10 @@ export const firstRatingQuestionOf = (
   pulseState: PulseState,
 ) => {
   const firstVersionId = questionVersionIds[0];
+
   const firstVersion =
     firstVersionId !== undefined ? pulseState.versions.find((v) => v.id === firstVersionId) : undefined;
+
   return firstVersion && firstVersion.content.type._tag === "Rating"
     ? {
         text: firstVersion.content.text,
@@ -86,6 +92,7 @@ const InvitationJobPayload = Schema.Struct({
   personId: Schema.String,
   token: Schema.optionalKey(Schema.String),
 });
+
 const decodeInvitationJobPayload = Schema.decodeUnknownOption(InvitationJobPayload);
 
 const ResultsReadyJobPayload = Schema.Struct({
@@ -93,6 +100,7 @@ const ResultsReadyJobPayload = Schema.Struct({
   personId: Schema.String,
   roundId: Schema.String,
 });
+
 const decodeResultsReadyJobPayload = Schema.decodeUnknownOption(ResultsReadyJobPayload);
 
 const parseJobPayload = (
@@ -101,6 +109,7 @@ const parseJobPayload = (
   if (raw === null) {
     return null;
   }
+
   try {
     return Option.getOrNull(decodeInvitationJobPayload(JSON.parse(raw)));
   } catch {
@@ -117,12 +126,15 @@ const parseSendPayload = (
   if (raw === null) {
     return null;
   }
+
   try {
     const parsed = JSON.parse(raw);
     const rr = Option.getOrNull(decodeResultsReadyJobPayload(parsed));
+
     if (rr !== null) {
       return rr;
     }
+
     return Option.getOrNull(decodeInvitationJobPayload(parsed));
   } catch {
     return null;
@@ -168,31 +180,39 @@ export const makeRoundJobs = ({
   const executeOpenJob = (jobId: JobId, roundId: RoundId, now: number) =>
     Effect.gen(function* () {
       const job = yield* rounds.getJob(jobId);
+
       if (job === null || job.status !== "pending") {
         return;
       }
+
       if (job.dueAt > now) {
         return;
       }
 
       const round = yield* rounds.getRound(roundId);
+
       if (round === null || round.status !== "scheduled") {
         yield* rounds.markJobCompleted(jobId, now);
+
         return;
       }
 
       const existingInvitations = yield* rounds.getInvitations(roundId);
+
       if (existingInvitations.length > 0) {
         yield* rounds.markJobCompleted(jobId, now);
+
         return;
       }
 
       const [dirState, pulseState] = yield* both;
       const pulse = pulseState.pulses.find((p) => p.id === round.pulseId);
       const team = dirState.teams.find((t) => t.id === round.teamId);
+
       if (pulse === undefined || team === undefined) {
         yield* rounds.cancelRound(roundId, now);
         yield* rounds.markJobCompleted(jobId, now);
+
         return;
       }
 
@@ -213,6 +233,7 @@ export const makeRoundJobs = ({
       const frozenMembers: readonly FrozenRoundMember[] = activeMembers.map((m, idx) => {
         const tz = memberTimeZones[idx] ?? team.timeZone;
         const sendAt = instants.sends.find((s) => s.timeZone === tz)?.sendAt ?? instants.openInstant;
+
         return {
           roundId,
           personId: m.personId,
@@ -224,23 +245,28 @@ export const makeRoundJobs = ({
       yield* rounds.openRound(roundId, now, instants.closeInstant, pulse.questions, frozenMembers);
 
       const ratingQuestion = firstRatingQuestionOf(yield* rounds.getRoundQuestions(roundId), pulseState);
+
       const eligibleActions = yield* actions.getEligibleActionsForRound(
         round.teamId,
         round.pulseId,
         round.plannedOpenAt,
       );
+
       const emailActions = eligibleActions.slice(0, 3).map((a) => a.title);
 
       for (const m of frozenMembers) {
         const person = dirState.people.find((p) => p.id === m.personId);
+
         if (person === undefined || person.removedAt !== null) {
           continue;
         }
 
         const invitation = { roundId, personId: m.personId, generation: 0 };
+
         const tokenHash = yield* tokenOf(invitation).pipe(
           Effect.flatMap((token) => Effect.promise(() => hashToken(token))),
         );
+
         const sendId = SendId.make(randomId());
 
         yield* rounds.insertInvitations([
@@ -290,6 +316,7 @@ export const makeRoundJobs = ({
           pulse.settings.reminders,
           instants.closeInstant,
         );
+
         for (const remindAt of reminderInstants) {
           yield* rounds.insertJob({
             id: JobId.make(randomId()),
@@ -323,25 +350,31 @@ export const makeRoundJobs = ({
   const executeSendJob = (jobId: JobId, roundId: RoundId, now: number) =>
     Effect.gen(function* () {
       const job = yield* rounds.getJob(jobId);
+
       if (job === null || job.status !== "pending") {
         return;
       }
 
       const round = yield* rounds.getRound(roundId);
+
       if (round === null) {
         yield* rounds.markJobCompleted(jobId, now);
+
         return;
       }
 
       const payload = parseSendPayload(job.payload);
+
       if (payload === null) {
         yield* rounds.markJobCompleted(jobId, now);
+
         return;
       }
 
       if ("kind" in payload) {
         if (round.status !== "ready" && round.status !== "shared") {
           yield* rounds.markJobCompleted(jobId, now);
+
           return;
         }
 
@@ -349,8 +382,10 @@ export const makeRoundJobs = ({
         const pulse = pulseState.pulses.find((p) => p.id === round.pulseId);
         const team = dirState.teams.find((t) => t.id === round.teamId);
         const person = dirState.people.find((p) => p.id === payload.personId);
+
         if (pulse === undefined || person === undefined || person.removedAt !== null) {
           yield* rounds.markJobCompleted(jobId, now);
+
           return;
         }
 
@@ -369,11 +404,13 @@ export const makeRoundJobs = ({
         const sendId = SendId.make(randomId());
         yield* sends.create(sendId, person.email, resultsReadyEmail);
         yield* rounds.markJobCompleted(jobId, now);
+
         return;
       }
 
       if (round.status !== "open") {
         yield* rounds.markJobCompleted(jobId, now);
+
         return;
       }
 
@@ -381,18 +418,23 @@ export const makeRoundJobs = ({
       const [dirState, pulseState] = yield* both;
       const pulse = pulseState.pulses.find((p) => p.id === round.pulseId);
       const person = dirState.people.find((p) => p.id === personId);
+
       if (pulse === undefined || person === undefined || person.removedAt !== null) {
         yield* rounds.markJobCompleted(jobId, now);
+
         return;
       }
 
       const inv = yield* rounds.getInvitation(roundId, PersonId.make(personId));
+
       if (inv === null || inv.status === "revoked") {
         yield* rounds.markJobCompleted(jobId, now);
+
         return;
       }
 
       const ratingQuestion = firstRatingQuestionOf(yield* rounds.getRoundQuestions(roundId), pulseState);
+
       const eligibleActions = yield* actions.getEligibleActionsForRound(
         round.teamId,
         round.pulseId,
@@ -408,6 +450,7 @@ export const makeRoundJobs = ({
         actions: eligibleActions.slice(0, 3).map((a) => a.title),
         aiProcessing: dirState.aiProcessing,
       };
+
       const invitationEmail: StoredEmail =
         payload.token === undefined
           ? {
@@ -424,24 +467,30 @@ export const makeRoundJobs = ({
   const executeRemindJob = (jobId: JobId, roundId: RoundId, now: number) =>
     Effect.gen(function* () {
       const job = yield* rounds.getJob(jobId);
+
       if (job === null || job.status !== "pending") {
         return;
       }
 
       const round = yield* rounds.getRound(roundId);
+
       if (round === null || round.status !== "open") {
         yield* rounds.markJobCompleted(jobId, now);
+
         return;
       }
 
       if (now >= round.plannedCloseAt - 2 * 3_600_000) {
         yield* rounds.markJobCompleted(jobId, now);
+
         return;
       }
 
       const payload = parseJobPayload(job.payload);
+
       if (payload === null) {
         yield* rounds.markJobCompleted(jobId, now);
+
         return;
       }
 
@@ -449,40 +498,51 @@ export const makeRoundJobs = ({
       const pid = PersonId.make(personId);
 
       const answered = yield* rounds.hasAnswered(roundId, pid);
+
       if (answered) {
         yield* rounds.markJobCompleted(jobId, now);
+
         return;
       }
 
       const optedOut = yield* rounds.isOptedOut(round.pulseId, pid);
+
       if (optedOut) {
         yield* rounds.markJobCompleted(jobId, now);
+
         return;
       }
 
       const [dirState, pulseState] = yield* both;
       const pulse = pulseState.pulses.find((p) => p.id === round.pulseId);
       const person = dirState.people.find((p) => p.id === personId);
+
       if (pulse === undefined || person === undefined || person.removedAt !== null) {
         yield* rounds.markJobCompleted(jobId, now);
+
         return;
       }
 
       const isMember = dirState.memberships.some(
         (m) => m.teamId === round.teamId && m.personId === pid && m.endedAt === null,
       );
+
       if (!isMember) {
         yield* rounds.markJobCompleted(jobId, now);
+
         return;
       }
 
       const inv = yield* rounds.getInvitation(roundId, pid);
+
       if (inv === null || inv.status === "revoked") {
         yield* rounds.markJobCompleted(jobId, now);
+
         return;
       }
 
       const ratingQuestion = firstRatingQuestionOf(yield* rounds.getRoundQuestions(roundId), pulseState);
+
       const eligibleActions = yield* actions.getEligibleActionsForRound(
         round.teamId,
         round.pulseId,
@@ -497,6 +557,7 @@ export const makeRoundJobs = ({
         actions: eligibleActions.slice(0, 3).map((a) => a.title),
         aiProcessing: dirState.aiProcessing,
       };
+
       const reminderEmail: StoredEmail =
         payload.token === undefined
           ? {
@@ -519,21 +580,26 @@ export const makeRoundJobs = ({
   const executeCloseJob = (jobId: JobId, roundId: RoundId, now: number) =>
     Effect.gen(function* () {
       const job = yield* rounds.getJob(jobId);
+
       if (job === null || job.status !== "pending") {
         return;
       }
 
       const round = yield* rounds.getRound(roundId);
+
       if (round === null || round.status !== "open") {
         yield* rounds.markJobCompleted(jobId, now);
+
         return;
       }
 
       const [dirState, pulseState] = yield* both;
+
       const effectiveN = Math.max(
         dirState.minimumGroupSize,
         round.effectiveMinimumGroupSize ?? dirState.minimumGroupSize,
       );
+
       const reviewEndsAt = reviewEndsAtOf(pulseState, round.pulseId, now);
 
       yield* rounds.closeRound(roundId, now, effectiveN, reviewEndsAt);
@@ -591,18 +657,23 @@ export const makeRoundJobs = ({
   const shareResults = (roundId: RoundId, now: number) =>
     Effect.gen(function* () {
       const target = yield* rounds.getRound(roundId);
+
       if (target === null || target.status !== "ready") {
         return;
       }
 
       const dirState = yield* directory.load;
       const earlier = yield* rounds.getReadyRoundIdsForPulseBefore(target.pulseId, target.plannedOpenDate);
+
       for (const id of [...earlier, roundId]) {
         const round = yield* rounds.getRound(id);
+
         if (round === null) {
           continue;
         }
+
         const changed = yield* rounds.shareRound(id, now);
+
         if (!changed) {
           continue;
         }
@@ -617,12 +688,14 @@ export const makeRoundJobs = ({
           now,
         );
       }
+
       yield* repairAlarm();
     });
 
   const executeShareJob = (jobId: JobId, roundId: RoundId, now: number) =>
     Effect.gen(function* () {
       const job = yield* rounds.getJob(jobId);
+
       if (job === null || job.status !== "pending") {
         return;
       }
@@ -634,23 +707,28 @@ export const makeRoundJobs = ({
   const executeComputeJob = (jobId: JobId, roundId: RoundId, now: number) =>
     Effect.gen(function* () {
       const job = yield* rounds.getJob(jobId);
+
       if (job === null || job.status !== "pending") {
         return;
       }
+
       if (job.dueAt > now) {
         return;
       }
 
       const round = yield* rounds.getRound(roundId);
+
       if (
         round === null ||
         (round.status !== "closed" && round.status !== "ready" && round.status !== "shared")
       ) {
         yield* rounds.markJobCompleted(jobId, now);
+
         return;
       }
 
       const dirState = yield* directory.load;
+
       const effectiveN = Math.max(
         dirState.minimumGroupSize,
         round.effectiveMinimumGroupSize ?? dirState.minimumGroupSize,
@@ -660,6 +738,7 @@ export const makeRoundJobs = ({
         const questions = yield* rounds.getRoundQuestionsDetailed(roundId);
         const submissions = yield* rounds.getSubmissionsForRound(roundId);
         const eligibleMembersCount = yield* rounds.getRoundMembersCount(roundId);
+
         const pastHistory = yield* rounds.getPastRoundsResultsForPulse(
           round.pulseId,
           12,
@@ -682,8 +761,10 @@ export const makeRoundJobs = ({
         });
 
         const injected = injectedComputeFailures.get(roundId) ?? 0;
+
         if (injected > 0) {
           injectedComputeFailures.set(roundId, injected - 1);
+
           return yield* Effect.die(new Error("injected compute failure"));
         }
 
@@ -692,6 +773,7 @@ export const makeRoundJobs = ({
 
         if (shouldRequestThemes(result, dirState.aiProcessing)) {
           const requested = yield* rounds.requestThemes(roundId, now);
+
           if (requested) {
             yield* rounds.insertJob({
               id: JobId.make(`themes-${roundId}`),
@@ -708,6 +790,7 @@ export const makeRoundJobs = ({
 
         const readied = yield* rounds.getRound(roundId);
         const reviewEndsAt = readied?.reviewEndsAt ?? null;
+
         if (reviewEndsAt === null || reviewEndsAt <= now) {
           yield* shareResults(roundId, now);
         } else {
@@ -732,13 +815,16 @@ export const makeRoundJobs = ({
         Effect.catchDefect((defect: unknown) =>
           Effect.gen(function* () {
             const current = yield* rounds.getRound(roundId);
+
             if (current === null || current.status !== "closed") {
               yield* Effect.logError(
                 `[OPERATOR_ALERT] Results follow-up failed after compute for round ${roundId}: ${String(defect)}`,
               );
               yield* rounds.markJobCompleted(jobId, now);
+
               return;
             }
+
             const attempts = parseAttempts(job.payload) + 1;
             const dueAt = nextRetryAt(job.createdAt, attempts, now);
 
@@ -746,6 +832,7 @@ export const makeRoundJobs = ({
               yield* rounds.updateJobPayload(jobId, JSON.stringify({ attempts }));
               yield* rounds.updateJobDueAtById(jobId, dueAt);
               yield* repairAlarm();
+
               return;
             }
 
@@ -754,6 +841,7 @@ export const makeRoundJobs = ({
             );
             const submissions = yield* rounds.getSubmissionsForRound(roundId);
             const eligibleMembersCount = yield* rounds.getRoundMembersCount(roundId);
+
             const delayedResult = delayedRoundResult({
               roundId,
               pulseId: round.pulseId,
@@ -766,6 +854,7 @@ export const makeRoundJobs = ({
               eligibleMembersCount,
               submissionsCount: submissions.length,
             });
+
             yield* rounds.saveRoundResult(roundId, delayedResult, now);
             yield* rounds.markJobCompleted(jobId, now);
           }),
@@ -778,35 +867,44 @@ export const makeRoundJobs = ({
       const prepared = yield* sql.withTransaction(
         Effect.gen(function* () {
           const job = yield* rounds.getJob(jobId);
+
           if (job === null || job.status !== "pending" || job.type !== "themes") {
             return null;
           }
 
           const themes = yield* rounds.getRoundThemes(roundId);
+
           if (themes === null || themes.status !== "pending") {
             yield* rounds.markJobCompleted(jobId, now);
+
             return null;
           }
 
           const dirState = yield* directory.load;
+
           if (!dirState.aiProcessing) {
             yield* rounds.giveUpThemes(roundId, now);
             yield* rounds.markJobCompleted(jobId, now);
+
             return null;
           }
 
           const round = yield* rounds.getRound(roundId);
           const stored = yield* rounds.getRoundResult(roundId);
+
           const effective =
             stored === null ? null : enforceEffectiveNOnResult(stored, dirState.minimumGroupSize);
+
           if (round === null || effective === null || !shouldRequestThemes(effective, true)) {
             yield* rounds.giveUpThemes(roundId, now);
             yield* rounds.markJobCompleted(jobId, now);
+
             return null;
           }
 
           yield* rounds.updateJobDueAtById(jobId, now + THEMES_LEASE_MS);
           const openActionTitles = yield* actions.getOpenActionTitlesForTeam(round.teamId);
+
           return {
             input: buildThemesInput(effective, openActionTitles, dirState.people),
             requestedAt: themes.requestedAt,
@@ -814,9 +912,11 @@ export const makeRoundJobs = ({
           };
         }),
       );
+
       if (prepared === null) {
         return;
       }
+
       yield* repairAlarm();
 
       const decision = yield* runThemesAttempt({
@@ -829,21 +929,28 @@ export const makeRoundJobs = ({
       yield* sql.withTransaction(
         Effect.gen(function* () {
           const current = yield* rounds.getRoundThemes(roundId);
+
           if (current === null || current.status !== "pending") {
             yield* rounds.markJobCompleted(jobId, now);
+
             return;
           }
+
           switch (decision._tag) {
             case "Store": {
               yield* rounds.storeThemes(roundId, decision.themes, now);
               yield* rounds.markJobCompleted(jobId, now);
+
               return;
             }
+
             case "RetryAt": {
               yield* rounds.recordThemesAttemptFailed(roundId, decision.attempts);
               yield* rounds.updateJobDueAtById(jobId, decision.dueAt);
+
               return;
             }
+
             case "GiveUp": {
               yield* rounds.giveUpThemes(roundId, now);
               yield* rounds.markJobCompleted(jobId, now);
@@ -857,16 +964,20 @@ export const makeRoundJobs = ({
   const runDueJobs = (nowMs?: number) =>
     Effect.gen(function* () {
       const now = nowMs ?? (yield* Clock.currentTimeMillis);
+
       while (true) {
         const dueJobs = yield* rounds.getDueJobs(now);
+
         if (dueJobs.length === 0) {
           break;
         }
+
         for (const job of dueJobs) {
           if (job.type === "themes") {
             yield* executeThemesJob(job.id, job.roundId, now);
             continue;
           }
+
           yield* sql.withTransaction(
             Effect.gen(function* () {
               if (job.type === "open") {
@@ -886,25 +997,32 @@ export const makeRoundJobs = ({
           );
         }
       }
+
       yield* repairAlarm();
     }).pipe(Effect.orDie);
 
   const runScheduleJob = (jobId: string, nowMs?: number) =>
     Effect.gen(function* () {
       const peeked = yield* rounds.getJob(JobId.make(jobId));
+
       if (peeked !== null && peeked.type === "themes") {
         const now = nowMs ?? (yield* Clock.currentTimeMillis);
         yield* executeThemesJob(peeked.id, peeked.roundId, now);
         yield* repairAlarm();
+
         return;
       }
+
       yield* sql.withTransaction(
         Effect.gen(function* () {
           const job = yield* rounds.getJob(JobId.make(jobId));
+
           if (job === null || job.status !== "pending") {
             return;
           }
+
           const now = nowMs ?? (yield* Clock.currentTimeMillis);
+
           if (job.type === "open") {
             yield* executeOpenJob(job.id, job.roundId, now);
           } else if (job.type === "close") {
@@ -918,6 +1036,7 @@ export const makeRoundJobs = ({
           } else if (job.type === "share") {
             yield* executeShareJob(job.id, job.roundId, now);
           }
+
           yield* repairAlarm();
         }),
       );

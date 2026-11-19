@@ -38,6 +38,7 @@ const toClaim = (row: typeof ClaimRow.Type): ClaimStatus => ({
 export const d1PeopleIndex = (db: Cloudflare.D1.QueryDatabaseClient) =>
   Effect.gen(function* () {
     const runtime = yield* Effect.context<RuntimeContext>();
+
     const run = <A, E>(effect: Effect.Effect<A, E, RuntimeContext>): Effect.Effect<A> =>
       effect.pipe(Effect.provideContext(runtime), Effect.orDie);
 
@@ -47,6 +48,7 @@ export const d1PeopleIndex = (db: Cloudflare.D1.QueryDatabaseClient) =>
         .bind(...binds)
         .all()
         .pipe(Effect.map((result) => result.results));
+
     const write = (sql: string, ...binds: readonly unknown[]) =>
       run(
         db

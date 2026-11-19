@@ -7,9 +7,13 @@ import { invitationSummaryOf } from "./InvitationSummary.ts";
 import type { InvitationSummaryRound } from "./InvitationSummary.ts";
 
 const TEAM = TeamId.make("team-a");
+
 const OTHER_TEAM = TeamId.make("team-b");
+
 const ALICE = PersonId.make("alice");
+
 const BOB = PersonId.make("bob");
+
 const CARA = PersonId.make("cara");
 
 const round = (overrides: Partial<InvitationSummaryRound> = {}): InvitationSummaryRound => ({
@@ -27,6 +31,7 @@ const membership = (
 ): MembershipRecord => {
   const teamId = overrides.teamId ?? TEAM;
   const role = overrides.role ?? "member";
+
   return {
     id: MembershipId.make(`membership-${teamId}-${personId}-${role}-${startedAt}`),
     teamId,
@@ -166,9 +171,11 @@ describe("invitationSummaryOf", () => {
   const MemberPool = Schema.Literals(["alice", "bob", "cara", "dan"]);
   const TeamPool = Schema.Literals(["team-a", "team-b"]);
   const RolePool = Schema.Literals(["lead", "member", "viewer"]);
+
   const instant = Schema.Int.pipe(
     Schema.check(Schema.isGreaterThanOrEqualTo(0), Schema.isLessThanOrEqualTo(100)),
   );
+
   const MembershipShape = Schema.Struct({
     person: MemberPool,
     team: TeamPool,
@@ -187,14 +194,17 @@ describe("invitationSummaryOf", () => {
     },
     ({ openedAt, closedAt, plannedCloseAt, memberships, invitedPeople }) => {
       const invitedIds = new Set(invitedPeople.map((p) => PersonId.make(p)));
+
       const records = memberships.map((m) =>
         membership(PersonId.make(m.person), m.startedAt, {
           teamId: TeamId.make(m.team),
           role: m.role,
         }),
       );
+
       const subject = { round: round({ openedAt, closedAt, plannedCloseAt }), invitedPersonIds: invitedIds };
       const windowEnd = closedAt ?? plannedCloseAt;
+
       const expectedJoined = new Set(
         records
           .filter(

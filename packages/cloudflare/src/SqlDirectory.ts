@@ -24,6 +24,7 @@ const OrganizationRow = Schema.Struct({
   ai_processing: Schema.Int,
   default_locale: Schema.String,
 });
+
 const PersonRow = Schema.Struct({
   id: PersonId,
   email: EmailAddress,
@@ -33,7 +34,9 @@ const PersonRow = Schema.Struct({
   locale: Schema.NullOr(Schema.String),
   detected_locale: Schema.NullOr(Schema.String),
 });
+
 const TeamRow = Schema.Struct({ id: TeamId, name: Schema.String, time_zone: TimeZone });
+
 const MembershipRow = Schema.Struct({
   id: MembershipId,
   team_id: TeamId,
@@ -52,14 +55,18 @@ export const makeSqlDirectory = (sql: SqliteClient.SqliteClient, sends: SendStor
       yield* sql`SELECT name, minimum_group_size, ai_processing, default_locale FROM organization LIMIT 1`.pipe(
         Effect.flatMap(rows(OrganizationRow)),
       );
+
     const people =
       yield* sql`SELECT id, email, auth_user_id, organization_admin, removed_at, locale, detected_locale
         FROM person`.pipe(Effect.flatMap(rows(PersonRow)));
+
     const teams = yield* sql`SELECT id, name, time_zone FROM team`.pipe(Effect.flatMap(rows(TeamRow)));
+
     const memberships = yield* sql`
       SELECT id, team_id, person_id, role, started_at, ended_at FROM membership ORDER BY started_at, id`.pipe(
       Effect.flatMap(rows(MembershipRow)),
     );
+
     return {
       organizationName: organization?.name ?? "",
       minimumGroupSize: organization?.minimum_group_size ?? DEFAULT_MINIMUM_GROUP_SIZE,
@@ -90,45 +97,57 @@ export const makeSqlDirectory = (sql: SqliteClient.SqliteClient, sends: SendStor
     switch (change._tag) {
       case "PersonAdded": {
         const { person } = change;
+
         return sql`INSERT INTO person (id, email, auth_user_id, organization_admin, removed_at)
           VALUES (${person.id}, ${person.email}, ${person.authUserId}, ${person.organizationAdmin ? 1 : 0},
                   ${person.removedAt})`;
       }
+
       case "PersonRestored": {
         return sql`UPDATE person SET removed_at = NULL WHERE id = ${change.personId}`;
       }
+
       case "PersonRemoved": {
         return sql`UPDATE person SET removed_at = ${change.at} WHERE id = ${change.personId}`;
       }
+
       case "AdminSet": {
         return sql`UPDATE person SET organization_admin = ${change.organizationAdmin ? 1 : 0}
           WHERE id = ${change.personId}`;
       }
+
       case "TeamAdded": {
         return sql`INSERT INTO team (id, name, time_zone)
           VALUES (${change.team.id}, ${change.team.name}, ${change.team.timeZone})`;
       }
+
       case "TeamUpdated": {
         return sql`UPDATE team SET name = ${change.team.name}, time_zone = ${change.team.timeZone}
           WHERE id = ${change.team.id}`;
       }
+
       case "MembershipStarted": {
         const { membership } = change;
+
         return sql`INSERT INTO membership (id, team_id, person_id, role, started_at, ended_at)
           VALUES (${membership.id}, ${membership.teamId}, ${membership.personId}, ${membership.role},
                   ${membership.startedAt}, ${membership.endedAt})`;
       }
+
       case "MembershipEnded": {
         return sql`UPDATE membership SET ended_at = ${change.at} WHERE id = ${change.membershipId}`;
       }
+
       case "SettingsUpdated": {
         return sql`UPDATE organization SET minimum_group_size = ${change.minimumGroupSize},
           ai_processing = ${change.aiProcessing ? 1 : 0}, default_locale = ${change.defaultLocale}`;
       }
+
       case "PersonLanguageSet": {
         return sql`UPDATE person SET locale = ${change.locale}, detected_locale = ${change.detectedLocale}
           WHERE id = ${change.personId}`;
       }
+
       case "EmailRequested": {
         return sends.create(change.sendId, change.recipient, change.email);
       }

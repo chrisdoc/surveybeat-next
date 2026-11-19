@@ -12,6 +12,7 @@ const setup = async () => {
     const browser = new Browser(world.handler());
     browser.signIn(world.sessions.login(email));
     await browser.session();
+
     return browser;
   };
 
@@ -23,6 +24,7 @@ const setup = async () => {
     timeZone: "Europe/Berlin",
     leadEmail: "grace@example.com",
   });
+
   const teamId = (created.body as { readonly team: { readonly id: string } }).team.id;
 
   // Create another team Design with Linus as Lead
@@ -31,6 +33,7 @@ const setup = async () => {
     timeZone: "UTC",
     leadEmail: "linus@example.com",
   });
+
   const otherTeamId = (other.body as { readonly team: { readonly id: string } }).team.id;
 
   const lead = await as("grace@example.com");
@@ -41,6 +44,7 @@ const setup = async () => {
   // Get roster to find PersonId for Ada and Grace
   const teamDetail = await lead.call("GET", `/api/teams/${teamId}`);
   expect(teamDetail.status).toBe(200);
+
   const roster = (
     teamDetail.body as {
       readonly roster: readonly {
@@ -50,6 +54,7 @@ const setup = async () => {
       }[];
     }
   ).roster;
+
   const adaPerson = roster.find((r) => r.email === "ada@example.com")!;
   const gracePerson = roster.find((r) => r.email === "grace@example.com")!;
 
@@ -64,6 +69,7 @@ describe("Actions API", () => {
     const { lead, member, teamId, adaPerson } = await setup();
 
     const roundId = "round-1";
+
     const createRes = await lead.call("POST", `/api/teams/${teamId}/actions`, {
       roundId,
       title: "Shorten pairing sessions",
@@ -73,6 +79,7 @@ describe("Actions API", () => {
     });
 
     expect(createRes.status).toBe(200);
+
     const createdAction = createRes.body as {
       readonly id: string;
       readonly teamId: string;
@@ -112,6 +119,7 @@ describe("Actions API", () => {
       dueDate: null,
       dimension: null,
     });
+
     expect(createRes.status).toBe(200);
     const actionId = (createRes.body as { readonly id: string }).id;
 
@@ -119,6 +127,7 @@ describe("Actions API", () => {
     const doneRes = await lead.call("PATCH", `/api/teams/${teamId}/actions/${actionId}`, {
       status: "done",
     });
+
     expect(doneRes.status).toBe(200);
     const doneAction = doneRes.body as { readonly status: string; readonly doneAt: number | null };
     expect(doneAction.status).toBe("done");
@@ -128,6 +137,7 @@ describe("Actions API", () => {
     const droppedRes = await lead.call("PATCH", `/api/teams/${teamId}/actions/${actionId}`, {
       status: "dropped",
     });
+
     expect(droppedRes.status).toBe(200);
     const droppedAction = droppedRes.body as { readonly status: string; readonly doneAt: number | null };
     expect(droppedAction.status).toBe("dropped");
@@ -145,6 +155,7 @@ describe("Actions API", () => {
       dueDate: null,
       dimension: null,
     });
+
     expect(adminCreate.status).toBe(403);
 
     // Org admin without team membership cannot view actions
@@ -163,6 +174,7 @@ describe("Actions API", () => {
       dueDate: null,
       dimension: null,
     });
+
     expect(memberCreate.status).toBe(403);
   });
 
@@ -180,6 +192,7 @@ describe("Actions API", () => {
       dueDate: null,
       dimension: null,
     });
+
     expect(res.status).toBe(400);
   });
 });

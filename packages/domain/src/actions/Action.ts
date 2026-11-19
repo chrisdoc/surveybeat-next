@@ -6,9 +6,11 @@ import { Dimension } from "../pulses/Question.ts";
 import { RoundId } from "../rounds/Round.ts";
 
 export const ActionId = Schema.String.pipe(Schema.brand("ActionId"));
+
 export type ActionId = typeof ActionId.Type;
 
 export const ActionStatus = Schema.Literals(["proposed", "committed", "done", "dropped"]);
+
 export type ActionStatus = typeof ActionStatus.Type;
 
 export const ActionRecord = Schema.Struct({
@@ -24,6 +26,7 @@ export const ActionRecord = Schema.Struct({
   updatedAt: Schema.Int,
   doneAt: Schema.NullOr(Schema.Int),
 });
+
 export type ActionRecord = typeof ActionRecord.Type;
 
 export const ActionItem = Schema.Struct({
@@ -40,12 +43,14 @@ export const ActionItem = Schema.Struct({
   updatedAt: Schema.Int,
   doneAt: Schema.NullOr(Schema.Int),
 });
+
 export type ActionItem = typeof ActionItem.Type;
 
 export const ActionList = Schema.Struct({
   teamId: TeamId,
   actions: Schema.Array(ActionItem),
 });
+
 export type ActionList = typeof ActionList.Type;
 
 export const CreateAction = Schema.Struct({
@@ -55,6 +60,7 @@ export const CreateAction = Schema.Struct({
   dueDate: Schema.NullOr(Schema.String),
   dimension: Schema.NullOr(Dimension),
 });
+
 export type CreateAction = typeof CreateAction.Type;
 
 export const UpdateAction = Schema.Struct({
@@ -64,6 +70,7 @@ export const UpdateAction = Schema.Struct({
   dimension: Schema.optional(Schema.NullOr(Dimension)),
   status: Schema.optional(ActionStatus),
 });
+
 export type UpdateAction = typeof UpdateAction.Type;
 
 export class ActionNotFound extends Schema.TaggedError<ActionNotFound, { readonly brand: unique symbol }>()(
@@ -97,14 +104,17 @@ export const selectActionsForRound = <A extends ActionSelectionInput>(
   previousRound: PreviousRoundInfo | null,
 ): readonly A[] => {
   const previousCutoff = previousRound ? (previousRound.openedAt ?? previousRound.plannedOpenAt) : 0;
+
   return actions
     .filter((action) => {
       if (action.status === "committed") {
         return true;
       }
+
       if (action.status === "done" && action.doneAt !== null) {
         return previousRound !== null ? action.doneAt >= previousCutoff : false;
       }
+
       return false;
     })
     .slice(0, 3);

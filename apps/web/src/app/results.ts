@@ -62,6 +62,7 @@ export const LoadedResults = defineTaggedUnion({
   Loaded: { result: RoundResult },
   Failed: { failure: Failure },
 });
+
 export type LoadedResults = typeof LoadedResults.Type;
 
 export const LoadedActions = defineTaggedUnion({
@@ -69,6 +70,7 @@ export const LoadedActions = defineTaggedUnion({
   Loaded: { actions: Schema.Array(ActionItem) },
   Failed: { failure: Failure },
 });
+
 export type LoadedActions = typeof LoadedActions.Type;
 
 export const LoadedNote = defineTaggedUnion({
@@ -76,11 +78,13 @@ export const LoadedNote = defineTaggedUnion({
   Loaded: { note: Schema.NullOr(RoundNote) },
   Failed: { failure: Failure },
 });
+
 export type LoadedNote = typeof LoadedNote.Type;
 
 const smallHeading = "text-[13px] font-semibold text-muted";
 
 export const GuideCopy = Schema.Literals(["idle", "copied", "failed"]);
+
 export type GuideCopy = typeof GuideCopy.Type;
 
 export const trendTitle = (rounds: number): string => pluralMessage("results.trendLength", rounds);
@@ -88,10 +92,12 @@ export const trendTitle = (rounds: number): string => pluralMessage("results.tre
 const latestScore = (points: readonly (TrendPoint | DimensionTrendPoint)[]): number | null => {
   for (let i = points.length - 1; i >= 0; i--) {
     const point = points[i]!;
+
     if (point.score !== null) {
       return point.score;
     }
   }
+
   return null;
 };
 
@@ -103,6 +109,7 @@ export const trendChart = <Message>(
   if (points.length === 0) {
     return null;
   }
+
   const last = points.length - 1;
   const first = points[0]!;
   const newest = points[last]!;
@@ -158,6 +165,7 @@ export const distributionChart = <Message>(
   if (distribution.length === 0) {
     return null;
   }
+
   const maxCount = Math.max(...distribution.map((d) => d.count), 1);
 
   return h.div(
@@ -197,6 +205,7 @@ export const distributionTable = <Message>(
   if (distribution.length === 0) {
     return null;
   }
+
   const total = distribution.reduce((sum, d) => sum + d.count, 0);
 
   return dataTable(
@@ -246,7 +255,9 @@ const highlightBadge = <Message>(
   if (highlight === null || !highlight.isLargerThanUsual) {
     return null;
   }
+
   const direction = highlight.direction;
+
   return h.div(
     [h.Class("flex flex-wrap items-center gap-2")],
     [
@@ -292,21 +303,25 @@ const changeView = <Message>(change: QuestionChange | null, h: HtmlBuilder<Messa
   if (change === null || change.change === null || change.previousRoundDate === null) {
     return null;
   }
+
   const d = formatRoundDate(change.previousRoundDate);
 
   const shown = Math.round(change.change * 10) / 10;
+
   if (shown > 0) {
     return h.span(
       [h.Class("text-sm font-semibold tabular-nums")],
       [message("results.changeRise", { change: formatChange(change.change), date: d })],
     );
   }
+
   if (shown < 0) {
     return h.span(
       [h.Class("text-sm font-semibold tabular-nums")],
       [message("results.changeDrop", { change: formatChange(change.change), date: d })],
     );
   }
+
   return h.span([h.Class("text-sm text-muted")], [message("results.noChange", { date: d })]);
 };
 
@@ -314,6 +329,7 @@ const baselineNote = <Message>(typical: TypicalChange | null, h: HtmlBuilder<Mes
   if (typical === null || typical.status !== "buildingBaseline") {
     return null;
   }
+
   return h.p(
     [h.Class("text-[13px] text-muted italic")],
     [
@@ -337,7 +353,9 @@ const countdown = (reviewEndsAt: number | undefined): number | null => {
   if (reviewEndsAt === undefined) {
     return null;
   }
+
   const days = Math.ceil((reviewEndsAt - DateTime.toEpochMillis(DateTime.nowUnsafe())) / 86_400_000);
+
   return days > 0 ? days : null;
 };
 
@@ -378,6 +396,7 @@ const resultsLayout = <Message>(
   h: HtmlBuilder<Message>,
 ): Html => {
   const showStats = result.status !== "open" && result.meetsMinimumGroupSize;
+
   return h.div(
     [h.Class("flex flex-wrap gap-12")],
     [
@@ -448,6 +467,7 @@ const guideCopyStatus = <Message>(copy: GuideCopy, h: HtmlBuilder<Message>): Htm
   if (copy === "idle") {
     return null;
   }
+
   return h.p(
     [h.Role("status"), h.Class("text-sm font-medium text-primary")],
     [message(copy === "copied" ? "results.guide.copied" : "results.guide.copyFailed")],
@@ -466,6 +486,7 @@ const discussionGuideView = <Message>(
       h.p([h.Class("mt-2 text-sm text-muted")], [message("results.guide.intro")]),
       ...guideSections(guide).map((section) => {
         const items = section.items.map((item) => h.li([], [item]));
+
         return h.div(
           [h.Class("flex flex-col gap-2")],
           [
@@ -550,6 +571,7 @@ const themesSection = <Message>(result: RoundResult, isLead: boolean, h: HtmlBui
       : status === "unavailable"
         ? message("results.themes.unavailable")
         : message("results.themes.aiOff");
+
   return h.section(
     [h.Class("mt-8 flex flex-col gap-4")],
     [sectionTitle(message("results.themes.title"), h), h.p([h.Class("text-muted")], [reason])],
@@ -645,6 +667,7 @@ const noteSection = <Message>(
         [message("note.lastChanged", { date: formatDate(DateTime.makeUnsafe(note.updatedAt)) })],
       ),
     );
+
     if (isLead) {
       body.push(
         h.div(
@@ -735,6 +758,7 @@ export const resultsScreenView = <Message>(
   const minimum = result.effectiveMinimumGroupSize;
   const isLead = state.teamDetail._tag === "Loaded" && state.teamDetail.detail.team.yourRole === "lead";
   const roster = state.teamDetail._tag === "Loaded" ? state.teamDetail.detail.roster : [];
+
   const reviewDate =
     result.reviewEndsAt !== undefined ? formatDate(DateTime.makeUnsafe(result.reviewEndsAt)) : null;
 
@@ -745,6 +769,7 @@ export const resultsScreenView = <Message>(
 
   const teamName =
     state.teamDetail._tag === "Loaded" ? state.teamDetail.detail.team.name : message("title.team");
+
   const children: Html[] = [
     breadcrumbs(
       [
@@ -764,6 +789,7 @@ export const resultsScreenView = <Message>(
       ],
     ),
   ];
+
   if (isLead && result.status === "ready") {
     children.push(
       panel(
@@ -800,7 +826,9 @@ export const resultsScreenView = <Message>(
       ),
     );
   }
+
   const summary = isMemberReview ? null : resultsSummary(result);
+
   if (summary !== null) {
     children.push(
       h.p(
@@ -873,6 +901,7 @@ export const resultsScreenView = <Message>(
     actionsItems.push(alertView(failureMessage(state.actions.failure), h));
   } else {
     const list = state.actions.actions;
+
     if (list.length === 0) {
       actionsItems.push(h.p([h.Class("text-sm text-mint-text italic")], [message("actions.empty")]));
     } else {
@@ -888,6 +917,7 @@ export const resultsScreenView = <Message>(
                   : message("actions.statusDropped");
 
             const buttons: Html[] = [];
+
             if (isLead) {
               if (action.status === "committed") {
                 buttons.push(
@@ -988,8 +1018,10 @@ export const resultsScreenView = <Message>(
   }
 
   let commitForm: Html = null;
+
   if (isLead) {
     const firstPerson = roster[0];
+
     const selectedOwner = Option.getOrElse(state.actionOwnerId, () =>
       firstPerson !== undefined ? firstPerson.personId : PersonId.make(""),
     );
@@ -1119,6 +1151,7 @@ export const resultsScreenView = <Message>(
       ),
       actionsNode,
     );
+
     return resultsLayout(children, result, h);
   }
 
@@ -1135,6 +1168,7 @@ export const resultsScreenView = <Message>(
         ],
       ),
     );
+
     return resultsLayout(children, result, h);
   }
 
@@ -1158,6 +1192,7 @@ export const resultsScreenView = <Message>(
       ),
       actionsNode,
     );
+
     return resultsLayout(children, result, h);
   }
 
@@ -1170,6 +1205,7 @@ export const resultsScreenView = <Message>(
           ...result.dimensions.map((dim: DimensionResult) => {
             const dimKey = `dim-${dim.dimension}`;
             const isTable = state.showTable[dimKey] ?? false;
+
             const shown =
               dim.meetsMinimumGroupSize && dim.contributors !== undefined && dim.contributors !== null;
 
@@ -1323,9 +1359,11 @@ export const resultsScreenView = <Message>(
   const longTextQuestions = new Set(
     result.questions.filter((q) => q.type._tag === "LongText").map((q) => q.questionVersionId),
   );
+
   const remainingComments = result.comments.filter(
     (comment) => !longTextQuestions.has(comment.questionVersionId),
   );
+
   if (remainingComments.length > 0) {
     children.push(
       h.section(
@@ -1352,6 +1390,7 @@ export const resultsScreenView = <Message>(
   }
 
   const guide = result.discussionGuide;
+
   if (isLead && guide) {
     children.push(discussionGuideView(guide, state.guideCopy, callbacks.onCopyGuide, h));
   }

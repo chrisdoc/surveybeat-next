@@ -20,8 +20,11 @@ import {
 import { makeScheduling } from "./Scheduling.ts";
 
 const migrationsDir = new URL("../../migrations/", import.meta.url);
+
 const DAY = 24 * 3_600_000;
+
 const NOW = Date.UTC(2026, 10, 19);
+
 const utc = (year: number, month: number, day: number, hour = 0, minute = 0): number =>
   Date.UTC(year, month - 1, day, hour, minute);
 
@@ -38,6 +41,7 @@ const setUp = () =>
         VALUES ('pulse-1', 'team-1', 'Pulse 1', 'weekly', 'monday', '09:00', 3, 1, 'anonymous', 'invitation', 1000),
                ('pulse-2', 'team-1', 'Pulse 2', 'weekly', 'monday', '09:00', 3, 1, 'anonymous', 'invitation', 1000);
     `);
+
     const sql = yield* SqliteClient.make({
       storage: SqliteStorage.makeSqliteStorage(db) as unknown as NonNullable<
         Parameters<typeof SqliteClient.make>[0]["storage"]
@@ -48,6 +52,7 @@ const setUp = () =>
     const pulses = makeSqlPulses(sql);
     const directory = makeSqlDirectory(sql, makeSendStore(makeSqlSendRepository(sql), defaultSendPolicy));
     let ids = 0;
+
     const scheduling = makeScheduling({
       rounds,
       directory,
@@ -55,6 +60,7 @@ const setUp = () =>
       repairAlarm: () => Effect.void,
       randomId: () => `generated-${++ids}`,
     });
+
     return { db, sql, rounds, pulses, directory, scheduling };
   });
 
@@ -109,6 +115,7 @@ const row = (db: ReturnType<typeof migratedDatabase>, roundId: string) =>
 
 const payloadOf = (db: ReturnType<typeof migratedDatabase>, roundId: string): unknown => {
   const found = db.prepare("SELECT payload FROM round_result WHERE round_id = ?").get(roundId);
+
   return JSON.parse(String(found?.payload));
 };
 
@@ -151,6 +158,7 @@ describe("scheduledRoundIsHealthy", () => {
       "Europe/Berlin",
       3,
     ).openInstant;
+
     assert.isTrue(scheduledRoundIsHealthy({ plannedOpenDate: "2026-11-23", plannedOpenAt }, slot));
   });
 
@@ -167,6 +175,7 @@ describe("scheduledRoundIsHealthy", () => {
       "Europe/Berlin",
       3,
     ).openInstant;
+
     assert.isFalse(
       scheduledRoundIsHealthy(
         { plannedOpenDate: "2026-11-23", plannedOpenAt },
@@ -186,6 +195,7 @@ describe("rewritePayloadDates", () => {
       trend: [{ roundId: "stale", plannedOpenDate: "2026-11-23", score: 3 }],
       questions: [{ change: { previousRoundId: "stale", previousRoundDate: "2026-11-23" } }],
     });
+
     assert.deepStrictEqual(JSON.parse(String(rewritePayloadDates(payload, [move]))), {
       roundId: "stale",
       plannedOpenDate: "2026-11-16",
@@ -200,6 +210,7 @@ describe("rewritePayloadDates", () => {
       plannedOpenDate: "2026-11-23",
       trend: [{ roundId: "stale", plannedOpenDate: "2026-11-09", score: 3 }],
     });
+
     assert.isNull(rewritePayloadDates(payload, [move]));
   });
 
@@ -457,6 +468,7 @@ describe("repairRoundPlannedOpenDates", () => {
           "Europe/Berlin",
           3,
         ).openInstant;
+
         assert.deepStrictEqual(row(db, "stale-scheduled"), {
           planned_open_date: "2026-11-23",
           planned_open_at: expectedOpen,

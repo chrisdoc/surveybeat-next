@@ -37,26 +37,32 @@ export const organizationResults = ({
     Effect.gen(function* () {
       const dirState = yield* directory.load;
       const auth = authorizeRoundAction(dirState, actorId, "team.viewResults", teamId);
+
       if (auth._tag === "Rejected") {
         const rejected: RoundViewed<RoundResult> = auth;
+
         return rejected;
       }
 
       const team = dirState.teams.find((t) => t.id === teamId);
+
       if (team === undefined) {
         const rejected: RoundViewed<RoundResult> = {
           _tag: "Rejected",
           rejection: { _tag: "TeamNotFound" },
         };
+
         return rejected;
       }
 
       const r = yield* rounds.getRound(roundId);
+
       if (r === null || r.teamId !== teamId) {
         const rejected: RoundViewed<RoundResult> = {
           _tag: "Rejected",
           rejection: { _tag: "RoundNotFound" },
         };
+
         return rejected;
       }
 
@@ -90,6 +96,7 @@ export const organizationResults = ({
 
       const storedResult = yield* rounds.getRoundResult(roundId);
       const resultPending = storedResult === null && (yield* rounds.hasPendingJob(roundId, "compute"));
+
       const result: RoundResult =
         storedResult ??
         delayedRoundResult({
@@ -107,6 +114,7 @@ export const organizationResults = ({
 
       const isLead = auth.actor.roles.get(teamId) === "lead";
       const themes = yield* rounds.getRoundThemes(roundId);
+
       const resultToShow = viewRoundResult({
         stored: result,
         organizationN: dirState.minimumGroupSize,
@@ -120,6 +128,7 @@ export const organizationResults = ({
         _tag: "Viewed",
         value: resultToShow,
       };
+
       return viewed;
     }).pipe(Effect.orDie),
 
@@ -127,22 +136,27 @@ export const organizationResults = ({
     Effect.gen(function* () {
       const dirState = yield* directory.load;
       const auth = authorizeRoundAction(dirState, actorId, "team.viewResults", teamId);
+
       if (auth._tag === "Rejected") {
         const rejected: RoundViewed<TeamOverview> = auth;
+
         return rejected;
       }
 
       const team = dirState.teams.find((t) => t.id === teamId);
+
       if (team === undefined) {
         const rejected: RoundViewed<TeamOverview> = {
           _tag: "Rejected",
           rejection: { _tag: "TeamNotFound" },
         };
+
         return rejected;
       }
 
       const results = yield* rounds.getSharedRoundResultsForTeam(teamId);
       const teamActions = yield* actions.getActionsForTeam(teamId);
+
       const viewed: RoundViewed<TeamOverview> = {
         _tag: "Viewed",
         value: buildTeamOverview({
@@ -152,6 +166,7 @@ export const organizationResults = ({
           actions: teamActions,
         }),
       };
+
       return viewed;
     }).pipe(Effect.orDie),
 
@@ -159,6 +174,7 @@ export const organizationResults = ({
     Effect.gen(function* () {
       const dirState = yield* directory.load;
       const participated = yield* rounds.getParticipatedRounds(actorId);
+
       const inputs = yield* Effect.forEach(participated, (row) =>
         Effect.map(rounds.getRoundQuestionsDetailed(row.roundId), (questions) => ({
           ...row,
@@ -167,6 +183,7 @@ export const organizationResults = ({
             authorizeRoundAction(dirState, actorId, "team.viewResults", row.teamId)._tag !== "Rejected",
         })),
       );
+
       return buildMemberHistory({ rounds: inputs, minimumGroupSize: dirState.minimumGroupSize });
     }).pipe(Effect.orDie),
 });

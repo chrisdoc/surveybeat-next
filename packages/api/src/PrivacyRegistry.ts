@@ -59,12 +59,14 @@ export const RoundResultScenario = Schema.Struct({
   viewer: Schema.Literals(["lead", "member"]),
   themes: Schema.Literals(["none", "pending", "ready", "failed"]),
 });
+
 export type RoundResultScenario = typeof RoundResultScenario.Type;
 
 export const roundResultScenarios: Arbitrary.Arbitrary<RoundResultScenario> =
   Arbitrary.schema(RoundResultScenario);
 
 export const LeadOnlyField = Schema.Literals(["comments", "themes.supportingComments", "discussionGuide"]);
+
 export type LeadOnlyField = typeof LeadOnlyField.Type;
 
 export type EndpointPrivacy =

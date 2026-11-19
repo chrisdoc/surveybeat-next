@@ -9,6 +9,7 @@ const delivery = (sent: OutgoingEmail[]) =>
   signInCodeDelivery((message) => {
     sent.push(message);
     const accepted: EmailAccepted = { messageId: "m-1" };
+
     return Effect.succeed(accepted);
   });
 

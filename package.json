@@ -10,6 +10,7 @@
     "check:ledger": "node scripts/ledger/diagnostics-ledger.mjs",
     "check:comments": "node scripts/ledger/comment-debt.mjs",
     "lint": "oxlint --type-aware",
+    "fix": "oxlint --type-aware --fix && oxfmt .",
     "format": "oxfmt .",
     "format:check": "oxfmt --check .",
     "test": "vitest run --project unit",

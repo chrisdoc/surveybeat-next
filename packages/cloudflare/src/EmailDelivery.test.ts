@@ -28,6 +28,7 @@ describe("parseDeliveryEvent", () => {
       delivery: { status: "bounced", smtpStatusCode: "550", smtpEnhancedStatusCode: "5.1.1" },
       bounce: { type: "hard", classification: "permanent_failure", reason: "User unknown" },
     });
+
     expect(parseDeliveryEvent(bounced)).toEqual(
       Option.some({ messageId: "m-1", kind: "bounced", code: "5.1.1" }),
     );
@@ -38,6 +39,7 @@ describe("parseDeliveryEvent", () => {
       delivery: { status: "complained" },
       complaint: { type: "abuse" },
     });
+
     expect(parseDeliveryEvent(complained)).toEqual(
       Option.some({ messageId: "m-1", kind: "complained", code: "abuse" }),
     );
@@ -48,6 +50,7 @@ describe("parseDeliveryEvent", () => {
       delivery: { status: "rejected" },
       rejection: { reason: "suppressed", party: "recipient" },
     });
+
     expect(parseDeliveryEvent(rejected)).toEqual(
       Option.some({ messageId: "m-1", kind: "rejected", code: "suppressed" }),
     );
@@ -71,14 +74,17 @@ describe("handleDeadLetter", () => {
     const abandoned: (readonly [string, string])[] = [];
     let acked = 0;
     let retried = 0;
+
     const organizations = {
       getByName: (organizationId: string) => ({
         abandonEmailSend: (sendId: string) => {
           abandoned.push([organizationId, sendId]);
+
           return Effect.succeed({ _tag: "Failed" });
         },
       }),
     };
+
     const message = {
       body: { organizationId: "org-1", sendId: "send-1" },
       ack: () => {
@@ -100,12 +106,15 @@ describe("handleDeadLetter", () => {
   it.effect("acks a malformed message without touching an Organization", () => {
     let called = 0;
     let acked = 0;
+
     const organizations = {
       getByName: () => {
         called++;
+
         return { abandonEmailSend: () => Effect.succeed(null) };
       },
     };
+
     const message = {
       body: "not a send request",
       ack: () => {

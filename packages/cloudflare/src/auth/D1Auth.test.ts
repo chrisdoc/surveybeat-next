@@ -18,9 +18,11 @@ const migrations = new URL("../../d1-migrations/", import.meta.url);
 
 const makeIndex = () => {
   const sqlite = new DatabaseSync(":memory:");
+
   for (const file of readdirSync(migrations).sort()) {
     sqlite.exec(readFileSync(new URL(file, migrations), "utf8"));
   }
+
   const statement = (sql: string, binds: readonly unknown[]) => ({
     bind: (...values: readonly unknown[]) => statement(sql, values),
     all: () =>
@@ -28,17 +30,22 @@ const makeIndex = () => {
     run: () =>
       Effect.sync(() => {
         sqlite.prepare(sql).run(...(binds as (null | string | number)[]));
+
         return { results: [] };
       }),
   });
+
   const client = {
     prepare: (sql: string) => statement(sql, []),
   } as unknown as Cloudflare.D1.QueryDatabaseClient;
+
   return d1PeopleIndex(client).pipe(Effect.provideService(RuntimeContext, {} as RuntimeContext["Service"]));
 };
 
 const acme = { id: OrganizationId.make("acme"), name: "Acme" };
+
 const globex = { id: OrganizationId.make("globex"), name: "Globex" };
+
 const ada = AuthUserId.make("user_ada");
 
 describe("D1 PeopleIndex", () => {
@@ -85,12 +92,14 @@ describe("D1 PeopleIndex", () => {
       const index = yield* makeIndex();
       const first = { organization: acme, adminPersonId: PersonId.make("admin-1") };
       const second = { organization: globex, adminPersonId: PersonId.make("admin-2") };
+
       const [a, b] = yield* Effect.all(
         [index.claimOrganization(ada, first), index.claimOrganization(ada, second)],
         {
           concurrency: "unbounded",
         },
       );
+
       const open = { ...first, completed: false };
       assert.deepStrictEqual(a, open);
       assert.deepStrictEqual(b, open);
@@ -115,22 +124,27 @@ describe("D1 PeopleIndex", () => {
     const sqlite = new DatabaseSync(":memory:");
     const files = readdirSync(migrations).sort();
     const before = files.filter((file) => file < "0004");
+
     for (const file of before) {
       sqlite.exec(readFileSync(new URL(file, migrations), "utf8"));
     }
+
     sqlite.exec(`
       INSERT INTO organization_claim VALUES ('user_done', 'org-done', 'Done', 'admin-done');
       INSERT INTO organization_claim VALUES ('user_open', 'org-open', 'Open', 'admin-open');
       INSERT INTO person_index VALUES ('org-done', 'admin-done', 'done@example.com', 'user_done');
     `);
+
     for (const file of files.filter((file) => !before.includes(file))) {
       sqlite.exec(readFileSync(new URL(file, migrations), "utf8"));
     }
+
     const rows = sqlite
       .prepare(
         "SELECT auth_user_id, completed_at IS NOT NULL AS completed FROM organization_claim ORDER BY 1",
       )
       .all();
+
     assert.deepStrictEqual(
       rows.map((row) => ({ ...row })),
       [
@@ -142,9 +156,11 @@ describe("D1 PeopleIndex", () => {
 
   it("rejects an email stored without normalising", () => {
     const sqlite = new DatabaseSync(":memory:");
+
     for (const file of readdirSync(migrations).sort()) {
       sqlite.exec(readFileSync(new URL(file, migrations), "utf8"));
     }
+
     assert.throws(() =>
       sqlite
         .prepare(
@@ -156,7 +172,9 @@ describe("D1 PeopleIndex", () => {
 });
 
 const authOrigin = "http://localhost:5173";
+
 const authAddress = "person@example.com";
+
 const authSettings = {
   baseURL: authOrigin,
   secret: "surveybeat-d1-test-secret-000000000000",
@@ -178,37 +196,46 @@ interface AuthorizedStatement {
 // SQLite behind that interface and lets the real migrations run in front of it.
 const betterAuthDatabase = () => {
   const sqlite = new DatabaseSync(":memory:");
+
   for (const file of readdirSync(migrations).sort()) {
     sqlite.exec(readFileSync(new URL(file, migrations), "utf8"));
   }
+
   const bounded = (binds: readonly unknown[]) => binds as (null | number | string)[];
+
   const statement = (sql: string, binds: readonly unknown[]): AuthorizedStatement => ({
     bind: (...values) => statement(sql, values),
     run: () => {
       sqlite.prepare(sql).run(...bounded(binds));
+
       return Promise.resolve();
     },
     all: <T>() => {
       const prepared = sqlite.prepare(sql);
+
       if (prepared.columns().length === 0) {
         const applied = prepared.run(...bounded(binds));
+
         return Promise.resolve({
           results: [] as T[],
           meta: { changes: Number(applied.changes), last_row_id: Number(applied.lastInsertRowid) },
         });
       }
+
       return Promise.resolve({
         results: prepared.all(...bounded(binds)) as unknown as T[],
         meta: { changes: 0, last_row_id: 0 },
       });
     },
   });
+
   const database = {
     prepare: (sql: string) => statement(sql, []),
     batch: (statements: readonly AuthorizedStatement[]) =>
       Promise.all(statements.map((query) => query.all())),
     exec: (sql: string) => Promise.resolve(sqlite.exec(sql)),
   };
+
   return { sqlite, database };
 };
 
@@ -229,6 +256,7 @@ describe("Better Auth sessions in D1", () => {
     Effect.gen(function* () {
       const { sqlite, database } = betterAuthDatabase();
       const codes: string[] = [];
+
       const delivery = {
         sendSignInCode: ({ otp }: { readonly email: string; readonly otp: string }) =>
           Effect.sync(() => {
@@ -236,19 +264,23 @@ describe("Better Auth sessions in D1", () => {
           }),
         sendMagicLink: () => Effect.void,
       };
+
       const d1 = database as unknown as NonNullable<Parameters<typeof createAuth>[0]["database"]>;
 
       const first = createAuth({ settings: authSettings, delivery, database: d1 });
+
       const sent = yield* Effect.promise(() =>
         first.handler(
           authPost("/auth/email-otp/send-verification-otp", { email: authAddress, type: "sign-in" }),
         ),
       );
+
       expect(sent.status).toBe(200);
 
       const signedIn = yield* Effect.promise(() =>
         first.handler(authPost("/auth/sign-in/email-otp", { email: authAddress, otp: codes[0] ?? "" })),
       );
+
       expect(signedIn.status).toBe(200);
       const cookie = (signedIn.headers.get("set-cookie") ?? "").split(";")[0] ?? "";
       expect(cookie).toContain(`${SESSION_COOKIE}=`);
@@ -256,6 +288,7 @@ describe("Better Auth sessions in D1", () => {
       const stored = sqlite.prepare(`SELECT COUNT(*) AS count FROM ${AUTH_TABLES.session}`).get() as {
         count: number;
       };
+
       expect(stored.count).toBe(1);
 
       const nextInstance = createAuth({ settings: authSettings, delivery, database: d1 });
@@ -276,6 +309,7 @@ describe("Better Auth identity provider over D1", () => {
     Effect.gen(function* () {
       const { sqlite, database } = betterAuthDatabase();
       const codes: string[] = [];
+
       const delivery = {
         sendSignInCode: ({ otp }: { readonly email: string; readonly otp: string }) =>
           Effect.sync(() => {
@@ -283,6 +317,7 @@ describe("Better Auth identity provider over D1", () => {
           }),
         sendMagicLink: () => Effect.void,
       };
+
       const d1 = database as unknown as NonNullable<Parameters<typeof createAuth>[0]["database"]>;
       const auth = createAuth({ settings: authSettings, delivery, database: d1 });
       yield* Effect.promise(() =>
@@ -290,9 +325,11 @@ describe("Better Auth identity provider over D1", () => {
           authPost("/auth/email-otp/send-verification-otp", { email: authAddress, type: "sign-in" }),
         ),
       );
+
       const signedIn = yield* Effect.promise(() =>
         auth.handler(authPost("/auth/sign-in/email-otp", { email: authAddress, otp: codes[0] ?? "" })),
       );
+
       const cookie = (signedIn.headers.get("set-cookie") ?? "").split(";")[0] ?? "";
       const value = cookie.slice(`${SESSION_COOKIE}=`.length);
 
@@ -326,6 +363,7 @@ describe("Better Auth identity provider over D1", () => {
             database.prepare("DELETE FROM auth_session WHERE id = ?").bind(sessionId).run(),
           ),
       });
+
       const session = yield* provider.authenticate(Redacted.make(value));
       expect(session.identity.email).toBe(authAddress);
 
@@ -336,8 +374,10 @@ describe("Better Auth identity provider over D1", () => {
 
       const count = (table: string) => {
         const row = sqlite.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get() as { count: number };
+
         return row.count;
       };
+
       expect(count("auth_session_organization")).toBe(1);
 
       yield* provider.revokeSession(session.sessionId);
@@ -357,6 +397,7 @@ describe("Better Auth plugin tables in D1", () => {
     Effect.gen(function* () {
       const { sqlite, database } = betterAuthDatabase();
       const links: string[] = [];
+
       const delivery = {
         sendSignInCode: () => Effect.void,
         sendMagicLink: ({ url }: { readonly email: string; readonly url: string }) =>
@@ -364,19 +405,23 @@ describe("Better Auth plugin tables in D1", () => {
             links.push(url);
           }),
       };
+
       const d1 = database as unknown as NonNullable<Parameters<typeof createAuth>[0]["database"]>;
       const auth = createAuth({ settings: authSettings, delivery, database: d1 });
 
       const sent = yield* Effect.promise(() =>
         auth.handler(authPost("/auth/sign-in/magic-link", { email: authAddress })),
       );
+
       expect(sent.status).toBe(200);
       expect(links).toHaveLength(1);
 
       const link = new URL(links[0] ?? "");
+
       const verified = yield* Effect.promise(() =>
         auth.handler(new Request(link.toString(), { headers: { origin: authOrigin } })),
       );
+
       expect(verified.status).toBeLessThan(400);
       const cookie = (verified.headers.get("set-cookie") ?? "").split(";")[0] ?? "";
       expect(cookie).toContain(`${SESSION_COOKIE}=`);
@@ -389,9 +434,11 @@ describe("Better Auth plugin tables in D1", () => {
         const row = sqlite.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get() as { count: number };
         expect(row.count, table).toBe(0);
       }
+
       const user = sqlite.prepare("SELECT role FROM auth_user WHERE email = ?").get(authAddress) as {
         role: string;
       };
+
       expect(user.role).toBe("user");
     }),
   );

@@ -9,12 +9,17 @@ import * as Redacted from "effect/Redacted";
 import * as Schema from "effect/Schema";
 
 const MODEL = "anthropic/claude-haiku-5.5";
+
 const EU_ENDPOINTS = ["google-vertex/europe", "amazon-bedrock/eu-west-1"] as const;
+
 const ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
 
 const ATTEMPT_TIMEOUT_MS = 60_000;
+
 const MAX_RETRIES = 3;
+
 const MAX_RETRY_AFTER_MS = 30_000;
+
 const RETRYABLE_STATUSES: ReadonlySet<number> = new Set([408, 429, 502, 503]);
 
 export interface OpenRouterBody {
@@ -83,9 +88,11 @@ const attemptOnce = async (doFetch: typeof fetch, apiKey: string, body: OpenRout
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(ATTEMPT_TIMEOUT_MS),
     });
+
     return { kind: "response", response };
   } catch (error) {
     const name = error instanceof Error ? error.name : "";
+
     return {
       kind: "failed",
       reason: name === "TimeoutError" || name === "AbortError" ? "timeout" : "network",
@@ -95,9 +102,11 @@ const attemptOnce = async (doFetch: typeof fetch, apiKey: string, body: OpenRout
 
 const backoffMs = (attempt: number, retryAfter: string | null): number => {
   const seconds = retryAfter === null ? Number.NaN : Number(retryAfter);
+
   if (Number.isFinite(seconds) && seconds >= 0) {
     return Math.min(seconds * 1000, MAX_RETRY_AFTER_MS);
   }
+
   return 2 ** attempt * 1000;
 };
 
@@ -112,10 +121,13 @@ const parseReply = (response: Response) =>
       try: (): Promise<unknown> => response.json(),
       catch: () => new AiRejected({ status: response.status }),
     });
+
     const envelope = yield* Schema.decodeUnknownEffect(Envelope)(json).pipe(
       Effect.mapError(() => new AiRejected({ status: response.status })),
     );
+
     const content = envelope.choices[0].message.content;
+
     return yield* Effect.try({
       try: (): unknown => JSON.parse(content),
       catch: () => new AiRejected({ status: response.status }),
@@ -139,6 +151,7 @@ export const makeOpenRouterAiClient = (
         if (key === "") {
           return yield* new AiNotConfigured();
         }
+
         const body = openRouterRequestBody(request);
 
         for (let attempt = 0; ; attempt++) {
@@ -149,22 +162,28 @@ export const makeOpenRouterAiClient = (
             if (isLast) {
               return yield* new AiUnavailable({ reason: outcome.reason });
             }
+
             yield* sleep(backoffMs(attempt, null));
             continue;
           }
 
           const { response } = outcome;
+
           if (response.ok) {
             return yield* parseReply(response);
           }
+
           yield* discardBody(response);
+
           if (RETRYABLE_STATUSES.has(response.status)) {
             if (isLast) {
               return yield* new AiUnavailable({ reason: "retryable-status", status: response.status });
             }
+
             yield* sleep(backoffMs(attempt, response.headers.get("Retry-After")));
             continue;
           }
+
           return yield* new AiRejected({ status: response.status });
         }
       }),
@@ -175,6 +194,7 @@ export const OpenRouterAiClientLive = Layer.effect(
   AiClient,
   Effect.gen(function* () {
     const key = yield* Config.Redacted("OPENROUTER_API_KEY").pipe(Config.withDefault(Redacted.make("")));
+
     return makeOpenRouterAiClient(key);
   }).pipe(Effect.orDie),
 );

@@ -14,6 +14,7 @@ import { makeEmailOutbox } from "./EmailOutbox.ts";
 const migrationsDir = new URL("../../migrations/", import.meta.url);
 
 const pending: SendState = { _tag: "Pending", attempts: 0, lastCode: null };
+
 const sent = { _tag: "Sent", messageId: "m-1" } as unknown as SendState;
 
 const email = {
@@ -29,6 +30,7 @@ const setUp = (options: { readonly onBatch?: () => void; readonly failSend?: boo
   Effect.gen(function* () {
     const db = migratedDatabase(migrationsDir);
     db.prepare("INSERT INTO organization (id, name) VALUES ('org-1', 'Acme')").run();
+
     const sql = yield* SqliteClient.make({
       storage: SqliteStorage.makeSqliteStorage(db) as unknown as NonNullable<
         Parameters<typeof SqliteClient.make>[0]["storage"]
@@ -36,6 +38,7 @@ const setUp = (options: { readonly onBatch?: () => void; readonly failSend?: boo
     }).pipe(Effect.provideService(Scope.Scope, yield* Scope.make()), Effect.provide(Reactivity.layer));
 
     const batches: (readonly unknown[])[] = [];
+
     const queue = {
       sendBatch: (messages: readonly { readonly body: unknown }[]) =>
         options.failSend === true
@@ -47,11 +50,13 @@ const setUp = (options: { readonly onBatch?: () => void; readonly failSend?: boo
     } as unknown as Cloudflare.Queues.WriteQueueClient;
 
     const outbox = makeEmailOutbox(sql, queue);
+
     const rows = () =>
       db
         .prepare("SELECT send_id FROM email_outbox ORDER BY id")
         .all()
         .map((row) => row.send_id);
+
     return { db, outbox, batches, rows };
   });
 
@@ -66,6 +71,7 @@ describe("the Organization's email outbox", () => {
     Effect.gen(function* () {
       const { outbox, rows } = yield* setUp();
       let recorded = 0;
+
       const after = Effect.sync(() => {
         recorded++;
       });
@@ -88,6 +94,7 @@ describe("the Organization's email outbox", () => {
     Effect.gen(function* () {
       const { db, outbox, batches, rows } = yield* setUp();
       const insert = db.prepare("INSERT INTO email_outbox (send_id) VALUES (?)");
+
       for (let i = 0; i < 205; i++) {
         insert.run(`send-${i}`);
       }

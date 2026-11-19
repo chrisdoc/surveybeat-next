@@ -11,12 +11,16 @@ const escape = (text: string): string =>
   text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 
 const wrap = "mx-auto w-full max-w-[1120px] px-6 sm:px-8";
+
 const primaryButton =
   "site-press inline-flex min-h-11 items-center justify-center rounded-control bg-primary px-5 py-2 font-semibold text-on-primary hover:bg-primary-hover";
+
 const secondaryButton =
   "site-press inline-flex min-h-11 items-center justify-center rounded-control border border-line bg-surface px-4 py-2 font-semibold text-ink hover:bg-subtle";
+
 const textLink =
   "site-underline inline-flex min-h-11 items-center font-semibold text-primary hover:text-primary-hover";
+
 const sectionTitle = "font-display text-[36px] leading-[1.08] font-normal tracking-tight sm:text-[48px]";
 
 const brandMark = (size: number): string =>
@@ -46,18 +50,21 @@ export const renderSitePage = (locale: Locale, shell: string): string => {
   const recommended = Policy.questions.recommended;
   const description = tp("site.description", { groupSize });
   const heroLede = tp("site.hero.lede", { groupSize, recommended });
+
   const stepBody = {
     ask: tp("site.loop.ask.body", { recommended }),
     answer: t("site.loop.answer.body"),
     understand: tp("site.loop.understand.body", { rounds: Policy.trendRounds }),
     act: t("site.loop.act.body"),
   };
+
   const featureBody = {
     themes: tp("site.results.themes.body", { themes: Policy.themes.maximum }),
     guide: t("site.results.guide.body"),
     note: t("site.results.note.body"),
     actions: t("site.results.actions.body"),
   };
+
   const privacyCopy = {
     storage: { title: t("site.privacy.storage.title"), body: t("site.privacy.storage.body") },
     groupSize: {
@@ -67,6 +74,7 @@ export const renderSitePage = (locale: Locale, shell: string): string => {
     redaction: { title: t("site.privacy.redaction.title"), body: t("site.privacy.redaction.body") },
     admins: { title: t("site.privacy.admins.title"), body: t("site.privacy.admins.body") },
   };
+
   const decimal = new Intl.NumberFormat(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
   const header = `<header class="sticky top-0 z-20 border-b border-line bg-stone/90 backdrop-blur-md">
@@ -94,6 +102,7 @@ export const renderSitePage = (locale: Locale, shell: string): string => {
     .map((value, index, all) => {
       const height = Math.round((value - 2.5) * 22);
       const last = index === all.length - 1;
+
       return `<span class="w-full rounded-sm ${last ? "bg-mint" : "bg-mint/35"}" style="height:${height}px"></span>`;
     })
     .join("");

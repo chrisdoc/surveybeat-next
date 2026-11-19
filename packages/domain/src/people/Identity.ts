@@ -2,12 +2,15 @@ import { Schema } from "effect";
 import { EmailAddress } from "../email/Email.ts";
 
 export const AuthUserId = Schema.String.pipe(Schema.brand("AuthUserId"));
+
 export type AuthUserId = typeof AuthUserId.Type;
 
 export const SessionId = Schema.String.pipe(Schema.brand("SessionId"));
+
 export type SessionId = typeof SessionId.Type;
 
 export const PersonId = Schema.String.pipe(Schema.brand("PersonId"));
+
 export type PersonId = typeof PersonId.Type;
 
 export const normaliseEmail = (email: string): string => email.normalize("NFKC").trim().toLowerCase();

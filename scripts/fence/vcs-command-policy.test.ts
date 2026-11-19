@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { evaluateCommand, gateHasPassed } from "./vcs-command-policy.mjs";
 
 const denies = (command: string) => evaluateCommand(command, { gatePassed: false }).decision === "deny";
+
 const allows = (command: string) => evaluateCommand(command, { gatePassed: false }).decision === "allow";
 
 const BYPASSES = [
@@ -88,9 +89,11 @@ describe("the hook-bypass policy", () => {
     const hooksPath = evaluateCommand("git config core.hooksPath /tmp/hooks", { gatePassed: false });
     expect(noVerify.decision).toBe("deny");
     expect(hooksPath.decision).toBe("deny");
+
     if (noVerify.decision === "deny") {
       expect(noVerify.reason).toMatch(/no-verify/i);
     }
+
     if (hooksPath.decision === "deny") {
       expect(hooksPath.reason).toMatch(/core\.hooksPath/);
     }
@@ -102,6 +105,7 @@ describe("the hook-bypass policy", () => {
       encoding: "utf8",
       input: JSON.stringify({ tool_name: "Bash", tool_input: { command: "git commit --no-verify" } }),
     });
+
     expect(result.status).toBe(0);
     expect(JSON.parse(result.stdout).hookSpecificOutput.permissionDecision).toBe("deny");
     expect(JSON.parse(result.stdout).hookSpecificOutput.permissionDecisionReason).toMatch(/no-verify/);
@@ -113,6 +117,7 @@ describe("the hook-bypass policy", () => {
       encoding: "utf8",
       input: JSON.stringify({ command: "git commit -n" }),
     });
+
     expect(result.status).toBe(0);
     expect(JSON.parse(result.stdout).permission).toBe("deny");
   });
@@ -126,6 +131,7 @@ describe("the hook-bypass policy", () => {
         encoding: "utf8",
       },
     );
+
     expect(result.status).toBe(2);
     expect(result.stderr).toMatch(/fence: The fence refuses this command/);
   });

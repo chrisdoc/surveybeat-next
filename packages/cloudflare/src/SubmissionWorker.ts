@@ -12,6 +12,7 @@ export default class SubmissionWorker extends Cloudflare.Worker<SubmissionWorker
   Effect.gen(function* () {
     const stack = yield* Stack;
     const hostname = hostnameFor(stack.stage, "submit");
+
     return {
       main: import.meta.url,
       observability: {
@@ -28,10 +29,12 @@ export default class SubmissionWorker extends Cloudflare.Worker<SubmissionWorker
   }),
   Effect.gen(function* () {
     const main = yield* Cloudflare.Worker.ref("Main");
+
     const hostOfOrganization = {
       workerName: main.workerName,
       "~alchemy/dependencies": (_: Organization) => undefined,
     };
+
     const organizations = yield* Organization.from(hostOfOrganization);
     const database = yield* Cloudflare.D1.QueryDatabase(yield* Database);
 

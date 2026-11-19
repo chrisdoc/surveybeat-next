@@ -86,6 +86,7 @@ const organizationObject = Effect.gen(function* () {
       Effect.flatMap((secret) => Effect.promise(() => importInvitationTokenKey(Redacted.value(secret)))),
       Effect.orDie,
     );
+
     const tokenOf = (ref: InvitationTokenRef) =>
       Effect.promise(() => deriveInvitationToken(invitationKey, ref));
 
@@ -93,9 +94,11 @@ const organizationObject = Effect.gen(function* () {
       Config.withDefault(Redacted.make("")),
       Effect.orDie,
     );
+
     const ai = makeOpenRouterAiClient(aiKey);
 
     const scope = yield* Scope.make();
+
     const sql = yield* SqliteClient.make({ storage: state.raw.storage }).pipe(
       Effect.provideService(Scope.Scope, scope),
       Effect.provide(Reactivity.layer),
@@ -112,8 +115,10 @@ const organizationObject = Effect.gen(function* () {
         const now = yield* Clock.currentTimeMillis;
         const sendsWaiting = yield* outbox.isWaiting;
         const earliest = sendsWaiting ? Math.min(now, nextJob ?? now) : nextJob;
+
         if (earliest !== null) {
           const currentAlarm = yield* Effect.promise(() => state.raw.storage.getAlarm());
+
           if (currentAlarm !== earliest) {
             yield* Effect.promise(() => state.raw.storage.setAlarm(earliest));
           }
@@ -126,6 +131,7 @@ const organizationObject = Effect.gen(function* () {
       makeSendStore(makeSqlSendRepository(sql), defaultSendPolicy),
       Effect.suspend(() => repairAlarm()),
     );
+
     const directory = makeSqlDirectory(sql, sends);
     const pulses = makeSqlPulses(sql);
     const actions = makeSqlActions(sql);
@@ -133,6 +139,7 @@ const organizationObject = Effect.gen(function* () {
     const both = Effect.all([directory.load, pulses.load]);
 
     const scheduling = makeScheduling({ rounds, directory, pulses, repairAlarm, randomId });
+
     const jobs = makeRoundJobs({
       sql,
       rounds,
@@ -167,9 +174,11 @@ const organizationObject = Effect.gen(function* () {
       Effect.gen(function* () {
         const [people, library] = yield* both;
         const decision = decideTestSend(people, library, actorId, teamId, pulseId);
+
         if (decision._tag === "Rejected") {
           return { _tag: "Rejected", rejection: decision.rejection } satisfies TestSendResult;
         }
+
         const { person, pulse } = decision;
 
         if (perHour) {
@@ -178,6 +187,7 @@ const organizationObject = Effect.gen(function* () {
             Effect.flatMap(Schema.decodeUnknownEffect(Schema.Array(TestSendCount))),
             Effect.orDie,
           );
+
           if ((sentRecently[0]?.n ?? 0) >= testSendsPerHour) {
             return {
               _tag: "Rejected",
@@ -196,6 +206,7 @@ const organizationObject = Effect.gen(function* () {
             VALUES (${sendId}, ${actorId}, ${pulseId}, ${tokenHash}, ${now})`;
 
         const eligibleActions = yield* actions.getEligibleActionsForRound(teamId, pulseId, now);
+
         const testEmail: TransactionalEmail = {
           _tag: "TestInvitationEmail",
           locale: emailLocaleOf(people, actorId),
@@ -207,7 +218,9 @@ const organizationObject = Effect.gen(function* () {
           actions: eligibleActions.slice(0, 3).map((action) => action.title),
           aiProcessing: people.aiProcessing,
         };
+
         yield* sends.create(sendId, person.email, testEmail);
+
         return { _tag: "Accepted", sendId, email: person.email } satisfies TestSendResult;
       });
 
@@ -226,9 +239,11 @@ const organizationObject = Effect.gen(function* () {
             Effect.gen(function* () {
               const [people, library] = yield* both;
               const decision = decidePulse(people, library, actorId, command, now);
+
               if (decision._tag === "Rejected") {
                 return decision satisfies PulseCommandResult;
               }
+
               yield* pulses.apply(decision.changes);
 
               if (command._tag === "CreatePulse") {
@@ -300,9 +315,11 @@ const organizationObject = Effect.gen(function* () {
           yield* rounds.setPersonTimeZone(pid, timeZone);
           const now = yield* Clock.currentTimeMillis;
           const [dirState, pulseState] = yield* both;
+
           const teamIds = new Set(
             dirState.memberships.filter((m) => m.personId === pid && m.endedAt === null).map((m) => m.teamId),
           );
+
           for (const pulse of pulseState.pulses) {
             if (teamIds.has(pulse.teamId)) {
               yield* scheduling.updateScheduledRoundForPulse(pulse.id, now);

@@ -31,22 +31,29 @@ export const organizationActions = ({
     Effect.gen(function* () {
       const dirState = yield* directory.load;
       const auth = authorizeRoundAction(dirState, actorId, "team.viewActions", teamId);
+
       if (auth._tag === "Rejected") {
         const rejected: ActionViewed<ActionList> = {
           _tag: "Rejected",
           rejection: { _tag: auth.rejection._tag === "TeamNotFound" ? "TeamNotFound" : "Forbidden" },
         };
+
         return rejected;
       }
+
       const team = dirState.teams.find((t) => t.id === teamId);
+
       if (team === undefined) {
         const rejected: ActionViewed<ActionList> = {
           _tag: "Rejected",
           rejection: { _tag: "TeamNotFound" },
         };
+
         return rejected;
       }
+
       const all = yield* actions.getActionsForTeam(teamId);
+
       const viewed: ActionViewed<ActionList> = {
         _tag: "Viewed",
         value: {
@@ -54,6 +61,7 @@ export const organizationActions = ({
           actions: all,
         },
       };
+
       return viewed;
     }).pipe(Effect.orDie),
 
@@ -68,6 +76,7 @@ export const organizationActions = ({
         Effect.gen(function* () {
           const dirState = yield* directory.load;
           const auth = authorizeRoundAction(dirState, actorId, "team.createAction", teamId);
+
           if (auth._tag === "Rejected") {
             const rejected: ActionViewed<ActionItem> = {
               _tag: "Rejected",
@@ -75,32 +84,42 @@ export const organizationActions = ({
                 _tag: auth.rejection._tag === "TeamNotFound" ? "TeamNotFound" : "Forbidden",
               },
             };
+
             return rejected;
           }
+
           const team = dirState.teams.find((t) => t.id === teamId);
+
           if (team === undefined) {
             const rejected: ActionViewed<ActionItem> = {
               _tag: "Rejected",
               rejection: { _tag: "TeamNotFound" },
             };
+
             return rejected;
           }
+
           const isMember = dirState.memberships.some(
             (m) => m.teamId === teamId && m.personId === payload.ownerId && m.endedAt === null,
           );
+
           if (!isMember) {
             const rejected: ActionViewed<ActionItem> = {
               _tag: "Rejected",
               rejection: { _tag: "OwnerNotInTeam" },
             };
+
             return rejected;
           }
+
           const round = yield* rounds.getRound(payload.roundId);
+
           if (round === null || round.teamId !== teamId) {
             const rejected: ActionViewed<ActionItem> = {
               _tag: "Rejected",
               rejection: { _tag: "RoundNotFound" },
             };
+
             return rejected;
           }
 
@@ -120,10 +139,12 @@ export const organizationActions = ({
           });
 
           const item = yield* actions.getActionItem(actionId);
+
           const viewed: ActionViewed<ActionItem> = {
             _tag: "Viewed",
             value: item!,
           };
+
           return viewed;
         }),
       )
@@ -141,6 +162,7 @@ export const organizationActions = ({
         Effect.gen(function* () {
           const dirState = yield* directory.load;
           const auth = authorizeRoundAction(dirState, actorId, "team.updateAction", teamId);
+
           if (auth._tag === "Rejected") {
             const rejected: ActionViewed<ActionItem> = {
               _tag: "Rejected",
@@ -148,22 +170,29 @@ export const organizationActions = ({
                 _tag: auth.rejection._tag === "TeamNotFound" ? "TeamNotFound" : "Forbidden",
               },
             };
+
             return rejected;
           }
+
           const team = dirState.teams.find((t) => t.id === teamId);
+
           if (team === undefined) {
             const rejected: ActionViewed<ActionItem> = {
               _tag: "Rejected",
               rejection: { _tag: "TeamNotFound" },
             };
+
             return rejected;
           }
+
           const existing = yield* actions.getAction(actionId);
+
           if (existing === null || existing.teamId !== teamId) {
             const rejected: ActionViewed<ActionItem> = {
               _tag: "Rejected",
               rejection: { _tag: "ActionNotFound" },
             };
+
             return rejected;
           }
 
@@ -171,16 +200,19 @@ export const organizationActions = ({
             const isMember = dirState.memberships.some(
               (m) => m.teamId === teamId && m.personId === payload.ownerId && m.endedAt === null,
             );
+
             if (!isMember) {
               const rejected: ActionViewed<ActionItem> = {
                 _tag: "Rejected",
                 rejection: { _tag: "OwnerNotInTeam" },
               };
+
               return rejected;
             }
           }
 
           let newDoneAt: number | null = existing.doneAt;
+
           if (payload.status === "done" && existing.status !== "done") {
             newDoneAt = now;
           } else if (payload.status !== undefined && payload.status !== "done") {
@@ -198,10 +230,12 @@ export const organizationActions = ({
           });
 
           const item = yield* actions.getActionItem(actionId);
+
           const viewed: ActionViewed<ActionItem> = {
             _tag: "Viewed",
             value: item!,
           };
+
           return viewed;
         }),
       )

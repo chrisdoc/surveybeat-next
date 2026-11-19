@@ -166,6 +166,7 @@ export function ActionsCard({ actions, messages }: { actions: readonly string[];
   if (actions.length === 0) {
     return null;
   }
+
   return (
     <Section
       className="sb-card"

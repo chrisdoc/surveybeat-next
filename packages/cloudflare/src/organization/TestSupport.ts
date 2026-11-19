@@ -39,9 +39,11 @@ export const organizationTestSupport = <E>({
       .withTransaction(
         Effect.gen(function* () {
           const result = yield* queueTestSend(actorId, teamId, pulseId, now, false);
+
           if (result._tag === "Rejected") {
             return yield* Effect.die(`test send refused: ${result.rejection._tag}`);
           }
+
           yield* sends.claim(result.sendId, now + 1);
           yield* sends.settle(
             result.sendId,
@@ -49,6 +51,7 @@ export const organizationTestSupport = <E>({
             { _tag: "Rejected", code: "E_SENDER_NOT_VERIFIED", permanent: true },
             now + 2,
           );
+
           return result.sendId;
         }),
       )
@@ -58,18 +61,23 @@ export const organizationTestSupport = <E>({
     Effect.gen(function* () {
       const rid = RoundId.make(roundId);
       const r = yield* rounds.getRound(rid);
+
       if (r === null) {
         return false;
       }
+
       const dirState = yield* directory.load;
+
       const effectiveN = Math.max(
         dirState.minimumGroupSize,
         r.effectiveMinimumGroupSize ?? dirState.minimumGroupSize,
       );
+
       const now = yield* Clock.currentTimeMillis;
       const questions = yield* rounds.getRoundQuestionsDetailed(rid);
       const submissions = yield* rounds.getSubmissionsForRound(rid);
       const eligibleMembersCount = yield* rounds.getRoundMembersCount(rid);
+
       const pastHistory = yield* rounds.getPastRoundsResultsForPulse(
         r.pulseId,
         Policy.trendRounds,
@@ -90,7 +98,9 @@ export const organizationTestSupport = <E>({
         submissions,
         pastRoundsHistory: pastHistory,
       });
+
       yield* rounds.saveRoundResult(rid, result, now);
+
       return true;
     }).pipe(Effect.orDie),
   injectComputeFailures: (roundId: string, count: number) => jobs.injectComputeFailures(roundId, count),

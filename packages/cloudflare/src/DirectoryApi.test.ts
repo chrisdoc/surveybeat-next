@@ -15,12 +15,15 @@ const setup = async () => {
   const world = new SignInWorld();
   const acme = world.addOrganization("Acme");
   const adminId = world.addPerson(acme.id, "admin@example.com", true);
+
   const as = async (email: string) => {
     const browser = new Browser(world.handler());
     browser.signIn(world.sessions.login(email));
     const session = await browser.session();
+
     return { browser, session };
   };
+
   const admin = (await as("admin@example.com")).browser;
   expect((await admin.session()).body).toMatchObject({ _tag: "SignedIn", organizationAdmin: true });
 
@@ -29,6 +32,7 @@ const setup = async () => {
     timeZone: "Europe/Berlin",
     leadEmail: "Grace@Example.com",
   });
+
   expect(created.status).toBe(200);
   const teamId = teamIdOf(created.body);
   const lead = (await as("grace@example.com")).browser;
@@ -37,16 +41,19 @@ const setup = async () => {
   );
   const member = (await as("ada@example.com")).browser;
   const personId = (email: string) => personIdOf(world, acme.id, email);
+
   return { world, acme, adminId, admin, lead, member, teamId, as, personId };
 };
 
 const teamIdOf = (body: unknown): string => {
   if (typeof body === "object" && body !== null && "team" in body) {
     const { team } = body;
+
     if (typeof team === "object" && team !== null && "id" in team && typeof team.id === "string") {
       return team.id;
     }
   }
+
   throw new Error("no Team in the response");
 };
 
@@ -54,18 +61,22 @@ const personIdOf = (world: SignInWorld, organizationId: OrganizationId, email: s
   const person = world.durable.organizations
     .get(organizationId)
     ?.state.people.find((each) => each.email === email);
+
   if (person === undefined) {
     throw new Error(`no Person ${email}`);
   }
+
   return person.id;
 };
 
 const roster = async (browser: Browser, teamId: string) => {
   const { status, body } = await browser.call("GET", `/api/teams/${teamId}`);
   expect(status).toBe(200);
+
   if (typeof body !== "object" || body === null || !("roster" in body) || !Array.isArray(body.roster)) {
     throw new Error("no roster");
   }
+
   return body.roster.map((entry: { role: string; email: string }) => `${entry.role} ${entry.email}`);
 };
 
@@ -83,6 +94,7 @@ describe("an Organization admin", () => {
       timeZone: "Europe/Berlin",
       leadEmail: "grace@example.com",
     });
+
     expect(created).toMatchObject({
       status: 200,
       body: {
@@ -151,8 +163,10 @@ describe("an Organization admin", () => {
 
   it("assigns and removes Leads, never the last one", async () => {
     const { admin, teamId, personId } = await setup();
+
     const removeGrace = () =>
       admin.call("DELETE", `/api/teams/${teamId}/leads/${personId("grace@example.com")}`);
+
     expect(await removeGrace()).toMatchObject({ status: 409, body: { _tag: "LastLead" } });
     expect(
       (await admin.call("POST", `/api/teams/${teamId}/leads`, { email: "ada@example.com" })).status,
@@ -325,6 +339,7 @@ describe("a Lead", () => {
   it("may not assign or remove Leads, rename the Team, or touch Organization settings", async () => {
     const { lead, teamId, personId, adminId } = await setup();
     const grace = personId("grace@example.com");
+
     for (const [method, path, body] of [
       ["POST", `/api/teams/${teamId}/leads`, { email: "ada@example.com" }],
       ["DELETE", `/api/teams/${teamId}/leads/${grace}`, undefined],
@@ -389,6 +404,7 @@ describe("a member", () => {
 describe("every directory endpoint", () => {
   const team = { name: "X", timeZone: "UTC", leadEmail: "x@example.com" };
   const email = { email: "x@example.com" };
+
   const ENDPOINTS: readonly (readonly [string, string, unknown])[] = [
     ["GET", "/api/teams", undefined],
     ["POST", "/api/teams", team],
@@ -423,12 +439,14 @@ describe("every directory endpoint", () => {
 
   it("refuses changes from another origin", async () => {
     const { world, admin, teamId } = await setup();
+
     const response = await admin.send(
       "POST",
       `/api/teams/${teamId}/members`,
       { email: "eve@example.com" },
       "https://pr-1.submit.surveybeat.app",
     );
+
     expect(response.status).toBe(403);
     expect(world.durable.organizations.values().next().value?.state.people).toHaveLength(3);
   });
@@ -516,18 +534,22 @@ describe("resending a failed email (issue 159)", () => {
         }
       }
     }
+
     throw new Error(`no send to ${recipient}`);
   };
 
   /** Marks the send to `recipient` as `state`, the way the email queue would, and returns its id. */
   const failedTo = (world: SignInWorld, recipient: string, state: SendState): SendId => {
     const sendId = sendTo(world, recipient);
+
     for (const organization of world.durable.organizations.values()) {
       const send = organization.sends.get(sendId);
+
       if (send !== undefined) {
         organization.sends.set(sendId, { ...send, state });
       }
     }
+
     return sendId;
   };
 
@@ -537,10 +559,12 @@ describe("resending a failed email (issue 159)", () => {
     code: "E_SENDER_NOT_VERIFIED",
     failedAt: 30,
   };
+
   const stateOf = (world: SignInWorld, sendId: SendId) =>
     [...world.durable.organizations.values()]
       .find((organization) => organization.sends.has(sendId))
       ?.sends.get(sendId)?.state;
+
   const resendPath = (sendId: SendId) => `/api/organization/failed-emails/${sendId}/resend`;
   const statusPath = (sendId: SendId) => `/api/organization/failed-emails/${sendId}`;
 
@@ -593,10 +617,12 @@ describe("resending a failed email (issue 159)", () => {
   it("is refused to a Lead and to a member, who are not Organization admins, and changes nothing", async () => {
     const { world, lead, member } = await setup();
     const sendId = failedTo(world, "ada@example.com", rejected);
+
     for (const browser of [lead, member]) {
       expect((await browser.call("POST", resendPath(sendId))).status).toBe(403);
       expect((await browser.call("GET", statusPath(sendId))).status).toBe(403);
     }
+
     expect(stateOf(world, sendId)).toMatchObject({ _tag: "Failed" });
   });
 
@@ -622,12 +648,14 @@ describe("resending a failed email (issue 159)", () => {
 
   it("refuses to send again an email that was complained about, and changes nothing", async () => {
     const { world, admin } = await setup();
+
     const sendId = failedTo(world, "ada@example.com", {
       _tag: "Failed",
       reason: "complained",
       code: null,
       failedAt: 40,
     });
+
     expect((await admin.call("POST", resendPath(sendId))).status).toBe(409);
     expect(await admin.call("GET", statusPath(sendId))).toMatchObject({
       status: 200,

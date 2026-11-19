@@ -139,7 +139,9 @@ const directoryErrors = [
   FailedEmailNotFound,
   EmailNotResendable,
 ] as const;
+
 const teamParams = { teamId: TeamId };
+
 const memberParams = { teamId: TeamId, personId: PersonId };
 
 export class DirectoryApiGroup extends HttpApiGroup.make("directory")
@@ -247,8 +249,11 @@ const pulseErrors = [
   TestSendLimitReached,
   TestSendNotFound,
 ] as const;
+
 const pulseParams = { teamId: TeamId, pulseId: PulseId };
+
 const testSendParams = { teamId: TeamId, pulseId: PulseId, sendId: SendId };
+
 const questionParams = { teamId: TeamId, pulseId: PulseId, questionId: QuestionId };
 
 export class PulsesApiGroup extends HttpApiGroup.make("pulses")

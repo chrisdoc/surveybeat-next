@@ -5,9 +5,11 @@ export const EmailAddress = Schema.String.pipe(
   Schema.check(Schema.isPattern(/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/)),
   Schema.brand("EmailAddress"),
 );
+
 export type EmailAddress = typeof EmailAddress.Type;
 
 export const SendId = Schema.NonEmptyString.pipe(Schema.brand("SendId"));
+
 export type SendId = typeof SendId.Type;
 
 const HttpsUrl = Schema.String.pipe(Schema.check(Schema.isStartingWith("https://")));
@@ -25,6 +27,7 @@ export const AddedToTeam = Schema.TaggedStruct("AddedToTeam", {
   leadName: Schema.NonEmptyString,
   signInUrl: HttpsUrl,
 });
+
 export type AddedToTeam = typeof AddedToTeam.Type;
 
 export const EmailRatingQuestion = Schema.Struct({
@@ -32,6 +35,7 @@ export const EmailRatingQuestion = Schema.Struct({
   lowLabel: Schema.String,
   highLabel: Schema.String,
 });
+
 export type EmailRatingQuestion = typeof EmailRatingQuestion.Type;
 
 const MinimumGroupSize = Schema.Int.pipe(Schema.check(Schema.isGreaterThanOrEqualTo(1)));
@@ -41,6 +45,7 @@ export const InvitationRef = Schema.Struct({
   personId: Schema.NonEmptyString,
   generation: Schema.Int.pipe(Schema.check(Schema.isGreaterThanOrEqualTo(0))),
 });
+
 export type InvitationRef = typeof InvitationRef.Type;
 
 export const TestInvitationRef = Schema.Struct({
@@ -48,6 +53,7 @@ export const TestInvitationRef = Schema.Struct({
   personId: Schema.NonEmptyString,
   testId: Schema.NonEmptyString,
 });
+
 export type TestInvitationRef = typeof TestInvitationRef.Type;
 
 export const InvitationEmail = Schema.TaggedStruct("InvitationEmail", {
@@ -60,6 +66,7 @@ export const InvitationEmail = Schema.TaggedStruct("InvitationEmail", {
   actions: Schema.Array(Schema.String),
   aiProcessing: AiProcessing,
 });
+
 export type InvitationEmail = typeof InvitationEmail.Type;
 
 export const TestInvitationEmail = Schema.TaggedStruct("TestInvitationEmail", {
@@ -72,6 +79,7 @@ export const TestInvitationEmail = Schema.TaggedStruct("TestInvitationEmail", {
   actions: Schema.Array(Schema.String),
   aiProcessing: AiProcessing,
 });
+
 export type TestInvitationEmail = typeof TestInvitationEmail.Type;
 
 export const ReminderEmail = Schema.TaggedStruct("ReminderEmail", {
@@ -83,6 +91,7 @@ export const ReminderEmail = Schema.TaggedStruct("ReminderEmail", {
   actions: Schema.Array(Schema.String),
   aiProcessing: AiProcessing,
 });
+
 export type ReminderEmail = typeof ReminderEmail.Type;
 
 export const InvitationEmailWithToken = Schema.TaggedStruct("InvitationEmail", {
@@ -98,6 +107,7 @@ export const InvitationEmailWithToken = Schema.TaggedStruct("InvitationEmail", {
   actions: Schema.Array(Schema.String),
   aiProcessing: AiProcessing,
 });
+
 export type InvitationEmailWithToken = typeof InvitationEmailWithToken.Type;
 
 export const ReminderEmailWithToken = Schema.TaggedStruct("ReminderEmail", {
@@ -110,6 +120,7 @@ export const ReminderEmailWithToken = Schema.TaggedStruct("ReminderEmail", {
   unsubscribeUrl: Schema.optionalKey(HttpsUrl),
   aiProcessing: AiProcessing,
 });
+
 export type ReminderEmailWithToken = typeof ReminderEmailWithToken.Type;
 
 export const ResultsReadyEmail = Schema.TaggedStruct("ResultsReadyEmail", {
@@ -119,6 +130,7 @@ export const ResultsReadyEmail = Schema.TaggedStruct("ResultsReadyEmail", {
   resultsUrl: HttpsUrl,
   responseRatePercent: Schema.Int,
 });
+
 export type ResultsReadyEmail = typeof ResultsReadyEmail.Type;
 
 export const TransactionalEmail = Schema.Union([
@@ -128,6 +140,7 @@ export const TransactionalEmail = Schema.Union([
   ReminderEmail,
   ResultsReadyEmail,
 ]);
+
 export type TransactionalEmail = typeof TransactionalEmail.Type;
 
 export const StoredEmail = Schema.Union([
@@ -139,6 +152,7 @@ export const StoredEmail = Schema.Union([
   InvitationEmailWithToken,
   ReminderEmailWithToken,
 ]);
+
 export type StoredEmail = typeof StoredEmail.Type;
 
 export type RenderableEmail =

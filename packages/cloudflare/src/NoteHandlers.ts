@@ -25,6 +25,7 @@ export const noteHandlers = <R>(services: Effect.Effect<Context.Context<NoteServ
           Effect.gen(function* () {
             yield* requireSameOrigin;
             const member = yield* currentMember;
+
             return yield* saveRoundNote(member, params.teamId, params.roundId, payload);
           }),
         ),

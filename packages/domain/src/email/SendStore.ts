@@ -63,14 +63,18 @@ export const makeSendStore = (repository: SendRepository, policy: SendPolicy): S
     repository.transaction(
       Effect.gen(function* () {
         const record = yield* repository.get(id);
+
         if (Option.isNone(record)) {
           return Option.none<SendState>();
         }
+
         const current = record.value.state;
         const next = step(current);
+
         if (Option.isSome(next)) {
           yield* repository.setState(id, next.value);
         }
+
         return Option.some(Option.getOrElse(next, () => current));
       }),
     );
@@ -80,10 +84,13 @@ export const makeSendStore = (repository: SendRepository, policy: SendPolicy): S
       repository.transaction(
         Effect.gen(function* () {
           const existing = yield* repository.get(id);
+
           if (Option.isSome(existing)) {
             return existing.value.state;
           }
+
           yield* repository.insert({ id, recipient, email, state: pending });
+
           return pending;
         }),
       ),
@@ -94,13 +101,17 @@ export const makeSendStore = (repository: SendRepository, policy: SendPolicy): S
       repository.transaction(
         Effect.gen(function* () {
           const record = yield* repository.get(id);
+
           if (Option.isNone(record)) {
             return { _tag: "Missing" } as const;
           }
+
           const decision = claim(record.value.state, now, policy);
+
           switch (decision._tag) {
             case "Send": {
               yield* repository.setState(id, decision.state);
+
               return {
                 _tag: "Send",
                 attempt: decision.state.attempt,
@@ -108,13 +119,16 @@ export const makeSendStore = (repository: SendRepository, policy: SendPolicy): S
                 email: record.value.email,
               } as const;
             }
+
             case "Wait": {
               return decision;
             }
+
             case "Finished": {
               if (decision.changed) {
                 yield* repository.setState(id, decision.state);
               }
+
               return { _tag: "Finished", state: decision.state } as const;
             }
           }
@@ -130,14 +144,19 @@ export const makeSendStore = (repository: SendRepository, policy: SendPolicy): S
       repository.transaction(
         Effect.gen(function* () {
           const record = yield* repository.get(id);
+
           if (Option.isNone(record)) {
             return { _tag: "Missing" } as const;
           }
+
           const next = requeue(record.value.state);
+
           if (Option.isNone(next)) {
             return { _tag: "Unchanged", state: record.value.state } as const;
           }
+
           yield* repository.setState(id, next.value);
+
           return { _tag: "Requeued" } as const;
         }),
       ),
@@ -150,6 +169,7 @@ export const makeSendStore = (repository: SendRepository, policy: SendPolicy): S
 export const makeMemorySendRepository = Effect.gen(function* () {
   const rows = yield* Ref.make(new Map<SendId, SendRecord>());
   const lock = yield* Semaphore.make(1);
+
   const repository: SendRepository = {
     get: (id) => Ref.get(rows).pipe(Effect.map((map) => Option.fromNullishOr(map.get(id)))),
     insert: (record) =>
@@ -157,10 +177,12 @@ export const makeMemorySendRepository = Effect.gen(function* () {
     setState: (id, state) =>
       Ref.update(rows, (map) => {
         const record = map.get(id);
+
         return record === undefined ? map : new Map(map).set(id, { ...record, state });
       }),
     transaction: Semaphore.withPermit(lock),
   };
+
   return repository;
 });
 

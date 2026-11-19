@@ -24,18 +24,24 @@ const migrationsDir = new URL("../migrations/", import.meta.url);
 
 const initDatabase = (): DatabaseSync => {
   const db = new DatabaseSync(":memory:");
+
   const files = readdirSync(migrationsDir)
     .filter((f) => f.endsWith(".sql"))
     .sort();
+
   for (const file of files) {
     db.exec(readFileSync(new URL(file, migrationsDir), "utf8"));
   }
+
   return db;
 };
 
 const ROUND_A = RoundId.make("round-a");
+
 const ROUND_B = RoundId.make("round-b");
+
 const RATING = QuestionVersionId.make("qv-rating");
+
 const TEXT = QuestionVersionId.make("qv-text");
 
 /**
@@ -52,6 +58,7 @@ const openRounds = () =>
       `INSERT INTO pulse (id, team_id, name, cadence, weekday, send_time, answer_window_days, reminders, anonymity_mode, distribution, created_at)
        VALUES ('pulse-1', 'team-1', 'Pulse 1', 'weekly', 'monday', '09:00', 3, 1, 'anonymous', 'invitation', 1000)`,
     ).run();
+
     const insertRound = (id: RoundId, plannedOpenDate: string) =>
       db
         .prepare(
@@ -59,6 +66,7 @@ const openRounds = () =>
            VALUES (?, 'pulse-1', 'team-1', 'open', ?, 1000, 9999999, 'Pulse 1', 3, 1, 'anonymous', 'invitation', 1000, 1000)`,
         )
         .run(id, plannedOpenDate);
+
     insertRound(ROUND_A, "2026-11-09");
     insertRound(ROUND_B, "2026-11-02");
     db.prepare("INSERT INTO question (id, created_at) VALUES ('q-rating', 1000), ('q-text', 1000)").run();
@@ -67,16 +75,19 @@ const openRounds = () =>
          ('qv-rating', 'q-rating', 1, 'How clear is the plan?', 'clarity', '{"_tag":"Rating","lowLabel":"Low","highLabel":"High","comment":false}'),
          ('qv-text', 'q-text', 1, 'Anything else?', NULL, '{"_tag":"LongText"}')`,
     ).run();
+
     for (const roundId of [ROUND_A, ROUND_B]) {
       db.prepare(
         "INSERT INTO round_question (round_id, position, question_version_id) VALUES (?, 0, 'qv-rating'), (?, 1, 'qv-text')",
       ).run(roundId, roundId);
     }
+
     const sql = yield* SqliteClient.make({
       storage: SqliteStorage.makeSqliteStorage(db) as unknown as NonNullable<
         Parameters<typeof SqliteClient.make>[0]["storage"]
       >,
     }).pipe(Effect.provideService(Scope.Scope, yield* Scope.make()), Effect.provide(Reactivity.layer));
+
     return { db, rounds: makeSqlRounds(sql, yield* Unlinkability.seededRandomBytes) };
   });
 
@@ -86,16 +97,21 @@ describe("Member history privacy (ADR 0017, ADR 0005, ADR 0004)", () => {
     () =>
       Effect.gen(function* () {
         const { db, rounds } = yield* openRounds();
+
         const answers = (comment: string | null) => [
           { questionVersionId: RATING, value: 4, comment: null },
           { questionVersionId: TEXT, value: null, comment },
         ];
+
         // Four Persons answer Round A; person-other answers only Round B.
         const roundAPersons = ["person-1", "person-2", "person-3", "person-4"];
+
         for (const person of [...roundAPersons, "person-other"]) {
           db.prepare("INSERT INTO person (id, email) VALUES (?, ?)").run(person, `${person}@example.com`);
         }
+
         const roster: Roster = [];
+
         for (const [index, person] of roundAPersons.entries()) {
           yield* rounds
             .recordFirstAnswer(
@@ -107,6 +123,7 @@ describe("Member history privacy (ADR 0017, ADR 0005, ADR 0004)", () => {
             )
             .pipe(Effect.orDie);
         }
+
         yield* rounds
           .recordFirstAnswer(
             ROUND_B,
@@ -121,6 +138,7 @@ describe("Member history privacy (ADR 0017, ADR 0005, ADR 0004)", () => {
         db.prepare("UPDATE round SET status = 'shared' WHERE id = ?").run(ROUND_A);
         const submissions = yield* rounds.getSubmissionsForRound(ROUND_A);
         const questions = yield* rounds.getRoundQuestionsDetailed(ROUND_A);
+
         const result = calculateRoundResult({
           roundId: ROUND_A,
           pulseId: PulseId.make("pulse-1"),
@@ -135,12 +153,14 @@ describe("Member history privacy (ADR 0017, ADR 0005, ADR 0004)", () => {
           submissions,
           pastRoundsHistory: [],
         });
+
         yield* rounds.saveRoundResult(ROUND_A, result, 1_731_000_000_000);
 
         // The Result the product stores does hold the comment, so the check below is not vacuous.
         const stored = db.prepare("SELECT payload FROM round_result WHERE round_id = ?").get(ROUND_A) as {
           payload: string;
         };
+
         assert.include(stored.payload, "secret comment");
 
         const participated = yield* rounds.getParticipatedRounds(PersonId.make("person-1"));
@@ -149,6 +169,7 @@ describe("Member history privacy (ADR 0017, ADR 0005, ADR 0004)", () => {
           [ROUND_A],
           "only the Round the Person took part in is listed",
         );
+
         const history = buildMemberHistory({
           rounds: yield* Effect.forEach(participated, (row) =>
             Effect.map(rounds.getRoundQuestionsDetailed(row.roundId), (roundQuestions) => ({
@@ -171,21 +192,28 @@ describe("Member history privacy (ADR 0017, ADR 0005, ADR 0004)", () => {
         );
 
         const json = JSON.stringify(history);
+
         const submissionIds = (db.prepare("SELECT id FROM submission").all() as { id: string }[]).map(
           (row) => row.id,
         );
+
         assert.strictEqual(submissionIds.length, 5);
+
         for (const id of submissionIds) {
           assert.notInclude(json, id);
         }
+
         const editKeyHashes = (
           db.prepare("SELECT edit_key_hash FROM submission").all() as { edit_key_hash: string }[]
         ).map((row) => row.edit_key_hash);
+
         for (const hash of editKeyHashes) {
           assert.notInclude(json, hash);
         }
+
         assert.notInclude(json, "secret comment");
         assert.notInclude(json, "another secret");
+
         for (const person of ["person-1", "person-2", "person-other"]) {
           assert.notInclude(json, person);
         }

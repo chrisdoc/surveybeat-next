@@ -12,6 +12,7 @@ import { DatabaseSync } from "node:sqlite";
 
 // Real D1 migrations for global index
 const d1MigrationsDir = new URL("../d1-migrations/", import.meta.url);
+
 const doMigrationsDir = new URL("../migrations/", import.meta.url);
 
 interface MockContext {
@@ -22,6 +23,7 @@ interface MockContext {
 
 const setupMocks = (): MockContext => {
   const d1 = new DatabaseSync(":memory:");
+
   for (const file of readdirSync(d1MigrationsDir)
     .filter((f) => f.endsWith(".sql"))
     .sort()) {
@@ -29,6 +31,7 @@ const setupMocks = (): MockContext => {
   }
 
   const doDb = new DatabaseSync(":memory:");
+
   for (const file of readdirSync(doMigrationsDir)
     .filter((f) => f.endsWith(".sql"))
     .sort()) {
@@ -46,6 +49,7 @@ const setupMocks = (): MockContext => {
     run: () =>
       Effect.sync(() => {
         d1.prepare(sql).run(...(binds as (null | string | number)[]));
+
         return { results: [] };
       }),
   });
@@ -65,6 +69,7 @@ const makeRequest = (
 ): HttpServerRequest => {
   const url = `https://submit.surveybeat.app${urlPath}`;
   const bodyText = body ? JSON.stringify(body) : "";
+
   return {
     method,
     url,
@@ -146,6 +151,7 @@ describe("SubmissionWorker endpoints (slice 09, ADR 0005, ADR 0007, ADR 0009)", 
       const partCount = doDb.prepare("SELECT count(*) as count FROM participation").get() as {
         count: number;
       };
+
       const subCount = doDb.prepare("SELECT count(*) as count FROM submission").get() as { count: number };
       assert.strictEqual(partCount.count, 0, "token exchange must have zero participation side effects");
       assert.strictEqual(subCount.count, 0, "token exchange must have zero submission side effects");

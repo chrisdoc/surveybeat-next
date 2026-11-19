@@ -29,12 +29,14 @@ const subject = (fixture: Fixture) =>
     const db = new DatabaseSync(":memory:");
     db.exec(PARTICIPATION(fixture.sharedClock === true) + fixture.schema);
     let n = 0;
+
     return {
       write: ({ person, answer }) =>
         Effect.gen(function* () {
           const id = yield* fixture.submissionId(n);
           const clock = 1_794_000_000 + n;
           n++;
+
           if (fixture.sharedClock === true) {
             db.prepare("INSERT INTO participation VALUES (?, ?, ?)").run(ROUND, person, clock);
             db.prepare("INSERT INTO submission VALUES (?, ?, ?, ?)").run(id, ROUND, answer, clock);
@@ -119,6 +121,7 @@ describe("A4 unlinkability harness", () => {
         reports.map((r) => r.seed),
         [...Unlinkability.SEEDS],
       );
+
       for (const report of reports) {
         assert.strictEqual(report.k, Unlinkability.K);
         assert.deepStrictEqual(
@@ -133,11 +136,13 @@ describe("A4 unlinkability harness", () => {
     it.effect(`fails ${name} (caught by ${caughtBy})`, () =>
       Effect.gen(function* () {
         const reports = yield* Unlinkability.measure(subject(fixture));
+
         for (const report of reports) {
           const attack = report.attacks.find((a) => a.attack === caughtBy);
           assert.isDefined(attack);
           assert.isAbove(attack?.matches ?? 0, Unlinkability.MAX_MATCHES, `seed ${report.seed}`);
         }
+
         const error = yield* Unlinkability.assertUnlinkable(subject(fixture)).pipe(Effect.flip);
         assert.strictEqual(error._tag, "LinkableDump");
       }),

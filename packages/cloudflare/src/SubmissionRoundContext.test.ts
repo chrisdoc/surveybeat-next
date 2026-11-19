@@ -19,11 +19,13 @@ const roundId = RoundId.make("round-1");
 const openRounds = (aiProcessing: 0 | 1) =>
   Effect.gen(function* () {
     const db = new DatabaseSync(":memory:");
+
     for (const file of readdirSync(migrationsDir)
       .filter((f) => f.endsWith(".sql"))
       .sort()) {
       db.exec(readFileSync(new URL(file, migrationsDir), "utf8"));
     }
+
     db.prepare("INSERT INTO organization (id, name, ai_processing) VALUES ('org-1', 'Org 1', ?)").run(
       aiProcessing,
     );
@@ -36,11 +38,13 @@ const openRounds = (aiProcessing: 0 | 1) =>
       `INSERT INTO round (id, pulse_id, team_id, status, planned_open_date, planned_open_at, planned_close_at, pulse_name, answer_window_days, reminders, anonymity_mode, distribution, created_at, updated_at)
        VALUES (?, 'pulse-1', 'team-1', 'open', '2026-11-09', 1000, 9999999, 'Pulse 1', 3, 1, 'anonymous', 'invitation', 1000, 1000)`,
     ).run(roundId);
+
     const sql = yield* SqliteClient.make({
       storage: SqliteStorage.makeSqliteStorage(db) as unknown as NonNullable<
         Parameters<typeof SqliteClient.make>[0]["storage"]
       >,
     }).pipe(Effect.provideService(Scope.Scope, yield* Scope.make()), Effect.provide(Reactivity.layer));
+
     return makeSqlRounds(sql, yield* Unlinkability.seededRandomBytes);
   });
 

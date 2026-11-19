@@ -12,26 +12,33 @@ export const resultsSummary = (result: RoundResult): string | null => {
     count: result.submissionsCount,
     eligible: result.eligibleMembersCount,
   });
+
   if (!result.meetsMinimumGroupSize) {
     return `${checkedIn} ${message("results.summary.belowMinimum", { minimum: result.effectiveMinimumGroupSize })}`;
   }
 
   const shown = result.dimensions.filter((dimension) => dimension.meetsMinimumGroupSize);
+
   if (shown.length === 0) {
     return checkedIn;
   }
+
   const changes = shown.flatMap((dimension) => {
     const highlight = dimension.change?.highlight;
+
     if (highlight === null || highlight === undefined || !highlight.isLargerThanUsual) {
       return [];
     }
+
     const label = message(`dimension.${dimension.dimension}`);
+
     return highlight.direction === "rise"
       ? [message("results.summary.rise", { dimension: label })]
       : highlight.direction === "drop"
         ? [message("results.summary.drop", { dimension: label })]
         : [];
   });
+
   const judged = shown.filter((dimension) => dimension.typicalChange?.status === "ready");
 
   const second =

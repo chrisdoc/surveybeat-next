@@ -13,6 +13,7 @@ describe("mainWorkerAssets", () => {
 
   it("lets the API, auth and delivery paths reach the Worker before any asset", () => {
     const routes = mainWorkerAssets("production").runWorkerFirst;
+
     for (const route of ["/auth/*", "/api/*", "/delivery", "/delivery/*"]) {
       assert.include(routes, route);
     }
@@ -37,9 +38,11 @@ describe("mainWorkerAssets", () => {
 describe("randomHex32", () => {
   it("makes 32 lowercase hex characters, not reused for the next id", () => {
     const ids = new Set(Array.from({ length: 100 }, randomHex32));
+
     for (const id of ids) {
       assert.match(id, /^[0-9a-f]{32}$/);
     }
+
     assert.strictEqual(ids.size, 100);
   });
 });

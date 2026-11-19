@@ -50,6 +50,7 @@ export const LoadedTeams = defineTaggedUnion({
   Loaded: { teams: Schema.Array(TeamSummary) },
   Failed: { failure: Failure },
 });
+
 export type LoadedTeams = typeof LoadedTeams.Type;
 
 export const LoadedTeam = defineTaggedUnion({
@@ -57,6 +58,7 @@ export const LoadedTeam = defineTaggedUnion({
   Loaded: { detail: TeamDetail },
   Failed: { failure: Failure },
 });
+
 export type LoadedTeam = typeof LoadedTeam.Type;
 
 export const LoadedSettings = defineTaggedUnion({
@@ -64,6 +66,7 @@ export const LoadedSettings = defineTaggedUnion({
   Loaded: { settings: OrganizationSettings },
   Failed: { failure: Failure },
 });
+
 export type LoadedSettings = typeof LoadedSettings.Type;
 
 export const LoadedFailedEmails = defineTaggedUnion({
@@ -71,6 +74,7 @@ export const LoadedFailedEmails = defineTaggedUnion({
   Loaded: { list: FailedEmails },
   Failed: { failure: Failure },
 });
+
 export type LoadedFailedEmails = typeof LoadedFailedEmails.Type;
 
 export const FailedEmailResend = Schema.Union([
@@ -82,9 +86,11 @@ export const FailedEmailResend = Schema.Union([
   }),
   Schema.TaggedStruct("Failed", { failure: Failure }),
 ]);
+
 export type FailedEmailResend = typeof FailedEmailResend.Type;
 
 export const FAILED_EMAIL_POLL_INTERVAL = "3 seconds";
+
 export const FAILED_EMAIL_MAX_POLLS = 300;
 
 export const failedEmailKeepsPolling = (state: EmailSendProgress, polls: number): boolean =>
@@ -96,9 +102,13 @@ export const roleName = (role: TeamSummary["yourRole"]): string =>
   role === null ? "" : message(`role.${role}`);
 
 export const decodeName = Schema.decodeUnknownOption(TeamName);
+
 export const decodeZone = Schema.decodeUnknownOption(TimeZone);
+
 export const decodeEmail = Schema.decodeUnknownOption(EmailAddress);
+
 export const decodeSize = Schema.decodeUnknownOption(MinimumGroupSize);
+
 export const decodePerson = Schema.decodeUnknownOption(PersonId);
 
 export type NavSection = "teams" | "history" | "settings";
@@ -120,9 +130,11 @@ const sectionHref = (section: NavSection): string => {
     case "teams": {
       return teamsHref();
     }
+
     case "history": {
       return historyHref();
     }
+
     case "settings": {
       return settingsHref();
     }
@@ -613,6 +625,7 @@ export const teamScreenView = <Message>(
 
   if (state.team._tag === "Failed") {
     children.push(problemView(state.team.failure, h));
+
     return h.section([], children);
   }
 
@@ -622,9 +635,11 @@ export const teamScreenView = <Message>(
 
   const { detail } = state.team;
   children.push(h.div([h.Class("mt-4")], [pageTitle(detail.team.name, h)]));
+
   if (state.checklist !== null) {
     children.push(firstRunChecklistView(state.checklist, h));
   }
+
   children.push(
     h.p([h.Class("mt-2 text-muted")], [message("team.timeZone", { timeZone: detail.team.timeZone })]),
   );
@@ -725,6 +740,7 @@ export const teamScreenView = <Message>(
       detail.roster.map((entry) => {
         const isLead = entry.role === "lead";
         const mayRemove = isLead ? detail.may.manageLeads : detail.may.manageMembers;
+
         return h.li(
           [
             h.Class(
@@ -787,6 +803,7 @@ export const teamScreenView = <Message>(
       }),
     ),
   );
+
   if (state.rosterFailure) {
     children.push(problemView(state.rosterFailure, h));
   }
@@ -932,12 +949,15 @@ const failedEmailStatusText = (state: EmailSendProgress): string => {
     case "Queued": {
       return message("settings.failedEmails.status.queued");
     }
+
     case "Sending": {
       return message("settings.failedEmails.status.sending");
     }
+
     case "Sent": {
       return message("settings.failedEmails.status.sent");
     }
+
     case "Failed": {
       return message("settings.failedEmails.status.failed", {
         reason: failedEmailReasonText(state.reason, state.code),
@@ -954,7 +974,9 @@ const failedEmailActionView = <Message>(
 ): Child => {
   const resendButton = (isDisabled: boolean, text: string): Child =>
     appButton({ text, isDisabled, className: linkButton, onClick: onResend(email.sendId) }, h);
+
   const children: Child[] = [];
+
   if (resend === undefined) {
     if (email.resendable) {
       children.push(resendButton(false, message("settings.failedEmails.resend")));
@@ -965,16 +987,21 @@ const failedEmailActionView = <Message>(
         children.push(resendButton(true, message("settings.failedEmails.resending")));
         break;
       }
+
       case "Resent": {
         children.push(h.p([h.Role("status")], [failedEmailStatusText(resend.state)]));
+
         if (resend.statusUnavailable) {
           children.push(h.p([], [message("settings.failedEmails.statusUnavailable")]));
         }
+
         if (resend.state._tag === "Failed") {
           children.push(resendButton(false, message("settings.failedEmails.resend")));
         }
+
         break;
       }
+
       case "Failed": {
         if (resend.failure === "EmailNotResendable") {
           children.push(h.p([h.Role("status")], [failureMessage(resend.failure)]));
@@ -982,10 +1009,12 @@ const failedEmailActionView = <Message>(
           children.push(h.p([h.Role("status")], [message("settings.failedEmails.resendFailed")]));
           children.push(resendButton(false, message("settings.failedEmails.resend")));
         }
+
         break;
       }
     }
   }
+
   return children.length === 0 ? "" : h.div([h.Class("flex flex-col items-start gap-1 text-sm")], children);
 };
 
@@ -999,10 +1028,12 @@ const failedEmailsView = <Message>(
 ): Html => {
   const { failedEmails } = state;
   const children: Child[] = [subSectionTitle(message("settings.failedEmails.title"), h, 2)];
+
   if (failedEmails._tag === "Failed") {
     children.push(problemView(failedEmails.failure, h));
   } else if (failedEmails._tag === "Loaded") {
     const { emails } = failedEmails.list;
+
     if (emails.length === 0) {
       children.push(
         emptyState(
@@ -1040,6 +1071,7 @@ const failedEmailsView = <Message>(
       );
     }
   }
+
   return h.div([h.Class("mt-8")], children);
 };
 
@@ -1077,6 +1109,7 @@ export const settingsScreenView = <Message>(
 
   if (state.settings._tag === "Failed") {
     children.push(problemView(state.settings.failure, h));
+
     return h.section([], children);
   }
 
@@ -1184,6 +1217,7 @@ export const settingsScreenView = <Message>(
       [message("settings.people.email"), message("settings.people.role"), message("settings.people.actions")],
       settings.people.map((person) => {
         const personId = decodePerson(person.personId);
+
         return [
           h.div(
             [h.Class("flex flex-wrap items-center gap-2")],

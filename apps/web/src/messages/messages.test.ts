@@ -27,6 +27,7 @@ describe("message catalog", () => {
 
 const placeholderNames = (template: string): string[] =>
   Array.from(template.matchAll(/\{(\w+)\}/g), (m) => m[1] ?? "").sort();
+
 const pluralBases = Object.keys(catalog)
   .filter((key) => key.endsWith(".other"))
   .map((key) => key.slice(0, -".other".length));
@@ -34,6 +35,7 @@ const pluralBases = Object.keys(catalog)
 describe("English catalog", () => {
   it("has a plural form for every category Intl.PluralRules returns, for each plural base", () => {
     const { pluralCategories } = new Intl.PluralRules("en").resolvedOptions();
+
     for (const base of pluralBases) {
       for (const category of pluralCategories) {
         expect(catalog, `en ${base}.${category}`).toHaveProperty(`${base}.${category}`);
@@ -83,6 +85,7 @@ describe("active locale", () => {
 type MisspelledEn = Omit<typeof catalog, "answer.closes"> & {
   readonly "answer.closes": "Closes on {datum}";
 };
+
 describe("placeholder type check", () => {
   it("is never for the shipped English catalog", () => {
     const shipped: [Mismatched<typeof catalog>] extends [never] ? true : Mismatched<typeof catalog> = true;
@@ -98,6 +101,7 @@ describe("placeholder type check", () => {
 
 const literalNumberWithUnit =
   /\b\d[\d,]*\s*-?(?:digit|minutes?|hours?|days?|seconds?|characters?|persons?|people|questions?|themes?|rounds?|tests?)\b/i;
+
 const singularPluralLabelKeys = new Set(["results.trendLength.one"]);
 
 describe("policy numbers in English copy", () => {
@@ -105,6 +109,7 @@ describe("policy numbers in English copy", () => {
     const offenders = Object.entries(catalog)
       .filter(([key, text]) => !singularPluralLabelKeys.has(key) && literalNumberWithUnit.test(text))
       .map(([key]) => key);
+
     expect(offenders).toEqual([]);
   });
 });

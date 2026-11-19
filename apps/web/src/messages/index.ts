@@ -2,7 +2,9 @@ import * as DateTime from "effect/DateTime";
 import { catalog } from "./catalog.ts";
 
 type Catalog = typeof catalog;
+
 export type MessageKey = keyof Catalog;
+
 export type Value = string | number;
 
 export type Translation = Readonly<Record<MessageKey, string>>;
@@ -18,21 +20,28 @@ export type Mismatched<T extends Translation> = {
 }[MessageKey];
 
 export type Params<K extends MessageKey> = Readonly<Record<Placeholders<Catalog[K]>, Value>>;
+
 export type KeysWithoutParams = {
   [K in MessageKey]: [Placeholders<Catalog[K]>] extends [never] ? K : never;
 }[MessageKey];
+
 export type KeysWithParams = Exclude<MessageKey, KeysWithoutParams>;
 
 type PluralBase<K extends string> = K extends `${infer Base}.other` ? Base : never;
+
 export type PluralKey = PluralBase<MessageKey>;
+
 export type PluralParams<B extends PluralKey> = Readonly<
   Record<Exclude<Placeholders<Catalog[`${B}.other`]>, "count">, Value>
 >;
 
 const LOCALE = "en";
+
 let cachedPluralRules: Intl.PluralRules | undefined;
+
 function getPluralRules(): Intl.PluralRules {
   cachedPluralRules ??= new Intl.PluralRules(LOCALE);
+
   return cachedPluralRules;
 }
 
@@ -51,6 +60,7 @@ export function message(key: MessageKey, params: Readonly<Record<string, Value>>
 export function pluralMessage<B extends PluralKey>(base: B, count: number, params?: PluralParams<B>): string {
   const specific = `${base}.${getPluralRules().select(count)}`;
   const template = isMessageKey(specific) ? catalog[specific] : catalog[`${base}.other`];
+
   return fill(template, { ...params, count: new Intl.NumberFormat(LOCALE).format(count) });
 }
 

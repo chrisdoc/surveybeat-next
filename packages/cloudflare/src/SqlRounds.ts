@@ -84,6 +84,7 @@ const ThemesRow = Schema.Struct({
 });
 
 const StoredThemesJson = Schema.fromJsonString(StoredThemes);
+
 const decodeStoredThemes = Schema.decodeUnknownEffect(StoredThemesJson);
 
 const RoundQuestionRow = Schema.Struct({
@@ -235,6 +236,7 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
     try {
       const parsed: unknown = JSON.parse(payload);
       const decoded = Schema.decodeUnknownOption(RoundResult)(parsed);
+
       return Option.getOrNull(decoded);
     } catch {
       return null;
@@ -243,9 +245,11 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
 
   const decodeHistoricalPayload = (payload: string): HistoricalRoundData | null => {
     const res = decodeRoundResultPayload(payload);
+
     if (res === null) {
       return null;
     }
+
     return {
       roundId: res.roundId,
       plannedOpenDate: res.plannedOpenDate,
@@ -297,6 +301,7 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
       Effect.flatMap(rows(RoundRow)),
       Effect.map((r) => {
         const row = r[0];
+
         return row === undefined ? null : toRoundRecord(row);
       }),
       Effect.orDie,
@@ -321,6 +326,7 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
       Effect.flatMap(rows(RoundRow)),
       Effect.map((r) => {
         const row = r[0];
+
         return row === undefined ? null : toRoundRecord(row);
       }),
       Effect.orDie,
@@ -331,6 +337,7 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
       Effect.flatMap(rows(RoundRow)),
       Effect.map((r) => {
         const row = r[0];
+
         return row === undefined ? null : toRoundRecord(row);
       }),
       Effect.orDie,
@@ -463,6 +470,7 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
     sql<{ paused_at: number | null }>`SELECT paused_at FROM pulse WHERE id = ${pulseId}`.pipe(
       Effect.map((rows) => {
         const row = rows[0];
+
         return row !== undefined && row.paused_at !== null;
       }),
       Effect.orDie,
@@ -513,6 +521,7 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
         Effect.orDie,
       );
     }
+
     return Effect.forEach(
       types,
       (type) =>
@@ -534,6 +543,7 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
       Effect.flatMap(rows(ScheduleJobRow)),
       Effect.map((r) => {
         const row = r[0];
+
         return row === undefined ? null : toScheduleJobRecord(row);
       }),
       Effect.orDie,
@@ -550,6 +560,7 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
     sql<{ due_at: number }>`SELECT MIN(due_at) as due_at FROM schedule_job WHERE status = 'pending'`.pipe(
       Effect.map((rows) => {
         const row = rows[0];
+
         return row === undefined || row.due_at === null ? null : row.due_at;
       }),
       Effect.orDie,
@@ -613,11 +624,13 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
       Effect.flatMap(rows(InvitedPersonRow)),
       Effect.map((all) => {
         const byRound = new Map<RoundId, Set<PersonId>>();
+
         for (const row of all) {
           const personIds = byRound.get(row.round_id) ?? new Set<PersonId>();
           personIds.add(row.person_id);
           byRound.set(row.round_id, personIds);
         }
+
         return byRound;
       }),
       Effect.orDie,
@@ -653,6 +666,7 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
                  SET token_hash = ${newTokenHash}, send_id = ${newSendId}, status = 'pending', failed_reason = NULL,
                      resend_count = resend_count + 1, updated_at = ${now}
                  WHERE round_id = ${roundId} AND person_id = ${personId}`;
+
       return yield* getInvitation(roundId, personId);
     }).pipe(Effect.orDie);
 
@@ -660,6 +674,7 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
     Effect.gen(function* () {
       const invs = yield* getInvitations(roundId);
       yield* sql`UPDATE invitation SET status = 'revoked', updated_at = ${now} WHERE round_id = ${roundId}`;
+
       return invs.map((i) => i.tokenHash);
     }).pipe(Effect.orDie);
 
@@ -670,7 +685,9 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
         Effect.map((all) => all.map(toInvitationRecord)),
         Effect.orDie,
       );
+
       yield* sql`UPDATE invitation SET status = 'revoked', updated_at = ${now} WHERE person_id = ${personId}`;
+
       return invs.map((i) => i.tokenHash);
     }).pipe(Effect.orDie);
 
@@ -724,6 +741,7 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
     }>`SELECT id, round_id FROM submission WHERE edit_key_hash = ${editKeyHash} LIMIT 1`.pipe(
       Effect.map((rows) => {
         const row = rows[0];
+
         return row === undefined ? null : { id: row.id, roundId: row.round_id };
       }),
       Effect.orDie,
@@ -747,10 +765,13 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
       .withTransaction(
         Effect.gen(function* () {
           const round = yield* getRound(roundId);
+
           if (round === null || round.status !== "open") {
             return yield* new RoundNotOpen();
           }
+
           const answered = yield* hasAnswered(roundId, personId);
+
           if (answered) {
             return yield* new AlreadyAnswered();
           }
@@ -760,11 +781,14 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
           yield* sql`INSERT INTO submission (id, round_id, edit_key_hash) VALUES (${submissionId}, ${roundId}, ${editKeyHash})`;
 
           let lastRedactedComment: string | null = null;
+
           for (const ans of answers) {
             const redacted = ans.comment ? redact(ans.comment, roster) : null;
+
             if (redacted !== null) {
               lastRedactedComment = redacted;
             }
+
             yield* sql`INSERT INTO answer (submission_id, question_version_id, value, comment)
                        VALUES (${submissionId}, ${ans.questionVersionId}, ${ans.value}, ${redacted})
                        ON CONFLICT (submission_id, question_version_id) DO UPDATE SET value = excluded.value, comment = excluded.comment`;
@@ -788,20 +812,26 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
       .withTransaction(
         Effect.gen(function* () {
           const sub = yield* getSubmissionByEditKeyHash(editKeyHash);
+
           if (sub === null) {
             return yield* new SubmissionNotFound();
           }
+
           const round = yield* getRound(RoundId.make(sub.roundId));
+
           if (round === null || round.status !== "open") {
             return yield* new RoundNotOpen();
           }
 
           let lastRedactedComment: string | null = null;
+
           for (const ans of answers) {
             const redacted = ans.comment ? redact(ans.comment, roster) : null;
+
             if (redacted !== null) {
               lastRedactedComment = redacted;
             }
+
             yield* sql`INSERT INTO answer (submission_id, question_version_id, value, comment)
                        VALUES (${sub.id}, ${ans.questionVersionId}, ${ans.value}, ${redacted})
                        ON CONFLICT (submission_id, question_version_id) DO UPDATE SET value = excluded.value, comment = excluded.comment`;
@@ -819,6 +849,7 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
   ): Effect.Effect<SubmissionRoundContext | null> =>
     Effect.gen(function* () {
       const round = yield* getRound(roundId);
+
       if (round === null) {
         return null;
       }
@@ -836,18 +867,22 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
 
       const parsedQuestions = questions.map((q) => {
         let parsedJson: unknown = null;
+
         try {
           parsedJson = JSON.parse(q.type);
         } catch {
           parsedJson = null;
         }
+
         const decoded = Schema.decodeUnknownOption(QuestionType)(parsedJson);
+
         const questionType = Option.getOrElse(decoded, (): QuestionType => ({
           _tag: "Rating",
           lowLabel: "Low",
           highLabel: "High",
           comment: true,
         }));
+
         return {
           id: QuestionVersionId.make(q.id),
           position: q.position,
@@ -870,6 +905,7 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
         Effect.flatMap(rows(OrganizationAiRow)),
         Effect.orDie,
       );
+
       const aiProcessing = organizationRows[0]?.ai_processing === 1;
 
       const previousRound = prevRows[0]
@@ -913,6 +949,7 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
     computedAt: number,
   ): Effect.Effect<void> => {
     const payload = JSON.stringify(result);
+
     return sql`INSERT INTO round_result (round_id, computed_at, payload)
         VALUES (${roundId}, ${computedAt}, ${payload})
         ON CONFLICT (round_id) DO UPDATE SET computed_at = excluded.computed_at, payload = excluded.payload`.pipe(
@@ -930,10 +967,13 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
        WHERE rr.round_id = ${roundId}`.pipe(
       Effect.map((rows) => {
         const row = rows[0];
+
         if (row === undefined) {
           return null;
         }
+
         const result = decodeRoundResultPayload(row.payload);
+
         return result === null ? null : { ...result, pulseName: row.pulse_name };
       }),
       Effect.orDie,
@@ -947,6 +987,7 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
       Effect.map((rows) =>
         rows.flatMap((row) => {
           const result = decodeRoundResultPayload(row.payload);
+
           return result === null ? [] : [{ ...result, pulseName: row.pulse_name }];
         }),
       ),
@@ -997,18 +1038,22 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
       Effect.map((rows) =>
         rows.map((q) => {
           let parsedJson: unknown = null;
+
           try {
             parsedJson = JSON.parse(q.type);
           } catch {
             parsedJson = null;
           }
+
           const decoded = Schema.decodeUnknownOption(QuestionType)(parsedJson);
+
           const questionType = Option.getOrElse(decoded, (): QuestionType => ({
             _tag: "Rating",
             lowLabel: "Low",
             highLabel: "High",
             comment: true,
           }));
+
           const dimDecoded = Schema.decodeUnknownOption(Dimension)(q.dimension);
           const dimension = Option.getOrNull(dimDecoded);
 
@@ -1031,6 +1076,7 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
       const subRows = yield* sql<{
         id: string;
       }>`SELECT id FROM submission WHERE round_id = ${roundId} ORDER BY id ASC`;
+
       if (subRows.length === 0) {
         return [];
       }
@@ -1046,12 +1092,15 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
          WHERE s.round_id = ${roundId}`;
 
       const grouped = new Map<string, SubmissionAnswer[]>();
+
       for (const ans of ansRows) {
         let list = grouped.get(ans.submission_id);
+
         if (list === undefined) {
           list = [];
           grouped.set(ans.submission_id, list);
         }
+
         list.push({
           questionVersionId: QuestionVersionId.make(ans.question_version_id),
           value: ans.value,
@@ -1092,12 +1141,15 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
             LIMIT ${limit}`;
 
       const history: HistoricalRoundData[] = [];
+
       for (const row of [...rows].toReversed()) {
         const item = decodeHistoricalPayload(row.payload);
+
         if (item !== null) {
           history.push(item);
         }
       }
+
       return history;
     }).pipe(Effect.orDie);
 
@@ -1119,27 +1171,36 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
         yield* sql`SELECT status, requested_at, attempts, payload FROM round_themes WHERE round_id = ${roundId}`.pipe(
           Effect.flatMap(rows(ThemesRow)),
         );
+
       const row = found[0];
+
       if (row === undefined) {
         return null;
       }
+
       if (row.status === "pending") {
         const pending: RoundThemesRecord = {
           status: "pending",
           requestedAt: row.requested_at,
           attempts: row.attempts,
         };
+
         return pending;
       }
+
       if (row.status === "failed") {
         const failed: RoundThemesRecord = { status: "failed" };
+
         return failed;
       }
+
       const themes = yield* decodeStoredThemes(row.payload ?? "").pipe(
         Effect.mapError(() => new Error("round_themes payload invalid")),
         Effect.orDie,
       );
+
       const ready: RoundThemesRecord = { status: "ready", themes };
+
       return ready;
     }).pipe(Effect.orDie);
 
@@ -1151,6 +1212,7 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
 
   const storeThemes = (roundId: RoundId, themes: StoredThemes, now: number): Effect.Effect<void> => {
     const payload = JSON.stringify(themes);
+
     return sql`UPDATE round_themes SET status = 'ready', payload = ${payload}, completed_at = ${now}
         WHERE round_id = ${roundId} AND status = 'pending'`.pipe(Effect.asVoid, Effect.orDie);
   };
@@ -1173,6 +1235,7 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
       Effect.flatMap(rows(FrozenZoneRow)),
       Effect.map((all) => {
         const byRound = new Map<RoundId, RoundWithFrozenZones>();
+
         for (const row of all) {
           byRound.set(row.id, {
             id: row.id,
@@ -1182,6 +1245,7 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
             timeZones: [...(byRound.get(row.id)?.timeZones ?? []), row.time_zone],
           });
         }
+
         return [...byRound.values()];
       }),
       Effect.orDie,

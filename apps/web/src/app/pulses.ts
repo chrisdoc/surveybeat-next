@@ -49,6 +49,7 @@ export const LoadedPulses = defineTaggedUnion({
   Loaded: { pulses: PulseList },
   Failed: { failure: Failure },
 });
+
 export type LoadedPulses = typeof LoadedPulses.Type;
 
 export const LoadedPulse = defineTaggedUnion({
@@ -56,6 +57,7 @@ export const LoadedPulse = defineTaggedUnion({
   Loaded: { detail: PulseDetail },
   Failed: { failure: Failure },
 });
+
 export type LoadedPulse = typeof LoadedPulse.Type;
 
 export const TestSendResult = Schema.Union([
@@ -67,6 +69,7 @@ export const TestSendResult = Schema.Union([
   }),
   Schema.TaggedStruct("Failed", { failure: Failure }),
 ]);
+
 export type TestSendResult = typeof TestSendResult.Type;
 
 export const TEST_SEND_POLL_INTERVAL = Duration.seconds(Policy.testSend.pollSeconds);
@@ -89,20 +92,26 @@ export type TestSendNotice =
 
 export const testSendNotice = (status: TestSendStatus): TestSendNotice => {
   const { state } = status;
+
   switch (state._tag) {
     case "Queued": {
       const waited = status.checkedAt - status.queuedAt;
+
       if (waited >= TEST_SEND_STALLED_MILLIS) {
         return { _tag: "Stalled", minutes: Math.floor(waited / 60_000) };
       }
+
       return state.lastCode === null ? { _tag: "Queued" } : { _tag: "Retrying", code: state.lastCode };
     }
+
     case "Sending": {
       return { _tag: "Sending" };
     }
+
     case "Sent": {
       return { _tag: "Sent" };
     }
+
     case "Failed": {
       return { _tag: "Failed", reason: state.reason, code: state.code };
     }
@@ -114,15 +123,19 @@ export const failureReasonText = (reason: FailureReason): string => {
     case "unknown": {
       return message("email.reason.unknown");
     }
+
     case "rejected": {
       return message("email.reason.rejected");
     }
+
     case "abandoned": {
       return message("email.reason.abandoned");
     }
+
     case "bounced": {
       return message("email.reason.bounced");
     }
+
     case "complained": {
       return message("email.reason.complained");
     }
@@ -134,18 +147,23 @@ export const testSendNoticeText = (notice: TestSendNotice): string => {
     case "Queued": {
       return message("pulse.test.status.queued");
     }
+
     case "Retrying": {
       return message("pulse.test.status.retrying", { code: notice.code });
     }
+
     case "Stalled": {
       return pluralMessage("pulse.test.status.stalled", notice.minutes);
     }
+
     case "Sending": {
       return message("pulse.test.status.sending");
     }
+
     case "Sent": {
       return message("pulse.test.status.sent");
     }
+
     case "Failed": {
       return notice.code === null
         ? message("pulse.test.status.failed", { reason: failureReasonText(notice.reason) })
@@ -167,12 +185,15 @@ export const warningMessage = (warning: PulseWarning): string => {
     case "TooManyQuestions": {
       return message("pulse.warning.TooManyQuestions", warning);
     }
+
     case "TooLong": {
       return message("pulse.warning.TooLong", warning);
     }
+
     case "NoOneTap": {
       return message("pulse.warning.NoOneTap");
     }
+
     case "TeamBelowMinimumGroupSize": {
       return pluralMessage("pulse.warning.TeamBelowMinimumGroupSize", warning.members, {
         minimumGroupSize: warning.minimumGroupSize,
@@ -182,10 +203,13 @@ export const warningMessage = (warning: PulseWarning): string => {
 };
 
 export const WEEKDAYS = () => Weekday.literals.map((day) => [day, message(`weekday.${day}`)] as const);
+
 export const WINDOWS = () =>
   [1, 2, 3, 4, 5, 6].map((days) => [days, pluralMessage("pulse.settings.days", days)] as const);
+
 export const REMINDERS = () =>
   [0, 1, 2].map((count) => [count, pluralMessage("pulse.settings.reminderCount", count)] as const);
+
 export const REVIEW_WINDOWS = () =>
   [0, 1, 2, 3, 4, 5, 6, 7].map(
     (days) =>
@@ -196,16 +220,19 @@ export const REVIEW_WINDOWS = () =>
   );
 
 export type Kind = QuestionType["_tag"];
+
 export const KINDS = () =>
   (["Rating", "SingleChoice", "LongText"] as const).map(
     (kind) => [kind, message(`questionType.${kind}`)] as const,
   );
+
 export const DIMENSIONS = () => [
   ["none", message("dimension.none")] as const,
   ...Dimension.literals.map((dimension) => [dimension, message(`dimension.${dimension}`)] as const),
 ];
 
 export const decodeSettings = Schema.decodeUnknownOption(PulseSettings);
+
 export const decodeContent = Schema.decodeUnknownOption(QuestionContent);
 
 export const pulsesScreenView = <Message>(
@@ -226,6 +253,7 @@ export const pulsesScreenView = <Message>(
 
   if (state.pulses._tag === "Failed") {
     children.push(problemView(state.pulses.failure, h));
+
     return h.section([], children);
   }
 
@@ -300,9 +328,11 @@ export const pulsesScreenView = <Message>(
   }
 
   children.push(h.p([h.Class("mt-8 text-muted")], [message("pulses.create.intro")]));
+
   if (state.createFailure) {
     children.push(problemView(state.createFailure, h));
   }
+
   children.push(
     appButton(
       {
@@ -525,6 +555,7 @@ export const pulseEditorView = <Message>(
   h: HtmlBuilder<Message>,
 ): Html => {
   const pulse = state.pulse._tag === "Loaded" ? state.pulse.detail : undefined;
+
   const children: Child[] = [
     breadcrumbs(
       [
@@ -537,6 +568,7 @@ export const pulseEditorView = <Message>(
 
   if (state.pulse._tag === "Failed") {
     children.push(problemView(state.pulse.failure, h));
+
     return h.section([], children);
   }
 
@@ -547,6 +579,7 @@ export const pulseEditorView = <Message>(
   const { detail } = state.pulse;
   children.push(h.div([h.Class("mt-4")], [pageTitle(detail.settings.name, h)]));
   children.push(h.p([h.Class("mt-2 text-muted")], [detail.team.name]));
+
   if (detail.team.yourRole === "lead") {
     const tabClass = "inline-flex min-h-11 items-center border-b-2 px-3 text-sm font-semibold";
     children.push(
@@ -572,6 +605,7 @@ export const pulseEditorView = <Message>(
       ),
     );
   }
+
   children.push(
     h.p(
       [h.Role("status"), h.Class("mt-4 font-medium")],
@@ -606,6 +640,7 @@ export const pulseEditorView = <Message>(
       detail.questions.map((question, index) => {
         const isEditing =
           Option.isSome(state.editingQuestionId) && state.editingQuestionId.value === question.questionId;
+
         return h.li(
           [h.Class("rounded-panel border border-line bg-surface px-6 py-4")],
           [

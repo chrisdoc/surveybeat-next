@@ -27,12 +27,14 @@ export type DirectoryServices = AuthServices | OrganizationDirectory;
 const signInUrl = Effect.map(requestOrigin, (origin) => {
   const url = new URL("/", origin);
   url.protocol = "https:";
+
   return url.toString();
 });
 
 const newMember = (email: EmailAddress) =>
   Effect.gen(function* () {
     const ids = yield* NewIds;
+
     return {
       email,
       personId: yield* ids.personId,
@@ -53,6 +55,7 @@ export const directoryHandlers = <R>(
 ) => {
   const provide = <A, E, R2>(effect: Effect.Effect<A, E, R2>) =>
     Effect.flatMap(services, (context) => Effect.provideContext(effect, context));
+
   return HttpApiBuilder.group(SurveyBeatApi, "directory", (handlers) =>
     handlers
       .handle("listTeams", () => provide(Effect.flatMap(currentMember, viewTeams)))
@@ -69,6 +72,7 @@ export const directoryHandlers = <R>(
               timeZone: payload.timeZone,
               lead: yield* newMember(payload.leadEmail),
             });
+
             return yield* viewTeam(member, teamId);
           }),
         ),
@@ -140,6 +144,7 @@ export const directoryHandlers = <R>(
           Effect.gen(function* () {
             yield* requireSameOrigin;
             const member = yield* currentMember;
+
             return yield* resendFailedEmail(member, params.sendId);
           }),
         ),

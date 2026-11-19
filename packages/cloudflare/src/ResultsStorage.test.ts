@@ -21,19 +21,26 @@ const migrationsDir = new URL("../migrations/", import.meta.url);
 
 const initDatabase = (): DatabaseSync => {
   const db = new DatabaseSync(":memory:");
+
   const files = readdirSync(migrationsDir)
     .filter((f) => f.endsWith(".sql"))
     .sort();
+
   for (const file of files) {
     db.exec(readFileSync(new URL(file, migrationsDir), "utf8"));
   }
+
   return db;
 };
 
 const perfBaseInstant = 1_700_000_000_000;
+
 const perfWeekMs = 7 * 24 * 3_600_000;
+
 const perfQv1 = QuestionVersionId.make("qv-1.1");
+
 const perfQv2 = QuestionVersionId.make("qv-2.1");
+
 const perfQuestions: readonly QuestionInput[] = [
   {
     id: perfQv1,
@@ -172,6 +179,7 @@ describe("RoundResult storage and performance (Issue #45, ADR 0004)", () => {
     const countBefore = db
       .prepare("SELECT count(*) as c FROM round_result WHERE round_id = ?")
       .get(roundId) as { c: number };
+
     assert.strictEqual(countBefore.c, 1);
 
     // Delete round
@@ -180,6 +188,7 @@ describe("RoundResult storage and performance (Issue #45, ADR 0004)", () => {
     const countAfter = db
       .prepare("SELECT count(*) as c FROM round_result WHERE round_id = ?")
       .get(roundId) as { c: number };
+
     assert.strictEqual(countAfter.c, 0, "round_result must be deleted when round is deleted");
   });
 
@@ -208,23 +217,28 @@ describe("RoundResult storage and performance (Issue #45, ADR 0004)", () => {
     };
 
     insertOrReplace(JSON.stringify({ version: 1 }), 1000);
+
     const row1 = db
       .prepare("SELECT computed_at, payload FROM round_result WHERE round_id = ?")
       .get(roundId) as { computed_at: number; payload: string };
+
     assert.strictEqual(row1.computed_at, 1000);
     assert.strictEqual(JSON.parse(row1.payload).version, 1);
 
     // Recompute: replaces in place
     insertOrReplace(JSON.stringify({ version: 2 }), 2000);
+
     const row2 = db
       .prepare("SELECT computed_at, payload FROM round_result WHERE round_id = ?")
       .get(roundId) as { computed_at: number; payload: string };
+
     assert.strictEqual(row2.computed_at, 2000);
     assert.strictEqual(JSON.parse(row2.payload).version, 2);
 
     const totalRows = db
       .prepare("SELECT count(*) as c FROM round_result WHERE round_id = ?")
       .get(roundId) as { c: number };
+
     assert.strictEqual(totalRows.c, 1, "Must remain exactly one row");
   });
 
@@ -253,9 +267,11 @@ describe("RoundResult storage and performance (Issue #45, ADR 0004)", () => {
     const legacy: unknown = JSON.parse(JSON.stringify(result));
     const dimensions = (legacy as { dimensions: Record<string, unknown>[] }).dimensions;
     const first = dimensions[0];
+
     if (first === undefined) {
       throw new Error("the Result has no Dimension to strip");
     }
+
     delete first.contributors;
 
     const decoded = Option.getOrNull(Schema.decodeUnknownOption(RoundResult)(legacy));
@@ -271,6 +287,7 @@ describe("RoundResult storage and performance (Issue #45, ADR 0004)", () => {
     const startTime = performance.now();
 
     const queryStmt = db.prepare("SELECT payload FROM round_result WHERE round_id = ?");
+
     for (let q = 0; q < 50; q++) {
       const roundIdStr = `round-${103 - (q % 10)}`;
       const row = queryStmt.get(roundIdStr) as { payload: string };
@@ -279,6 +296,7 @@ describe("RoundResult storage and performance (Issue #45, ADR 0004)", () => {
       const decoded = Schema.decodeUnknownOption(RoundResult)(parsed);
       const result = Option.getOrNull(decoded);
       assert.isNotNull(result);
+
       if (result !== null) {
         const enforced = enforceEffectiveNOnResult(result, 4);
         assert.isTrue(enforced.meetsMinimumGroupSize);
@@ -328,10 +346,13 @@ describe("RoundResult storage and performance (Issue #45, ADR 0004)", () => {
     const startTime = performance.now();
 
     const rows = db.prepare(overviewSql).all("team-perf") as { payload: string }[];
+
     const results = rows.map((row) => {
       const parsed: unknown = JSON.parse(row.payload);
+
       return Schema.decodeUnknownSync(RoundResult)(parsed);
     });
+
     const overview = buildTeamOverview({ teamId, results, minimumGroupSize: 4, actions: [] });
 
     const elapsed = performance.now() - startTime;
@@ -339,6 +360,7 @@ describe("RoundResult storage and performance (Issue #45, ADR 0004)", () => {
     assert.isBelow(elapsed, 1500, `Expected elapsed < 1500ms, got ${elapsed}ms`);
     assert.strictEqual(overview.rounds.length, 104);
     assert.strictEqual(overview.dimensions.length, 2);
+
     for (const dimension of overview.dimensions) {
       assert.strictEqual(
         dimension.points.length,
@@ -346,6 +368,7 @@ describe("RoundResult storage and performance (Issue #45, ADR 0004)", () => {
         `${dimension.dimension} must have one point per Round`,
       );
     }
+
     const dates = overview.rounds.map((round) => round.plannedOpenDate);
     assert.deepStrictEqual(dates, [...dates].sort(), "Rounds must be in ascending plannedOpenDate order");
   });

@@ -22,11 +22,13 @@ describe("SubmissionWorker first answer privacy (ADR 0005, ADR 0009)", () => {
       const editKeyHash = "hash-of-the-browser-secret";
 
       const db = new DatabaseSync(":memory:");
+
       for (const file of readdirSync(doMigrationsDir)
         .filter((f) => f.endsWith(".sql"))
         .sort()) {
         db.exec(readFileSync(new URL(file, doMigrationsDir), "utf8"));
       }
+
       db.prepare("INSERT INTO organization (id, name) VALUES ('org-1', 'Acme')").run();
       db.prepare("INSERT INTO team (id, name, time_zone) VALUES ('team-1', 'Platform', 'UTC')").run();
       db.prepare(
@@ -44,6 +46,7 @@ describe("SubmissionWorker first answer privacy (ADR 0005, ADR 0009)", () => {
           Parameters<typeof SqliteClient.make>[0]["storage"]
         >,
       }).pipe(Effect.provideService(Scope.Scope, yield* Scope.make()), Effect.provide(Reactivity.layer));
+
       const rounds = makeSqlRounds(sql, secureRandomBytes);
 
       // The real write path behind the Submission Worker's first-answer route.
@@ -73,6 +76,7 @@ describe("SubmissionWorker first answer privacy (ADR 0005, ADR 0009)", () => {
       const answer = db
         .prepare("SELECT value, comment FROM answer WHERE submission_id = ?")
         .get(submissionId);
+
       assert.deepStrictEqual(answer, {
         value: 5,
         comment: "[name] and [name] did great, contact me at [email] or [phone]",
@@ -82,6 +86,7 @@ describe("SubmissionWorker first answer privacy (ADR 0005, ADR 0009)", () => {
       const again = yield* rounds
         .recordFirstAnswer(roundId, personId, "another-hash", [], [])
         .pipe(Effect.flip);
+
       assert.strictEqual(again._tag, "AlreadyAnswered");
       assert.strictEqual(db.prepare("SELECT count(*) AS c FROM submission").get()?.c, 1);
     }),

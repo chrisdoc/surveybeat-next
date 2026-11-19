@@ -88,12 +88,15 @@ export const roundTestRoutes = (organizations: Organizations, database: Cloudfla
       now,
     );
     const crossTeamView = yield* organization.viewRounds(otherLead, otherTeamId, pulseId);
+
     const crossTeamPause = yield* organization.runRoundCommand(
       otherLead,
       { _tag: "PausePulse", teamId: otherTeamId, pulseId },
       now,
     );
+
     const ownView = yield* organization.viewRounds(admin, teamId, pulseId);
+
     const crossTeamRefused =
       crossTeamView._tag === "Rejected" &&
       crossTeamView.rejection._tag === "PulseNotFound" &&
@@ -103,6 +106,7 @@ export const roundTestRoutes = (organizations: Organizations, database: Cloudfla
       !ownView.value.paused;
 
     const earliestDue1 = yield* organization.getEarliestPendingJobDueAt();
+
     const initialAlarm = yield* organization.getAlarm().pipe(
       Effect.repeat({
         until: (alarm) => alarm === earliestDue1,
@@ -110,6 +114,7 @@ export const roundTestRoutes = (organizations: Organizations, database: Cloudfla
         times: 50,
       }),
     );
+
     const alarmPointsToEarliest1 =
       initialAlarm !== null && earliestDue1 !== null && initialAlarm === earliestDue1;
 
@@ -120,12 +125,14 @@ export const roundTestRoutes = (organizations: Organizations, database: Cloudfla
 
     const roundsList = yield* organization.viewRounds(admin, teamId, pulseId);
     const roundSummary = roundsList._tag === "Viewed" ? roundsList.value.rounds[0] : undefined;
+
     if (roundSummary === undefined) {
       return yield* HttpServerResponse.json({ error: "no_round" });
     }
 
     const jobsBefore = yield* organization.getJobsForRound(roundSummary.id);
     const openJob = jobsBefore.find((j) => j.type === "open");
+
     if (openJob === undefined) {
       return yield* HttpServerResponse.json({ error: "no_open_job" });
     }
@@ -138,20 +145,25 @@ export const roundTestRoutes = (organizations: Organizations, database: Cloudfla
     const tokenKey = yield* Config.Redacted("INVITATION_TOKEN_KEY").pipe(
       Effect.flatMap((secret) => Effect.promise(() => importInvitationTokenKey(Redacted.value(secret)))),
     );
+
     const tokenFor = (generation: number) =>
       Effect.promise(() =>
         deriveInvitationToken(tokenKey, { roundId: roundSummary.id, personId: leadPersonId, generation }),
       );
+
     const persistedText = (sendId: SendId) =>
       Effect.gen(function* () {
         const jobs = yield* organization.getJobsForRound(roundSummary.id);
         const send = yield* organization.getEmailSend(sendId);
+
         return JSON.stringify({ jobs, send });
       });
+
     const firstInvitation = invsAfterFirst[0];
     const firstSendId = firstInvitation?.sendId ?? SendId.make("");
     const token0 = yield* tokenFor(0);
     const storedSend = yield* organization.getEmailSend(firstSendId);
+
     const renderedText =
       storedSend === null
         ? ""
@@ -160,10 +172,13 @@ export const roundTestRoutes = (organizations: Organizations, database: Cloudfla
             Effect.map((rendered) => rendered.text),
             Effect.provide(EmailTemplatesLive.pipe(Layer.provide(InvitationTokensLive))),
           );
+
     const persistedAfterOpen = yield* persistedText(firstSendId);
+
     const tokenDerivedMatchesHash =
       firstInvitation !== undefined &&
       (yield* Effect.promise(() => hashToken(token0))) === firstInvitation.tokenHash;
+
     const tokenNotPersistedAfterOpen =
       !persistedAfterOpen.includes(token0) && persistedAfterOpen.includes(firstSendId);
 
@@ -198,6 +213,7 @@ export const roundTestRoutes = (organizations: Organizations, database: Cloudfla
     yield* organization.failInvitation(roundSummary.id, leadPersonId, "mailbox full");
     const viewFailed = yield* organization.viewRound(admin, teamId, roundSummary.id);
     const failedList = viewFailed._tag === "Viewed" ? viewFailed.value.failedInvitations : [];
+
     const hasFailedInv =
       failedList.length === 1 &&
       failedList[0]?.reason === "mailbox full" &&
@@ -223,8 +239,10 @@ export const roundTestRoutes = (organizations: Organizations, database: Cloudfla
     const resendCountIncremented = resentInv !== undefined && resentInv.resendCount === 1;
     const token1 = yield* tokenFor(1);
     const persistedAfterResend = yield* persistedText(resentInv?.sendId ?? SendId.make(""));
+
     const resendTokenDerivedMatchesHash =
       resentInv !== undefined && (yield* Effect.promise(() => hashToken(token1))) === resentInv.tokenHash;
+
     const tokenNotPersistedAfterResend =
       token1 !== token0 && !persistedAfterResend.includes(token1) && !persistedAfterResend.includes(token0);
 
@@ -239,6 +257,7 @@ export const roundTestRoutes = (organizations: Organizations, database: Cloudfla
 
     const jobsDuringOpen = yield* organization.getJobsForRound(roundSummary.id);
     const closeJob = jobsDuringOpen.find((j) => j.type === "close");
+
     if (closeJob === undefined) {
       return yield* HttpServerResponse.json({ error: "no_close_job" });
     }
@@ -263,6 +282,7 @@ export const roundTestRoutes = (organizations: Organizations, database: Cloudfla
       closeJobAfterSecond.status === "completed";
 
     const earliestDue2 = yield* organization.getEarliestPendingJobDueAt();
+
     const alarmAfter = yield* organization.getAlarm().pipe(
       Effect.repeat({
         until: (alarm) => alarm === earliestDue2,
@@ -270,6 +290,7 @@ export const roundTestRoutes = (organizations: Organizations, database: Cloudfla
         times: 50,
       }),
     );
+
     const alarmPointsToEarliest2 =
       alarmAfter !== null && earliestDue2 !== null && alarmAfter === earliestDue2;
 

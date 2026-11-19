@@ -15,5 +15,6 @@ export const authSettings = Effect.gen(function* () {
   const allowlist = new OrganizationCreationAllowlist(
     Redacted.value(yield* Config.Redacted("ORG_CREATION_ALLOWLIST")),
   );
+
   return { allowlist };
 }).pipe(Effect.orDie);

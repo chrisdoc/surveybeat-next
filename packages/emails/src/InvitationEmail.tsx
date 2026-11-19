@@ -81,8 +81,10 @@ export const text = (email: InvitationEmailData): string => {
   const testLines = isTest(email) ? [m.message("invitation.testNotice"), ""] : [];
 
   const ratingLines: string[] = [];
+
   if (email.ratingQuestion) {
     ratingLines.push(email.ratingQuestion.text, "");
+
     for (let val = 1; val <= 5; val++) {
       const label =
         val === 1
@@ -90,17 +92,22 @@ export const text = (email: InvitationEmailData): string => {
           : val === 5
             ? `5 (${email.ratingQuestion.highLabel})`
             : `${val}`;
+
       ratingLines.push(`${label}: ${email.baseUrl}${answerPath(email.locale)}#t=${email.token}&v=${val}`);
     }
+
     ratingLines.push("");
   }
 
   const actionLines: string[] = [];
+
   if (email.actions.length > 0) {
     actionLines.push(m.message("invitation.actionsHeading"));
+
     for (const act of email.actions.slice(0, 3)) {
       actionLines.push(`• ${act}`);
     }
+
     actionLines.push("");
   }
 

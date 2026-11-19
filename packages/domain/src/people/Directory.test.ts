@@ -15,6 +15,7 @@ import { PersonId, AuthUserId } from "./Identity.ts";
 import { MembershipId, MinimumGroupSize, TeamId, TimeZone } from "./Team.ts";
 
 const ADMIN = PersonId.make("admin");
+
 const DAY = 86_400_000;
 
 const initial: DirectoryState = {
@@ -45,6 +46,7 @@ class World {
 
   newMember(email: string): NewMember {
     const n = ++this.ids;
+
     return {
       email: EmailAddress.make(email),
       personId: PersonId.make(`person-${n}`),
@@ -55,18 +57,22 @@ class World {
 
   run(actor: PersonId, command: DirectoryCommand): Decision {
     const decision = decide(this.state, actor, command, this.now);
+
     if (decision._tag === "Accepted") {
       this.state = applyChanges(this.state, decision.changes);
     }
+
     return decision;
   }
 
   /** Runs a command that must succeed. */
   ok(actor: PersonId, command: DirectoryCommand): Extract<Decision, { _tag: "Accepted" }> {
     const decision = this.run(actor, command);
+
     if (decision._tag !== "Accepted") {
       throw new Error(`${command._tag} rejected: ${decision.rejection._tag}`);
     }
+
     return decision;
   }
 
@@ -79,6 +85,7 @@ class World {
       timeZone: TimeZone.make("Europe/Berlin"),
       lead: this.newMember(leadEmail),
     });
+
     return teamId;
   }
 
@@ -88,17 +95,21 @@ class World {
 
   personWith(email: string): PersonId {
     const person = this.state.people.find((each) => each.email === email);
+
     if (person === undefined) {
       throw new Error(`no Person ${email}`);
     }
+
     return person.id;
   }
 
   roster(teamId: TeamId) {
     const view = teamView(this.state, ADMIN, teamId);
+
     if (view._tag !== "Viewed") {
       throw new Error("no roster");
     }
+
     return view.value.roster.map(({ email, role }) => `${role} ${email}`);
   }
 }
@@ -121,6 +132,7 @@ describe("adding members by email", () => {
     const platform = world.createTeam("Platform", "grace@example.com");
     const grace = world.personWith("grace@example.com");
     const decision = world.add(grace, platform, "Ada@Example.COM");
+
     if (decision._tag !== "Accepted") {
       throw new Error("rejected");
     }
@@ -158,9 +170,11 @@ describe("adding members by email", () => {
     world.add(ADMIN, platform, "ada@example.com");
     const again = world.add(ADMIN, platform, "ada@example.com");
     expect(again).toMatchObject({ _tag: "Accepted", changes: [] });
+
     if (again._tag === "Accepted") {
       expect(again.followUps.map((step) => step._tag)).toEqual(["IndexPerson"]);
     }
+
     // Adding a Lead as a member does not demote them.
     expect(world.add(ADMIN, platform, "grace@example.com")).toMatchObject({ changes: [] });
     expect(world.roster(platform)).toEqual(["lead grace@example.com", "member ada@example.com"]);
@@ -218,6 +232,7 @@ describe("Leads", () => {
     const world = new World();
     const platform = world.createTeam("Platform", "grace@example.com");
     const grace = world.personWith("grace@example.com");
+
     const removeLead = (personId: PersonId) =>
       world.run(ADMIN, {
         _tag: "RemoveLead",
@@ -429,6 +444,7 @@ describe("Organization admins", () => {
 
     const view = teamView(world.state, grace, platform);
     expect(view._tag).toBe("Viewed");
+
     if (view._tag === "Viewed") {
       expect(view.value.roster).toContainEqual({
         personId: ADMIN,
@@ -491,8 +507,10 @@ describe("Teams", () => {
     expect(rejection(world.run(ADMIN, { _tag: "CreateTeam", ...newTeam(world), name: "platform" }))).toBe(
       "TeamNameTaken",
     );
+
     const rename = (name: string) =>
       world.run(ADMIN, { _tag: "UpdateTeam", teamId: platform, name, timeZone: TimeZone.make("UTC") });
+
     expect(rejection(rename("PLATFORM"))).toBe("Accepted");
     world.createTeam("Design", "linus@example.com");
     expect(rejection(rename("design"))).toBe("TeamNameTaken");
@@ -517,9 +535,11 @@ describe("Teams", () => {
 
   it("accepts IANA time zone names only", () => {
     const decode = Schema.decodeUnknownOption(TimeZone);
+
     for (const name of ["Europe/Berlin", "America/Argentina/Buenos_Aires", "UTC", "Etc/GMT+5"]) {
       expect(Option.isSome(decode(name)), name).toBe(true);
     }
+
     for (const name of ["+01:00", "Mars/Olympus", "Europe/Berlin ", "", "europe berlin"]) {
       expect(Option.isNone(decode(name)), name).toBe(true);
     }
@@ -580,13 +600,17 @@ describe("the AI processing setting", () => {
 describe("languages (ADR 0018)", () => {
   const addedEmailLocale = (world: World, teamId: TeamId, email: string) => {
     const decision = world.add(ADMIN, teamId, email);
+
     if (decision._tag !== "Accepted") {
       throw new Error("rejected");
     }
+
     const sent = decision.changes.find((change) => change._tag === "EmailRequested");
+
     if (sent?._tag !== "EmailRequested" || sent.email._tag !== "AddedToTeam") {
       throw new Error("no email");
     }
+
     return sent.email.locale;
   };
 
@@ -600,6 +624,7 @@ describe("languages (ADR 0018)", () => {
       teams: [],
       memberships: [],
     });
+
     const ada = (locale: "en" | null, detectedLocale: "en" | null) => ({
       id: PersonId.make("ada"),
       email: EmailAddress.make("ada@example.com"),

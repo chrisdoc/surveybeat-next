@@ -1,7 +1,10 @@
 const DIRECTIVE =
   /^(?:\s*)(?:@ts-[\w-]+|@effect-diagnostics(?:-next-line)?|(?:oxlint|eslint)-(?:disable|disable-next-line|disable-line)|@vite-ignore|prettier-ignore|c8 ignore|istanbul ignore)/;
+
 const REASON = /--\s*\S/;
+
 const SAFETY = /^\s*SAFETY:\s*\S/;
+
 const TYPE_TAGS = new Set([
   "@type",
   "@typedef",
@@ -26,6 +29,7 @@ const isTypesOnlyJsdoc = (comment) => {
   if (comment.type !== "Block") {
     return false;
   }
+
   return textOf(comment)
     .split("\n")
     .map((line) => line.replace(/^\s*\*?/, "").trim())
@@ -35,21 +39,26 @@ const isTypesOnlyJsdoc = (comment) => {
 
 const isAllowed = (comment) => {
   const text = textOf(comment);
+
   if (isDirective(comment)) {
     return true;
   }
+
   if (SAFETY.test(text)) {
     return true;
   }
+
   return isTypesOnlyJsdoc(comment);
 };
 
 const commentsOf = (context, node) => {
   const source = context.sourceCode ?? context.getSourceCode?.();
   const fromSource = source?.getAllComments?.();
+
   if (Array.isArray(fromSource)) {
     return fromSource;
   }
+
   return node.comments ?? [];
 };
 
@@ -72,6 +81,7 @@ const noComments = {
           if (isAllowed(comment)) {
             continue;
           }
+
           context.report({ loc: comment.loc, messageId: "prose" });
         }
       },
@@ -98,9 +108,11 @@ const directiveReason = {
           if (!isDirective(comment)) {
             continue;
           }
+
           if (REASON.test(textOf(comment))) {
             continue;
           }
+
           context.report({ loc: comment.loc, messageId: "reason" });
         }
       },

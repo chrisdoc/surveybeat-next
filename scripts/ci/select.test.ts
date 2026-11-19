@@ -9,7 +9,9 @@ import { classify } from "./select.mjs";
 const SELECT = fileURLToPath(new URL("select.mjs", import.meta.url));
 
 const canaryOnly = (path: string) => classify([path]).canary;
+
 const lighthouseOnly = (path: string) => classify([path]).lighthouse;
+
 const stageOf = (paths: string[]) => classify(paths).stage;
 
 describe("the canary rule (Submission path)", () => {
@@ -138,11 +140,13 @@ describe("the command line", () => {
   it("prints the paths and the result, and appends the outputs to GITHUB_OUTPUT", () => {
     const dir = mkdtempSync(join(tmpdir(), "select-"));
     const output = join(dir, "github-output");
+
     const result = spawnSync(process.execPath, [SELECT], {
       input: "docs/infra.md\napps/web/answer.html\n",
       encoding: "utf8",
       env: { ...process.env, GITHUB_OUTPUT: output },
     });
+
     expect(result.status).toBe(0);
     expect(result.stdout).toContain("docs/infra.md");
     expect(result.stdout).toContain("stage=true canary=true lighthouse=true");

@@ -48,6 +48,7 @@ export const peopleTestRoutes = (organizations: Organizations, database: Cloudfl
     yield* people.createWithAdmin(organization, { personId: admin, email, userId: adminUser });
     yield* people.createWithAdmin(organization, { personId: admin, email, userId: adminUser });
     yield* index.putOrganization(organization);
+
     const creator = {
       adminActive: yield* people.activePerson(organization.id, adminUser),
       eveActiveBeforeAdded: yield* people.activePerson(organization.id, eve),
@@ -57,14 +58,17 @@ export const peopleTestRoutes = (organizations: Organizations, database: Cloudfl
     };
 
     const chosen = new Map<SessionId, OrganizationId>();
+
     const sessionOf = (userId: AuthUserId, address: string): SignedInSession => ({
       identity: identityOf(userId, address, true),
       sessionId: SessionId.make(`session-${userId}`),
     });
+
     const sessions = SessionIdentityProvider.of({
       authenticate: (cookie) =>
         Effect.suspend(() => {
           const userId = cookie.pipe(Redacted.value, (value) => value.replace(/^cookie-/, ""));
+
           return userId.length === 0
             ? Effect.fail(new Unauthenticated())
             : Effect.succeed(
@@ -83,11 +87,13 @@ export const peopleTestRoutes = (organizations: Organizations, database: Cloudfl
           chosen.delete(sessionId);
         }),
     });
+
     const services = Context.make(SessionIdentityProvider, sessions).pipe(
       Context.add(PeopleIndex, index),
       Context.add(OrganizationPeople, people),
       Context.add(OrganizationDirectory, durableObjectDirectory(organizations)),
     );
+
     const member: Member = {
       organization,
       personId: admin,
@@ -96,12 +102,14 @@ export const peopleTestRoutes = (organizations: Organizations, database: Cloudfl
       detectedLocale: null,
       organizationLocale: "en",
     };
+
     const newMember = (address: string, n: number) => ({
       email: EmailAddress.make(address),
       personId: PersonId.make(`added-${n}-${run}`),
       membershipId: MembershipId.make(`membership-${n}-${run}`),
       signInUrl: "https://app.surveybeat.app/",
     });
+
     const teamId = TeamId.make(`team-${run}`);
 
     const signIn = (userId: AuthUserId, address: string) =>
@@ -130,6 +138,7 @@ export const peopleTestRoutes = (organizations: Organizations, database: Cloudfl
       const unlinked = yield* index.unlinkedPersons(EmailAddress.make("eve@example.com"));
       const eveSignIn = yield* signIn(eve, "eve@example.com");
       const adaSignIn = yield* signIn(ada, "ada@example.com");
+
       const linked = {
         eveActive: yield* people.activePerson(organization.id, eve),
         eveIndexed: yield* index.linkedPersons(eve),
@@ -137,20 +146,25 @@ export const peopleTestRoutes = (organizations: Organizations, database: Cloudfl
       };
 
       yield* runDirectoryCommand(member, { _tag: "RemovePerson", personId: PersonId.make(`added-2-${run}`) });
+
       const removed = {
         adaActive: yield* people.activePerson(organization.id, ada),
         adaIndexed: yield* index.linkedPersons(ada),
         adaSignInAgain: yield* signIn(ada, "ada@example.com"),
       };
+
       const view = yield* (yield* OrganizationDirectory).team(organization.id, admin, teamId);
+
       const roster =
         view._tag === "Viewed"
           ? view.value.roster.map(({ personId, email, role }) => ({ personId, email, role }))
           : view;
+
       return { unlinked, eveSignIn, adaSignIn, linked, removed, roster };
     }).pipe(Effect.provideContext(services));
 
     const result = yield* flow;
+
     const sendsCreated = yield* Effect.forEach(
       [`added-membership-1-${run}`, `added-membership-2-${run}`],
       (sendId) =>
@@ -159,5 +173,6 @@ export const peopleTestRoutes = (organizations: Organizations, database: Cloudfl
           .getEmailSend(SendId.make(sendId))
           .pipe(Effect.map((record) => record !== null)),
     );
+
     return yield* HttpServerResponse.json({ ...creator, ...result, sendsCreated });
   }).pipe(Effect.orDie);

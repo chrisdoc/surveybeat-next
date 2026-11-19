@@ -7,8 +7,11 @@ import { admin, emailOTP, magicLink, organization } from "better-auth/plugins";
 import * as Effect from "effect/Effect";
 
 export const SESSION_COOKIE = "__Host-surveybeat-session";
+
 export const SESSION_TTL_SECONDS = toSeconds(days(Policy.signIn.sessionDays));
+
 export const CODE_TTL_SECONDS = toSeconds(minutes(Policy.signIn.codeMinutes));
+
 export const MAGIC_LINK_TTL_SECONDS = toSeconds(minutes(Policy.signIn.magicLinkMinutes));
 
 export const AUTH_TABLES = {
@@ -101,6 +104,7 @@ export const createAuth = (params: {
     trustedOrigins: [...params.settings.trustedOrigins],
     ...(params.database === undefined ? {} : { database: params.database }),
   };
+
   return betterAuth(options);
 };
 

@@ -24,6 +24,7 @@ const authRequest = (path: string, body: unknown) =>
 
 const sessionTokenFromCookie = (header: string): string => {
   const pair = header.split(";")[0] ?? "";
+
   return Option.getOrElse(Option.fromNullishOr(pair.split("=").slice(1).join("=")), () => "");
 };
 
@@ -74,6 +75,7 @@ export const betterAuthIdentityProvider = (params: {
               if (!response.ok) {
                 throw new Error(`send-verification-otp answered ${response.status}`);
               }
+
               return response;
             }),
         catch: () => new AuthUnavailable(),
