@@ -164,6 +164,7 @@ export const organizationRoundCommands = ({
                   payload: null,
                   createdAt: now,
                   completedAt: null,
+                  failures: 0,
                 });
                 yield* executeComputeJob(computeJobId, plan.roundId, now);
                 yield* repairAlarm();
@@ -189,6 +190,7 @@ export const organizationRoundCommands = ({
                   payload: null,
                   createdAt: now,
                   completedAt: null,
+                  failures: 0,
                 });
                 yield* executeComputeJob(computeJobId, plan.roundId, now);
                 yield* repairAlarm();

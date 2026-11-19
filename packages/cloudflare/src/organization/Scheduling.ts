@@ -105,6 +105,7 @@ export const makeScheduling = ({
         payload: null,
         createdAt: now,
         completedAt: null,
+        failures: 0,
       });
 
       yield* repairAlarm();
