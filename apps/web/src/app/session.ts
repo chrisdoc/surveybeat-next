@@ -1,15 +1,12 @@
-import {
-  Locale,
-  type OrganizationId,
-  OrganizationSummary,
-  SessionState as DomainSessionState,
-} from "@surveybeat/domain";
+import { Locale, OrganizationSummary } from "@surveybeat/domain";
+import type { SessionState as DomainSessionState, OrganizationId } from "@surveybeat/domain";
 import { Effect, Predicate, Schema } from "effect";
 import { FetchHttpClient } from "effect/http";
 import type { Html, HtmlBuilder } from "foldkit/html";
 import { defineTaggedUnion } from "foldkit/schema";
 import { message } from "../messages/locale.ts";
-import { type ApiClient, clientEffect } from "./api.ts";
+import { clientEffect } from "./api.ts";
+import type { ApiClient } from "./api.ts";
 import { privacyHref } from "./routes.ts";
 import {
   alertView,
@@ -71,7 +68,7 @@ export const runSessionCall = <E>(
     Effect.flatMap(call),
     Effect.map((state): SessionResult => {
       switch (state._tag) {
-        case "SignedIn":
+        case "SignedIn": {
           return {
             _tag: "SignedIn",
             organization: state.organization,
@@ -80,12 +77,16 @@ export const runSessionCall = <E>(
             detectedLocale: state.detectedLocale,
             organizationLocale: state.organizationLocale,
           };
-        case "CreateOrganization":
+        }
+        case "CreateOrganization": {
           return { _tag: "CreateOrganization" };
-        case "NotInOrganization":
+        }
+        case "NotInOrganization": {
           return { _tag: "NotInOrganization" };
-        case "ChooseOrganization":
+        }
+        case "ChooseOrganization": {
           return { _tag: "ChooseOrganization", organizations: state.organizations };
+        }
       }
     }),
     Effect.catch((error: unknown) =>
@@ -269,7 +270,7 @@ export const notInOrganizationView = <Message>(h: HtmlBuilder<Message>): Html =>
   );
 
 export const chooseOrganizationView = <Message>(
-  organizations: ReadonlyArray<OrganizationSummary>,
+  organizations: readonly OrganizationSummary[],
   busy: boolean,
   onChoose: (id: OrganizationId) => Message,
   h: HtmlBuilder<Message>,

@@ -1,11 +1,5 @@
-import {
-  PersonId,
-  previewAnswers,
-  PulseId,
-  RoundId,
-  type SubmissionAnswer,
-  testSubmissionContext,
-} from "@surveybeat/domain";
+import { PersonId, previewAnswers, PulseId, RoundId, testSubmissionContext } from "@surveybeat/domain";
+import type { SubmissionAnswer } from "@surveybeat/domain";
 import * as Clock from "effect/Clock";
 import * as Effect from "effect/Effect";
 import type { makeSqlActions } from "../SqlActions.ts";
@@ -59,13 +53,13 @@ export const organizationSubmissions = ({
           aiProcessing: dirState.aiProcessing,
         });
       }),
-    previewTestAnswers: (answers: ReadonlyArray<SubmissionAnswer>) =>
+    previewTestAnswers: (answers: readonly SubmissionAnswer[]) =>
       directory.load.pipe(Effect.map((dirState) => previewAnswers(answers, dirState.people))),
     recordFirstAnswer: (
       roundId: string,
       personId: string,
       editKeyHash: string,
-      answers: ReadonlyArray<SubmissionAnswer>,
+      answers: readonly SubmissionAnswer[],
     ) =>
       Effect.gen(function* () {
         const dirState = yield* directory.load;
@@ -85,7 +79,7 @@ export const organizationSubmissions = ({
             }),
           );
       }),
-    saveAnswer: (editKeyHash: string, answers: ReadonlyArray<SubmissionAnswer>) =>
+    saveAnswer: (editKeyHash: string, answers: readonly SubmissionAnswer[]) =>
       Effect.gen(function* () {
         const dirState = yield* directory.load;
         return yield* rounds.saveAnswer(editKeyHash, answers, dirState.people).pipe(

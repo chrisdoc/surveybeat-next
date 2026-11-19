@@ -3,22 +3,16 @@ import { DateTime, Schema } from "effect";
 import { EmailAddress } from "../email/Email.ts";
 import type { DirectoryState, MembershipRecord, PersonRecord } from "../people/Directory.ts";
 import { PersonId } from "../people/Identity.ts";
-import { MembershipId, type MembershipRole, TeamId, TimeZone } from "../people/Team.ts";
+import { MembershipId, TeamId, TimeZone } from "../people/Team.ts";
+import type { MembershipRole } from "../people/Team.ts";
 import type { PulseRecord, PulseState } from "../pulses/Editor.ts";
 import { PulseId, SendTime } from "../pulses/Pulse.ts";
-import { RoundId, type RoundStatus } from "./Round.ts";
-import {
-  type RoundCommand,
-  type RoundCommandTag,
-  type RoundRejection,
-  roundCommandRejection,
-} from "./Lifecycle.ts";
-import {
-  decideRoundCommand,
-  type RoundCommandDecision,
-  type RoundCommandInput,
-  type RoundFacts,
-} from "./RoundCommand.ts";
+import { RoundId } from "./Round.ts";
+import type { RoundStatus } from "./Round.ts";
+import { roundCommandRejection } from "./Lifecycle.ts";
+import type { RoundCommand, RoundCommandTag, RoundRejection } from "./Lifecycle.ts";
+import { decideRoundCommand } from "./RoundCommand.ts";
+import type { RoundCommandDecision, RoundCommandInput, RoundFacts } from "./RoundCommand.ts";
 
 const NOW = Date.UTC(2026, 10, 17, 12);
 const WEEK_OF_NOW = "2026-11-17";
@@ -129,28 +123,37 @@ const commandFor = (
   roundId: RoundId = ROUND_A,
 ): RoundCommand => {
   switch (tag) {
-    case "SkipWeek":
+    case "SkipWeek": {
       return { _tag: "SkipWeek", teamId, pulseId, plannedOpenDate: WEEK_OF_NOW };
-    case "UnskipWeek":
+    }
+    case "UnskipWeek": {
       return { _tag: "UnskipWeek", teamId, pulseId, plannedOpenDate: WEEK_OF_NOW };
-    case "PausePulse":
+    }
+    case "PausePulse": {
       return { _tag: "PausePulse", teamId, pulseId };
-    case "ResumePulse":
+    }
+    case "ResumePulse": {
       return { _tag: "ResumePulse", teamId, pulseId };
-    case "CloseRoundEarly":
+    }
+    case "CloseRoundEarly": {
       return { _tag: "CloseRoundEarly", teamId, roundId };
-    case "ShareResults":
+    }
+    case "ShareResults": {
       return { _tag: "ShareResults", teamId, roundId };
-    case "RetryResult":
+    }
+    case "RetryResult": {
       return { _tag: "RetryResult", teamId, roundId };
-    case "CancelRound":
+    }
+    case "CancelRound": {
       return { _tag: "CancelRound", teamId, roundId };
-    case "ResendInvitation":
+    }
+    case "ResendInvitation": {
       return { _tag: "ResendInvitation", teamId, roundId, personId: MEMBER_A };
+    }
   }
 };
 
-const ROUND_TAGS: ReadonlyArray<RoundCommandTag> = [
+const ROUND_TAGS: readonly RoundCommandTag[] = [
   "CloseRoundEarly",
   "ShareResults",
   "RetryResult",
@@ -158,7 +161,7 @@ const ROUND_TAGS: ReadonlyArray<RoundCommandTag> = [
   "ResendInvitation",
 ];
 
-const ALL_TAGS: ReadonlyArray<RoundCommandTag> = [
+const ALL_TAGS: readonly RoundCommandTag[] = [
   "SkipWeek",
   "UnskipWeek",
   "PausePulse",
@@ -536,14 +539,7 @@ describe("decideRoundCommand: ResendInvitation", () => {
 
 describe("decideRoundCommand agrees with the Round machine", () => {
   it("returns the machine's rejection for every Round command on every status the machine refuses", () => {
-    const statuses: ReadonlyArray<RoundStatus> = [
-      "scheduled",
-      "open",
-      "closed",
-      "ready",
-      "shared",
-      "cancelled",
-    ];
+    const statuses: readonly RoundStatus[] = ["scheduled", "open", "closed", "ready", "shared", "cancelled"];
     for (const tag of ROUND_TAGS) {
       for (const status of statuses) {
         const command = commandFor(tag);

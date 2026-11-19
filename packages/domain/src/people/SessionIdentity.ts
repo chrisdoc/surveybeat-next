@@ -1,4 +1,5 @@
-import { Context, type Effect, type Option, type Redacted } from "effect";
+import { Context } from "effect";
+import type { Effect, Option, Redacted } from "effect";
 import type { Identity, SessionId } from "./Identity.ts";
 import type { OrganizationId } from "./Organization.ts";
 import type { AuthUnavailable, Unauthenticated } from "./SignIn.ts";
@@ -10,7 +11,7 @@ export interface SignedInSession {
 
 export interface SessionIdentityProviderShape {
   readonly authenticate: (
-    cookie: Redacted.Redacted<string>,
+    cookie: Redacted.Redacted,
   ) => Effect.Effect<SignedInSession, Unauthenticated | AuthUnavailable>;
 
   readonly chosenOrganization: (

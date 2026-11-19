@@ -4,14 +4,12 @@ import type { PersonId } from "../people/Identity.ts";
 import type { OrganizationId } from "../people/Organization.ts";
 import { Forbidden } from "../people/SignIn.ts";
 import type { Member } from "../people/SignInFlow.ts";
-import { type TeamId, TeamNotFound } from "../people/Team.ts";
+import { TeamNotFound } from "../people/Team.ts";
+import type { TeamId } from "../people/Team.ts";
 import type { PulseCommand, PulseRejection, PulseViewed } from "./Editor.ts";
 import {
   OrderMismatch,
-  type PulseDetail,
   PulseFull,
-  type PulseId,
-  type PulseList,
   PulseNeedsAQuestion,
   PulseNotFound,
   QuestionAlreadyInPulse,
@@ -19,8 +17,8 @@ import {
   QuestionNotFound,
   TestSendLimitReached,
   TestSendNotFound,
-  type TestSendStatus,
 } from "./Pulse.ts";
+import type { PulseDetail, PulseId, PulseList, TestSendStatus } from "./Pulse.ts";
 
 export type PulseCommandResult =
   | { readonly _tag: "Rejected"; readonly rejection: PulseRejection }
@@ -86,28 +84,39 @@ export type PulseError =
 
 const fail = (rejection: PulseRejection): Effect.Effect<never, PulseError> => {
   switch (rejection._tag) {
-    case "Forbidden":
+    case "Forbidden": {
       return Effect.fail(new Forbidden());
-    case "TeamNotFound":
+    }
+    case "TeamNotFound": {
       return Effect.fail(new TeamNotFound());
-    case "PulseNotFound":
+    }
+    case "PulseNotFound": {
       return Effect.fail(new PulseNotFound());
-    case "QuestionNotFound":
+    }
+    case "QuestionNotFound": {
       return Effect.fail(new QuestionNotFound());
-    case "QuestionAlreadyInPulse":
+    }
+    case "QuestionAlreadyInPulse": {
       return Effect.fail(new QuestionAlreadyInPulse());
-    case "QuestionHasAnswers":
+    }
+    case "QuestionHasAnswers": {
       return Effect.fail(new QuestionHasAnswers());
-    case "PulseNeedsAQuestion":
+    }
+    case "PulseNeedsAQuestion": {
       return Effect.fail(new PulseNeedsAQuestion());
-    case "PulseFull":
+    }
+    case "PulseFull": {
       return Effect.fail(new PulseFull({ maximum: rejection.maximum }));
-    case "OrderMismatch":
+    }
+    case "OrderMismatch": {
       return Effect.fail(new OrderMismatch());
-    case "TestSendLimitReached":
+    }
+    case "TestSendLimitReached": {
       return Effect.fail(new TestSendLimitReached({ perHour: rejection.perHour }));
-    case "TestSendNotFound":
+    }
+    case "TestSendNotFound": {
       return Effect.fail(new TestSendNotFound());
+    }
   }
 };
 

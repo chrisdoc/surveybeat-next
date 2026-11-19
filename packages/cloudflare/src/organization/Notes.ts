@@ -1,13 +1,6 @@
 import type { SqliteClient } from "@effect/sql-sqlite-do";
-import {
-  authorizeRoundAction,
-  noteChange,
-  type NoteViewed,
-  PersonId,
-  RoundId,
-  type RoundNoteView,
-  TeamId,
-} from "@surveybeat/domain";
+import { authorizeRoundAction, noteChange } from "@surveybeat/domain";
+import type { PersonId, RoundId, TeamId, NoteViewed, RoundNoteView } from "@surveybeat/domain";
 import * as Effect from "effect/Effect";
 import type { makeSqlDirectory } from "../SqlDirectory.ts";
 import type { makeSqlNotes } from "../SqlNotes.ts";
@@ -28,7 +21,7 @@ export const organizationNotes = ({
     actorId: PersonId,
     teamId: TeamId,
     roundId: RoundId,
-  ): Effect.Effect<NoteViewed<RoundNoteView>, never, never> =>
+  ): Effect.Effect<NoteViewed<RoundNoteView>> =>
     Effect.gen(function* () {
       const dirState = yield* directory.load;
       const auth = authorizeRoundAction(dirState, actorId, "team.viewNote", teamId);
@@ -59,7 +52,7 @@ export const organizationNotes = ({
     roundId: RoundId,
     text: string,
     now: number,
-  ): Effect.Effect<NoteViewed<RoundNoteView>, never, never> =>
+  ): Effect.Effect<NoteViewed<RoundNoteView>> =>
     sql
       .withTransaction(
         Effect.gen(function* () {

@@ -1,9 +1,11 @@
 import { SurveyBeatApi } from "@surveybeat/api";
-import { createAction, listActions, type OrganizationActions, updateAction } from "@surveybeat/domain";
+import { createAction, listActions, updateAction } from "@surveybeat/domain";
+import type { OrganizationActions } from "@surveybeat/domain";
 import type * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
-import { type AuthServices, currentMember, requireSameOrigin } from "./auth/AuthHandlers.ts";
+import { currentMember, requireSameOrigin } from "./auth/AuthHandlers.ts";
+import type { AuthServices } from "./auth/AuthHandlers.ts";
 
 export type ActionServices = AuthServices | OrganizationActions;
 

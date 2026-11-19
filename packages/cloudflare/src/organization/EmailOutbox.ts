@@ -1,6 +1,7 @@
 import type * as Cloudflare from "@alchemy.run/cloudflare";
 import type { SqliteClient } from "@effect/sql-sqlite-do";
-import { OrganizationId, SendId, type SendStoreShape } from "@surveybeat/domain";
+import { OrganizationId, SendId } from "@surveybeat/domain";
+import type { SendStoreShape } from "@surveybeat/domain";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import { EmailSendRequested } from "../Email.ts";

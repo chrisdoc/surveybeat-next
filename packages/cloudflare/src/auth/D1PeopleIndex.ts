@@ -1,13 +1,6 @@
 import type * as Cloudflare from "@alchemy.run/cloudflare";
-import {
-  EmailAddress,
-  normaliseEmail,
-  type ClaimStatus,
-  OrganizationId,
-  PeopleIndex,
-  type PersonCandidate,
-  PersonId,
-} from "@surveybeat/domain";
+import { EmailAddress, normaliseEmail, OrganizationId, PeopleIndex, PersonId } from "@surveybeat/domain";
+import type { ClaimStatus, PersonCandidate } from "@surveybeat/domain";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
@@ -48,13 +41,13 @@ export const d1PeopleIndex = (db: Cloudflare.D1.QueryDatabaseClient) =>
     const run = <A, E>(effect: Effect.Effect<A, E, RuntimeContext>): Effect.Effect<A> =>
       effect.pipe(Effect.provideContext(runtime), Effect.orDie);
 
-    const all = (sql: string, ...binds: ReadonlyArray<unknown>) =>
+    const all = (sql: string, ...binds: readonly unknown[]) =>
       db
         .prepare(sql)
         .bind(...binds)
-        .all<unknown>()
+        .all()
         .pipe(Effect.map((result) => result.results));
-    const write = (sql: string, ...binds: ReadonlyArray<unknown>) =>
+    const write = (sql: string, ...binds: readonly unknown[]) =>
       run(
         db
           .prepare(sql)

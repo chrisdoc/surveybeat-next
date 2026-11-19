@@ -35,7 +35,8 @@ export const withToken = (email: StoredEmail): Effect.Effect<RenderableEmail, ne
         const token = yield* (yield* InvitationTokens).derive(invitation);
         return { ...rest, token };
       }
-      default:
+      default: {
         return email;
+      }
     }
   });

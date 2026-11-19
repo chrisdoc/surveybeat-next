@@ -5,7 +5,7 @@ type Catalog = typeof catalog;
 export type MessageKey = keyof Catalog;
 export type Value = string | number;
 
-export type Translation = { readonly [K in MessageKey]: string };
+export type Translation = Readonly<Record<MessageKey, string>>;
 
 type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
 
@@ -41,7 +41,7 @@ function getPluralRules(): Intl.PluralRules {
 const isMessageKey = (key: string): key is MessageKey => Object.hasOwn(catalog, key);
 
 export function fill(template: string, params: Readonly<Record<string, Value>>): string {
-  return template.replace(/\{(\w+)\}/g, (_, name: string) => String(params[name] ?? ""));
+  return template.replaceAll(/\{(\w+)\}/g, (_, name: string) => String(params[name] ?? ""));
 }
 
 export function message<K extends KeysWithoutParams>(key: K): string;

@@ -19,7 +19,7 @@ export interface InvitationSummaryRound {
 export interface InvitationSummaryInput {
   readonly round: InvitationSummaryRound;
   readonly invitedPersonIds: ReadonlySet<PersonId>;
-  readonly memberships: ReadonlyArray<MembershipRecord>;
+  readonly memberships: readonly MembershipRecord[];
 }
 
 export const invitationSummaryOf = ({

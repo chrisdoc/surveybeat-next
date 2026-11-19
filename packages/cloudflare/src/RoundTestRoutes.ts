@@ -21,7 +21,8 @@ import * as Schedule from "effect/Schedule";
 import * as Redacted from "effect/Redacted";
 import { HttpServerRequest } from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
-import { InvitationTokensLive, type Organizations } from "./EmailDelivery.ts";
+import { InvitationTokensLive } from "./EmailDelivery.ts";
+import type { Organizations } from "./EmailDelivery.ts";
 import { setReviewWindowDays } from "./ReviewWindowTestRoutes.ts";
 
 export const ROUNDS_TEST_ROUTE = "/__test/rounds";

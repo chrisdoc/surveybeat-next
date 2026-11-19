@@ -5,7 +5,7 @@
 import type * as Cloudflare from "@alchemy.run/cloudflare";
 import { assert, describe, it } from "@effect/vitest";
 import { hashToken } from "@surveybeat/domain";
-import { HttpServerRequest } from "effect/http/HttpServerRequest";
+import type { HttpServerRequest } from "effect/http/HttpServerRequest";
 import * as Effect from "effect/Effect";
 import { readdirSync, readFileSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
@@ -35,19 +35,17 @@ const setupMocks = (): MockContext => {
     doDb.exec(readFileSync(new URL(file, doMigrationsDir), "utf8"));
   }
 
-  const statement = (sql: string, binds: ReadonlyArray<unknown>) => ({
-    bind: (...values: ReadonlyArray<unknown>) => statement(sql, values),
+  const statement = (sql: string, binds: readonly unknown[]) => ({
+    bind: (...values: readonly unknown[]) => statement(sql, values),
     first: <T>() =>
-      Effect.sync(
-        () => (d1.prepare(sql).get(...(binds as Array<null | string | number>)) ?? null) as T | null,
-      ),
+      Effect.sync(() => (d1.prepare(sql).get(...(binds as (null | string | number)[])) ?? null) as T | null),
     all: <T>() =>
       Effect.sync(() => ({
-        results: d1.prepare(sql).all(...(binds as Array<null | string | number>)) as Array<T>,
+        results: d1.prepare(sql).all(...(binds as (null | string | number)[])) as T[],
       })),
     run: () =>
       Effect.sync(() => {
-        d1.prepare(sql).run(...(binds as Array<null | string | number>));
+        d1.prepare(sql).run(...(binds as (null | string | number)[]));
         return { results: [] };
       }),
   });
@@ -72,10 +70,10 @@ const makeRequest = (
     url,
     headers: {
       "content-type": "application/json",
-      ...(headers ?? {}),
+      ...headers,
     },
     text: Effect.succeed(bodyText),
-    json: Effect.sync(() => (body ? body : {})),
+    json: Effect.sync(() => body || {}),
   } as unknown as HttpServerRequest;
 };
 
@@ -91,8 +89,8 @@ describe("SubmissionWorker endpoints (slice 09, ADR 0005, ADR 0007, ADR 0009)", 
 
       // Verify the invariant logic: carrying both is rejected with 400
       const body = yield* req.json as Effect.Effect<Record<string, unknown>>;
-      const token = body["token"] as string | undefined;
-      const editKey = body["editKey"] as string | undefined;
+      const token = body.token as string | undefined;
+      const editKey = body.editKey as string | undefined;
 
       assert.isDefined(token);
       assert.isDefined(editKey);

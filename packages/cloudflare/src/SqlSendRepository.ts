@@ -1,12 +1,6 @@
 import type { SqliteClient } from "@effect/sql-sqlite-do";
-import {
-  EmailAddress,
-  SendId,
-  type SendRecord,
-  type SendRepository,
-  SendState,
-  StoredEmail,
-} from "@surveybeat/domain";
+import { EmailAddress, SendId, SendState, StoredEmail } from "@surveybeat/domain";
+import type { SendRecord, SendRepository } from "@surveybeat/domain";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";

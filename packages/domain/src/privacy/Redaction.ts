@@ -9,7 +9,7 @@ export type RosterItem =
       readonly email?: string | null | undefined;
     };
 
-export type Roster = ReadonlyArray<RosterItem>;
+export type Roster = readonly RosterItem[];
 
 const URL_PATTERN = /(?:https?:\/\/|www\.)[^\s<>"'()[\]{},]+(?<![.,!?:;])/gi;
 const EMAIL_PATTERN = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/gi;
@@ -28,7 +28,7 @@ const PHONE_SEPARATOR = /[-.\s()+]/;
 
 const LONE_DIGIT_BEFORE = /(?:^|(?<=[^\w+.,]))\d $/;
 
-const THOUSANDS_GROUPED = /^[1-9]\d{0,2}([ \u00a0\u202f.,])\d{3}(?:\1\d{3})*$/;
+const THOUSANDS_GROUPED = /^[1-9]\d{0,2}([ \u00A0\u202F.,])\d{3}(?:\1\d{3})*$/;
 
 const CURRENCY_BEFORE = /(?:[€$£]|(?<!\w)(?:EUR|USD|CHF|GBP)) ?$/i;
 
@@ -60,7 +60,7 @@ const redactGenericPhones = (text: string): string => {
     ) {
       const lone = LONE_DIGIT_BEFORE.exec(text.slice(0, start));
       const from = lone !== null && start - 2 >= kept ? start - 2 : start;
-      result += text.slice(kept, from) + "[phone]";
+      result += `${text.slice(kept, from)}[phone]`;
       kept = end;
     }
   }
@@ -107,7 +107,7 @@ const redactGermanPhones = (text: string): string => {
         pattern.lastIndex = end;
       }
     }
-    result += text.slice(kept, start) + "[phone]";
+    result += `${text.slice(kept, start)}[phone]`;
     kept = end;
   }
   return result + text.slice(kept);
@@ -116,16 +116,16 @@ const redactGermanPhones = (text: string): string => {
 const stripDiacritics = (text: string): string =>
   text
     .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
+    .replaceAll(/[\u0300-\u036F]/g, "")
     .toLowerCase();
 
 interface CandidateName {
   readonly norm: string;
-  readonly words: ReadonlyArray<string>;
+  readonly words: readonly string[];
   readonly wordCount: number;
 }
 
-const extractCandidateNames = (roster: Roster): ReadonlyArray<CandidateName> => {
+const extractCandidateNames = (roster: Roster): readonly CandidateName[] => {
   const rawNames = new Set<string>();
 
   for (const item of roster) {
@@ -167,7 +167,7 @@ const extractCandidateNames = (roster: Roster): ReadonlyArray<CandidateName> => 
   }
 
   const seen = new Set<string>();
-  const candidates: Array<CandidateName> = [];
+  const candidates: CandidateName[] = [];
 
   for (const name of rawNames) {
     const norm = stripDiacritics(name.trim());
@@ -187,7 +187,7 @@ const extractCandidateNames = (roster: Roster): ReadonlyArray<CandidateName> => 
   return candidates.sort((a, b) => b.wordCount - a.wordCount || b.norm.length - a.norm.length);
 };
 
-const redactNames = (text: string, candidates: ReadonlyArray<CandidateName>): string => {
+const redactNames = (text: string, candidates: readonly CandidateName[]): string => {
   if (candidates.length === 0) return text;
 
   const segmenter = new Intl.Segmenter("en", { granularity: "word" });
@@ -213,7 +213,7 @@ const redactNames = (text: string, candidates: ReadonlyArray<CandidateName>): st
         let wordIdx = i;
         let matchedCount = 0;
         let spanEnd = i;
-        const collectedWords: Array<string> = [];
+        const collectedWords: string[] = [];
         let possessiveSuffix = "";
 
         while (wordIdx < segments.length && matchedCount < candidate.wordCount) {
@@ -221,11 +221,12 @@ const redactNames = (text: string, candidates: ReadonlyArray<CandidateName>): st
           if (nextSeg === undefined) break;
           if (nextSeg.isWordLike) {
             let segWord = nextSeg.segment;
-            if (matchedCount === candidate.wordCount - 1) {
-              if (segWord.endsWith("'s") || segWord.endsWith("’s")) {
-                possessiveSuffix = segWord.slice(-2);
-                segWord = segWord.slice(0, -2);
-              }
+            if (
+              matchedCount === candidate.wordCount - 1 &&
+              (segWord.endsWith("'s") || segWord.endsWith("’s"))
+            ) {
+              possessiveSuffix = segWord.slice(-2);
+              segWord = segWord.slice(0, -2);
             }
             collectedWords.push(stripDiacritics(segWord));
             matchedCount++;
@@ -235,7 +236,7 @@ const redactNames = (text: string, candidates: ReadonlyArray<CandidateName>): st
         }
 
         if (matchedCount === candidate.wordCount && collectedWords.join(" ") === candidate.words.join(" ")) {
-          result += "[name]" + possessiveSuffix;
+          result += `[name]${possessiveSuffix}`;
           i = spanEnd + 1;
           matched = true;
           break;
@@ -249,7 +250,7 @@ const redactNames = (text: string, candidates: ReadonlyArray<CandidateName>): st
         }
 
         if (stripDiacritics(word) === candidate.norm) {
-          result += "[name]" + suffix;
+          result += `[name]${suffix}`;
           i++;
           matched = true;
           break;
@@ -275,11 +276,11 @@ export const redact = (text: string, roster: Roster): string => {
       ? normalized.slice(0, Policy.text.longTextMaxLength)
       : normalized;
 
-  let result = bounded.replace(URL_PATTERN, "[link]");
+  let result = bounded.replaceAll(URL_PATTERN, "[link]");
 
-  result = result.replace(EMAIL_PATTERN, "[email]");
+  result = result.replaceAll(EMAIL_PATTERN, "[email]");
 
-  result = result.replace(HANDLE_PATTERN, "[handle]");
+  result = result.replaceAll(HANDLE_PATTERN, "[handle]");
 
   result = redactGermanPhones(result);
 

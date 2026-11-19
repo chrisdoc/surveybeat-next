@@ -3,38 +3,37 @@ import {
   buildMemberHistory,
   buildTeamOverview,
   calculateRoundResult,
-  type Dimension,
-  type HistoricalRoundData,
   MemberHistory,
   PulseId,
-  type QuestionInput,
   QuestionVersionId,
   RoundId,
   RoundResult,
   roundDecimals,
-  type RoundThemesRecord,
-  type StoredThemes,
-  type SubmissionAnswer,
   TeamId,
   viewRoundResult,
+} from "@surveybeat/domain";
+import type {
+  Dimension,
+  HistoricalRoundData,
+  QuestionInput,
+  RoundThemesRecord,
+  StoredThemes,
+  SubmissionAnswer,
 } from "@surveybeat/domain";
 import * as Arbitrary from "effect/Arbitrary";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
-import { HttpApi, type HttpApiEndpoint } from "effect/http-api";
+import { HttpApi } from "effect/http-api";
+import type { HttpApiEndpoint } from "effect/http-api";
 import * as Schema from "effect/Schema";
 import { SurveyBeatApi } from "./index.ts";
 import { pageRouteKeys } from "./PageRoutes.ts";
-import {
-  type LeadOnlyField,
-  pageRoutePrivacy,
-  privacyRegistry,
-  RoundResultScenario,
-} from "./PrivacyRegistry.ts";
+import { pageRoutePrivacy, privacyRegistry, RoundResultScenario } from "./PrivacyRegistry.ts";
+import type { LeadOnlyField } from "./PrivacyRegistry.ts";
 
 /** Every endpoint of the runtime declaration, as `group.endpoint`. */
-const declaredEndpoints = (): ReadonlyArray<string> => {
-  const keys: Array<string> = [];
+const declaredEndpoints = (): readonly string[] => {
+  const keys: string[] = [];
   HttpApi.reflect(SurveyBeatApi, {
     onGroup: () => {},
     onEndpoint: ({ group, endpoint }) => keys.push(`${group.identifier}.${endpoint.identifier}`),
@@ -106,7 +105,7 @@ describe("privacy registry", () => {
                 return failures.length > 0 ? Effect.fail(failures.join("; ")) : Effect.succeed(true);
               }),
             ),
-          { runs: 500, seed: 20261109 },
+          { runs: 500, seed: 20_261_109 },
         );
         assert.strictEqual(Arbitrary.formatCheckFailure(check), undefined);
         assert.strictEqual(check._tag, "Passed");
@@ -230,11 +229,11 @@ describe("privacy registry", () => {
 
 interface Built {
   readonly effectiveN: number;
-  readonly questions: ReadonlyArray<QuestionInput>;
-  readonly submissions: ReadonlyArray<{
+  readonly questions: readonly QuestionInput[];
+  readonly submissions: readonly {
     readonly id: string;
-    readonly answers: ReadonlyArray<SubmissionAnswer>;
-  }>;
+    readonly answers: readonly SubmissionAnswer[];
+  }[];
   readonly result: RoundResult;
   /** The Result as stored under the Round's own N, before the current Organization N is applied. */
   readonly stored: RoundResult;
@@ -265,14 +264,18 @@ const READY_THEMES: StoredThemes = {
 /** The themes record the Organization holds for a Round in the scenario's themes state (ADR 0016). */
 const themesRecordOf = (themes: RoundResultScenario["themes"]): RoundThemesRecord | null => {
   switch (themes) {
-    case "none":
+    case "none": {
       return null;
-    case "pending":
+    }
+    case "pending": {
       return { status: "pending", requestedAt: 0, attempts: 0 };
-    case "failed":
+    }
+    case "failed": {
       return { status: "failed" };
-    case "ready":
+    }
+    case "ready": {
       return { status: "ready", themes: READY_THEMES };
+    }
   }
 };
 
@@ -281,7 +284,7 @@ const READY_REVIEW_ENDS_AT = 1_731_400_000_000;
 
 const buildResult = (scenario: RoundResultScenario): Built => {
   const effectiveN = Math.max(scenario.storedN, scenario.organizationN);
-  const questions: ReadonlyArray<QuestionInput> = scenario.questions.map((question, index) => ({
+  const questions: readonly QuestionInput[] = scenario.questions.map((question, index) => ({
     id: QuestionVersionId.make(`q${index}.1`),
     position: index,
     text: `Question ${index}`,
@@ -295,7 +298,7 @@ const buildResult = (scenario: RoundResultScenario): Built => {
   }));
   const submissions = scenario.submissions.map((submission, s) => ({
     id: `s${s}`,
-    answers: questions.flatMap((question, index): ReadonlyArray<SubmissionAnswer> => {
+    answers: questions.flatMap((question, index): readonly SubmissionAnswer[] => {
       const answer = submission[index];
       if (answer === undefined || !answer.answered) return [];
       const kind = scenario.questions[index]?.kind;
@@ -309,7 +312,7 @@ const buildResult = (scenario: RoundResultScenario): Built => {
       ];
     }),
   }));
-  const history: ReadonlyArray<HistoricalRoundData> = scenario.history.map((past, i) => {
+  const history: readonly HistoricalRoundData[] = scenario.history.map((past, i) => {
     const usable = (score: number | null, contributors: number) =>
       score !== null &&
       contributors >= past.effectiveMinimumGroupSize &&
@@ -388,7 +391,7 @@ const buildResult = (scenario: RoundResultScenario): Built => {
 
 const resultResponders: Record<
   string,
-  (scenario: RoundResultScenario, leadOnly: ReadonlyArray<LeadOnlyField>) => ReadonlyArray<string>
+  (scenario: RoundResultScenario, leadOnly: readonly LeadOnlyField[]) => readonly string[]
 > = {
   "rounds.getResults": (scenario, leadOnly) => violations(scenario, buildResult(scenario), leadOnly),
   "rounds.getTeamOverview": (scenario) => overviewViolations(scenario),
@@ -420,7 +423,7 @@ const dimensionContributors = (
   dimension: Dimension,
   n: number,
 ): {
-  readonly usable: ReadonlyArray<{ readonly question: QuestionInput; readonly index: number }>;
+  readonly usable: readonly { readonly question: QuestionInput; readonly index: number }[];
   readonly contributors: number;
 } => {
   const roundMeetsN = built.result.status !== "open" && built.result.submissionsCount >= n;
@@ -444,7 +447,7 @@ const dimensionContributors = (
  * Every point of the Team overview: a score must equal a fresh computation at the effective N and
  * stand behind at least N contributors. The Result is built as stored, then enforced (ADR 0004).
  */
-const overviewViolations = (scenario: RoundResultScenario): ReadonlyArray<string> => {
+const overviewViolations = (scenario: RoundResultScenario): readonly string[] => {
   const built = buildResult({ ...scenario, status: "shared" });
   const overview = buildTeamOverview({
     teamId: TEAM,
@@ -453,7 +456,7 @@ const overviewViolations = (scenario: RoundResultScenario): ReadonlyArray<string
     actions: [],
   });
   const n = built.effectiveN;
-  const found: Array<string> = [];
+  const found: string[] = [];
   if (overview.rounds.length !== 1) found.push(`overview has ${overview.rounds.length} rounds, expected 1`);
   for (const line of overview.dimensions) {
     const label = `overview ${line.dimension}`;
@@ -473,7 +476,7 @@ const overviewViolations = (scenario: RoundResultScenario): ReadonlyArray<string
 };
 
 /** Whether each Lead-only field of a Result is present, for a member's view (ADR 0004, 0016, 0019). */
-const leadOnlyLeaks: { readonly [F in LeadOnlyField]: (result: RoundResult) => boolean } = {
+const leadOnlyLeaks: Readonly<Record<LeadOnlyField, (result: RoundResult) => boolean>> = {
   comments: (result) => result.comments.length > 0,
   "themes.supportingComments": (result) =>
     (result.themes ?? []).some((theme) => Object.hasOwn(theme, "supportingComments")),
@@ -487,10 +490,10 @@ const leadOnlyLeaks: { readonly [F in LeadOnlyField]: (result: RoundResult) => b
 const violations = (
   scenario: RoundResultScenario,
   built: Built,
-  leadOnly: ReadonlyArray<LeadOnlyField>,
-): ReadonlyArray<string> => {
+  leadOnly: readonly LeadOnlyField[],
+): readonly string[] => {
   const { result, direct, effectiveN: n } = built;
-  const found: Array<string> = [];
+  const found: string[] = [];
   const open = scenario.status === "open";
   const roundMeetsN = !open && result.submissionsCount >= n;
   if (result.submissionsCount !== scenario.submissions.length) found.push("submissionsCount differs");
@@ -639,7 +642,7 @@ const violations = (
  * The member's history of one Round: a Team score shows only when the Round is shown and the Question
  * has at least N contributors, and it equals a fresh computation at the effective N (ADR 0004, ADR 0017).
  */
-const historyViolations = (scenario: RoundResultScenario): ReadonlyArray<string> => {
+const historyViolations = (scenario: RoundResultScenario): readonly string[] => {
   const built = buildResult({ ...scenario, status: "shared" });
   const history = buildMemberHistory({
     rounds: [
@@ -658,7 +661,7 @@ const historyViolations = (scenario: RoundResultScenario): ReadonlyArray<string>
     minimumGroupSize: scenario.organizationN,
   });
   const n = built.effectiveN;
-  const found: Array<string> = [];
+  const found: string[] = [];
   for (const round of history.rounds) {
     if (round.teamResult === "shown" && built.result.submissionsCount < n) {
       found.push(`history shows the Round with ${built.result.submissionsCount} Submissions (N=${n})`);
@@ -683,7 +686,7 @@ const historyViolations = (scenario: RoundResultScenario): ReadonlyArray<string>
 
 describe("member history endpoint (ADR 0017)", () => {
   it("takes no input: a GET with no path parameter, payload, params, query, or headers", () => {
-    const endpoints: Array<HttpApiEndpoint.Top> = [];
+    const endpoints: HttpApiEndpoint.Top[] = [];
     HttpApi.reflect(SurveyBeatApi, {
       onGroup: () => {},
       onEndpoint: ({ group, endpoint }) => {
@@ -757,7 +760,7 @@ describe("member history endpoint (ADR 0017)", () => {
 });
 
 /** Every object key in a JSON value, at any depth. */
-const keysOf = (value: unknown): ReadonlyArray<string> => {
+const keysOf = (value: unknown): readonly string[] => {
   if (Array.isArray(value)) return value.flatMap((item: unknown) => keysOf(item));
   if (typeof value === "object" && value !== null) {
     return Object.entries(value).flatMap(([key, child]: [string, unknown]) => [key, ...keysOf(child)]);

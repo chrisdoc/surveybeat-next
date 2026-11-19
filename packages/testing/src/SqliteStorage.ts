@@ -6,10 +6,10 @@ export interface SqliteStorage {
   readonly sql: {
     readonly exec: (
       query: string,
-      ...bindings: ReadonlyArray<SQLInputValue>
+      ...bindings: readonly SQLInputValue[]
     ) => {
-      readonly columnNames: ReadonlyArray<string>;
-      readonly raw: () => IterableIterator<ReadonlyArray<unknown>>;
+      readonly columnNames: readonly string[];
+      readonly raw: () => IterableIterator<readonly unknown[]>;
     };
   };
   readonly transaction: <T>(body: (txn: { readonly rollback: () => void }) => Promise<T>) => Promise<T>;
@@ -23,7 +23,7 @@ export const makeSqliteStorage = (db: DatabaseSync): SqliteStorage => {
         const statement = db.prepare(query);
         statement.setReturnArrays(true);
         const columnNames = statement.columns().map((column) => column.name);
-        const rows: Array<ReadonlyArray<unknown>> = [];
+        const rows: (readonly unknown[])[] = [];
         if (columnNames.length === 0) {
           statement.run(...bindings);
         } else {
@@ -50,9 +50,9 @@ export const makeSqliteStorage = (db: DatabaseSync): SqliteStorage => {
         if (rolledBack) undo();
         else db.exec(level === 0 ? "COMMIT" : `RELEASE ${savepoint}`);
         return result;
-      } catch (cause) {
+      } catch (error) {
         undo();
-        throw cause;
+        throw error;
       } finally {
         depth = level;
       }

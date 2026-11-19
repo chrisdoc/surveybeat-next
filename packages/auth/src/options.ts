@@ -1,6 +1,7 @@
 import { passkey } from "@better-auth/passkey";
 import { days, minutes, Policy, toSeconds } from "@surveybeat/domain";
-import { betterAuth, type Auth, type BetterAuthOptions, type BetterAuthPlugin } from "better-auth";
+import { betterAuth } from "better-auth";
+import type { Auth, BetterAuthOptions, BetterAuthPlugin } from "better-auth";
 import { memoryAdapter } from "better-auth/adapters/memory";
 import { admin, emailOTP, magicLink, organization } from "better-auth/plugins";
 import * as Effect from "effect/Effect";
@@ -24,7 +25,7 @@ export const AUTH_TABLES = {
 export interface AuthSettings {
   readonly baseURL: string;
   readonly secret: string;
-  readonly trustedOrigins: ReadonlyArray<string>;
+  readonly trustedOrigins: readonly string[];
 }
 
 export interface CodeDelivery {
@@ -34,7 +35,7 @@ export interface CodeDelivery {
 
 export type SurveyBeatAuthOptions = Omit<BetterAuthOptions, "baseURL" | "database" | "secret" | "plugins">;
 
-export const authPlugins = (delivery: CodeDelivery): Array<BetterAuthPlugin> => [
+export const authPlugins = (delivery: CodeDelivery): BetterAuthPlugin[] => [
   emailOTP({
     otpLength: Policy.signIn.codeDigits,
     expiresIn: CODE_TTL_SECONDS,
@@ -63,7 +64,7 @@ export const authPlugins = (delivery: CodeDelivery): Array<BetterAuthPlugin> => 
 
 export const authOptions = (
   delivery: CodeDelivery,
-): SurveyBeatAuthOptions & { plugins: Array<BetterAuthPlugin> } => ({
+): SurveyBeatAuthOptions & { plugins: BetterAuthPlugin[] } => ({
   appName: "SurveyBeat",
   basePath: "/auth",
   trustedOrigins: [

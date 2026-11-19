@@ -171,7 +171,7 @@ export const roundDecimals = (value: number, decimals: number): number => {
   return Math.round((value + Number.EPSILON) * factor) / factor;
 };
 
-export const median = (values: ReadonlyArray<number>): number => {
+export const median = (values: readonly number[]): number => {
   if (values.length === 0) return 0;
   const sorted = [...values].sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
@@ -215,14 +215,14 @@ export interface HistoricalRoundData {
   readonly closedAt: number | null;
   readonly effectiveMinimumGroupSize: number;
   readonly submissionsCount: number;
-  readonly questions: ReadonlyArray<HistoricalRoundQuestionData>;
-  readonly dimensions: ReadonlyArray<HistoricalRoundDimensionData>;
+  readonly questions: readonly HistoricalRoundQuestionData[];
+  readonly dimensions: readonly HistoricalRoundDimensionData[];
 }
 
 export const computeDistribution = (
   type: QuestionType,
-  answers: ReadonlyArray<SubmissionAnswer>,
-): ReadonlyArray<DistributionOption> => {
+  answers: readonly SubmissionAnswer[],
+): readonly DistributionOption[] => {
   if (type._tag === "Rating") {
     const counts: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
     for (const ans of answers) {
@@ -267,7 +267,7 @@ export const evaluateHighlight = (change: number, typicalChangeVal: number): Hig
   return { isLargerThanUsual: isLarger, direction };
 };
 
-export const shuffleComments = (comments: ReadonlyArray<CommentResult>): ReadonlyArray<CommentResult> => {
+export const shuffleComments = (comments: readonly CommentResult[]): readonly CommentResult[] => {
   const arr = [...comments];
   for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -284,7 +284,7 @@ export const shuffleComments = (comments: ReadonlyArray<CommentResult>): Readonl
 const pastDimContributors = (
   pastDim: HistoricalRoundDimensionData,
   past: HistoricalRoundData,
-  questions: ReadonlyArray<QuestionInput>,
+  questions: readonly QuestionInput[],
 ): { readonly contributors?: number } => {
   if (pastDim.contributors !== undefined && pastDim.contributors !== null) {
     return { contributors: pastDim.contributors };
@@ -297,7 +297,7 @@ const pastDimContributors = (
 const pastDimMeetsN = (
   pastDim: HistoricalRoundDimensionData,
   past: HistoricalRoundData,
-  questions: ReadonlyArray<QuestionInput>,
+  questions: readonly QuestionInput[],
   pastEffectiveN: number,
 ): boolean => {
   if (pastDim.score === null || !pastDim.meetsMinimumGroupSize || past.submissionsCount < pastEffectiveN) {
@@ -330,12 +330,12 @@ export const calculateRoundResult = (params: {
   readonly closedAt: number | null;
   readonly effectiveMinimumGroupSize: number;
   readonly eligibleMembersCount: number;
-  readonly questions: ReadonlyArray<QuestionInput>;
-  readonly submissions: ReadonlyArray<{
+  readonly questions: readonly QuestionInput[];
+  readonly submissions: readonly {
     readonly id: string;
-    readonly answers: ReadonlyArray<SubmissionAnswer>;
-  }>;
-  readonly pastRoundsHistory: ReadonlyArray<HistoricalRoundData>;
+    readonly answers: readonly SubmissionAnswer[];
+  }[];
+  readonly pastRoundsHistory: readonly HistoricalRoundData[];
   readonly delayed?: boolean;
 }): RoundResult => {
   const {
@@ -362,7 +362,7 @@ export const calculateRoundResult = (params: {
   const isClosedOrLater = status === "closed" || status === "ready" || status === "shared";
   const shouldRevealResults = isClosedOrLater && meetsRoundN;
 
-  const answersByQuestion = new Map<string, Array<SubmissionAnswer>>();
+  const answersByQuestion = new Map<string, SubmissionAnswer[]>();
   for (const q of questions) {
     answersByQuestion.set(q.id, []);
   }
@@ -380,10 +380,10 @@ export const calculateRoundResult = (params: {
     readonly contributors: number;
     readonly meetsN: boolean;
     readonly score: number | null;
-    readonly distribution: ReadonlyArray<DistributionOption> | null;
+    readonly distribution: readonly DistributionOption[] | null;
   }
 
-  const tempQuestionScores: Array<TempQuestionScore> = [];
+  const tempQuestionScores: TempQuestionScore[] = [];
 
   for (const q of questions) {
     const answers = answersByQuestion.get(q.id) ?? [];
@@ -448,7 +448,7 @@ export const calculateRoundResult = (params: {
     }
   }
 
-  const dimensionsToEvaluate: ReadonlyArray<Dimension> = [
+  const dimensionsToEvaluate: readonly Dimension[] = [
     "workload",
     "psychologicalSafety",
     "clarity",
@@ -464,7 +464,7 @@ export const calculateRoundResult = (params: {
     readonly meetsN: boolean;
   }
 
-  const tempDimensionScores: Array<TempDimensionScore> = [];
+  const tempDimensionScores: TempDimensionScore[] = [];
 
   for (const dim of dimensionsToEvaluate) {
     const dimQuestions = tempQuestionScores.filter(
@@ -513,10 +513,10 @@ export const calculateRoundResult = (params: {
 
   const pastUpTo11 = pastRoundsHistory.slice(-11);
 
-  const finalQuestions: Array<QuestionResult> = tempQuestionScores.map((tqs) => {
+  const finalQuestions: QuestionResult[] = tempQuestionScores.map((tqs) => {
     const q = tqs.question;
 
-    const trendPoints: Array<TrendPoint> = [];
+    const trendPoints: TrendPoint[] = [];
     for (const past of pastUpTo11) {
       const pastQ = past.questions.find((pq) => pq.questionVersionId === q.id);
       const pastEffectiveN = Math.max(past.effectiveMinimumGroupSize, effectiveN);
@@ -566,7 +566,7 @@ export const calculateRoundResult = (params: {
       readonly score: number;
     }
 
-    const pastUsableRounds: Array<UsablePastQuestionRound> = [];
+    const pastUsableRounds: UsablePastQuestionRound[] = [];
     for (const past of pastRoundsHistory) {
       const pastQ = past.questions.find((pq) => pq.questionVersionId === q.id);
       const pastEffectiveN = Math.max(past.effectiveMinimumGroupSize, effectiveN);
@@ -584,7 +584,7 @@ export const calculateRoundResult = (params: {
       }
     }
 
-    const pastDifferences: Array<number> = [];
+    const pastDifferences: number[] = [];
     for (let i = 1; i < pastUsableRounds.length; i++) {
       const prev = pastUsableRounds[i - 1];
       const curr = pastUsableRounds[i];
@@ -617,7 +617,7 @@ export const calculateRoundResult = (params: {
       };
     }
 
-    const mostRecentPastUsable = pastUsableRounds[pastUsableRounds.length - 1];
+    const mostRecentPastUsable = pastUsableRounds.at(-1);
     let changeObj: QuestionChange | null = null;
 
     if (mostRecentPastUsable !== undefined) {
@@ -649,10 +649,10 @@ export const calculateRoundResult = (params: {
     };
   });
 
-  const finalDimensions: Array<DimensionResult> = tempDimensionScores.map((tds) => {
+  const finalDimensions: DimensionResult[] = tempDimensionScores.map((tds) => {
     const dim = tds.dimension;
 
-    const dimTrendPoints: Array<DimensionTrendPoint> = [];
+    const dimTrendPoints: DimensionTrendPoint[] = [];
     for (const past of pastUpTo11) {
       const pastDim = past.dimensions.find((pd) => pd.dimension === dim);
       const pastEffectiveN = Math.max(past.effectiveMinimumGroupSize, effectiveN);
@@ -697,7 +697,7 @@ export const calculateRoundResult = (params: {
       readonly roundData: HistoricalRoundData;
     }
 
-    const usablePastDimRounds: Array<UsablePastDimRound> = [];
+    const usablePastDimRounds: UsablePastDimRound[] = [];
     for (const past of pastRoundsHistory) {
       const pastDim = past.dimensions.find((pd) => pd.dimension === dim);
       const pastEffectiveN = Math.max(past.effectiveMinimumGroupSize, effectiveN);
@@ -710,7 +710,7 @@ export const calculateRoundResult = (params: {
       }
     }
 
-    const pastDimDifferences: Array<number> = [];
+    const pastDimDifferences: number[] = [];
     for (let i = 1; i < usablePastDimRounds.length; i++) {
       const prev = usablePastDimRounds[i - 1];
       const curr = usablePastDimRounds[i];
@@ -719,7 +719,7 @@ export const calculateRoundResult = (params: {
         const currEffectiveN = Math.max(curr.roundData.effectiveMinimumGroupSize, effectiveN);
 
         const dimQuestions = questions.filter((q) => q.dimension === dim && q.type._tag === "Rating");
-        const perQuestionChanges: Array<number> = [];
+        const perQuestionChanges: number[] = [];
 
         for (const q of dimQuestions) {
           const qPrev = prev.roundData.questions.find((pq) => pq.questionVersionId === q.id);
@@ -768,13 +768,13 @@ export const calculateRoundResult = (params: {
       };
     }
 
-    const mostRecentPastUsable = usablePastDimRounds[usablePastDimRounds.length - 1];
+    const mostRecentPastUsable = usablePastDimRounds.at(-1);
     let changeObj: DimensionChange | null = null;
 
     if (mostRecentPastUsable !== undefined) {
       const pastEffectiveN = Math.max(mostRecentPastUsable.roundData.effectiveMinimumGroupSize, effectiveN);
       const dimQuestions = questions.filter((q) => q.dimension === dim && q.type._tag === "Rating");
-      const perQuestionChanges: Array<number> = [];
+      const perQuestionChanges: number[] = [];
 
       for (const q of dimQuestions) {
         const qPast = mostRecentPastUsable.roundData.questions.find((pq) => pq.questionVersionId === q.id);
@@ -830,7 +830,7 @@ export const calculateRoundResult = (params: {
     };
   });
 
-  const rawComments: Array<CommentResult> = [];
+  const rawComments: CommentResult[] = [];
   if (shouldRevealResults) {
     for (const sub of submissions) {
       for (const ans of sub.answers) {
@@ -907,10 +907,10 @@ interface MaskableTrendPoint {
 }
 
 const maskEarlierTrendPoints = <P extends MaskableTrendPoint>(
-  points: ReadonlyArray<P>,
+  points: readonly P[],
   currentRoundId: RoundId,
   effectiveN: number,
-): { readonly points: ReadonlyArray<P>; readonly newlyMasked: ReadonlySet<RoundId> } => {
+): { readonly points: readonly P[]; readonly newlyMasked: ReadonlySet<RoundId> } => {
   const newlyMasked = new Set<RoundId>();
   const masked = points.map((p) => {
     if (p.roundId === currentRoundId || p.score === null) return p;
@@ -993,7 +993,7 @@ export const enforceEffectiveNOnResult = (result: RoundResult, currentOrgN: numb
       current: Pick<DimensionTrendPoint, "score" | "usableQuestionCount" | "hasGap"> & {
         readonly contributors: number | null;
       },
-    ): ReadonlyArray<DimensionTrendPoint> =>
+    ): readonly DimensionTrendPoint[] =>
       earlier.points.map((p) => {
         if (p.roundId !== result.roundId) return p;
         const { contributors: _previous, ...rest } = p;

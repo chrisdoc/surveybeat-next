@@ -16,8 +16,8 @@ const StoredRound = Schema.Struct({
 });
 const decodeStoredRound = Schema.decodeUnknownOption(Schema.fromJsonString(StoredRound));
 
-const keptAnswersKeys = (storage: Pick<Storage, "length" | "key">): Array<string> => {
-  const keys: Array<string> = [];
+const keptAnswersKeys = (storage: Pick<Storage, "length" | "key">): string[] => {
+  const keys: string[] = [];
   for (let index = 0; index < storage.length; index++) {
     const key = storage.key(index);
     if (key !== null && key.startsWith(keptAnswersPrefix)) keys.push(key);

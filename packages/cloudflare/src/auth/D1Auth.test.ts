@@ -20,13 +20,13 @@ const makeIndex = () => {
   const sqlite = new DatabaseSync(":memory:");
   for (const file of readdirSync(migrations).sort())
     sqlite.exec(readFileSync(new URL(file, migrations), "utf8"));
-  const statement = (sql: string, binds: ReadonlyArray<unknown>) => ({
-    bind: (...values: ReadonlyArray<unknown>) => statement(sql, values),
+  const statement = (sql: string, binds: readonly unknown[]) => ({
+    bind: (...values: readonly unknown[]) => statement(sql, values),
     all: () =>
-      Effect.sync(() => ({ results: sqlite.prepare(sql).all(...(binds as Array<null | string | number>)) })),
+      Effect.sync(() => ({ results: sqlite.prepare(sql).all(...(binds as (null | string | number)[])) })),
     run: () =>
       Effect.sync(() => {
-        sqlite.prepare(sql).run(...(binds as Array<null | string | number>));
+        sqlite.prepare(sql).run(...(binds as (null | string | number)[]));
         return { results: [] };
       }),
   });
@@ -166,7 +166,7 @@ interface D1Result<T> {
 }
 
 interface AuthorizedStatement {
-  readonly bind: (...values: ReadonlyArray<unknown>) => AuthorizedStatement;
+  readonly bind: (...values: readonly unknown[]) => AuthorizedStatement;
   readonly all: <T>() => Promise<D1Result<T>>;
   readonly run: () => Promise<unknown>;
 }
@@ -178,8 +178,8 @@ const betterAuthDatabase = () => {
   for (const file of readdirSync(migrations).sort()) {
     sqlite.exec(readFileSync(new URL(file, migrations), "utf8"));
   }
-  const bounded = (binds: ReadonlyArray<unknown>) => binds as Array<null | number | string>;
-  const statement = (sql: string, binds: ReadonlyArray<unknown>): AuthorizedStatement => ({
+  const bounded = (binds: readonly unknown[]) => binds as (null | number | string)[];
+  const statement = (sql: string, binds: readonly unknown[]): AuthorizedStatement => ({
     bind: (...values) => statement(sql, values),
     run: () => {
       sqlite.prepare(sql).run(...bounded(binds));
@@ -202,7 +202,7 @@ const betterAuthDatabase = () => {
   });
   const database = {
     prepare: (sql: string) => statement(sql, []),
-    batch: (statements: ReadonlyArray<AuthorizedStatement>) =>
+    batch: (statements: readonly AuthorizedStatement[]) =>
       Promise.all(statements.map((query) => query.all())),
     exec: (sql: string) => Promise.resolve(sqlite.exec(sql)),
   };
@@ -225,7 +225,7 @@ describe("Better Auth sessions in D1", () => {
   it.effect("keeps a session for the next auth instance, unlike the memory adapter", () =>
     Effect.gen(function* () {
       const { sqlite, database } = betterAuthDatabase();
-      const codes: Array<string> = [];
+      const codes: string[] = [];
       const delivery = {
         sendSignInCode: ({ otp }: { readonly email: string; readonly otp: string }) =>
           Effect.sync(() => {
@@ -272,7 +272,7 @@ describe("Better Auth identity provider over D1", () => {
   it.effect("refuses the cookie once the session row is deleted", () =>
     Effect.gen(function* () {
       const { sqlite, database } = betterAuthDatabase();
-      const codes: Array<string> = [];
+      const codes: string[] = [];
       const delivery = {
         sendSignInCode: ({ otp }: { readonly email: string; readonly otp: string }) =>
           Effect.sync(() => {
@@ -353,7 +353,7 @@ describe("Better Auth plugin tables in D1", () => {
   it.effect("signs in through a magic link against the migrated plugin tables", () =>
     Effect.gen(function* () {
       const { sqlite, database } = betterAuthDatabase();
-      const links: Array<string> = [];
+      const links: string[] = [];
       const delivery = {
         sendSignInCode: () => Effect.void,
         sendMagicLink: ({ url }: { readonly email: string; readonly url: string }) =>

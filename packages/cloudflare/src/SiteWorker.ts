@@ -24,9 +24,7 @@ export default class SiteWorker extends Cloudflare.Worker<SiteWorker>()(
         htmlHandling: "auto-trailing-slash",
         runWorkerFirst: ["/app", "/app/"],
       },
-      env: {
-        ...(appHostname === undefined ? {} : { APP_ORIGIN: `https://${appHostname}` }),
-      },
+      env: appHostname === undefined ? {} : { APP_ORIGIN: `https://${appHostname}` },
       ...(domain === undefined ? {} : { domain }),
     };
   }),

@@ -85,7 +85,7 @@ describe("creating an Organization is idempotent per user", () => {
       browser.post("/auth/organization", { name: "Acme" }),
       second.post("/auth/organization", { name: "Acme twice" }),
     ]);
-    const bodies: Array<unknown> = [await a.json(), await b.json()];
+    const bodies: unknown[] = [await a.json(), await b.json()];
     expect(world.durable.organizations.size).toBe(1);
     expect(world.index.claims.size).toBe(1);
     const [organizationId] = [...world.durable.organizations.keys()];
@@ -204,7 +204,7 @@ describe("linking a signed-in user to a Person", () => {
     const { world, browser } = setup("kate@example.com");
     const acme = world.addOrganization("Acme");
     const personId = world.addPerson(acme.id, "kate@example.com");
-    browser.signIn(world.sessions.login("\u212aate@example.com"));
+    browser.signIn(world.sessions.login("\u212Aate@example.com"));
 
     expect((await browser.session()).body).toEqual({ _tag: "NotInOrganization" });
     expect(world.durable.person(acme.id, personId)?.authUserId).toBeNull();

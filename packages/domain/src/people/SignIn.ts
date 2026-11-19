@@ -1,5 +1,6 @@
 import { Schema } from "effect";
-import { OrganizationCreationAllowlist, type Identity, PersonId } from "./Identity.ts";
+import { PersonId } from "./Identity.ts";
+import type { OrganizationCreationAllowlist, Identity } from "./Identity.ts";
 import { Locale } from "./Locale.ts";
 import { OrganizationId } from "./Organization.ts";
 
@@ -15,15 +16,15 @@ export interface PersonCandidate {
 
 export type SignInDecision =
   | { readonly _tag: "Enter"; readonly candidate: PersonCandidate }
-  | { readonly _tag: "ChooseOrganization"; readonly candidates: ReadonlyArray<PersonCandidate> }
+  | { readonly _tag: "ChooseOrganization"; readonly candidates: readonly PersonCandidate[] }
   | { readonly _tag: "CreateOrganization" }
   | { readonly _tag: "NotInOrganization" };
 
 export const candidatesFor = (
   identity: Identity,
-  linked: ReadonlyArray<PersonCandidate>,
-  unlinkedWithEmail: ReadonlyArray<PersonCandidate>,
-): ReadonlyArray<PersonCandidate> => {
+  linked: readonly PersonCandidate[],
+  unlinkedWithEmail: readonly PersonCandidate[],
+): readonly PersonCandidate[] => {
   const byOrganization = new Map<OrganizationId, PersonCandidate>();
   for (const candidate of linked) byOrganization.set(candidate.organization.id, candidate);
   if (identity.emailMatchable) {
@@ -38,7 +39,7 @@ export const candidatesFor = (
 
 export const decideSignIn = (
   identity: Identity,
-  candidates: ReadonlyArray<PersonCandidate>,
+  candidates: readonly PersonCandidate[],
   allowlist: OrganizationCreationAllowlist,
 ): SignInDecision => {
   const [only, ...rest] = candidates;

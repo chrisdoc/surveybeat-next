@@ -83,7 +83,7 @@ describe("SubmissionWorker first answer privacy (ADR 0005, ADR 0009)", () => {
         .recordFirstAnswer(roundId, personId, "another-hash", [], [])
         .pipe(Effect.flip);
       assert.strictEqual(again._tag, "AlreadyAnswered");
-      assert.strictEqual(db.prepare("SELECT count(*) AS c FROM submission").get()?.["c"], 1);
+      assert.strictEqual(db.prepare("SELECT count(*) AS c FROM submission").get()?.c, 1);
     }),
   );
 });

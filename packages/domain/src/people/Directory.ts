@@ -1,9 +1,13 @@
 import { Option } from "effect";
-import { EmailAddress, SendId, type TransactionalEmail } from "../email/Email.ts";
+import { EmailAddress, SendId } from "../email/Email.ts";
+import type { TransactionalEmail } from "../email/Email.ts";
 import type { FailedEmail, FailedEmails, FailedEmailStatus } from "../email/FailedEmails.ts";
-import { normaliseEmail, type PersonId, type AuthUserId } from "./Identity.ts";
-import { type Actor, can } from "./Permissions.ts";
-import { type Locale, resolveLocale } from "./Locale.ts";
+import { normaliseEmail } from "./Identity.ts";
+import type { PersonId, AuthUserId } from "./Identity.ts";
+import { can } from "./Permissions.ts";
+import type { Actor } from "./Permissions.ts";
+import { resolveLocale } from "./Locale.ts";
+import type { Locale } from "./Locale.ts";
 import type {
   AssignableRole,
   MembershipId,
@@ -51,9 +55,9 @@ export interface DirectoryState {
   readonly aiProcessing: boolean;
 
   readonly defaultLocale: Locale;
-  readonly people: ReadonlyArray<PersonRecord>;
-  readonly teams: ReadonlyArray<TeamRecord>;
-  readonly memberships: ReadonlyArray<MembershipRecord>;
+  readonly people: readonly PersonRecord[];
+  readonly teams: readonly TeamRecord[];
+  readonly memberships: readonly MembershipRecord[];
 }
 
 export interface NewMember {
@@ -158,8 +162,8 @@ export type Decision =
   | { readonly _tag: "Rejected"; readonly rejection: DirectoryRejection }
   | {
       readonly _tag: "Accepted";
-      readonly changes: ReadonlyArray<DirectoryChange>;
-      readonly followUps: ReadonlyArray<FollowUp>;
+      readonly changes: readonly DirectoryChange[];
+      readonly followUps: readonly FollowUp[];
     };
 
 export type Viewed<A> =
@@ -178,10 +182,7 @@ const reject = (
 });
 const forbidden = reject({ _tag: "Forbidden" });
 
-const accept = (
-  changes: ReadonlyArray<DirectoryChange>,
-  followUps: ReadonlyArray<FollowUp> = [],
-): Decision => ({
+const accept = (changes: readonly DirectoryChange[], followUps: readonly FollowUp[] = []): Decision => ({
   _tag: "Accepted",
   changes,
   followUps,
@@ -258,7 +259,7 @@ const putInTeam = (
     locale: null,
     detectedLocale: null,
   };
-  const changes: Array<DirectoryChange> = [];
+  const changes: DirectoryChange[] = [];
   if (existing === undefined) changes.push({ _tag: "PersonAdded", person });
   else if (existing.removedAt !== null) changes.push({ _tag: "PersonRestored", personId: existing.id });
 
@@ -383,7 +384,7 @@ export const decide = (
       if (command.personId === actorId) return forbidden;
       const person = state.people.find((each) => each.id === command.personId);
       if (person === undefined) return reject({ _tag: "PersonNotFound" });
-      const followUps: Array<FollowUp> = [{ _tag: "UnindexPerson", personId: person.id }];
+      const followUps: FollowUp[] = [{ _tag: "UnindexPerson", personId: person.id }];
 
       if (person.removedAt !== null) return accept([], followUps);
 
@@ -401,7 +402,7 @@ export const decide = (
       ) {
         return reject({ _tag: "LastAdmin" });
       }
-      const changes: Array<DirectoryChange> = memberships.map((membership) => ({
+      const changes: DirectoryChange[] = memberships.map((membership) => ({
         _tag: "MembershipEnded",
         membershipId: membership.id,
         at: now,
@@ -455,58 +456,66 @@ export const decide = (
   }
 };
 
-export const applyChanges = (
-  state: DirectoryState,
-  changes: ReadonlyArray<DirectoryChange>,
-): DirectoryState =>
+export const applyChanges = (state: DirectoryState, changes: readonly DirectoryChange[]): DirectoryState =>
   changes.reduce<DirectoryState>((current, change) => {
     const updatePerson = (personId: PersonId, update: (person: PersonRecord) => PersonRecord) => ({
       ...current,
       people: current.people.map((person) => (person.id === personId ? update(person) : person)),
     });
     switch (change._tag) {
-      case "PersonAdded":
+      case "PersonAdded": {
         return { ...current, people: [...current.people, change.person] };
-      case "PersonRestored":
+      }
+      case "PersonRestored": {
         return updatePerson(change.personId, (person) => ({ ...person, removedAt: null }));
-      case "PersonRemoved":
+      }
+      case "PersonRemoved": {
         return updatePerson(change.personId, (person) => ({ ...person, removedAt: change.at }));
-      case "AdminSet":
+      }
+      case "AdminSet": {
         return updatePerson(change.personId, (person) => ({
           ...person,
           organizationAdmin: change.organizationAdmin,
         }));
-      case "TeamAdded":
+      }
+      case "TeamAdded": {
         return { ...current, teams: [...current.teams, change.team] };
-      case "TeamUpdated":
+      }
+      case "TeamUpdated": {
         return {
           ...current,
           teams: current.teams.map((team) => (team.id === change.team.id ? change.team : team)),
         };
-      case "MembershipStarted":
+      }
+      case "MembershipStarted": {
         return { ...current, memberships: [...current.memberships, change.membership] };
-      case "MembershipEnded":
+      }
+      case "MembershipEnded": {
         return {
           ...current,
           memberships: current.memberships.map((membership) =>
             membership.id === change.membershipId ? { ...membership, endedAt: change.at } : membership,
           ),
         };
-      case "SettingsUpdated":
+      }
+      case "SettingsUpdated": {
         return {
           ...current,
           minimumGroupSize: change.minimumGroupSize,
           aiProcessing: change.aiProcessing,
           defaultLocale: change.defaultLocale,
         };
-      case "PersonLanguageSet":
+      }
+      case "PersonLanguageSet": {
         return updatePerson(change.personId, (person) => ({
           ...person,
           locale: change.locale,
           detectedLocale: change.detectedLocale,
         }));
-      case "EmailRequested":
+      }
+      case "EmailRequested": {
         return current;
+      }
     }
   }, state);
 
@@ -526,7 +535,7 @@ const activeMembersOf = (state: DirectoryState, teamId: TeamId): number =>
 const byName = (a: { readonly name: string }, b: { readonly name: string }) =>
   a.name.localeCompare(b.name, "en");
 
-export const teamsView = (state: DirectoryState, actorId: PersonId): Viewed<ReadonlyArray<TeamSummary>> => {
+export const teamsView = (state: DirectoryState, actorId: PersonId): Viewed<readonly TeamSummary[]> => {
   const actor = actorOf(state, actorId);
   if (Option.isNone(actor)) return forbidden;
   const listAll = can(actor.value, "organization.listTeams", { _tag: "Organization" });
@@ -616,7 +625,7 @@ export const emailStatusView = (
 export const failedEmailsView = (
   state: DirectoryState,
   actorId: PersonId,
-  failed: ReadonlyArray<FailedEmail>,
+  failed: readonly FailedEmail[],
 ): Viewed<FailedEmails> => {
   const actor = actorOf(state, actorId);
   if (Option.isNone(actor)) return forbidden;

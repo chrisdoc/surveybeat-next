@@ -1,7 +1,8 @@
 import type { InvitationEmailWithToken as InvitationEmailData } from "@surveybeat/domain";
 import { Layout, textLayout } from "./Layout.tsx";
 import { answerPath, langQuery } from "./links.ts";
-import { type Messages, messagesFor } from "./messages/index.ts";
+import { messagesFor } from "./messages/index.ts";
+import type { Messages } from "./messages/index.ts";
 import {
   ActionRow,
   ActionsCard,
@@ -79,7 +80,7 @@ export const text = (email: InvitationEmailData): string => {
   const notice = aiNotice(email, m);
   const testLines = isTest(email) ? [m.message("invitation.testNotice"), ""] : [];
 
-  const ratingLines: Array<string> = [];
+  const ratingLines: string[] = [];
   if (email.ratingQuestion) {
     ratingLines.push(email.ratingQuestion.text, "");
     for (let val = 1; val <= 5; val++) {
@@ -94,7 +95,7 @@ export const text = (email: InvitationEmailData): string => {
     ratingLines.push("");
   }
 
-  const actionLines: Array<string> = [];
+  const actionLines: string[] = [];
   if (email.actions.length > 0) {
     actionLines.push(m.message("invitation.actionsHeading"));
     for (const act of email.actions.slice(0, 3)) {

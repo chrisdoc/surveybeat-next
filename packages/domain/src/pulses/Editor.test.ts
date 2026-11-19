@@ -14,16 +14,16 @@ import {
   EMPTY_PULSE_STATE,
   estimateSeconds,
   hasAnswers,
-  type PulseCommand,
-  type PulseState,
   pulseView,
   pulsesView,
   pulseWarnings,
   testSendStatusOf,
   testSendView,
 } from "./Editor.ts";
+import type { PulseCommand, PulseState } from "./Editor.ts";
 import { MAX_QUESTIONS, PulseId, PulseSettings, SendTime, testInvitationLifetimeMs } from "./Pulse.ts";
-import { firstVersionId, type QuestionContent, QuestionId, QuestionType } from "./Question.ts";
+import { firstVersionId, QuestionId, QuestionType } from "./Question.ts";
+import type { QuestionContent } from "./Question.ts";
 import { TemplateQuestionKey, weeklyTeamHealth } from "./Template.ts";
 
 const team = TeamId.make("platform");
@@ -71,7 +71,7 @@ const directory: DirectoryState = {
 
 /** Runs commands in order, each against the state the previous ones left, failing on a refusal. */
 const run = (
-  commands: ReadonlyArray<PulseCommand>,
+  commands: readonly PulseCommand[],
   by = lead,
   state = EMPTY_PULSE_STATE,
   dir: DirectoryState = directory,
@@ -331,7 +331,7 @@ describe("the Pulse editor", () => {
     const all = ids(created());
     const [first, ...rest] = all;
     if (first === undefined) throw new Error("no Questions");
-    const reorder = (order: ReadonlyArray<QuestionId>): PulseCommand => ({
+    const reorder = (order: readonly QuestionId[]): PulseCommand => ({
       _tag: "ReorderQuestions",
       teamId: team,
       pulseId,
@@ -653,7 +653,7 @@ describe("the state of a test send (ADR 0021, issue 147)", () => {
   });
 
   it("shows a send being delivered by its attempt number, without the lease", () => {
-    const sending: SendState = { _tag: "Sending", attempt: 3, leaseExpiresAt: 9_999 };
+    const sending: SendState = { _tag: "Sending", attempt: 3, leaseExpiresAt: 9999 };
     expect(testSendStatusOf(sending, 100, 150)).toEqual({
       queuedAt: 100,
       checkedAt: 150,
@@ -687,7 +687,7 @@ describe("the state of a test send (ADR 0021, issue 147)", () => {
 
 describe("reading a test send (ADR 0021, issue 147)", () => {
   const now = 1_000_000_000;
-  const sentAt = now - 1_000;
+  const sentAt = now - 1000;
   const own = (by: PersonId, state: SendState = { _tag: "Pending", attempts: 0, lastCode: null }) => ({
     personId: by,
     pulseId,

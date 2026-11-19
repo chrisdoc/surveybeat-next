@@ -6,8 +6,8 @@ const origin = "http://localhost:5173";
 const address = "person@example.com";
 
 const harness = () => {
-  const codes: Array<string> = [];
-  const links: Array<string> = [];
+  const codes: string[] = [];
+  const links: string[] = [];
   const auth = memoryAuth({
     sendSignInCode: ({ otp }) =>
       Effect.sync(() => {

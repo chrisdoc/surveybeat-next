@@ -1,7 +1,8 @@
 import { prop } from "@effect/vitest";
 import { Schema } from "effect";
 import { describe, expect, it } from "vitest";
-import { redact, type Roster } from "./Redaction.ts";
+import { redact } from "./Redaction.ts";
+import type { Roster } from "./Redaction.ts";
 
 const ROSTER_NAMES = ["Alice", "Bob", "Charlie", "Daphne", "Edward"] as const;
 
@@ -37,7 +38,7 @@ const GermanNumber = Schema.Struct({
   separators: Schema.Array(Schema.Literals([" ", "-", "/", " / ", ""])),
 });
 
-const digits = (values: ReadonlyArray<string>, atLeast: number, atMost: number): string =>
+const digits = (values: readonly string[], atLeast: number, atMost: number): string =>
   values.join("").slice(0, atMost).padEnd(atLeast, "5");
 
 const germanNumber = (number: typeof GermanNumber.Type): string => {
@@ -142,7 +143,7 @@ describe("redact", () => {
   });
 
   it("enforces 1,000-character limit after Unicode normalisation", () => {
-    const longText = "a".repeat(1050) + " Anna";
+    const longText = `${"a".repeat(1050)} Anna`;
     const result = redact(longText, roster);
     expect(result.length).toBeLessThanOrEqual(1000);
     expect(result).not.toContain("Anna");
@@ -153,25 +154,29 @@ describe("redact", () => {
     { parts: Schema.Array(Part) },
     ({ parts }) => {
       const roster: Roster = [...ROSTER_NAMES];
-      const text =
-        parts
-          .slice(0, 40)
-          .map((part, position) => {
-            const name = ROSTER_NAMES[Math.abs(part.index + position) % ROSTER_NAMES.length] ?? "Alice";
-            switch (part.kind) {
-              case "word":
-                return part.word;
-              case "lower":
-                return name.toLowerCase();
-              case "upper":
-                return name.toUpperCase();
-              case "possessive":
-                return `${name}'s`;
-              case "parenthesised":
-                return `(${name})`;
+      const text = `${parts
+        .slice(0, 40)
+        .map((part, position) => {
+          const name = ROSTER_NAMES[Math.abs(part.index + position) % ROSTER_NAMES.length] ?? "Alice";
+          switch (part.kind) {
+            case "word": {
+              return part.word;
             }
-          })
-          .join(" ") + ".";
+            case "lower": {
+              return name.toLowerCase();
+            }
+            case "upper": {
+              return name.toUpperCase();
+            }
+            case "possessive": {
+              return `${name}'s`;
+            }
+            case "parenthesised": {
+              return `(${name})`;
+            }
+          }
+        })
+        .join(" ")}.`;
       const redacted = redact(text, roster);
       const segmenter = new Intl.Segmenter("en", { granularity: "word" });
       for (const segment of segmenter.segment(redacted)) {

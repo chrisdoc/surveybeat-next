@@ -1,10 +1,14 @@
 import { assert, describe, it } from "@effect/vitest";
 import { TeamId } from "../people/Team.ts";
 import { PulseId } from "../pulses/Pulse.ts";
-import { QuestionType, QuestionVersionId } from "../pulses/Question.ts";
-import { buildMemberHistory, type MemberHistoryRoundInput } from "./MemberHistory.ts";
-import { calculateRoundResult, type QuestionInput, type RoundResult } from "./Results.ts";
-import { RoundId, type RoundStatus } from "./Round.ts";
+import type { QuestionType } from "../pulses/Question.ts";
+import { QuestionVersionId } from "../pulses/Question.ts";
+import { buildMemberHistory } from "./MemberHistory.ts";
+import type { MemberHistoryRoundInput } from "./MemberHistory.ts";
+import { calculateRoundResult } from "./Results.ts";
+import type { QuestionInput, RoundResult } from "./Results.ts";
+import { RoundId } from "./Round.ts";
+import type { RoundStatus } from "./Round.ts";
 import type { SubmissionAnswer } from "./Submission.ts";
 
 const TEAM = TeamId.make("team-1");
@@ -29,14 +33,14 @@ const CLARITY: QuestionInput = {
   type: ratingType,
   dimension: "clarity",
 };
-const BOTH: ReadonlyArray<QuestionInput> = [WORKLOAD, CLARITY];
+const BOTH: readonly QuestionInput[] = [WORKLOAD, CLARITY];
 
 /** Submissions that answer every given Question with the same value. */
 const submissions = (
   count: number,
-  questionIds: ReadonlyArray<QuestionVersionId>,
+  questionIds: readonly QuestionVersionId[],
   value = 4,
-): Array<{ id: string; answers: Array<SubmissionAnswer> }> =>
+): { id: string; answers: SubmissionAnswer[] }[] =>
   Array.from({ length: count }, (_, i) => ({
     id: `sub-${i}`,
     answers: questionIds.map((questionVersionId) => ({ questionVersionId, value, comment: null })),
@@ -45,9 +49,9 @@ const submissions = (
 const computeResult = (params: {
   readonly roundId: string;
   readonly storedN: number;
-  readonly submissions: ReadonlyArray<{ id: string; answers: ReadonlyArray<SubmissionAnswer> }>;
+  readonly submissions: readonly { id: string; answers: readonly SubmissionAnswer[] }[];
   readonly status?: RoundStatus;
-  readonly questions?: ReadonlyArray<QuestionInput>;
+  readonly questions?: readonly QuestionInput[];
 }): RoundResult =>
   calculateRoundResult({
     roundId: RoundId.make(params.roundId),
@@ -79,7 +83,7 @@ const roundInput = (overrides: Partial<MemberHistoryRoundInput> = {}): MemberHis
   ...overrides,
 });
 
-const build = (rounds: ReadonlyArray<MemberHistoryRoundInput>, minimumGroupSize = 2) =>
+const build = (rounds: readonly MemberHistoryRoundInput[], minimumGroupSize = 2) =>
   buildMemberHistory({ rounds, minimumGroupSize });
 
 describe("buildMemberHistory", () => {

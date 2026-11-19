@@ -1,8 +1,7 @@
 import { Schema } from "effect";
 import { EmailAddress } from "../email/Email.ts";
 import { PersonId } from "../people/Identity.ts";
-import { TeamSummary } from "../people/Team.ts";
-import { TeamId } from "../people/Team.ts";
+import { TeamSummary, TeamId } from "../people/Team.ts";
 import { PulseId, AnswerWindowDays, ReminderCount, AnonymityMode, Distribution } from "../pulses/Pulse.ts";
 import { QuestionVersionId } from "../pulses/Question.ts";
 import { InvitationSummary } from "./InvitationSummary.ts";
@@ -19,7 +18,7 @@ export type RoundStatus = typeof RoundStatus.Type;
 export const PlannedOpenDate = Schema.String.pipe(
   Schema.check(
     Schema.isPattern(/^\d{4}-\d{2}-\d{2}$/),
-    Schema.makeFilter((s: string) => !isNaN(Date.parse(s)), { expected: "a valid YYYY-MM-DD date" }),
+    Schema.makeFilter((s: string) => !Number.isNaN(Date.parse(s)), { expected: "a valid YYYY-MM-DD date" }),
   ),
   Schema.brand("PlannedOpenDate"),
 );

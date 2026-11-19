@@ -3,18 +3,20 @@ import {
   deliver,
   deriveInvitationToken,
   deriveTestInvitationToken,
-  type DeliveryEventKind,
-  type EmailSender,
-  type EmailTemplates,
   importInvitationTokenKey,
-  type InvitationTokenRef,
   InvitationTokens,
   OrganizationId,
   SendId,
-  type SendState,
   SendStore,
-  type TestInvitationTokenRef,
   testInvitationLifetimeMs,
+} from "@surveybeat/domain";
+import type {
+  DeliveryEventKind,
+  EmailSender,
+  EmailTemplates,
+  InvitationTokenRef,
+  SendState,
+  TestInvitationTokenRef,
 } from "@surveybeat/domain";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import * as Clock from "effect/Clock";
@@ -79,7 +81,7 @@ const logOutcome = (sendId: SendId, state: SendState | null) => {
 export const handleSendMessage = (
   organizations: Organizations,
   db: Cloudflare.D1.QueryDatabaseClient,
-  message: Cloudflare.Queues.Message<unknown>,
+  message: Cloudflare.Queues.Message,
 ): Effect.Effect<void, never, EmailSender | EmailTemplates | RuntimeContext> =>
   Effect.gen(function* () {
     const request = decodeRequest(message.body);
@@ -135,7 +137,7 @@ export const handleSendMessage = (
     message.ack();
   });
 
-export const handleDeadLetter = (organizations: Organizations, message: Cloudflare.Queues.Message<unknown>) =>
+export const handleDeadLetter = (organizations: Organizations, message: Cloudflare.Queues.Message) =>
   Effect.gen(function* () {
     const request = decodeRequest(message.body);
     if (Option.isSome(request)) {
@@ -162,7 +164,7 @@ const EmailSendingEvent = Schema.Struct({
   }),
 });
 
-const KINDS: ReadonlyArray<DeliveryEventKind> = [
+const KINDS: readonly DeliveryEventKind[] = [
   "delivered",
   "deferred",
   "bounced",
@@ -202,7 +204,7 @@ const decodeRoute = Schema.decodeUnknownOption(
 export const handleDeliveryEvent = (
   organizations: Organizations,
   db: Cloudflare.D1.QueryDatabaseClient,
-  message: Cloudflare.Queues.Message<unknown>,
+  message: Cloudflare.Queues.Message,
 ) =>
   Effect.gen(function* () {
     const event = parseDeliveryEvent(message.body);

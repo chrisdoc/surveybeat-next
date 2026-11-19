@@ -1,13 +1,12 @@
 import { describe, expect, it } from "@effect/vitest";
 import { Effect, Schema } from "effect";
-import {
-  type InvitationEmail,
-  type InvitationEmailWithToken,
-  type ReminderEmail,
-  type ReminderEmailWithToken,
-  StoredEmail,
-  type TestInvitationEmail,
-  TransactionalEmail,
+import { StoredEmail, TransactionalEmail } from "./Email.ts";
+import type {
+  InvitationEmail,
+  InvitationEmailWithToken,
+  ReminderEmail,
+  ReminderEmailWithToken,
+  TestInvitationEmail,
 } from "./Email.ts";
 import { InvitationTokens, withToken } from "./EmailTemplates.ts";
 

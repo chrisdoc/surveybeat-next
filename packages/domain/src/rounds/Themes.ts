@@ -3,10 +3,13 @@ import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import { isUnhandled, setup, transition, types } from "xstate";
-import { AiClient, type AiInput, type AiRequest, RedactedText } from "../ai/AiClient.ts";
+import { AiClient, RedactedText } from "../ai/AiClient.ts";
+import type { AiInput, AiRequest } from "../ai/AiClient.ts";
 import { Policy } from "../Policy.ts";
-import { redact, type Roster } from "../privacy/Redaction.ts";
-import { DiscussionGuide, enforceEffectiveNOnResult, type RoundResult } from "./Results.ts";
+import { redact } from "../privacy/Redaction.ts";
+import type { Roster } from "../privacy/Redaction.ts";
+import { DiscussionGuide, enforceEffectiveNOnResult } from "./Results.ts";
+import type { RoundResult } from "./Results.ts";
 import { nextRetryAt } from "./Retry.ts";
 import type { RoundStatus } from "./Round.ts";
 
@@ -35,7 +38,7 @@ export const shouldRequestThemes = (result: RoundResult, aiProcessing: boolean):
 
 export const buildThemesInput = (
   result: RoundResult,
-  openActionTitles: ReadonlyArray<string>,
+  openActionTitles: readonly string[],
   roster: Roster,
 ): AiInput => {
   const questionPositions = new Map(result.questions.map((q) => [q.questionVersionId, q.position]));
@@ -153,10 +156,10 @@ export const themesRequest = (input: AiInput): AiRequest => ({
   maxTokens: 2000,
 });
 
-const wordsOf = (text: string): ReadonlyArray<string> =>
+const wordsOf = (text: string): readonly string[] =>
   text
     .normalize("NFKD")
-    .replace(/\p{M}/gu, "")
+    .replaceAll(/\p{M}/gu, "")
     .toLowerCase()
     .split(/[^\p{L}\p{N}]+/u)
     .filter((word) => word.length > 0);
@@ -170,7 +173,7 @@ const runsOf = (text: string): Set<string> => {
   return runs;
 };
 
-export const repeatsCommentWords = (text: string, comments: ReadonlyArray<string>): boolean => {
+export const repeatsCommentWords = (text: string, comments: readonly string[]): boolean => {
   const commentRuns = new Set(comments.flatMap((comment) => [...runsOf(comment)]));
   return [...runsOf(text)].some((run) => commentRuns.has(run));
 };
@@ -194,7 +197,7 @@ const decodeGuide = Schema.decodeUnknownOption(DiscussionGuide);
 
 export const checkThemesReply = (
   reply: unknown,
-  comments: ReadonlyArray<string>,
+  comments: readonly string[],
 ): Effect.Effect<StoredThemes, ThemesReplyInvalid> => {
   const envelope = Option.getOrNull(decodeEnvelope(reply));
   if (envelope === null) {
@@ -298,7 +301,7 @@ const themesDecision = (
   });
   const [next, effects] = transition(themesRetryMachine, snapshot, event);
   const decision = isUnhandled(snapshot, [next, effects]) ? null : next.context.decision;
-  if (decision === null) throw new Error("Themes retry refused " + event.type);
+  if (decision === null) throw new Error(`Themes retry refused ${event.type}`);
   return decision;
 };
 
@@ -381,11 +384,13 @@ export const viewRoundResult = (params: {
   if (!closed || !r.meetsMinimumGroupSize || record === null) return hidden("notRequested");
 
   switch (record.status) {
-    case "pending":
+    case "pending": {
       return hidden("preparing");
-    case "failed":
+    }
+    case "failed": {
       return hidden("unavailable");
-    case "ready":
+    }
+    case "ready": {
       if (!params.isLead) {
         return {
           ...shown,
@@ -399,5 +404,6 @@ export const viewRoundResult = (params: {
         themes: record.themes.themes,
         discussionGuide: record.themes.guide,
       };
+    }
   }
 };

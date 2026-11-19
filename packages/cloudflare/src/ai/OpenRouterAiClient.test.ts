@@ -2,7 +2,8 @@
 // @effect-diagnostics asyncFunction:off -- the vitest runner awaits a plain Promise here; the test never enters an Effect.
 
 import { describe, expect, it } from "@effect/vitest";
-import { AiNotConfigured, AiRejected, AiUnavailable, RedactedText, type AiRequest } from "@surveybeat/domain";
+import { AiNotConfigured, AiRejected, AiUnavailable, RedactedText } from "@surveybeat/domain";
+import type { AiRequest } from "@surveybeat/domain";
 import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
 import { makeOpenRouterAiClient, openRouterRequestBody } from "./OpenRouterAiClient.ts";
@@ -64,8 +65,8 @@ interface Call {
 }
 
 /** A `fetch` that answers each call with the next step; an `Error` step rejects the call. */
-const scriptedFetch = (steps: ReadonlyArray<Response | Error>) => {
-  const calls: Array<Call> = [];
+const scriptedFetch = (steps: readonly (Response | Error)[]) => {
+  const calls: Call[] = [];
   const fetchFn = (input: string, init?: RequestInit): Promise<Response> => {
     calls.push({ url: input, init: init ?? {} });
     const step = steps[calls.length - 1];
@@ -82,7 +83,7 @@ const scriptedFetch = (steps: ReadonlyArray<Response | Error>) => {
 
 /** Records each backoff wait instead of sleeping. */
 const recordingSleep = () => {
-  const waits: Array<number> = [];
+  const waits: number[] = [];
   const sleep = (ms: number) =>
     Effect.sync(() => {
       waits.push(ms);

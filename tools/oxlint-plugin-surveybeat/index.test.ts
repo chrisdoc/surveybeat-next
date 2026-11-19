@@ -12,7 +12,7 @@ interface Diagnostic {
 }
 
 /** Lints one fixture file with only the plugin rules and returns its diagnostics. */
-function lint(file: string): ReadonlyArray<Diagnostic> {
+function lint(file: string): readonly Diagnostic[] {
   const result = spawnSync(
     "pnpm",
     ["exec", "oxlint", "--config", "oxlint.fixtures.json", "--format", "json", file],
@@ -21,7 +21,7 @@ function lint(file: string): ReadonlyArray<Diagnostic> {
       encoding: "utf8",
     },
   );
-  const report: { diagnostics: ReadonlyArray<Diagnostic> } = JSON.parse(result.stdout);
+  const report: { diagnostics: readonly Diagnostic[] } = JSON.parse(result.stdout);
   return report.diagnostics;
 }
 

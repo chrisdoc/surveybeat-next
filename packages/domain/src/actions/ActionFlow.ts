@@ -3,17 +3,11 @@ import type { PersonId } from "../people/Identity.ts";
 import type { OrganizationId } from "../people/Organization.ts";
 import { Forbidden } from "../people/SignIn.ts";
 import type { Member } from "../people/SignInFlow.ts";
-import { PersonNotFound, type TeamId, TeamNotFound } from "../people/Team.ts";
+import { PersonNotFound, TeamNotFound } from "../people/Team.ts";
+import type { TeamId } from "../people/Team.ts";
 import { RoundNotFound } from "../rounds/Round.ts";
-import {
-  type ActionId,
-  type ActionItem,
-  type ActionList,
-  ActionNotFound,
-  type CreateAction,
-  OwnerNotInTeam,
-  type UpdateAction,
-} from "./Action.ts";
+import { ActionNotFound, OwnerNotInTeam } from "./Action.ts";
+import type { ActionId, ActionItem, ActionList, CreateAction, UpdateAction } from "./Action.ts";
 
 export type ActionRejection =
   | { readonly _tag: "Forbidden" }
@@ -64,18 +58,24 @@ export type ActionError =
 
 const mapRejection = (rejection: ActionRejection): ActionError => {
   switch (rejection._tag) {
-    case "Forbidden":
+    case "Forbidden": {
       return new Forbidden();
-    case "TeamNotFound":
+    }
+    case "TeamNotFound": {
       return new TeamNotFound();
-    case "RoundNotFound":
+    }
+    case "RoundNotFound": {
       return new RoundNotFound();
-    case "ActionNotFound":
+    }
+    case "ActionNotFound": {
       return new ActionNotFound();
-    case "OwnerNotInTeam":
+    }
+    case "OwnerNotInTeam": {
       return new OwnerNotInTeam();
-    case "PersonNotFound":
+    }
+    case "PersonNotFound": {
       return new PersonNotFound();
+    }
   }
 };
 

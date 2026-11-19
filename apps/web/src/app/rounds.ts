@@ -1,15 +1,14 @@
 import * as DateTime from "effect/DateTime";
-import {
-  type PersonId,
-  type PulseId,
-  RoundId,
-  RoundList,
-  type InvitationSummary,
-  type RoundStatus,
-  type RoundSummary,
-  type TeamId,
+import { RoundId, RoundList } from "@surveybeat/domain";
+import type {
+  PersonId,
+  PulseId,
+  InvitationSummary,
+  RoundStatus,
+  RoundSummary,
+  TeamId,
+  RoundDetail,
 } from "@surveybeat/domain";
-import type { RoundDetail } from "@surveybeat/domain";
 import { Predicate, Schema } from "effect";
 import type { Html, HtmlBuilder } from "foldkit/html";
 import { defineTaggedUnion } from "foldkit/schema";
@@ -18,8 +17,6 @@ import { Failure } from "./api.ts";
 import {
   appButton,
   badge,
-  type BadgeVariant,
-  type Child,
   emptyState,
   confirmDialog,
   linkButton,
@@ -30,6 +27,7 @@ import {
   textField,
   breadcrumbs,
 } from "./components.ts";
+import type { BadgeVariant, Child } from "./components.ts";
 import type { LoadedTeam } from "./directory.ts";
 import { pulseHref, roundResultsHref, teamHref } from "./routes.ts";
 
@@ -59,7 +57,7 @@ const roundDates = (round: RoundSummary): string =>
     to: dateText(round.closedAt ?? round.plannedCloseAt),
   });
 
-const invitationLines = (summary: InvitationSummary): ReadonlyArray<string> => [
+const invitationLines = (summary: InvitationSummary): readonly string[] => [
   summary.invited > 0 ? pluralMessage("rounds.invited", summary.invited) : message("rounds.nobodyInvited"),
   ...(summary.joinedAfterOpen > 0 ? [pluralMessage("rounds.joinedAfterOpen", summary.joinedAfterOpen)] : []),
 ];
@@ -111,7 +109,7 @@ export const roundsScreenView = <Message>(
     state.rounds._tag === "Loaded"
       ? (state.rounds.list.rounds[0]?.pulseName ?? message("title.pulse"))
       : message("title.pulse");
-  const children: Array<Child> = [
+  const children: Child[] = [
     breadcrumbs(
       [
         { label: teamName, href: teamHref(state.teamId) },
@@ -124,11 +122,11 @@ export const roundsScreenView = <Message>(
   ];
 
   if (state.team._tag === "Failed") {
-    children.push(problemView(state.team.failure, h)!);
+    children.push(problemView(state.team.failure, h));
     return h.section([], children);
   }
   if (state.rounds._tag === "Failed") {
-    children.push(problemView(state.rounds.failure, h)!);
+    children.push(problemView(state.rounds.failure, h));
     return h.section([], children);
   }
   if (state.rounds._tag !== "Loaded") {
@@ -228,7 +226,7 @@ export const roundsScreenView = <Message>(
   }
 
   if (state.failure !== undefined) {
-    children.push(problemView(state.failure, h)!);
+    children.push(problemView(state.failure, h));
   }
 
   if (rounds.length === 0) {

@@ -1,24 +1,19 @@
 import * as DateTime from "effect/DateTime";
-import {
-  type ActionId,
-  ActionItem,
-  type AnonymityMode,
-  type ActionStatus,
-  type CommentTheme,
-  Dimension,
-  type DimensionResult,
-  type DimensionTrendPoint,
-  type DiscussionGuide,
-  type DistributionOption,
-  type Highlight,
-  PersonId,
-  Policy,
-  type QuestionChange,
-  type QuestionResult,
-  RoundNote,
-  RoundResult,
-  type TrendPoint,
-  type TypicalChange,
+import { ActionItem, Dimension, PersonId, Policy, RoundNote, RoundResult } from "@surveybeat/domain";
+import type {
+  ActionId,
+  AnonymityMode,
+  ActionStatus,
+  CommentTheme,
+  DimensionResult,
+  DimensionTrendPoint,
+  DiscussionGuide,
+  DistributionOption,
+  Highlight,
+  QuestionChange,
+  QuestionResult,
+  TrendPoint,
+  TypicalChange,
 } from "@surveybeat/domain";
 import { Option, Predicate, Schema } from "effect";
 import type { Html, HtmlBuilder } from "foldkit/html";
@@ -90,7 +85,7 @@ export type GuideCopy = typeof GuideCopy.Type;
 
 export const trendTitle = (rounds: number): string => pluralMessage("results.trendLength", rounds);
 
-const latestScore = (points: ReadonlyArray<TrendPoint | DimensionTrendPoint>): number | null => {
+const latestScore = (points: readonly (TrendPoint | DimensionTrendPoint)[]): number | null => {
   for (let i = points.length - 1; i >= 0; i--) {
     const point = points[i]!;
     if (point.score !== null) return point.score;
@@ -99,7 +94,7 @@ const latestScore = (points: ReadonlyArray<TrendPoint | DimensionTrendPoint>): n
 };
 
 export const trendChart = <Message>(
-  points: ReadonlyArray<TrendPoint | DimensionTrendPoint>,
+  points: readonly (TrendPoint | DimensionTrendPoint)[],
   h: HtmlBuilder<Message>,
   unusual = false,
 ): Html => {
@@ -134,7 +129,7 @@ export const trendChart = <Message>(
 };
 
 export const trendTable = <Message>(
-  points: ReadonlyArray<TrendPoint | DimensionTrendPoint>,
+  points: readonly (TrendPoint | DimensionTrendPoint)[],
   h: HtmlBuilder<Message>,
 ): Html => {
   if (points.length === 0) return null;
@@ -151,7 +146,7 @@ export const trendTable = <Message>(
 };
 
 export const distributionChart = <Message>(
-  distribution: ReadonlyArray<DistributionOption>,
+  distribution: readonly DistributionOption[],
   h: HtmlBuilder<Message>,
 ): Html => {
   if (distribution.length === 0) return null;
@@ -188,7 +183,7 @@ export const distributionChart = <Message>(
 };
 
 export const distributionTable = <Message>(
-  distribution: ReadonlyArray<DistributionOption>,
+  distribution: readonly DistributionOption[],
   h: HtmlBuilder<Message>,
 ): Html => {
   if (distribution.length === 0) return null;
@@ -205,7 +200,7 @@ export const distributionTable = <Message>(
   );
 };
 
-const lineIcon = <Message>(paths: ReadonlyArray<string>, size: number, h: HtmlBuilder<Message>): Html =>
+const lineIcon = <Message>(paths: readonly string[], size: number, h: HtmlBuilder<Message>): Html =>
   h.svg(
     [
       h.Width(String(size)),
@@ -360,7 +355,7 @@ const protectsPanel = <Message>(result: RoundResult, h: HtmlBuilder<Message>): H
   );
 
 const resultsLayout = <Message>(
-  main: ReadonlyArray<Html>,
+  main: readonly Html[],
   result: RoundResult,
   h: HtmlBuilder<Message>,
 ): Html => {
@@ -408,11 +403,11 @@ export const toggleButton = <Message>(isTable: boolean, onClick: Message, h: Htm
 
 type GuideSection = {
   readonly heading: string;
-  readonly items: ReadonlyArray<string>;
+  readonly items: readonly string[];
   readonly ordered: boolean;
 };
 
-const guideSections = (guide: DiscussionGuide): ReadonlyArray<GuideSection> =>
+const guideSections = (guide: DiscussionGuide): readonly GuideSection[] =>
   [
     { heading: message("results.guide.whatStoodOut"), items: guide.whatStoodOut, ordered: false },
     { heading: message("results.guide.whatPeopleRaised"), items: guide.whatPeopleRaised, ordered: false },
@@ -566,7 +561,7 @@ const noteSection = <Message>(
 
   if (note === null && !isLead) return null;
 
-  const body: Array<Html> = [sectionTitle(message("note.title"), h)];
+  const body: Html[] = [sectionTitle(message("note.title"), h)];
 
   if (isLead && state.noteEditing) {
     const length = state.noteDraft.length;
@@ -724,7 +719,7 @@ export const resultsScreenView = <Message>(
 
   const teamName =
     state.teamDetail._tag === "Loaded" ? state.teamDetail.detail.team.name : message("title.team");
-  const children: Array<Html> = [
+  const children: Html[] = [
     breadcrumbs(
       [
         { label: teamName, href: teamHref(result.teamId) },
@@ -844,7 +839,7 @@ export const resultsScreenView = <Message>(
     children.push(noteNode);
   }
 
-  const actionsItems: Array<Html> = [];
+  const actionsItems: Html[] = [];
 
   if (state.actions._tag === "Loading") {
     actionsItems.push(h.p([h.Class("text-sm text-mint-text")], [message("app.loading")]));
@@ -866,7 +861,7 @@ export const resultsScreenView = <Message>(
                   ? message("actions.statusDone")
                   : message("actions.statusDropped");
 
-            const buttons: Array<Html> = [];
+            const buttons: Html[] = [];
             if (isLead) {
               if (action.status === "committed") {
                 buttons.push(
@@ -973,12 +968,12 @@ export const resultsScreenView = <Message>(
       firstPerson !== undefined ? firstPerson.personId : PersonId.make(""),
     );
 
-    const dimensionOptions: ReadonlyArray<readonly [string, string]> = [
+    const dimensionOptions: readonly (readonly [string, string])[] = [
       ["none", message("actions.none")],
       ...Dimension.literals.map((dim): readonly [string, string] => [dim, dimensionName(dim)]),
     ];
 
-    const rosterOptions: ReadonlyArray<readonly [string, string]> = roster.map((m) => [m.personId, m.email]);
+    const rosterOptions: readonly (readonly [string, string])[] = roster.map((m) => [m.personId, m.email]);
 
     commitForm = h.form(
       [h.Class("mt-6 flex flex-col gap-4"), h.OnSubmit(callbacks.onSubmitAction)],

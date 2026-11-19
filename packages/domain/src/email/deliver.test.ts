@@ -2,10 +2,13 @@ import { describe, expect, it } from "@effect/vitest";
 import { Deferred, Duration, Effect, Fiber, Layer, Option, Ref } from "effect";
 import { TestClock } from "effect/testing";
 import { deliver, sendTimeout } from "./deliver.ts";
-import { type AddedToTeam, EmailAddress, type OutgoingEmail, SendId } from "./Email.ts";
-import { type EmailAccepted, EmailOutcomeUnknown, EmailRejected, EmailSender } from "./EmailSender.ts";
+import { EmailAddress, SendId } from "./Email.ts";
+import type { AddedToTeam, OutgoingEmail } from "./Email.ts";
+import { EmailOutcomeUnknown, EmailRejected, EmailSender } from "./EmailSender.ts";
+import type { EmailAccepted } from "./EmailSender.ts";
 import { EmailTemplates } from "./EmailTemplates.ts";
-import { defaultSendPolicy, type SendPolicy } from "./SendState.ts";
+import { defaultSendPolicy } from "./SendState.ts";
+import type { SendPolicy } from "./SendState.ts";
 import { layerMemory, SendStore } from "./SendStore.ts";
 
 const id = SendId.make("send-1");
@@ -21,15 +24,14 @@ const email: AddedToTeam = {
 type Reply = Effect.Effect<EmailAccepted, EmailRejected | EmailOutcomeUnknown>;
 
 /** A sender that answers each call with the next scripted reply and records what it was asked. */
-const scriptedSender = (replies: ReadonlyArray<Reply>) =>
+const scriptedSender = (replies: readonly Reply[]) =>
   Effect.gen(function* () {
-    const sent = yield* Ref.make<ReadonlyArray<OutgoingEmail>>([]);
+    const sent = yield* Ref.make<readonly OutgoingEmail[]>([]);
     const layer = Layer.succeed(EmailSender, {
       send: (message) =>
-        Ref.modify(sent, (all): [number, ReadonlyArray<OutgoingEmail>] => [
-          all.length,
-          [...all, message],
-        ]).pipe(Effect.flatMap((index) => replies[index] ?? Effect.die(`unexpected send #${index + 1}`))),
+        Ref.modify(sent, (all): [number, readonly OutgoingEmail[]] => [all.length, [...all, message]]).pipe(
+          Effect.flatMap((index) => replies[index] ?? Effect.die(`unexpected send #${index + 1}`)),
+        ),
     });
     return { sent, layer };
   });
@@ -47,9 +49,9 @@ const accepted = (messageId: string): Reply => Effect.succeed({ messageId });
 
 /** Runs `body` against a fresh in-memory store that already holds the pending send. */
 const withSend = <A, E>(
-  replies: ReadonlyArray<Reply>,
+  replies: readonly Reply[],
   body: (
-    sent: Ref.Ref<ReadonlyArray<OutgoingEmail>>,
+    sent: Ref.Ref<readonly OutgoingEmail[]>,
   ) => Effect.Effect<A, E, SendStore | EmailSender | EmailTemplates>,
   policy: SendPolicy = defaultSendPolicy,
 ) =>

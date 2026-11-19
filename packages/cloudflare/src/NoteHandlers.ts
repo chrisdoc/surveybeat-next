@@ -1,9 +1,11 @@
 import { SurveyBeatApi } from "@surveybeat/api";
-import { getRoundNote, type OrganizationNotes, saveRoundNote } from "@surveybeat/domain";
+import { getRoundNote, saveRoundNote } from "@surveybeat/domain";
+import type { OrganizationNotes } from "@surveybeat/domain";
 import type * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
-import { type AuthServices, currentMember, requireSameOrigin } from "./auth/AuthHandlers.ts";
+import { currentMember, requireSameOrigin } from "./auth/AuthHandlers.ts";
+import type { AuthServices } from "./auth/AuthHandlers.ts";
 
 export type NoteServices = AuthServices | OrganizationNotes;
 

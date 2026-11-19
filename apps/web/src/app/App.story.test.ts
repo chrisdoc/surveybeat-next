@@ -342,7 +342,7 @@ describe("App Stories", () => {
             personId,
             email: decodeEmail("alice@acme.com"),
             role: "member" as const,
-            since: 1700000000000,
+            since: 1_700_000_000_000,
           },
         ],
         may: {
@@ -819,10 +819,10 @@ describe("App Stories", () => {
       teamId,
       status,
       plannedOpenDate: "2026-11-09",
-      plannedOpenAt: 1731140000000,
-      openedAt: 1731140000000,
-      plannedCloseAt: 1731400000000,
-      closedAt: status === "closed" ? 1731400000000 : null,
+      plannedOpenAt: 1_731_140_000_000,
+      openedAt: 1_731_140_000_000,
+      plannedCloseAt: 1_731_400_000_000,
+      closedAt: status === "closed" ? 1_731_400_000_000 : null,
       pulseName: "Weekly check-in",
       invitations: null,
     });

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "@effect/vitest";
-import { type ActionSelectionInput, type PreviousRoundInfo, selectActionsForRound } from "./Action.ts";
+import { selectActionsForRound } from "./Action.ts";
+import type { ActionSelectionInput, PreviousRoundInfo } from "./Action.ts";
 
 describe("selectActionsForRound", () => {
   const previousRound: PreviousRoundInfo = {
@@ -8,7 +9,7 @@ describe("selectActionsForRound", () => {
   };
 
   it("includes committed actions", () => {
-    const actions: ReadonlyArray<ActionSelectionInput> = [
+    const actions: readonly ActionSelectionInput[] = [
       {
         id: "a1",
         title: "Shorten pairing sessions",
@@ -24,7 +25,7 @@ describe("selectActionsForRound", () => {
   });
 
   it("includes actions marked done since the previous Round opened", () => {
-    const actions: ReadonlyArray<ActionSelectionInput> = [
+    const actions: readonly ActionSelectionInput[] = [
       {
         id: "a1",
         title: "Update onboarding docs",
@@ -40,7 +41,7 @@ describe("selectActionsForRound", () => {
   });
 
   it("excludes actions marked done before the previous Round opened", () => {
-    const actions: ReadonlyArray<ActionSelectionInput> = [
+    const actions: readonly ActionSelectionInput[] = [
       {
         id: "a1",
         title: "Old finished action",
@@ -64,7 +65,7 @@ describe("selectActionsForRound", () => {
   });
 
   it("excludes dropped and proposed actions", () => {
-    const actions: ReadonlyArray<ActionSelectionInput> = [
+    const actions: readonly ActionSelectionInput[] = [
       {
         id: "a1",
         title: "Dropped action",
@@ -96,7 +97,7 @@ describe("selectActionsForRound", () => {
   });
 
   it("caps the displayed actions to three", () => {
-    const actions: ReadonlyArray<ActionSelectionInput> = [
+    const actions: readonly ActionSelectionInput[] = [
       { id: "a1", title: "Action 1", status: "committed", createdAt: 1, updatedAt: 1, doneAt: null },
       { id: "a2", title: "Action 2", status: "committed", createdAt: 2, updatedAt: 2, doneAt: null },
       { id: "a3", title: "Action 3", status: "done", createdAt: 3, updatedAt: 1200, doneAt: 1200 },
@@ -110,7 +111,7 @@ describe("selectActionsForRound", () => {
   });
 
   it("handles the very first Round where previousRound is null", () => {
-    const actions: ReadonlyArray<ActionSelectionInput> = [
+    const actions: readonly ActionSelectionInput[] = [
       { id: "a1", title: "Action 1", status: "committed", createdAt: 1, updatedAt: 1, doneAt: null },
       { id: "a2", title: "Action 2", status: "done", createdAt: 2, updatedAt: 50, doneAt: 50 },
     ];
@@ -126,7 +127,7 @@ describe("selectActionsForRound", () => {
       openedAt: null,
     };
 
-    const actions: ReadonlyArray<ActionSelectionInput> = [
+    const actions: readonly ActionSelectionInput[] = [
       {
         id: "a1",
         title: "Done before planned",

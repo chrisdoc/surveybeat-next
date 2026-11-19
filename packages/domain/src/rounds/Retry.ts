@@ -1,7 +1,7 @@
-export const RETRY_WINDOW_MS = 24 * 3600_000;
+export const RETRY_WINDOW_MS = 24 * 3_600_000;
 
 const FIRST_RETRY_GAP_MS = 5 * 60_000;
-const MAX_RETRY_GAP_MS = 4 * 3600_000;
+const MAX_RETRY_GAP_MS = 4 * 3_600_000;
 
 export const nextRetryAt = (startedAt: number, failedAttempts: number, now: number): number | null => {
   const k = Math.max(1, failedAttempts);

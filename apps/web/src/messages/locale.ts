@@ -2,16 +2,16 @@ import type { Locale } from "@surveybeat/domain";
 import * as DateTime from "effect/DateTime";
 import * as Option from "effect/Option";
 import { catalog } from "./catalog.ts";
-import {
-  fill,
-  type KeysWithoutParams,
-  type KeysWithParams,
-  type MessageKey,
-  type Params,
-  type PluralKey,
-  type PluralParams,
-  type Translation,
-  type Value,
+import { fill } from "./index.ts";
+import type {
+  KeysWithoutParams,
+  KeysWithParams,
+  MessageKey,
+  Params,
+  PluralKey,
+  PluralParams,
+  Translation,
+  Value,
 } from "./index.ts";
 
 const tables = { en: catalog } satisfies Record<Locale, Translation>;

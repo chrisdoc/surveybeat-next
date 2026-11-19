@@ -1,17 +1,15 @@
 import type { SqliteClient } from "@effect/sql-sqlite-do";
 import {
   ActionId,
-  type ActionItem,
-  type ActionRecord,
   ActionStatus,
   Dimension,
   EmailAddress,
   PersonId,
-  type PulseId,
   RoundId,
   selectActionsForRound,
   TeamId,
 } from "@surveybeat/domain";
+import type { ActionItem, ActionRecord, PulseId } from "@surveybeat/domain";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 
@@ -99,7 +97,7 @@ export const makeSqlActions = (sql: SqliteClient.SqliteClient) => {
       Effect.orDie,
     );
 
-  const getActionsForTeam = (teamId: TeamId, roundId?: RoundId): Effect.Effect<ReadonlyArray<ActionItem>> =>
+  const getActionsForTeam = (teamId: TeamId, roundId?: RoundId): Effect.Effect<readonly ActionItem[]> =>
     (roundId !== undefined
       ? sql`SELECT a.id, a.team_id, a.round_id, a.title, a.owner_id, p.email AS owner_email,
                    a.due_date, a.dimension, a.status, a.created_at, a.updated_at, a.done_at
@@ -119,7 +117,7 @@ export const makeSqlActions = (sql: SqliteClient.SqliteClient) => {
       Effect.orDie,
     );
 
-  const getOpenActionTitlesForTeam = (teamId: TeamId): Effect.Effect<ReadonlyArray<string>> =>
+  const getOpenActionTitlesForTeam = (teamId: TeamId): Effect.Effect<readonly string[]> =>
     sql<{ title: string }>`SELECT title FROM action
             WHERE team_id = ${teamId} AND status IN ('proposed', 'committed')
             ORDER BY created_at ASC`.pipe(
@@ -161,7 +159,7 @@ export const makeSqlActions = (sql: SqliteClient.SqliteClient) => {
     teamId: TeamId,
     pulseId: PulseId,
     plannedOpenAt: number,
-  ): Effect.Effect<ReadonlyArray<ActionRecord>> =>
+  ): Effect.Effect<readonly ActionRecord[]> =>
     Effect.gen(function* () {
       const prevRows = yield* sql`
         SELECT opened_at, planned_open_at

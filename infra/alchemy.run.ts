@@ -28,12 +28,10 @@ export default Alchemy.Stack(
   Effect.gen(function* () {
     const { stage } = yield* Stack;
 
-    if (stage === "production" || stage === "staging") {
-      if ("organizations" in SurveyBeatApi.groups) {
-        throw new Error(
-          "Deploy guard failed: unauthenticated OrganizationsApiGroup must not be registered in staging or production.",
-        );
-      }
+    if ((stage === "production" || stage === "staging") && "organizations" in SurveyBeatApi.groups) {
+      throw new Error(
+        "Deploy guard failed: unauthenticated OrganizationsApiGroup must not be registered in staging or production.",
+      );
     }
 
     const database = yield* Database;

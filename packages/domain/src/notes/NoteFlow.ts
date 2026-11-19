@@ -3,9 +3,11 @@ import type { PersonId } from "../people/Identity.ts";
 import type { OrganizationId } from "../people/Organization.ts";
 import { Forbidden } from "../people/SignIn.ts";
 import type { Member } from "../people/SignInFlow.ts";
-import { type TeamId, TeamNotFound } from "../people/Team.ts";
-import { RoundNotFound, type RoundId } from "../rounds/Round.ts";
-import { type RoundNoteView, type SaveNote } from "./Note.ts";
+import { TeamNotFound } from "../people/Team.ts";
+import type { TeamId } from "../people/Team.ts";
+import { RoundNotFound } from "../rounds/Round.ts";
+import type { RoundId } from "../rounds/Round.ts";
+import type { RoundNoteView, SaveNote } from "./Note.ts";
 
 export type NoteRejection =
   | { readonly _tag: "Forbidden" }
@@ -41,12 +43,15 @@ export type NoteError = Forbidden | TeamNotFound | RoundNotFound;
 
 const mapRejection = (rejection: NoteRejection): NoteError => {
   switch (rejection._tag) {
-    case "Forbidden":
+    case "Forbidden": {
       return new Forbidden();
-    case "TeamNotFound":
+    }
+    case "TeamNotFound": {
       return new TeamNotFound();
-    case "RoundNotFound":
+    }
+    case "RoundNotFound": {
       return new RoundNotFound();
+    }
   }
 };
 

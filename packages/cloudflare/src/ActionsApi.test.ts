@@ -43,11 +43,11 @@ const setup = async () => {
   expect(teamDetail.status).toBe(200);
   const roster = (
     teamDetail.body as {
-      readonly roster: ReadonlyArray<{
+      readonly roster: readonly {
         readonly personId: string;
         readonly email: string;
         readonly role: string;
-      }>;
+      }[];
     }
   ).roster;
   const adaPerson = roster.find((r) => r.email === "ada@example.com")!;
@@ -97,7 +97,7 @@ describe("Actions API", () => {
     // Member can view Actions list
     const listRes = await member.call("GET", `/api/teams/${teamId}/actions`);
     expect(listRes.status).toBe(200);
-    const list = listRes.body as { readonly actions: ReadonlyArray<typeof createdAction> };
+    const list = listRes.body as { readonly actions: readonly (typeof createdAction)[] };
     expect(list.actions).toHaveLength(1);
     expect(list.actions[0]!.title).toBe("Shorten pairing sessions");
   });

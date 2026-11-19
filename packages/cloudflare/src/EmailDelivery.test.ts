@@ -68,7 +68,7 @@ describe("parseDeliveryEvent", () => {
 
 describe("handleDeadLetter", () => {
   it.effect("abandons the send and acks, so a give-up never leaves it pending", () => {
-    const abandoned: Array<readonly [string, string]> = [];
+    const abandoned: (readonly [string, string])[] = [];
     let acked = 0;
     let retried = 0;
     const organizations = {

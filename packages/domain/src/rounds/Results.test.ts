@@ -2,17 +2,17 @@ import { assert, describe, it } from "@effect/vitest";
 import { Schema } from "effect";
 import { TeamId } from "../people/Team.ts";
 import { PulseId } from "../pulses/Pulse.ts";
-import { QuestionType, QuestionVersionId } from "../pulses/Question.ts";
+import type { QuestionType } from "../pulses/Question.ts";
+import { QuestionVersionId } from "../pulses/Question.ts";
 import {
   calculateRoundResult,
   enforceEffectiveNOnResult,
   evaluateHighlight,
-  type HistoricalRoundData,
   median,
-  type QuestionInput,
   RoundResult,
   delayedRoundResult,
 } from "./Results.ts";
+import type { HistoricalRoundData, QuestionInput } from "./Results.ts";
 import { RoundId } from "./Round.ts";
 import type { SubmissionAnswer } from "./Submission.ts";
 
@@ -35,7 +35,7 @@ const choiceType: QuestionType = {
   options: ["Option A", "Option B", "Option C"],
 };
 
-const testQuestions: ReadonlyArray<QuestionInput> = [
+const testQuestions: readonly QuestionInput[] = [
   {
     id: Q1,
     position: 0,
@@ -87,8 +87,8 @@ describe("Typical change and highlights (Issue #4)", () => {
 
   it("enforces floor of 0.3 for stable teams with 0.0 typical change", () => {
     // Team whose past changes are all 0.0 (typical = 0.0)
-    const typical = median([0.0, 0.0, 0.0, 0.0, 0.0]);
-    assert.strictEqual(typical, 0.0);
+    const typical = median([0, 0, 0, 0, 0]);
+    assert.strictEqual(typical, 0);
 
     // Change of 0.2 is not highlighted because 0.2 < 0.3 floor
     const h = evaluateHighlight(0.2, typical);
@@ -105,9 +105,9 @@ describe("Minimum group size rules R1–R11 (Issue #3 / ADR 0004)", () => {
   it("R1 & R3: Question B with 3 contributors is hidden under N=4, left out of Dimension", () => {
     // 6 Submissions total, but only 3 answer Question 2 (Q2).
     // All 6 answer Question 1 (Q1).
-    const submissions: Array<{ id: string; answers: Array<SubmissionAnswer> }> = [];
+    const submissions: { id: string; answers: SubmissionAnswer[] }[] = [];
     for (let i = 1; i <= 6; i++) {
-      const answers: Array<SubmissionAnswer> = [{ questionVersionId: Q1, value: 4, comment: null }];
+      const answers: SubmissionAnswer[] = [{ questionVersionId: Q1, value: 4, comment: null }];
       if (i <= 3) {
         answers.push({ questionVersionId: Q2, value: 2, comment: null });
       }
@@ -121,7 +121,7 @@ describe("Minimum group size rules R1–R11 (Issue #3 / ADR 0004)", () => {
       status: "closed",
       plannedOpenDate: "2026-11-02",
       anonymityMode: "anonymous",
-      closedAt: 1730592000000,
+      closedAt: 1_730_592_000_000,
       effectiveMinimumGroupSize: 4,
       eligibleMembersCount: 8,
       questions: testQuestions,
@@ -159,7 +159,7 @@ describe("Minimum group size rules R1–R11 (Issue #3 / ADR 0004)", () => {
   it("R2: Rating distribution and choice option counts have no per-option minimum when N is met", () => {
     // 4 Submissions (meets N=4)
     // 3 pick option 1, 1 picks option 5, 0 pick 2, 3, 4
-    const submissions: Array<{ id: string; answers: Array<SubmissionAnswer> }> = [
+    const submissions: { id: string; answers: SubmissionAnswer[] }[] = [
       {
         id: "sub-1",
         answers: [
@@ -197,7 +197,7 @@ describe("Minimum group size rules R1–R11 (Issue #3 / ADR 0004)", () => {
       status: "closed",
       plannedOpenDate: "2026-11-02",
       anonymityMode: "anonymous",
-      closedAt: 1730592000000,
+      closedAt: 1_730_592_000_000,
       effectiveMinimumGroupSize: 4,
       eligibleMembersCount: 5,
       questions: testQuestions,
@@ -224,7 +224,7 @@ describe("Minimum group size rules R1–R11 (Issue #3 / ADR 0004)", () => {
 
   it("R4: Comments shown when Round total submissions >= N, unlinked and randomized", () => {
     // 4 Submissions (meets N=4), 2 comments provided
-    const submissions: Array<{ id: string; answers: Array<SubmissionAnswer> }> = [
+    const submissions: { id: string; answers: SubmissionAnswer[] }[] = [
       {
         id: "sub-1",
         answers: [{ questionVersionId: Q1, value: 4, comment: "First comment" }],
@@ -250,7 +250,7 @@ describe("Minimum group size rules R1–R11 (Issue #3 / ADR 0004)", () => {
       status: "closed",
       plannedOpenDate: "2026-11-02",
       anonymityMode: "anonymous",
-      closedAt: 1730592000000,
+      closedAt: 1_730_592_000_000,
       effectiveMinimumGroupSize: 4,
       eligibleMembersCount: 6,
       questions: testQuestions,
@@ -264,14 +264,14 @@ describe("Minimum group size rules R1–R11 (Issue #3 / ADR 0004)", () => {
       assert.isDefined(c.text);
       assert.isDefined(c.questionVersionId);
       // Ensure no submission ID or rating value fields exist
-      assert.isUndefined((c as Record<string, unknown>)["submissionId"]);
-      assert.isUndefined((c as Record<string, unknown>)["value"]);
-      assert.isUndefined((c as Record<string, unknown>)["personId"]);
+      assert.isUndefined((c as Record<string, unknown>).submissionId);
+      assert.isUndefined((c as Record<string, unknown>).value);
+      assert.isUndefined((c as Record<string, unknown>).personId);
     }
   });
 
   it("R7: Zero results while Open, only submission count appears", () => {
-    const submissions: Array<{ id: string; answers: Array<SubmissionAnswer> }> = [
+    const submissions: { id: string; answers: SubmissionAnswer[] }[] = [
       {
         id: "sub-1",
         answers: [{ questionVersionId: Q1, value: 5, comment: "Secret" }],
@@ -326,7 +326,7 @@ describe("Minimum group size rules R1–R11 (Issue #3 / ADR 0004)", () => {
 
   it("R8: Round with N-1 Submissions closes below N: response rate appears, answers hidden", () => {
     // 3 Submissions under N=4
-    const submissions: Array<{ id: string; answers: Array<SubmissionAnswer> }> = [
+    const submissions: { id: string; answers: SubmissionAnswer[] }[] = [
       { id: "sub-1", answers: [{ questionVersionId: Q1, value: 5, comment: "Hello" }] },
       { id: "sub-2", answers: [{ questionVersionId: Q1, value: 4, comment: null }] },
       { id: "sub-3", answers: [{ questionVersionId: Q1, value: 3, comment: null }] },
@@ -339,7 +339,7 @@ describe("Minimum group size rules R1–R11 (Issue #3 / ADR 0004)", () => {
       status: "closed",
       plannedOpenDate: "2026-11-02",
       anonymityMode: "anonymous",
-      closedAt: 1730592000000,
+      closedAt: 1_730_592_000_000,
       effectiveMinimumGroupSize: 4,
       eligibleMembersCount: 6,
       questions: testQuestions,
@@ -364,7 +364,7 @@ describe("Minimum group size rules R1–R11 (Issue #3 / ADR 0004)", () => {
 
   it("R9: Changing N: raising N hides past rounds, lowering N never loosens past rounds", () => {
     // Round with 4 submissions that closed under N=4
-    const submissions: Array<{ id: string; answers: Array<SubmissionAnswer> }> = [
+    const submissions: { id: string; answers: SubmissionAnswer[] }[] = [
       { id: "sub-1", answers: [{ questionVersionId: Q1, value: 4, comment: null }] },
       { id: "sub-2", answers: [{ questionVersionId: Q1, value: 4, comment: null }] },
       { id: "sub-3", answers: [{ questionVersionId: Q1, value: 4, comment: null }] },
@@ -378,7 +378,7 @@ describe("Minimum group size rules R1–R11 (Issue #3 / ADR 0004)", () => {
       status: "closed",
       plannedOpenDate: "2026-11-02",
       anonymityMode: "anonymous",
-      closedAt: 1730592000000,
+      closedAt: 1_730_592_000_000,
       effectiveMinimumGroupSize: 4,
       eligibleMembersCount: 6,
       questions: testQuestions,
@@ -405,7 +405,7 @@ describe("Minimum group size rules R1–R11 (Issue #3 / ADR 0004)", () => {
       status: "closed",
       plannedOpenDate: "2026-11-02",
       anonymityMode: "anonymous",
-      closedAt: 1730592000000,
+      closedAt: 1_730_592_000_000,
       effectiveMinimumGroupSize: 5,
       eligibleMembersCount: 6,
       questions: testQuestions,
@@ -423,11 +423,11 @@ describe("Minimum group size rules R1–R11 (Issue #3 / ADR 0004)", () => {
 });
 
 describe("Raised Organization N masks derived values (ADR 0004)", () => {
-  const history = (contributors: number): Array<HistoricalRoundData> =>
+  const history = (contributors: number): HistoricalRoundData[] =>
     [1, 2, 3].map((i) => ({
       roundId: RoundId.make(`past-${i}`),
       plannedOpenDate: `2026-10-0${i}`,
-      closedAt: 1730000000000 + i * 86400000,
+      closedAt: 1_730_000_000_000 + i * 86_400_000,
       effectiveMinimumGroupSize: 4,
       submissionsCount: contributors,
       questions: [{ questionVersionId: Q1, score: 2 + i * 0.5, contributors, meetsMinimumGroupSize: true }],
@@ -442,7 +442,7 @@ describe("Raised Organization N masks derived values (ADR 0004)", () => {
       ],
     }));
 
-  const compute = (submissionCount: number, past: Array<HistoricalRoundData>) =>
+  const compute = (submissionCount: number, past: HistoricalRoundData[]) =>
     calculateRoundResult({
       roundId: ROUND_1,
       pulseId: PULSE_ID,
@@ -450,7 +450,7 @@ describe("Raised Organization N masks derived values (ADR 0004)", () => {
       status: "closed",
       plannedOpenDate: "2026-11-02",
       anonymityMode: "anonymous",
-      closedAt: 1730592000000,
+      closedAt: 1_730_592_000_000,
       effectiveMinimumGroupSize: 4,
       eligibleMembersCount: 10,
       questions: testQuestions,
@@ -472,7 +472,7 @@ describe("Raised Organization N masks derived values (ADR 0004)", () => {
   it("leaves no score, trend point or typical change once the current Round fails the raised N", () => {
     const result = compute(5, history(5));
     const before = result.dimensions.find((d) => d.dimension === "workload");
-    assert.strictEqual(before?.trend[before.trend.length - 1]?.score, 4);
+    assert.strictEqual(before?.trend.at(-1)?.score, 4);
 
     const masked = enforceEffectiveNOnResult(result, 6);
     for (const d of masked.dimensions) {
@@ -514,12 +514,12 @@ describe("Raised Organization N masks derived values (ADR 0004)", () => {
 describe("12-Round history, trends, warm-up, and gap handling (Issue #4)", () => {
   it("building baseline warm-up note when fewer than 6 usable rounds exist", () => {
     // 3 usable past rounds
-    const history: Array<HistoricalRoundData> = [];
+    const history: HistoricalRoundData[] = [];
     for (let i = 1; i <= 3; i++) {
       history.push({
         roundId: RoundId.make(`past-${i}`),
         plannedOpenDate: `2026-10-0${i}`,
-        closedAt: 1730000000000 + i * 86400000,
+        closedAt: 1_730_000_000_000 + i * 86_400_000,
         effectiveMinimumGroupSize: 4,
         submissionsCount: 5,
         questions: [
@@ -541,7 +541,7 @@ describe("12-Round history, trends, warm-up, and gap handling (Issue #4)", () =>
       });
     }
 
-    const submissions: Array<{ id: string; answers: Array<SubmissionAnswer> }> = [
+    const submissions: { id: string; answers: SubmissionAnswer[] }[] = [
       { id: "s1", answers: [{ questionVersionId: Q1, value: 4, comment: null }] },
       { id: "s2", answers: [{ questionVersionId: Q1, value: 4, comment: null }] },
       { id: "s3", answers: [{ questionVersionId: Q1, value: 4, comment: null }] },
@@ -555,7 +555,7 @@ describe("12-Round history, trends, warm-up, and gap handling (Issue #4)", () =>
       status: "closed",
       plannedOpenDate: "2026-11-02",
       anonymityMode: "anonymous",
-      closedAt: 1730592000000,
+      closedAt: 1_730_592_000_000,
       effectiveMinimumGroupSize: 4,
       eligibleMembersCount: 6,
       questions: testQuestions,
@@ -577,16 +577,16 @@ describe("12-Round history, trends, warm-up, and gap handling (Issue #4)", () =>
   it("gaps in history: sub-N round does not bridge, produces 1 pair across gap", () => {
     // 6 usable rounds with 1 sub-N round in the middle
     // Round 1 (3.0), Round 2 (sub-N gap), Round 3 (3.2), Round 4 (3.3), Round 5 (3.4), Round 6 (3.5), Round 7 (3.6)
-    const history: Array<HistoricalRoundData> = [
+    const history: HistoricalRoundData[] = [
       {
         roundId: RoundId.make("r-1"),
         plannedOpenDate: "2026-09-01",
         closedAt: 100,
         effectiveMinimumGroupSize: 4,
         submissionsCount: 4,
-        questions: [{ questionVersionId: Q1, score: 3.0, contributors: 4, meetsMinimumGroupSize: true }],
+        questions: [{ questionVersionId: Q1, score: 3, contributors: 4, meetsMinimumGroupSize: true }],
         dimensions: [
-          { dimension: "workload", score: 3.0, usableQuestionCount: 1, meetsMinimumGroupSize: true },
+          { dimension: "workload", score: 3, usableQuestionCount: 1, meetsMinimumGroupSize: true },
         ],
       },
       {
@@ -707,7 +707,7 @@ describe("12-Round history, trends, warm-up, and gap handling (Issue #4)", () =>
   it("Dimension change matches per-Question subset: 'Based on 1 of 2 questions'", () => {
     // Previous round had usable Q1 (score 3.0) and Q2 (score 2.0).
     // Current round has usable Q1 (score 4.0), but Q2 is below N (only 2 answers).
-    const history: Array<HistoricalRoundData> = [
+    const history: HistoricalRoundData[] = [
       {
         roundId: RoundId.make("r-prev"),
         plannedOpenDate: "2026-10-01",
@@ -715,8 +715,8 @@ describe("12-Round history, trends, warm-up, and gap handling (Issue #4)", () =>
         effectiveMinimumGroupSize: 4,
         submissionsCount: 5,
         questions: [
-          { questionVersionId: Q1, score: 3.0, contributors: 5, meetsMinimumGroupSize: true },
-          { questionVersionId: Q2, score: 2.0, contributors: 5, meetsMinimumGroupSize: true },
+          { questionVersionId: Q1, score: 3, contributors: 5, meetsMinimumGroupSize: true },
+          { questionVersionId: Q2, score: 2, contributors: 5, meetsMinimumGroupSize: true },
         ],
         dimensions: [
           { dimension: "workload", score: 2.5, usableQuestionCount: 2, meetsMinimumGroupSize: true },
@@ -725,9 +725,9 @@ describe("12-Round history, trends, warm-up, and gap handling (Issue #4)", () =>
     ];
 
     // Current round: 5 submissions, all 5 answer Q1, only 2 answer Q2
-    const submissions: Array<{ id: string; answers: Array<SubmissionAnswer> }> = [];
+    const submissions: { id: string; answers: SubmissionAnswer[] }[] = [];
     for (let i = 1; i <= 5; i++) {
-      const answers: Array<SubmissionAnswer> = [{ questionVersionId: Q1, value: 4, comment: null }];
+      const answers: SubmissionAnswer[] = [{ questionVersionId: Q1, value: 4, comment: null }];
       if (i <= 2) {
         answers.push({ questionVersionId: Q2, value: 3, comment: null });
       }
@@ -753,7 +753,7 @@ describe("12-Round history, trends, warm-up, and gap handling (Issue #4)", () =>
     assert.isDefined(dim);
     // Common usable questions in both rounds: Q1 only (matchedCount = 1).
     // Q1 changed from 3.0 to 4.0 (+1.0).
-    assert.strictEqual(dim?.change?.change, 1.0);
+    assert.strictEqual(dim?.change?.change, 1);
     assert.strictEqual(dim?.change?.matchedQuestionCount, 1);
     assert.strictEqual(dim?.change?.currentQuestionCount, 2);
     assert.strictEqual(dim?.change?.annotation, "Based on 1 of 2 questions");
@@ -857,7 +857,7 @@ describe("Raised Organization N hides a past Round's Dimension (ADR 0004)", () =
   ): HistoricalRoundData => ({
     roundId: RoundId.make(id),
     plannedOpenDate: `2026-10-0${id.slice(-1)}`,
-    closedAt: 1730000000000,
+    closedAt: 1_730_000_000_000,
     effectiveMinimumGroupSize: 4,
     submissionsCount,
     questions: [{ questionVersionId: Q1, score: 3, contributors, meetsMinimumGroupSize: true }],
@@ -872,7 +872,7 @@ describe("Raised Organization N hides a past Round's Dimension (ADR 0004)", () =
     ],
   });
 
-  const compute = (pastRoundsHistory: Array<HistoricalRoundData>, effectiveN: number) =>
+  const compute = (pastRoundsHistory: HistoricalRoundData[], effectiveN: number) =>
     calculateRoundResult({
       roundId: ROUND_1,
       pulseId: PULSE_ID,
@@ -880,7 +880,7 @@ describe("Raised Organization N hides a past Round's Dimension (ADR 0004)", () =
       status: "closed",
       plannedOpenDate: "2026-11-02",
       anonymityMode: "anonymous",
-      closedAt: 1730592000000,
+      closedAt: 1_730_592_000_000,
       effectiveMinimumGroupSize: effectiveN,
       eligibleMembersCount: 10,
       questions: testQuestions,
@@ -921,7 +921,7 @@ describe("Raised N reports a lower-bound contributor count after the usable set 
       status: "closed",
       plannedOpenDate: "2026-11-02",
       anonymityMode: "anonymous",
-      closedAt: 1730592000000,
+      closedAt: 1_730_592_000_000,
       effectiveMinimumGroupSize: 4,
       eligibleMembersCount: 12,
       questions: testQuestions,
@@ -962,7 +962,7 @@ describe("Trend is only derived for Rating Questions (Issue #265)", () => {
       status: "closed",
       plannedOpenDate: "2026-11-02",
       anonymityMode: "anonymous",
-      closedAt: 1730592000000,
+      closedAt: 1_730_592_000_000,
       effectiveMinimumGroupSize: 4,
       eligibleMembersCount: 10,
       questions: [

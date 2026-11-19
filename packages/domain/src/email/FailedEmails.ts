@@ -1,6 +1,7 @@
 import { Schema } from "effect";
 import { EmailAddress, SendId } from "./Email.ts";
-import { FailureReason, type SendState } from "./SendState.ts";
+import { FailureReason } from "./SendState.ts";
+import type { SendState } from "./SendState.ts";
 
 export const FailedEmailKind = Schema.Literals([
   "AddedToTeam",
@@ -39,14 +40,18 @@ export type FailedEmailStatus = typeof FailedEmailStatus.Type;
 
 export const progressOf = (state: SendState): EmailSendProgress => {
   switch (state._tag) {
-    case "Pending":
+    case "Pending": {
       return { _tag: "Queued", attempts: state.attempts, lastCode: state.lastCode };
-    case "Sending":
+    }
+    case "Sending": {
       return { _tag: "Sending", attempt: state.attempt };
-    case "Sent":
+    }
+    case "Sent": {
       return { _tag: "Sent", sentAt: state.sentAt };
-    case "Failed":
+    }
+    case "Failed": {
       return { _tag: "Failed", reason: state.reason, code: state.code, failedAt: state.failedAt };
+    }
   }
 };
 
@@ -85,16 +90,21 @@ export const isResendable = (sendId: SendId, facts: ResendFacts): boolean => {
   if (facts.reason === "complained") return false;
   switch (facts.kind) {
     case "AddedToTeam":
-    case "ResultsReadyEmail":
+    case "ResultsReadyEmail": {
       return true;
-    case "InvitationEmail":
+    }
+    case "InvitationEmail": {
       return currentInvitation(facts) && facts.invitation?.sendId === sendId;
-    case "ReminderEmail":
+    }
+    case "ReminderEmail": {
       return currentInvitation(facts);
-    case "TestInvitationEmail":
+    }
+    case "TestInvitationEmail": {
       return facts.testSend;
-    default:
+    }
+    default: {
       return false;
+    }
   }
 };
 

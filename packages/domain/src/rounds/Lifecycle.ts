@@ -1,7 +1,9 @@
 import * as DateTime from "effect/DateTime";
 import type { PersonId } from "../people/Identity.ts";
-import { actorOf, type DirectoryState } from "../people/Directory.ts";
-import { type Actor, can, type TeamAction } from "../people/Permissions.ts";
+import { actorOf } from "../people/Directory.ts";
+import type { DirectoryState } from "../people/Directory.ts";
+import { can } from "../people/Permissions.ts";
+import type { Actor, TeamAction } from "../people/Permissions.ts";
 import type { TeamId } from "../people/Team.ts";
 import type { PulseId, SendTime, Weekday } from "../pulses/Pulse.ts";
 import { isUnhandled, setup, transition, types } from "xstate";
@@ -74,16 +76,16 @@ const WEEKDAY_NUMBERS: Record<Weekday, number> = {
 
 export const parseDateIso = (dateStr: string): { year: number; month: number; day: number } => {
   const parts = dateStr.split("-");
-  const year = parseInt(parts[0] ?? "0", 10);
-  const month = parseInt(parts[1] ?? "0", 10);
-  const day = parseInt(parts[2] ?? "0", 10);
+  const year = Number.parseInt(parts[0] ?? "0", 10);
+  const month = Number.parseInt(parts[1] ?? "0", 10);
+  const day = Number.parseInt(parts[2] ?? "0", 10);
   return { year, month, day };
 };
 
 export const parseSendTime = (sendTime: SendTime): { hour: number; minute: number } => {
   const parts = sendTime.split(":");
-  const hour = parseInt(parts[0] ?? "0", 10);
-  const minute = parseInt(parts[1] ?? "0", 10);
+  const hour = Number.parseInt(parts[0] ?? "0", 10);
+  const minute = Number.parseInt(parts[1] ?? "0", 10);
   return { hour, minute };
 };
 
@@ -115,11 +117,11 @@ export const nextEightWeeksCadenceDates = (
   nowMs: number,
   weekday: Weekday,
   timeZone: string,
-): ReadonlyArray<string> => {
+): readonly string[] => {
   const { year, month, day } = teamToday(nowMs, timeZone);
   const first = nextWeekdayOn(utcDate(year, month, day), weekday, true);
 
-  const result: Array<string> = [];
+  const result: string[] = [];
   for (let i = 0; i < 8; i++) {
     result.push(DateTime.formatIsoDateUtc(DateTime.add(first, { days: i * 7 })));
   }
@@ -129,14 +131,14 @@ export const nextEightWeeksCadenceDates = (
 export const calculateRoundInstants = (
   targetDateStr: string,
   sendTime: SendTime,
-  memberTimeZones: ReadonlyArray<string>,
+  memberTimeZones: readonly string[],
   fallbackTimeZone: string,
   answerWindowDays: number,
 ): {
   readonly openInstant: number;
   readonly latestSendInstant: number;
   readonly closeInstant: number;
-  readonly sends: ReadonlyArray<{ readonly timeZone: string; readonly sendAt: number }>;
+  readonly sends: readonly { readonly timeZone: string; readonly sendAt: number }[];
 } => {
   const { year, month, day } = parseDateIso(targetDateStr);
   const { hour, minute } = parseSendTime(sendTime);
@@ -151,7 +153,7 @@ export const calculateRoundInstants = (
   const sendTimes = sends.map((s) => s.sendAt);
   const openInstant = Math.min(...sendTimes);
   const latestSendInstant = Math.max(...sendTimes);
-  const closeInstant = latestSendInstant + answerWindowDays * 24 * 3600_000;
+  const closeInstant = latestSendInstant + answerWindowDays * 24 * 3_600_000;
 
   return {
     openInstant,
@@ -166,7 +168,7 @@ export interface RoundSlotInput {
   readonly weekday: Weekday;
   readonly sendTime: SendTime;
   readonly teamTimeZone: string;
-  readonly memberTimeZones: ReadonlyArray<string>;
+  readonly memberTimeZones: readonly string[];
   readonly answerWindowDays: number;
   readonly unavailableDates: ReadonlySet<string>;
 }
@@ -211,23 +213,23 @@ export const calculateReminders = (
   answerWindowDays: number,
   remindersCount: number,
   closeInstant: number,
-): ReadonlyArray<number> => {
+): readonly number[] => {
   if (remindersCount <= 0) return [];
 
-  const candidates: Array<number> = [];
+  const candidates: number[] = [];
   if (answerWindowDays === 1) {
-    candidates.push(sendInstant + 6 * 3600_000);
+    candidates.push(sendInstant + 6 * 3_600_000);
   } else if (remindersCount === 1) {
-    candidates.push(sendInstant + (answerWindowDays - 1) * 24 * 3600_000);
+    candidates.push(sendInstant + (answerWindowDays - 1) * 24 * 3_600_000);
   } else if (remindersCount === 2) {
-    candidates.push(sendInstant + 1 * 24 * 3600_000);
-    const dayWMinusOne = sendInstant + (answerWindowDays - 1) * 24 * 3600_000;
+    candidates.push(sendInstant + 1 * 24 * 3_600_000);
+    const dayWMinusOne = sendInstant + (answerWindowDays - 1) * 24 * 3_600_000;
     if (dayWMinusOne !== candidates[0]) {
       candidates.push(dayWMinusOne);
     }
   }
 
-  const cutoff = closeInstant - 2 * 3600_000;
+  const cutoff = closeInstant - 2 * 3_600_000;
   return candidates.filter((time) => time < cutoff);
 };
 
@@ -318,7 +320,7 @@ declare const crypto: {
       keyData: Uint8Array,
       algorithm: { readonly name: "HMAC"; readonly hash: "SHA-256" },
       extractable: boolean,
-      usages: ReadonlyArray<"sign">,
+      usages: readonly "sign"[],
     ) => Promise<InvitationTokenKey>;
     readonly sign: (algorithm: "HMAC", key: InvitationTokenKey, data: Uint8Array) => Promise<ArrayBuffer>;
   };
@@ -432,28 +434,32 @@ type RoundEvent =
 const roundEvent = (command: RoundCommand): RoundEvent => {
   switch (command._tag) {
     case "SkipWeek":
-    case "UnskipWeek":
+    case "UnskipWeek": {
       return {
         type: command._tag,
         teamId: command.teamId,
         pulseId: command.pulseId,
         plannedOpenDate: command.plannedOpenDate,
       };
+    }
     case "PausePulse":
-    case "ResumePulse":
+    case "ResumePulse": {
       return { type: command._tag, teamId: command.teamId, pulseId: command.pulseId };
+    }
     case "CloseRoundEarly":
     case "ShareResults":
     case "RetryResult":
-    case "CancelRound":
+    case "CancelRound": {
       return { type: command._tag, teamId: command.teamId, roundId: command.roundId };
-    case "ResendInvitation":
+    }
+    case "ResendInvitation": {
       return {
         type: command._tag,
         teamId: command.teamId,
         roundId: command.roundId,
         personId: command.personId,
       };
+    }
   }
 };
 
@@ -575,7 +581,7 @@ const roundStep = (status: RoundStatus, command: RoundCommand) => {
   const snapshot = roundSnapshot(status);
   const [next, effects] = transition(roundMachine, snapshot, roundEvent(command));
   if (isUnhandled(snapshot, [next, effects])) {
-    throw new Error("Round has no transition for " + command._tag + " in " + status);
+    throw new Error(`Round has no transition for ${command._tag} in ${status}`);
   }
   return next.context;
 };

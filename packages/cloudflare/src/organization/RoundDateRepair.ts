@@ -1,5 +1,6 @@
 import type { SqliteClient } from "@effect/sql-sqlite-do";
-import { calculateRoundInstants, type SendTime } from "@surveybeat/domain";
+import { calculateRoundInstants } from "@surveybeat/domain";
+import type { SendTime } from "@surveybeat/domain";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import type { makeSqlDirectory } from "../SqlDirectory.ts";
@@ -22,14 +23,14 @@ export const localDateOf = (instant: number, timeZone: string): string => {
   return `${pad(year, 4)}-${pad(month, 2)}-${pad(day, 2)}`;
 };
 
-const dayMs = 24 * 3600_000;
+const dayMs = 24 * 3_600_000;
 
 const minimumCadenceShiftDays = 2;
 
 export const daysBetween = (from: string, to: string): number =>
   Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / dayMs);
 
-export const latestLocalDate = (instant: number, timeZones: ReadonlyArray<string>): string | null => {
+export const latestLocalDate = (instant: number, timeZones: readonly string[]): string | null => {
   let latest: string | null = null;
   for (const timeZone of timeZones) {
     const date = localDateOf(instant, timeZone);
@@ -42,7 +43,7 @@ export const scheduledRoundIsHealthy = (
   round: { readonly plannedOpenDate: string; readonly plannedOpenAt: number },
   slot: {
     readonly sendTime: SendTime;
-    readonly memberTimeZones: ReadonlyArray<string>;
+    readonly memberTimeZones: readonly string[];
     readonly teamTimeZone: string;
     readonly answerWindowDays: number;
   },
@@ -77,7 +78,7 @@ const applyDateMove = (node: unknown, move: PlannedOpenDateMove): boolean => {
 
 export const rewritePayloadDates = (
   payload: string,
-  moves: ReadonlyArray<PlannedOpenDateMove>,
+  moves: readonly PlannedOpenDateMove[],
 ): string | null => {
   let parsed: unknown;
   try {
@@ -115,8 +116,8 @@ export const repairRoundPlannedOpenDates = ({
     yield* sql
       .withTransaction(
         Effect.gen(function* () {
-          const moves: Array<PlannedOpenDateMove> = [];
-          let waiting: Array<{ readonly round: RoundWithFrozenZones; readonly wanted: string }> = [];
+          const moves: PlannedOpenDateMove[] = [];
+          let waiting: { readonly round: RoundWithFrozenZones; readonly wanted: string }[] = [];
           for (const round of yield* rounds.getRoundsWithFrozenMembers()) {
             const wanted = latestLocalDate(round.plannedOpenAt, round.timeZones);
             if (wanted === null || wanted === round.plannedOpenDate) continue;

@@ -53,7 +53,7 @@ describe("testSendNotice", () => {
   });
 
   it("says a delivered send is sent", () => {
-    expect(testSendNotice(status({ _tag: "Sent", sentAt: queuedAt + 1_000 }))).toEqual({ _tag: "Sent" });
+    expect(testSendNotice(status({ _tag: "Sent", sentAt: queuedAt + 1000 }))).toEqual({ _tag: "Sent" });
   });
 
   it("carries the reason and code of a failed send", () => {

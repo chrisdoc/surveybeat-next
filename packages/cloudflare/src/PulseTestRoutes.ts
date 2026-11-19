@@ -3,13 +3,13 @@ import {
   MembershipId,
   PersonId,
   PulseId,
-  type PulseCommand,
   QuestionId,
   SendTime,
   TeamId,
   TemplateQuestionKey,
   TimeZone,
 } from "@surveybeat/domain";
+import type { PulseCommand } from "@surveybeat/domain";
 import * as Effect from "effect/Effect";
 import { HttpServerRequest } from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";

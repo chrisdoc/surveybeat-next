@@ -8,10 +8,10 @@ import {
   PersonId,
   PulseId,
   QuestionVersionId,
-  type Roster,
   RoundId,
   TeamId,
 } from "@surveybeat/domain";
+import type { Roster } from "@surveybeat/domain";
 import { SqliteStorage, Unlinkability } from "@surveybeat/testing";
 import * as Effect from "effect/Effect";
 import * as Reactivity from "effect/reactivity/Reactivity";
@@ -171,13 +171,13 @@ describe("Member history privacy (ADR 0017, ADR 0005, ADR 0004)", () => {
         );
 
         const json = JSON.stringify(history);
-        const submissionIds = (db.prepare("SELECT id FROM submission").all() as Array<{ id: string }>).map(
+        const submissionIds = (db.prepare("SELECT id FROM submission").all() as { id: string }[]).map(
           (row) => row.id,
         );
         assert.strictEqual(submissionIds.length, 5);
         for (const id of submissionIds) assert.notInclude(json, id);
         const editKeyHashes = (
-          db.prepare("SELECT edit_key_hash FROM submission").all() as Array<{ edit_key_hash: string }>
+          db.prepare("SELECT edit_key_hash FROM submission").all() as { edit_key_hash: string }[]
         ).map((row) => row.edit_key_hash);
         for (const hash of editKeyHashes) assert.notInclude(json, hash);
         assert.notInclude(json, "secret comment");

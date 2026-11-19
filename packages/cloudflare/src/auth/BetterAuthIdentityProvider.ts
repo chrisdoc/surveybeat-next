@@ -3,11 +3,11 @@ import {
   AuthUnavailable,
   AuthUserId,
   identityOf,
-  type OrganizationId,
   SessionId,
   SessionIdentityProvider,
   Unauthenticated,
 } from "@surveybeat/domain";
+import type { OrganizationId } from "@surveybeat/domain";
 import type { Auth } from "better-auth";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";

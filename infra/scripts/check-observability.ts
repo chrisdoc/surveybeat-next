@@ -82,8 +82,8 @@ export const findWorker = async (
 const main = async (): Promise<number> => {
   const stageFlag = process.argv.indexOf("--stage");
   const stage = stageFlag === -1 ? undefined : process.argv[stageFlag + 1];
-  const token = process.env["CLOUDFLARE_API_TOKEN"];
-  const accountId = process.env["CLOUDFLARE_ACCOUNT_ID"];
+  const token = process.env.CLOUDFLARE_API_TOKEN;
+  const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
   if (stage === undefined || token === undefined || accountId === undefined) {
     console.error(
       "Usage: check-observability.ts --stage <stage> (needs CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID)",

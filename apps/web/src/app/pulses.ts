@@ -1,20 +1,22 @@
 import {
   Dimension,
-  type FailureReason,
   minutes,
   Policy,
   PulseDetail,
   PulseList,
   PulseSettings,
-  type PulseWarning,
   QuestionContent,
-  type QuestionId,
-  type QuestionType,
   SendId,
-  TemplateQuestionKey,
-  type TeamId,
   TestSendStatus,
   Weekday,
+} from "@surveybeat/domain";
+import type {
+  TemplateQuestionKey,
+  FailureReason,
+  PulseWarning,
+  QuestionId,
+  QuestionType,
+  TeamId,
 } from "@surveybeat/domain";
 import { Duration, Option, Predicate, Schema } from "effect";
 import type { Html, HtmlBuilder } from "foldkit/html";
@@ -26,7 +28,6 @@ import {
   badge,
   buttonClass,
   checkboxField,
-  type Child,
   emptyState,
   dangerLinkButton,
   linkButton,
@@ -40,6 +41,7 @@ import {
   breadcrumbs,
   linkClass,
 } from "./components.ts";
+import type { Child } from "./components.ts";
 import { pulseHref, roundsHref, teamHref } from "./routes.ts";
 
 export const LoadedPulses = defineTaggedUnion({
@@ -95,49 +97,63 @@ export const testSendNotice = (status: TestSendStatus): TestSendNotice => {
       }
       return state.lastCode === null ? { _tag: "Queued" } : { _tag: "Retrying", code: state.lastCode };
     }
-    case "Sending":
+    case "Sending": {
       return { _tag: "Sending" };
-    case "Sent":
+    }
+    case "Sent": {
       return { _tag: "Sent" };
-    case "Failed":
+    }
+    case "Failed": {
       return { _tag: "Failed", reason: state.reason, code: state.code };
+    }
   }
 };
 
 export const failureReasonText = (reason: FailureReason): string => {
   switch (reason) {
-    case "unknown":
+    case "unknown": {
       return message("email.reason.unknown");
-    case "rejected":
+    }
+    case "rejected": {
       return message("email.reason.rejected");
-    case "abandoned":
+    }
+    case "abandoned": {
       return message("email.reason.abandoned");
-    case "bounced":
+    }
+    case "bounced": {
       return message("email.reason.bounced");
-    case "complained":
+    }
+    case "complained": {
       return message("email.reason.complained");
+    }
   }
 };
 
 export const testSendNoticeText = (notice: TestSendNotice): string => {
   switch (notice._tag) {
-    case "Queued":
+    case "Queued": {
       return message("pulse.test.status.queued");
-    case "Retrying":
+    }
+    case "Retrying": {
       return message("pulse.test.status.retrying", { code: notice.code });
-    case "Stalled":
+    }
+    case "Stalled": {
       return pluralMessage("pulse.test.status.stalled", notice.minutes);
-    case "Sending":
+    }
+    case "Sending": {
       return message("pulse.test.status.sending");
-    case "Sent":
+    }
+    case "Sent": {
       return message("pulse.test.status.sent");
-    case "Failed":
+    }
+    case "Failed": {
       return notice.code === null
         ? message("pulse.test.status.failed", { reason: failureReasonText(notice.reason) })
         : message("pulse.test.status.failedCode", {
             reason: failureReasonText(notice.reason),
             code: notice.code,
           });
+    }
   }
 };
 
@@ -148,16 +164,20 @@ export const typeName = (type: QuestionType): string => message(`questionType.${
 
 export const warningMessage = (warning: PulseWarning): string => {
   switch (warning._tag) {
-    case "TooManyQuestions":
+    case "TooManyQuestions": {
       return message("pulse.warning.TooManyQuestions", warning);
-    case "TooLong":
+    }
+    case "TooLong": {
       return message("pulse.warning.TooLong", warning);
-    case "NoOneTap":
+    }
+    case "NoOneTap": {
       return message("pulse.warning.NoOneTap");
-    case "TeamBelowMinimumGroupSize":
+    }
+    case "TeamBelowMinimumGroupSize": {
       return pluralMessage("pulse.warning.TeamBelowMinimumGroupSize", warning.members, {
         minimumGroupSize: warning.minimumGroupSize,
       });
+    }
   }
 };
 
@@ -200,12 +220,12 @@ export const pulsesScreenView = <Message>(
   },
   h: HtmlBuilder<Message>,
 ): Html => {
-  const children: Array<Child> = [
+  const children: Child[] = [
     h.a([h.Href(teamHref(state.teamId)), h.Class(linkClass)], [message("pulses.back")]),
   ];
 
   if (state.pulses._tag === "Failed") {
-    children.push(problemView(state.pulses.failure, h)!);
+    children.push(problemView(state.pulses.failure, h));
     return h.section([], children);
   }
 
@@ -281,7 +301,7 @@ export const pulsesScreenView = <Message>(
 
   children.push(h.p([h.Class("mt-8 text-muted")], [message("pulses.create.intro")]));
   if (state.createFailure) {
-    children.push(problemView(state.createFailure, h)!);
+    children.push(problemView(state.createFailure, h));
   }
   children.push(
     appButton(
@@ -505,7 +525,7 @@ export const pulseEditorView = <Message>(
   h: HtmlBuilder<Message>,
 ): Html => {
   const pulse = state.pulse._tag === "Loaded" ? state.pulse.detail : undefined;
-  const children: Array<Child> = [
+  const children: Child[] = [
     breadcrumbs(
       [
         { label: pulse?.team.name ?? message("title.team"), href: teamHref(state.teamId) },
@@ -516,7 +536,7 @@ export const pulseEditorView = <Message>(
   ];
 
   if (state.pulse._tag === "Failed") {
-    children.push(problemView(state.pulse.failure, h)!);
+    children.push(problemView(state.pulse.failure, h));
     return h.section([], children);
   }
 

@@ -2,7 +2,8 @@
 
 import { SqliteClient } from "@effect/sql-sqlite-do";
 import { assert, describe, it } from "@effect/vitest";
-import { JobId, RoundId, type StoredThemes } from "@surveybeat/domain";
+import { JobId, RoundId } from "@surveybeat/domain";
+import type { StoredThemes } from "@surveybeat/domain";
 import { SqliteStorage, Unlinkability } from "@surveybeat/testing";
 import * as Effect from "effect/Effect";
 import * as Reactivity from "effect/reactivity/Reactivity";
@@ -14,12 +15,12 @@ import { makeSqlRounds } from "./SqlRounds.ts";
 const migrationsDir = new URL("../migrations/", import.meta.url);
 
 /** Migration files in order, optionally only those before `exclusive` (for piecewise application). */
-const migrationFiles = (exclusive?: string): ReadonlyArray<string> =>
+const migrationFiles = (exclusive?: string): readonly string[] =>
   readdirSync(migrationsDir)
     .filter((f) => f.endsWith(".sql") && (exclusive === undefined || f < exclusive))
     .sort();
 
-const applyMigrations = (db: DatabaseSync, files: ReadonlyArray<string>) => {
+const applyMigrations = (db: DatabaseSync, files: readonly string[]) => {
   for (const file of files) {
     db.exec(readFileSync(new URL(file, migrationsDir), "utf8"));
   }
@@ -103,7 +104,7 @@ describe("Comment themes storage (ADR 0016, ADR 0019)", () => {
         "SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'schedule_job' ORDER BY name",
       )
       .all()
-      .map((row) => row["name"]);
+      .map((row) => row.name);
     assert.deepStrictEqual(indexes, ["schedule_job_due", "schedule_job_round"]);
   });
 
@@ -141,18 +142,18 @@ describe("Comment themes storage (ADR 0016, ADR 0019)", () => {
         "SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'schedule_job' ORDER BY name",
       )
       .all()
-      .map((row) => row["name"]);
+      .map((row) => row.name);
     assert.deepStrictEqual(indexes, ["schedule_job_due", "schedule_job_round"]);
 
     // The Pulse that existed before the migration gets the default three-day Review window.
     assert.strictEqual(
-      db.prepare("SELECT review_window_days FROM pulse WHERE id = 'pulse-1'").get()?.["review_window_days"],
+      db.prepare("SELECT review_window_days FROM pulse WHERE id = 'pulse-1'").get()?.review_window_days,
       3,
     );
     assert.throws(() => db.prepare("UPDATE pulse SET review_window_days = 8 WHERE id = 'pulse-1'").run());
     // A Round closed before the migration has no Review window end: it is treated as already over.
     assert.strictEqual(
-      db.prepare("SELECT review_ends_at FROM round WHERE id = 'round-1'").get()?.["review_ends_at"],
+      db.prepare("SELECT review_ends_at FROM round WHERE id = 'round-1'").get()?.review_ends_at,
       null,
     );
   });
@@ -263,7 +264,7 @@ describe("Comment themes storage (ADR 0016, ADR 0019)", () => {
       yield* rounds.updateJobDueAtById(JobId.make("job-done"), 7000);
 
       const dueAt = (id: string) =>
-        db.prepare("SELECT due_at FROM schedule_job WHERE id = ?").get(id)?.["due_at"];
+        db.prepare("SELECT due_at FROM schedule_job WHERE id = ?").get(id)?.due_at;
       assert.strictEqual(dueAt("job-pending"), 7000);
       assert.strictEqual(dueAt("job-done"), 1000);
     }),

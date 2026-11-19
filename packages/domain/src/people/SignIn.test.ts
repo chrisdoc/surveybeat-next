@@ -1,25 +1,26 @@
 import { describe, expect, it } from "@effect/vitest";
 import {
-  type Identity,
   identityOf,
   normaliseEmail,
   OrganizationCreationAllowlist,
   PersonId,
   AuthUserId,
 } from "./Identity.ts";
+import type { Identity } from "./Identity.ts";
 import { OrganizationId } from "./Organization.ts";
-import { candidatesFor, decideSignIn, type PersonCandidate } from "./SignIn.ts";
+import { candidatesFor, decideSignIn } from "./SignIn.ts";
+import type { PersonCandidate } from "./SignIn.ts";
 
 const identity = (emailVerified: boolean, email = "ada@example.com"): Identity =>
   identityOf(AuthUserId.make("user_1"), email, emailVerified);
 
 /** U+212A KELVIN SIGN: lower-cases (and NFKC-normalises) to an ASCII `k`. */
-const KELVIN = "\u212a";
+const KELVIN = "\u212A";
 
 describe("email matching", () => {
   it("normalises case, whitespace, and compatibility forms", () => {
     expect(normaliseEmail(" Ada@Example.COM ")).toBe("ada@example.com");
-    expect(normaliseEmail("\uff41da@example.com")).toBe("ada@example.com");
+    expect(normaliseEmail("\uFF41da@example.com")).toBe("ada@example.com");
   });
 
   it("lets a non-ASCII address sign in but never match by email, even when verified", () => {

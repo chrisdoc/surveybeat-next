@@ -12,7 +12,7 @@ export const matchLocale = (tag: string): Locale | undefined => {
   return isLocale(primary) ? primary : undefined;
 };
 
-export const browserLocale = (languages: ReadonlyArray<string>): Locale | undefined => {
+export const browserLocale = (languages: readonly string[]): Locale | undefined => {
   for (const tag of languages) {
     const locale = matchLocale(tag);
     if (locale !== undefined) return locale;

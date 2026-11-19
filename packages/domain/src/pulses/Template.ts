@@ -16,12 +16,12 @@ export type TemplateQuestion = typeof TemplateQuestion.Type;
 
 export interface Template {
   readonly name: string;
-  readonly questions: ReadonlyArray<TemplateQuestion>;
+  readonly questions: readonly TemplateQuestion[];
 }
 
 const key = (value: string) => TemplateQuestionKey.make(value);
 
-const WEEKLY_TEAM_HEALTH: { readonly [L in Locale]: Template } = {
+const WEEKLY_TEAM_HEALTH: Readonly<Record<Locale, Template>> = {
   en: {
     name: "Weekly team health",
     questions: [

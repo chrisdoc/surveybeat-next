@@ -13,7 +13,10 @@ if (mainUrl === undefined) {
 const ATTEMPTS = 120;
 const DELAY_MS = 5000;
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const sleep = (ms: number) =>
+  new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 
 export const request = async (url: string, init?: RequestInit): Promise<Response> => {
   let last = "no attempt";

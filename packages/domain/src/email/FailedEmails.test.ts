@@ -1,6 +1,7 @@
 import { describe, expect, it } from "@effect/vitest";
 import { SendId } from "./Email.ts";
-import { type InvitationFacts, isResendable, progressOf, type ResendFacts } from "./FailedEmails.ts";
+import { isResendable, progressOf } from "./FailedEmails.ts";
+import type { InvitationFacts, ResendFacts } from "./FailedEmails.ts";
 
 const sendId = SendId.make("send-1");
 

@@ -6,37 +6,39 @@ import {
   Dimension,
   Distribution,
   EmailAddress,
-  type FailedInvitation,
-  type FrozenRoundMember,
-  type HistoricalRoundData,
   JobId,
   PersonId,
   PulseId,
-  type QuestionInput,
   QuestionType,
   QuestionVersionId,
   redact,
   ReminderCount,
-  type Roster,
   RoundId,
   RoundNotOpen,
-  type RoundRecord,
   RoundResult,
   RoundStatus,
-  type ScheduleJobRecord,
   ScheduleJobStatus,
   ScheduleJobType,
   selectActionsForRound,
   ActionStatus,
   SendId,
-  type SubmissionAnswer,
   SubmissionId,
   SubmissionNotFound,
-  type SubmissionRoundContext,
   StoredThemes,
-  type RoundThemesRecord,
   TeamId,
   TimeZone,
+} from "@surveybeat/domain";
+import type {
+  FailedInvitation,
+  FrozenRoundMember,
+  HistoricalRoundData,
+  QuestionInput,
+  Roster,
+  RoundRecord,
+  ScheduleJobRecord,
+  SubmissionAnswer,
+  SubmissionRoundContext,
+  RoundThemesRecord,
 } from "@surveybeat/domain";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
@@ -134,7 +136,7 @@ export interface RoundWithFrozenZones {
   readonly pulseId: PulseId;
   readonly plannedOpenDate: string;
   readonly plannedOpenAt: number;
-  readonly timeZones: ReadonlyArray<string>;
+  readonly timeZones: readonly string[];
 }
 
 export interface InvitationRecord {
@@ -298,14 +300,14 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
       Effect.orDie,
     );
 
-  const getRoundsForPulse = (pulseId: PulseId): Effect.Effect<ReadonlyArray<RoundRecord>> =>
+  const getRoundsForPulse = (pulseId: PulseId): Effect.Effect<readonly RoundRecord[]> =>
     sql`SELECT * FROM round WHERE pulse_id = ${pulseId} ORDER BY planned_open_at DESC`.pipe(
       Effect.flatMap(rows(RoundRow)),
       Effect.map((all) => all.map(toRoundRecord)),
       Effect.orDie,
     );
 
-  const getRoundQuestions = (roundId: RoundId): Effect.Effect<ReadonlyArray<QuestionVersionId>> =>
+  const getRoundQuestions = (roundId: RoundId): Effect.Effect<readonly QuestionVersionId[]> =>
     sql`SELECT round_id, position, question_version_id FROM round_question WHERE round_id = ${roundId} ORDER BY position ASC`.pipe(
       Effect.flatMap(rows(RoundQuestionRow)),
       Effect.map((all) => all.map((q) => q.question_version_id)),
@@ -366,8 +368,8 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
     roundId: RoundId,
     openedAt: number,
     plannedCloseAt: number,
-    questions: ReadonlyArray<QuestionVersionId>,
-    members: ReadonlyArray<FrozenRoundMember>,
+    questions: readonly QuestionVersionId[],
+    members: readonly FrozenRoundMember[],
   ): Effect.Effect<void> =>
     Effect.gen(function* () {
       yield* sql`UPDATE round
@@ -425,7 +427,7 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
   const getReadyRoundIdsForPulseBefore = (
     pulseId: PulseId,
     plannedOpenDate: string,
-  ): Effect.Effect<ReadonlyArray<RoundId>> =>
+  ): Effect.Effect<readonly RoundId[]> =>
     sql<{ id: RoundId }>`SELECT id FROM round
         WHERE pulse_id = ${pulseId} AND status = 'ready' AND planned_open_date < ${plannedOpenDate}
         ORDER BY planned_open_date ASC`.pipe(
@@ -502,10 +504,7 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
       Effect.orDie,
     );
 
-  const cancelJobsForRound = (
-    roundId: RoundId,
-    types?: ReadonlyArray<ScheduleJobType>,
-  ): Effect.Effect<void> => {
+  const cancelJobsForRound = (roundId: RoundId, types?: readonly ScheduleJobType[]): Effect.Effect<void> => {
     if (types === undefined || types.length === 0) {
       return sql`UPDATE schedule_job SET status = 'cancelled' WHERE round_id = ${roundId} AND status = 'pending'`.pipe(
         Effect.asVoid,
@@ -538,7 +537,7 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
       Effect.orDie,
     );
 
-  const getDueJobs = (now: number): Effect.Effect<ReadonlyArray<ScheduleJobRecord>> =>
+  const getDueJobs = (now: number): Effect.Effect<readonly ScheduleJobRecord[]> =>
     sql`SELECT * FROM schedule_job WHERE status = 'pending' AND due_at <= ${now} ORDER BY due_at ASC, id ASC`.pipe(
       Effect.flatMap(rows(ScheduleJobRow)),
       Effect.map((all) => all.map(toScheduleJobRecord)),
@@ -554,7 +553,7 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
       Effect.orDie,
     );
 
-  const insertInvitations = (invitations: ReadonlyArray<InvitationRecord>): Effect.Effect<void> =>
+  const insertInvitations = (invitations: readonly InvitationRecord[]): Effect.Effect<void> =>
     Effect.forEach(
       invitations,
       (inv) =>
@@ -564,7 +563,7 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
       { discard: true },
     ).pipe(Effect.orDie);
 
-  const getInvitations = (roundId: RoundId): Effect.Effect<ReadonlyArray<InvitationRecord>> =>
+  const getInvitations = (roundId: RoundId): Effect.Effect<readonly InvitationRecord[]> =>
     sql`SELECT * FROM invitation WHERE round_id = ${roundId}`.pipe(
       Effect.flatMap(rows(InvitationRow)),
       Effect.map((all) => all.map(toInvitationRecord)),
@@ -622,7 +621,7 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
       Effect.orDie,
     );
 
-  const getFailedInvitations = (roundId: RoundId): Effect.Effect<ReadonlyArray<FailedInvitation>> =>
+  const getFailedInvitations = (roundId: RoundId): Effect.Effect<readonly FailedInvitation[]> =>
     sql`SELECT i.person_id, p.email, COALESCE(i.failed_reason, es.status) as failed_reason, i.resend_count
         FROM invitation i
         JOIN person p ON p.id = i.person_id
@@ -655,14 +654,14 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
       return yield* getInvitation(roundId, personId);
     }).pipe(Effect.orDie);
 
-  const revokeInvitationsForRound = (roundId: RoundId, now: number): Effect.Effect<ReadonlyArray<string>> =>
+  const revokeInvitationsForRound = (roundId: RoundId, now: number): Effect.Effect<readonly string[]> =>
     Effect.gen(function* () {
       const invs = yield* getInvitations(roundId);
       yield* sql`UPDATE invitation SET status = 'revoked', updated_at = ${now} WHERE round_id = ${roundId}`;
       return invs.map((i) => i.tokenHash);
     }).pipe(Effect.orDie);
 
-  const revokeInvitationForPerson = (personId: PersonId, now: number): Effect.Effect<ReadonlyArray<string>> =>
+  const revokeInvitationForPerson = (personId: PersonId, now: number): Effect.Effect<readonly string[]> =>
     Effect.gen(function* () {
       const invs = yield* sql`SELECT * FROM invitation WHERE person_id = ${personId}`.pipe(
         Effect.flatMap(rows(InvitationRow)),
@@ -732,11 +731,11 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
     roundId: RoundId,
     personId: PersonId,
     editKeyHash: string,
-    answers: ReadonlyArray<{
+    answers: readonly {
       questionVersionId: QuestionVersionId;
       value: number | null;
       comment: string | null;
-    }>,
+    }[],
     roster: Roster,
   ): Effect.Effect<
     { submissionId: SubmissionId; shownToLead: string | null },
@@ -774,11 +773,11 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
 
   const saveAnswer = (
     editKeyHash: string,
-    answers: ReadonlyArray<{
+    answers: readonly {
       questionVersionId: QuestionVersionId;
       value: number | null;
       comment: string | null;
-    }>,
+    }[],
     roster: Roster,
   ): Effect.Effect<{ saved: boolean; shownToLead: string | null }, SubmissionNotFound | RoundNotOpen> =>
     sql
@@ -930,7 +929,7 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
       Effect.orDie,
     );
 
-  const getSharedRoundResultsForTeam = (teamId: TeamId): Effect.Effect<ReadonlyArray<RoundResult>> =>
+  const getSharedRoundResultsForTeam = (teamId: TeamId): Effect.Effect<readonly RoundResult[]> =>
     sql<{
       payload: string;
       pulse_name: string;
@@ -973,7 +972,7 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
       Effect.orDie,
     );
 
-  const getRoundQuestionsDetailed = (roundId: RoundId): Effect.Effect<ReadonlyArray<QuestionInput>> =>
+  const getRoundQuestionsDetailed = (roundId: RoundId): Effect.Effect<readonly QuestionInput[]> =>
     sql<{
       position: number;
       id: string;
@@ -1017,7 +1016,7 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
 
   const getSubmissionsForRound = (
     roundId: RoundId,
-  ): Effect.Effect<ReadonlyArray<{ id: string; answers: ReadonlyArray<SubmissionAnswer> }>> =>
+  ): Effect.Effect<readonly { id: string; answers: readonly SubmissionAnswer[] }[]> =>
     Effect.gen(function* () {
       const subRows = yield* sql<{
         id: string;
@@ -1034,7 +1033,7 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
          JOIN submission s ON s.id = a.submission_id
          WHERE s.round_id = ${roundId}`;
 
-      const grouped = new Map<string, Array<SubmissionAnswer>>();
+      const grouped = new Map<string, SubmissionAnswer[]>();
       for (const ans of ansRows) {
         let list = grouped.get(ans.submission_id);
         if (list === undefined) {
@@ -1058,7 +1057,7 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
     pulseId: PulseId,
     limit: number,
     beforePlannedOpenDate?: string,
-  ): Effect.Effect<ReadonlyArray<HistoricalRoundData>> =>
+  ): Effect.Effect<readonly HistoricalRoundData[]> =>
     Effect.gen(function* () {
       const rows =
         beforePlannedOpenDate !== undefined
@@ -1080,7 +1079,7 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
             ORDER BY r.planned_open_at DESC
             LIMIT ${limit}`;
 
-      const history: Array<HistoricalRoundData> = [];
+      const history: HistoricalRoundData[] = [];
       for (const row of [...rows].reverse()) {
         const item = decodeHistoricalPayload(row.payload);
         if (item !== null) {
@@ -1152,7 +1151,7 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
       Effect.orDie,
     );
 
-  const getRoundsWithFrozenMembers = (): Effect.Effect<ReadonlyArray<RoundWithFrozenZones>> =>
+  const getRoundsWithFrozenMembers = (): Effect.Effect<readonly RoundWithFrozenZones[]> =>
     sql`SELECT r.id, r.pulse_id, r.planned_open_date, r.planned_open_at, rm.time_zone
         FROM round r JOIN round_member rm ON rm.round_id = r.id
         WHERE r.status != 'scheduled'
@@ -1180,7 +1179,7 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
       Effect.orDie,
     );
 
-  const getRoundResultPayloads = (): Effect.Effect<ReadonlyArray<{ roundId: RoundId; payload: string }>> =>
+  const getRoundResultPayloads = (): Effect.Effect<readonly { roundId: RoundId; payload: string }[]> =>
     sql<{ round_id: RoundId; payload: string }>`SELECT round_id, payload FROM round_result`.pipe(
       Effect.map((all) => all.map((row) => ({ roundId: row.round_id, payload: row.payload }))),
       Effect.orDie,

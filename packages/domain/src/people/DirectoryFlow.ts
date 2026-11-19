@@ -1,11 +1,7 @@
 import { Clock, Context, Effect, Option } from "effect";
 import type { SendId } from "../email/Email.ts";
-import {
-  EmailNotResendable,
-  type FailedEmailStatus,
-  FailedEmailNotFound,
-  type FailedEmails,
-} from "../email/FailedEmails.ts";
+import { EmailNotResendable, FailedEmailNotFound } from "../email/FailedEmails.ts";
+import type { FailedEmailStatus, FailedEmails } from "../email/FailedEmails.ts";
 import type { DirectoryCommand, DirectoryRejection, FollowUp, ResendResult, Viewed } from "./Directory.ts";
 import type { PersonId } from "./Identity.ts";
 import type { OrganizationId } from "./Organization.ts";
@@ -15,19 +11,16 @@ import { PeopleIndex } from "./SignInPorts.ts";
 import {
   LastAdmin,
   LastLead,
-  type OrganizationSettings,
   PersonNotFound,
   PersonWasRemoved,
-  type TeamDetail,
-  type TeamId,
   TeamNameTaken,
   TeamNotFound,
-  type TeamSummary,
 } from "./Team.ts";
+import type { OrganizationSettings, TeamDetail, TeamId, TeamSummary } from "./Team.ts";
 
 export type CommandResult =
   | { readonly _tag: "Rejected"; readonly rejection: DirectoryRejection }
-  | { readonly _tag: "Accepted"; readonly followUps: ReadonlyArray<FollowUp> };
+  | { readonly _tag: "Accepted"; readonly followUps: readonly FollowUp[] };
 
 export interface OrganizationDirectoryShape {
   readonly run: (
@@ -39,7 +32,7 @@ export interface OrganizationDirectoryShape {
   readonly teams: (
     organizationId: OrganizationId,
     actorId: PersonId,
-  ) => Effect.Effect<Viewed<ReadonlyArray<TeamSummary>>>;
+  ) => Effect.Effect<Viewed<readonly TeamSummary[]>>;
   readonly team: (
     organizationId: OrganizationId,
     actorId: PersonId,
@@ -87,24 +80,33 @@ export type DirectoryError =
 
 const fail = (rejection: DirectoryRejection): Effect.Effect<never, DirectoryError> => {
   switch (rejection._tag) {
-    case "Forbidden":
+    case "Forbidden": {
       return Effect.fail(new Forbidden());
-    case "TeamNotFound":
+    }
+    case "TeamNotFound": {
       return Effect.fail(new TeamNotFound());
-    case "PersonNotFound":
+    }
+    case "PersonNotFound": {
       return Effect.fail(new PersonNotFound());
-    case "PersonWasRemoved":
+    }
+    case "PersonWasRemoved": {
       return Effect.fail(new PersonWasRemoved());
-    case "LastLead":
+    }
+    case "LastLead": {
       return Effect.fail(new LastLead({ teamId: rejection.teamId }));
-    case "LastAdmin":
+    }
+    case "LastAdmin": {
       return Effect.fail(new LastAdmin());
-    case "TeamNameTaken":
+    }
+    case "TeamNameTaken": {
       return Effect.fail(new TeamNameTaken());
-    case "FailedEmailNotFound":
+    }
+    case "FailedEmailNotFound": {
       return Effect.fail(new FailedEmailNotFound());
-    case "EmailNotResendable":
+    }
+    case "EmailNotResendable": {
       return Effect.fail(new EmailNotResendable());
+    }
   }
 };
 
@@ -114,15 +116,17 @@ const viewed = <A>(view: Viewed<A>): Effect.Effect<A, DirectoryError> =>
 const followUp = Effect.fnUntraced(function* (organizationId: OrganizationId, step: FollowUp) {
   const index = yield* PeopleIndex;
   switch (step._tag) {
-    case "IndexPerson":
+    case "IndexPerson": {
       return yield* index.putPerson({
         organizationId,
         personId: step.person.id,
         email: step.person.email,
         userId: Option.fromNullishOr(step.person.authUserId),
       });
-    case "UnindexPerson":
+    }
+    case "UnindexPerson": {
       return yield* index.removePerson(organizationId, step.personId);
+    }
   }
 });
 

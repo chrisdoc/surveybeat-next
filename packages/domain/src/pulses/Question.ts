@@ -28,7 +28,7 @@ export const QuestionType = Schema.TaggedUnion({
       Schema.check(
         Schema.isMinLength(2),
         Schema.isMaxLength(8),
-        Schema.makeFilter((options: ReadonlyArray<string>) => new Set(options).size === options.length, {
+        Schema.makeFilter((options: readonly string[]) => new Set(options).size === options.length, {
           expected: "distinct options",
         }),
       ),

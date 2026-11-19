@@ -1,7 +1,9 @@
 import { describe, expect, it } from "@effect/vitest";
 import { PersonId } from "./Identity.ts";
-import { type Action, type Actor, can, PERMISSIONS, type TeamAction } from "./Permissions.ts";
-import { type MembershipRole, TeamId } from "./Team.ts";
+import { can, PERMISSIONS } from "./Permissions.ts";
+import type { Action, Actor, TeamAction } from "./Permissions.ts";
+import { TeamId } from "./Team.ts";
+import type { MembershipRole } from "./Team.ts";
 
 const team = TeamId.make("platform");
 const otherTeam = TeamId.make("design");
@@ -23,14 +25,14 @@ const ACTORS = {
   nobody: actor(false),
 } satisfies Record<string, Actor>;
 type Who = keyof typeof ACTORS;
-const EVERYONE = Object.keys(ACTORS) as ReadonlyArray<Who>;
+const EVERYONE = Object.keys(ACTORS) as readonly Who[];
 
 /**
  * SPEC §5.6: one row per action, listing exactly who may do it (to `team` for Team actions).
  * Everyone not listed is refused. An Organization admin administers but never reads Results
  * (ADR 0003), and a role in another Team grants nothing here.
  */
-const TABLE: { readonly [A in Action]: ReadonlyArray<Who> } = {
+const TABLE: Readonly<Record<Action, readonly Who[]>> = {
   "organization.viewSettings": ["admin", "adminLead"],
   "organization.updateSettings": ["admin", "adminLead"],
   "organization.setAdmin": ["admin", "adminLead"],
@@ -62,7 +64,7 @@ const isTeamAction = (action: Action): action is TeamAction => action.startsWith
 const ask = (who: Who, action: Action): boolean =>
   can(ACTORS[who], action, isTeamAction(action) ? { _tag: "Team", teamId: team } : { _tag: "Organization" });
 
-const rows = (Object.keys(TABLE) as ReadonlyArray<Action>).flatMap((action) =>
+const rows = (Object.keys(TABLE) as readonly Action[]).flatMap((action) =>
   EVERYONE.map((who) => ({ action, who, allowed: TABLE[action].includes(who) })),
 );
 

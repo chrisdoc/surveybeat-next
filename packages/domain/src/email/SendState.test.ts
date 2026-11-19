@@ -11,84 +11,84 @@ import {
   requeue,
   retryDelaySeconds,
   sendMachine,
-  type SendState,
   SendState as SendStateSchema,
   settle,
 } from "./SendState.ts";
+import type { SendState } from "./SendState.ts";
 
-const policy = { leaseMillis: 1_000, maxAttempts: 3 };
-const sending = (attempt: number, leaseExpiresAt = 2_000): SendState => ({
+const policy = { leaseMillis: 1000, maxAttempts: 3 };
+const sending = (attempt: number, leaseExpiresAt = 2000): SendState => ({
   _tag: "Sending",
   attempt,
   leaseExpiresAt,
 });
-const sent: SendState = { _tag: "Sent", messageId: "m-1", sentAt: 1_500 };
+const sent: SendState = { _tag: "Sent", messageId: "m-1", sentAt: 1500 };
 
 describe("claim", () => {
   it("takes a lease on a pending send", () => {
-    expect(claim(pending, 1_000, policy)).toEqual({ _tag: "Send", state: sending(1) });
+    expect(claim(pending, 1000, policy)).toEqual({ _tag: "Send", state: sending(1) });
   });
 
   it("counts the attempt after clear rejections", () => {
     const retrying: SendState = { _tag: "Pending", attempts: 2, lastCode: "E_RATE_LIMIT_EXCEEDED" };
-    expect(claim(retrying, 1_000, policy)).toEqual({ _tag: "Send", state: sending(3) });
+    expect(claim(retrying, 1000, policy)).toEqual({ _tag: "Send", state: sending(3) });
   });
 
   it("waits while another delivery holds the lease", () => {
-    expect(claim(sending(1), 1_999, policy)).toEqual({ _tag: "Wait", until: 2_000 });
+    expect(claim(sending(1), 1999, policy)).toEqual({ _tag: "Wait", until: 2000 });
   });
 
   it("fails an expired lease as unknown and never sends again", () => {
-    expect(claim(sending(1), 2_000, policy)).toEqual({
+    expect(claim(sending(1), 2000, policy)).toEqual({
       _tag: "Finished",
-      state: { _tag: "Failed", reason: "unknown", code: null, failedAt: 2_000 },
+      state: { _tag: "Failed", reason: "unknown", code: null, failedAt: 2000 },
       changed: true,
     });
   });
 
   it("leaves a finished send alone", () => {
-    expect(claim(sent, 5_000, policy)).toEqual({ _tag: "Finished", state: sent, changed: false });
+    expect(claim(sent, 5000, policy)).toEqual({ _tag: "Finished", state: sent, changed: false });
     const failed: SendState = { _tag: "Failed", reason: "rejected", code: "E_X", failedAt: 1 };
-    expect(claim(failed, 5_000, policy)).toEqual({ _tag: "Finished", state: failed, changed: false });
+    expect(claim(failed, 5000, policy)).toEqual({ _tag: "Finished", state: failed, changed: false });
   });
 });
 
 describe("settle", () => {
   it("records an accepted message as sent", () => {
-    expect(settle(sending(1), 1, { _tag: "Accepted", messageId: "m-1" }, 1_500, policy)).toEqual(
+    expect(settle(sending(1), 1, { _tag: "Accepted", messageId: "m-1" }, 1500, policy)).toEqual(
       Option.some(sent),
     );
   });
 
   it("returns a clearly rejected send to pending until the attempts run out", () => {
     const rejected = { _tag: "Rejected", code: "E_DELIVERY_FAILED", permanent: false } as const;
-    expect(settle(sending(2), 2, rejected, 1_500, policy)).toEqual(
+    expect(settle(sending(2), 2, rejected, 1500, policy)).toEqual(
       Option.some({ _tag: "Pending", attempts: 2, lastCode: "E_DELIVERY_FAILED" }),
     );
-    expect(settle(sending(3), 3, rejected, 1_500, policy)).toEqual(
-      Option.some({ _tag: "Failed", reason: "rejected", code: "E_DELIVERY_FAILED", failedAt: 1_500 }),
+    expect(settle(sending(3), 3, rejected, 1500, policy)).toEqual(
+      Option.some({ _tag: "Failed", reason: "rejected", code: "E_DELIVERY_FAILED", failedAt: 1500 }),
     );
   });
 
   it("fails a permanent rejection at once", () => {
     const suppressed = { _tag: "Rejected", code: "E_RECIPIENT_SUPPRESSED", permanent: true } as const;
-    expect(settle(sending(1), 1, suppressed, 1_500, policy)).toEqual(
-      Option.some({ _tag: "Failed", reason: "rejected", code: "E_RECIPIENT_SUPPRESSED", failedAt: 1_500 }),
+    expect(settle(sending(1), 1, suppressed, 1500, policy)).toEqual(
+      Option.some({ _tag: "Failed", reason: "rejected", code: "E_RECIPIENT_SUPPRESSED", failedAt: 1500 }),
     );
   });
 
   it("fails an unknown outcome without a retry", () => {
-    expect(settle(sending(1), 1, { _tag: "Unknown", code: "E_TIMEOUT" }, 1_500, policy)).toEqual(
-      Option.some({ _tag: "Failed", reason: "unknown", code: "E_TIMEOUT", failedAt: 1_500 }),
+    expect(settle(sending(1), 1, { _tag: "Unknown", code: "E_TIMEOUT" }, 1500, policy)).toEqual(
+      Option.some({ _tag: "Failed", reason: "unknown", code: "E_TIMEOUT", failedAt: 1500 }),
     );
   });
 
   it("ignores an attempt that no longer holds the send", () => {
     const accepted = { _tag: "Accepted", messageId: "m-1" } as const;
-    expect(settle(sending(2), 1, accepted, 1_500, policy)).toEqual(Option.none());
-    const expired: SendState = { _tag: "Failed", reason: "unknown", code: null, failedAt: 2_000 };
-    expect(settle(expired, 1, accepted, 2_500, policy)).toEqual(Option.none());
-    expect(settle(sent, 1, accepted, 2_500, policy)).toEqual(Option.none());
+    expect(settle(sending(2), 1, accepted, 1500, policy)).toEqual(Option.none());
+    const expired: SendState = { _tag: "Failed", reason: "unknown", code: null, failedAt: 2000 };
+    expect(settle(expired, 1, accepted, 2500, policy)).toEqual(Option.none());
+    expect(settle(sent, 1, accepted, 2500, policy)).toEqual(Option.none());
   });
 });
 
@@ -174,33 +174,37 @@ describe("send state properties", () => {
     ({ state, now, policy }) => {
       const decision = claim(state, now, policy);
       switch (state._tag) {
-        case "Pending":
+        case "Pending": {
           return (
             decision._tag === "Send" &&
             decision.state.attempt === state.attempts + 1 &&
             decision.state.leaseExpiresAt === now + policy.leaseMillis
           );
-        case "Sending":
+        }
+        case "Sending": {
           return now < state.leaseExpiresAt
             ? decision._tag === "Wait" && decision.until === state.leaseExpiresAt
             : decision._tag === "Finished" &&
                 decision.changed &&
                 decision.state._tag === "Failed" &&
                 decision.state.reason === "unknown";
-        case "Sent":
+        }
+        case "Sent": {
           return (
             decision._tag === "Finished" &&
             !decision.changed &&
             decision.state._tag === "Sent" &&
             decision.state.messageId === state.messageId
           );
-        case "Failed":
+        }
+        case "Failed": {
           return (
             decision._tag === "Finished" &&
             !decision.changed &&
             decision.state._tag === "Failed" &&
             decision.state.failedAt === state.failedAt
           );
+        }
       }
     },
   );
@@ -214,14 +218,17 @@ describe("send state properties", () => {
       if (Option.isNone(settled)) return false;
       const next = settled.value;
       switch (outcome._tag) {
-        case "Accepted":
+        case "Accepted": {
           return next._tag === "Sent" && next.messageId === outcome.messageId && next.sentAt === now;
-        case "Rejected":
+        }
+        case "Rejected": {
           return outcome.permanent || attempt >= policy.maxAttempts
             ? next._tag === "Failed" && next.reason === "rejected" && next.code === outcome.code
             : next._tag === "Pending" && next.attempts === attempt && next.lastCode === outcome.code;
-        case "Unknown":
+        }
+        case "Unknown": {
           return next._tag === "Failed" && next.reason === "unknown" && next.code === outcome.code;
+        }
       }
     },
   );
@@ -262,7 +269,7 @@ const refuses = (state: SendState, event: Parameters<typeof transition<typeof se
   return isUnhandled(snapshot, transition(sendMachine, snapshot, event));
 };
 
-const live: SendState = sending(1, 2_000);
+const live: SendState = sending(1, 2000);
 const dead: SendState = { _tag: "Failed", reason: "abandoned", code: null, failedAt: 10 };
 
 describe("send machine", () => {
@@ -289,17 +296,17 @@ describe("send machine", () => {
       Effect.gen(function* () {
         const actor = yield* createEffectActor(sendMachine);
         expect(actor.getSnapshot().value).toBe("pending");
-        yield* sendAndAwait(actor, { type: "Claim", now: 1_000, policy });
+        yield* sendAndAwait(actor, { type: "Claim", now: 1000, policy });
         expect(actor.getSnapshot().value).toBe("sending");
         yield* sendAndAwait(actor, {
           type: "Settle",
           attempt: 1,
           outcome: { _tag: "Accepted", messageId: "m-1" },
-          now: 1_500,
+          now: 1500,
           policy,
         });
         expect(actor.getSnapshot().value).toBe("sent");
-        expect(actor.getSnapshot().context.state).toEqual({ _tag: "Sent", messageId: "m-1", sentAt: 1_500 });
+        expect(actor.getSnapshot().context.state).toEqual({ _tag: "Sent", messageId: "m-1", sentAt: 1500 });
       }),
     ),
   );
@@ -309,24 +316,24 @@ describe("send machine", () => {
       Effect.gen(function* () {
         const actor = yield* createEffectActor(sendMachine);
         const rejected = { _tag: "Rejected", code: "E_DELIVERY_FAILED", permanent: false } as const;
-        yield* sendAndAwait(actor, { type: "Claim", now: 1_000, policy });
-        yield* sendAndAwait(actor, { type: "Settle", attempt: 1, outcome: rejected, now: 1_100, policy });
+        yield* sendAndAwait(actor, { type: "Claim", now: 1000, policy });
+        yield* sendAndAwait(actor, { type: "Settle", attempt: 1, outcome: rejected, now: 1100, policy });
         expect(actor.getSnapshot().value).toBe("pending");
         expect(actor.getSnapshot().context.state).toEqual({
           _tag: "Pending",
           attempts: 1,
           lastCode: "E_DELIVERY_FAILED",
         });
-        yield* sendAndAwait(actor, { type: "Claim", now: 1_200, policy });
-        yield* sendAndAwait(actor, { type: "Settle", attempt: 2, outcome: rejected, now: 1_250, policy });
-        yield* sendAndAwait(actor, { type: "Claim", now: 1_260, policy });
-        yield* sendAndAwait(actor, { type: "Settle", attempt: 3, outcome: rejected, now: 1_300, policy });
+        yield* sendAndAwait(actor, { type: "Claim", now: 1200, policy });
+        yield* sendAndAwait(actor, { type: "Settle", attempt: 2, outcome: rejected, now: 1250, policy });
+        yield* sendAndAwait(actor, { type: "Claim", now: 1260, policy });
+        yield* sendAndAwait(actor, { type: "Settle", attempt: 3, outcome: rejected, now: 1300, policy });
         expect(actor.getSnapshot().value).toBe("failed");
         expect(actor.getSnapshot().context.state).toEqual({
           _tag: "Failed",
           reason: "rejected",
           code: "E_DELIVERY_FAILED",
-          failedAt: 1_300,
+          failedAt: 1300,
         });
         yield* sendAndAwait(actor, { type: "Requeue" });
         expect(actor.getSnapshot().value).toBe("pending");
@@ -338,31 +345,31 @@ describe("send machine", () => {
     Effect.scoped(
       Effect.gen(function* () {
         const actor = yield* createEffectActor(sendMachine);
-        yield* sendAndAwait(actor, { type: "Claim", now: 1_000, policy });
+        yield* sendAndAwait(actor, { type: "Claim", now: 1000, policy });
         yield* sendAndAwait(actor, {
           type: "Settle",
           attempt: 1,
           outcome: { _tag: "Unknown", code: "E_TIMEOUT" },
-          now: 1_100,
+          now: 1100,
           policy,
         });
         expect(actor.getSnapshot().context.state).toEqual({
           _tag: "Failed",
           reason: "unknown",
           code: "E_TIMEOUT",
-          failedAt: 1_100,
+          failedAt: 1100,
         });
 
         const delivered = yield* createEffectActor(sendMachine, {
           snapshot: sendMachine.resolveState({ value: "sent", context: { state: sent } }),
         });
-        yield* sendAndAwait(delivered, { type: "Delivery", kind: "bounced", code: "E_BOUNCE", now: 2_000 });
+        yield* sendAndAwait(delivered, { type: "Delivery", kind: "bounced", code: "E_BOUNCE", now: 2000 });
         expect(delivered.getSnapshot().value).toBe("failed");
         expect(delivered.getSnapshot().context.state).toEqual({
           _tag: "Failed",
           reason: "bounced",
           code: "E_BOUNCE",
-          failedAt: 2_000,
+          failedAt: 2000,
         });
       }),
     ),

@@ -1,15 +1,11 @@
-import {
-  type HistoryQuestion,
-  type HistoryRound,
-  type HistoryTeamResult,
-  MemberHistory,
-} from "@surveybeat/domain";
+import { MemberHistory } from "@surveybeat/domain";
+import type { HistoryQuestion, HistoryRound, HistoryTeamResult } from "@surveybeat/domain";
 import { Schema } from "effect";
 import type { Html, HtmlBuilder } from "foldkit/html";
 import { defineTaggedUnion } from "foldkit/schema";
 import { formatRoundDate, formatScore, message } from "../messages/locale.ts";
 import { Failure } from "./api.ts";
-import { teamsHref } from "./routes.ts";
+import { teamsHref, roundResultsHref } from "./routes.ts";
 import {
   appButton,
   emptyState,
@@ -20,8 +16,8 @@ import {
   secondaryButtonClass,
   subSectionTitle,
 } from "./components.ts";
-import { type KeptAnswer, KeptAnswers } from "./keptAnswers.ts";
-import { roundResultsHref } from "./routes.ts";
+import { KeptAnswers } from "./keptAnswers.ts";
+import type { KeptAnswer } from "./keptAnswers.ts";
 
 const noticeClass = "mt-4 rounded-control bg-subtle px-4 py-3 text-sm text-muted";
 
@@ -68,8 +64,9 @@ const yourAnswer = (
       const option = index !== undefined && Number.isInteger(index) ? type.options[index] : undefined;
       return { main: option, comment: undefined };
     }
-    case "LongText":
+    case "LongText": {
       return { main: nonEmpty(answer?.comment), comment: undefined };
+    }
   }
 };
 
@@ -184,7 +181,7 @@ export const historyView = <Message>(
   actions: { readonly onClear: Message },
   h: HtmlBuilder<Message>,
 ): Html => {
-  const children: Array<Html> = [
+  const children: Html[] = [
     pageTitle(message("history.title"), h),
     h.p([h.Class("mt-2 text-muted")], [message("history.intro")]),
   ];

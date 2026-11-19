@@ -3,19 +3,19 @@ import type { PersonId } from "../people/Identity.ts";
 import type { OrganizationId } from "../people/Organization.ts";
 import { Forbidden } from "../people/SignIn.ts";
 import type { Member } from "../people/SignInFlow.ts";
-import { type TeamId, TeamNotFound } from "../people/Team.ts";
-import { PulseNotFound, type PulseId } from "../pulses/Pulse.ts";
+import { TeamNotFound } from "../people/Team.ts";
+import type { TeamId } from "../people/Team.ts";
+import { PulseNotFound } from "../pulses/Pulse.ts";
+import type { PulseId } from "../pulses/Pulse.ts";
 import type { RoundCommand, RoundRejection } from "./Lifecycle.ts";
 import {
   InvalidRoundState,
   InvitationNotFound,
-  type RoundDetail,
-  type RoundId,
-  type RoundList,
   RoundNotFound,
   RoundNotOpen,
   WeekOutOfRange,
 } from "./Round.ts";
+import type { RoundDetail, RoundId, RoundList } from "./Round.ts";
 import type { MemberHistory } from "./MemberHistory.ts";
 import type { RoundResult } from "./Results.ts";
 import type { TeamOverview } from "./TeamOverview.ts";
@@ -77,22 +77,30 @@ export type RoundError =
 
 export const failRoundRejection = (rejection: RoundRejection): Effect.Effect<never, RoundError> => {
   switch (rejection._tag) {
-    case "Forbidden":
+    case "Forbidden": {
       return Effect.fail(new Forbidden());
-    case "TeamNotFound":
+    }
+    case "TeamNotFound": {
       return Effect.fail(new TeamNotFound());
-    case "PulseNotFound":
+    }
+    case "PulseNotFound": {
       return Effect.fail(new PulseNotFound());
-    case "RoundNotFound":
+    }
+    case "RoundNotFound": {
       return Effect.fail(new RoundNotFound());
-    case "RoundNotOpen":
+    }
+    case "RoundNotOpen": {
       return Effect.fail(new RoundNotOpen());
-    case "InvalidRoundState":
+    }
+    case "InvalidRoundState": {
       return Effect.fail(new InvalidRoundState({ status: rejection.status }));
-    case "WeekOutOfRange":
+    }
+    case "WeekOutOfRange": {
       return Effect.fail(new WeekOutOfRange());
-    case "InvitationNotFound":
+    }
+    case "InvitationNotFound": {
       return Effect.fail(new InvitationNotFound());
+    }
   }
 };
 

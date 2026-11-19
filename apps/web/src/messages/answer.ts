@@ -35,7 +35,7 @@ export const answerCatalog = {
 type AnswerCatalog = typeof answerCatalog;
 export type AnswerKey = keyof AnswerCatalog;
 
-export type AnswerTranslation = { readonly [K in AnswerKey]: string };
+export type AnswerTranslation = Readonly<Record<AnswerKey, string>>;
 
 type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
 

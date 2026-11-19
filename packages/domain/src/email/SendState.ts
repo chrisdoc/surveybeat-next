@@ -111,12 +111,13 @@ export const sendMachine = setup({
         Settle: ({ context, event }) => {
           if (context.state._tag !== "Sending" || context.state.attempt !== event.attempt) return;
           switch (event.outcome._tag) {
-            case "Accepted":
+            case "Accepted": {
               return {
                 target: "sent",
                 context: { state: { _tag: "Sent", messageId: event.outcome.messageId, sentAt: event.now } },
               };
-            case "Rejected":
+            }
+            case "Rejected": {
               return event.outcome.permanent || event.attempt >= event.policy.maxAttempts
                 ? {
                     target: "failed",
@@ -128,11 +129,13 @@ export const sendMachine = setup({
                       state: { _tag: "Pending", attempts: event.attempt, lastCode: event.outcome.code },
                     },
                   };
-            case "Unknown":
+            }
+            case "Unknown": {
               return {
                 target: "failed",
                 context: { state: failedState("unknown", event.outcome.code, event.now) },
               };
+            }
           }
         },
         Abandon: ({ event }) => ({
@@ -198,16 +201,20 @@ export const claim = (state: SendState, now: number, policy: SendPolicy): ClaimD
   const { next } = step(state, { type: "Claim", now, policy });
   const settled = next.context.state;
   switch (settled._tag) {
-    case "Sending":
+    case "Sending": {
       return state._tag === "Pending"
         ? { _tag: "Send", state: settled }
         : { _tag: "Wait", until: settled.leaseExpiresAt };
-    case "Failed":
+    }
+    case "Failed": {
       return { _tag: "Finished", state: settled, changed: state._tag !== "Failed" };
-    case "Sent":
+    }
+    case "Sent": {
       return { _tag: "Finished", state: settled, changed: false };
-    case "Pending":
+    }
+    case "Pending": {
       throw new Error("Send.claim leaves no state Pending");
+    }
   }
 };
 

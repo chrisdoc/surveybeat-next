@@ -24,7 +24,6 @@ import {
   PulseSettings,
   QuestionContent,
   QuestionId,
-  type QuestionType,
   resolveLocale,
   RoundDetail,
   RoundId,
@@ -42,6 +41,7 @@ import {
   TimeZone,
   Weekday,
 } from "@surveybeat/domain";
+import type { QuestionType } from "@surveybeat/domain";
 import { Effect, Option, Schema } from "effect";
 import { Command, Navigation, Update } from "foldkit";
 import type { Document, HtmlBuilder } from "foldkit/html";
@@ -62,13 +62,12 @@ import {
   LoadedSettings,
   LoadedTeam,
   LoadedTeams,
-  type NavSection,
   settingsScreenView,
   shellView,
   teamScreenView,
   teamsScreenView,
 } from "./directory.ts";
-import type { AttentionItem, ChecklistStep } from "./directory.ts";
+import type { NavSection, AttentionItem, ChecklistStep } from "./directory.ts";
 import { historyView, LoadedHistory } from "./history.ts";
 import { browserStorage, clearKeptAnswers, KeptAnswers, readKeptAnswers } from "./keptAnswers.ts";
 import { LoadedOverview, teamOverviewView } from "./overview.ts";
@@ -843,7 +842,7 @@ export const ReorderQuestionsCmd = Command.define("ReorderQuestionsCmd", {
       (api) =>
         api.pulses.reorderQuestions({
           params: { teamId, pulseId },
-          payload: { order: Array.from(order) },
+          payload: { order: [...order] },
         }),
       (detail) => Message.UpdatedPulse({ outcome: { _tag: "Success", detail } }),
       (failure) => Message.UpdatedPulse({ outcome: { _tag: "Failure", failure } }),
@@ -1107,7 +1106,7 @@ export const LoadExternalUrl = Command.define("LoadExternalUrl", {
   execute: ({ href }) => Navigation.load(href).pipe(Effect.as(Message.Navigated())),
 });
 
-export const initialModel = (url: Url, languages: ReadonlyArray<string>): Model => {
+export const initialModel = (url: Url, languages: readonly string[]): Model => {
   const route = urlToAppRoute(url);
   const timeZone = typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC";
   return {
@@ -1221,10 +1220,10 @@ export const initialModel = (url: Url, languages: ReadonlyArray<string>): Model 
   };
 };
 
-const attentionItems = (model: Model): ReadonlyArray<AttentionItem> => {
+const attentionItems = (model: Model): readonly AttentionItem[] => {
   if (model.route._tag !== "Teams") return [];
   if (model.teams._tag !== "Loaded") return [];
-  const items: Array<AttentionItem> = [];
+  const items: AttentionItem[] = [];
   for (const team of model.teams.teams) {
     const pulses = model.homePulses[team.id];
     if (pulses !== undefined) {
@@ -1274,7 +1273,7 @@ const attentionItems = (model: Model): ReadonlyArray<AttentionItem> => {
   return items;
 };
 
-const firstRunChecklist = (model: Model): ReadonlyArray<ChecklistStep> | null => {
+const firstRunChecklist = (model: Model): readonly ChecklistStep[] | null => {
   const route = model.route;
   if (route._tag !== "Team") return null;
   if (model.teamDetail._tag !== "Loaded") return null;
@@ -1321,34 +1320,43 @@ const firstRunChecklist = (model: Model): ReadonlyArray<ChecklistStep> | null =>
 
 export const loadActiveRouteCommand = (route: AppRoute) => {
   switch (route._tag) {
-    case "Teams":
+    case "Teams": {
       return [ListTeams()];
-    case "Team":
+    }
+    case "Team": {
       return [
         GetTeam({ teamId: route.teamId }),
         GetTeamOverviewCmd({ teamId: route.teamId }),
         ListPulses({ teamId: route.teamId }),
       ];
-    case "History":
+    }
+    case "History": {
       return [GetMyHistoryCmd()];
-    case "Settings":
+    }
+    case "Settings": {
       return [GetSettings(), ListFailedEmails()];
-    case "Pulses":
+    }
+    case "Pulses": {
       return [ListPulses({ teamId: route.teamId })];
-    case "Pulse":
+    }
+    case "Pulse": {
       return [GetPulse({ teamId: route.teamId, pulseId: route.pulseId })];
-    case "Rounds":
+    }
+    case "Rounds": {
       return [GetTeam({ teamId: route.teamId })];
-    case "RoundResults":
+    }
+    case "RoundResults": {
       return [
         GetResultsCmd({ teamId: route.teamId, roundId: route.roundId }),
         ListActionsCmd({ teamId: route.teamId }),
         GetRoundNoteCmd({ teamId: route.teamId, roundId: route.roundId }),
         GetTeam({ teamId: route.teamId }),
       ];
+    }
     case "Privacy":
-    case "NotFound":
+    case "NotFound": {
       return [];
+    }
   }
 };
 
@@ -1389,14 +1397,18 @@ const navSectionOf = (route: AppRoute, organizationAdmin: boolean): NavSection |
     case "Pulses":
     case "Pulse":
     case "Rounds":
-    case "RoundResults":
+    case "RoundResults": {
       return "teams";
-    case "History":
+    }
+    case "History": {
       return "history";
-    case "Settings":
+    }
+    case "Settings": {
       return organizationAdmin ? "settings" : "teams";
-    case "Privacy":
+    }
+    case "Privacy": {
       return null;
+    }
   }
 };
 
@@ -1420,12 +1432,11 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
           model,
           commands: [Navigate({ url: path })],
         };
-      } else {
-        return {
-          model,
-          commands: [LoadExternalUrl({ href: request.href })],
-        };
       }
+      return {
+        model,
+        commands: [LoadExternalUrl({ href: request.href })],
+      };
     }
 
     case "UrlChanged": {
@@ -1484,15 +1495,16 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       return closed;
     }
 
-    case "Navigated":
+    case "Navigated": {
       return { model };
+    }
 
     case "GotSession": {
       const sessionResult = message.result;
       const failedParam = Option.isSome(model.url.search) && model.url.search.value.includes("signin=failed");
 
       switch (sessionResult._tag) {
-        case "SignedOut":
+        case "SignedOut": {
           return {
             model: {
               ...model,
@@ -1507,21 +1519,24 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
               },
             },
           };
-        case "Failed":
+        }
+        case "Failed": {
           return {
             model: {
               ...model,
               session: { _tag: "Failed" },
             },
           };
-        case "CreateOrganization":
+        }
+        case "CreateOrganization": {
           return {
             model: {
               ...model,
               session: { _tag: "CreateOrganization", name: "", busy: false },
             },
           };
-        case "ChooseOrganization":
+        }
+        case "ChooseOrganization": {
           return {
             model: {
               ...model,
@@ -1532,6 +1547,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
               },
             },
           };
+        }
         case "SignedIn": {
           const nextModel: Model = {
             ...model,
@@ -1548,41 +1564,46 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
           return { model: nextModel, commands: loadActiveRouteCommand(model.route) };
         }
 
-        default:
+        default: {
           return {
             model: {
               ...model,
               session: { _tag: "NotInOrganization" },
             },
           };
+        }
       }
     }
 
-    case "RetrySession":
+    case "RetrySession": {
       return {
         model: { ...model, session: { _tag: "Loading" } },
         commands: [LoadSession()],
       };
+    }
 
-    case "SignInEmailChanged":
+    case "SignInEmailChanged": {
       return model.session._tag === "SignedOut"
         ? { model: { ...model, session: { ...model.session, email: message.email } } }
         : { model };
+    }
 
-    case "SignInCodeChanged":
+    case "SignInCodeChanged": {
       return model.session._tag === "SignedOut"
         ? { model: { ...model, session: { ...model.session, code: message.code } } }
         : { model };
+    }
 
-    case "SubmitSignInEmail":
+    case "SubmitSignInEmail": {
       if (model.session._tag !== "SignedOut" || model.session.busy) return { model };
       if (model.session.email.trim() === "") return { model };
       return {
         model: { ...model, session: { ...model.session, busy: true, notice: null } },
         commands: [SendSignInCode({ email: EmailAddress.make(model.session.email.trim()) })],
       };
+    }
 
-    case "SubmitSignInCode":
+    case "SubmitSignInCode": {
       if (model.session._tag !== "SignedOut" || model.session.busy) return { model };
       if (model.session.code.trim() === "") return { model };
       return {
@@ -1594,8 +1615,9 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
           }),
         ],
       };
+    }
 
-    case "SignInCodeSent":
+    case "SignInCodeSent": {
       if (model.session._tag !== "SignedOut") return { model };
       return {
         model: {
@@ -1615,8 +1637,9 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
           },
         },
       };
+    }
 
-    case "SignInCodeChecked":
+    case "SignInCodeChecked": {
       if (model.session._tag !== "SignedOut") return { model };
       if (message.verified) {
         return {
@@ -1630,8 +1653,9 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
           session: { ...model.session, busy: false, notice: translate("signIn.failed") },
         },
       };
+    }
 
-    case "CreateOrgNameChanged":
+    case "CreateOrgNameChanged": {
       if (model.session._tag === "CreateOrganization") {
         return {
           model: {
@@ -1641,8 +1665,9 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         };
       }
       return { model };
+    }
 
-    case "SubmitCreateOrg":
+    case "SubmitCreateOrg": {
       if (model.session._tag === "CreateOrganization") {
         const name = model.session.name.trim();
         if (name === "") return { model };
@@ -1655,8 +1680,9 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         };
       }
       return { model };
+    }
 
-    case "ChooseOrgClicked":
+    case "ChooseOrgClicked": {
       if (model.session._tag === "ChooseOrganization") {
         return {
           model: {
@@ -1667,12 +1693,15 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         };
       }
       return { model };
+    }
 
-    case "GotNavMenuMessage":
+    case "GotNavMenuMessage": {
       return foldNavMenu(model, message.message);
+    }
 
-    case "GotAccountMenuMessage":
+    case "GotAccountMenuMessage": {
       return foldAccountMenu(model, message.message);
+    }
 
     case "GotTeams": {
       const { outcome } = message;
@@ -1701,14 +1730,17 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       };
     }
 
-    case "CreateTeamNameChanged":
+    case "CreateTeamNameChanged": {
       return { model: { ...model, createTeamName: message.name } };
+    }
 
-    case "CreateTeamTimeZoneChanged":
+    case "CreateTeamTimeZoneChanged": {
       return { model: { ...model, createTeamTimeZone: message.tz } };
+    }
 
-    case "CreateTeamLeadEmailChanged":
+    case "CreateTeamLeadEmailChanged": {
       return { model: { ...model, createTeamLeadEmail: message.email } };
+    }
 
     case "SubmitCreateTeam": {
       const n = decodeName(model.createTeamName.trim());
@@ -1773,11 +1805,13 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       };
     }
 
-    case "RenameNameChanged":
+    case "RenameNameChanged": {
       return { model: { ...model, renameName: message.name } };
+    }
 
-    case "RenameTimeZoneChanged":
+    case "RenameTimeZoneChanged": {
       return { model: { ...model, renameTimeZone: message.tz } };
+    }
 
     case "SubmitRenameTeam": {
       if (model.teamDetail._tag !== "Loaded") return { model };
@@ -1814,8 +1848,9 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       };
     }
 
-    case "AddMemberEmailChanged":
+    case "AddMemberEmailChanged": {
       return { model: { ...model, addMemberEmail: message.email, addMemberAdded: false } };
+    }
 
     case "SubmitAddMember": {
       if (model.teamDetail._tag !== "Loaded") return { model };
@@ -1856,8 +1891,9 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       };
     }
 
-    case "AssignLeadEmailChanged":
+    case "AssignLeadEmailChanged": {
       return { model: { ...model, assignLeadEmail: message.email, assignLeadAdded: false } };
+    }
 
     case "SubmitAssignLead": {
       if (model.teamDetail._tag !== "Loaded") return { model };
@@ -1978,8 +2014,9 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       };
     }
 
-    case "DismissRemove":
+    case "DismissRemove": {
       return { model: { ...model, pendingRemove: Option.none(), pendingRemovePerson: Option.none() } };
+    }
 
     case "RemovedLead": {
       if (model.teamDetail._tag !== "Loaded") return { model };
@@ -2100,8 +2137,9 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       return { model: next, commands: [PollFailedEmailCmd({ sendId })] };
     }
 
-    case "SizeChanged":
+    case "SizeChanged": {
       return { model: { ...model, size: message.size, sizeSaved: false } };
+    }
 
     case "SubmitSize": {
       const parsed = decodeSize(Number(model.size));
@@ -2133,12 +2171,13 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       };
     }
 
-    case "AiProcessingToggled":
+    case "AiProcessingToggled": {
       if (model.aiBusy) return { model };
       return {
         model: { ...model, aiBusy: true, aiFailure: Option.none() },
         commands: [UpdateAiProcessing({ aiProcessing: message.isOn })],
       };
+    }
 
     case "UpdatedAiProcessing": {
       if (message.outcome._tag === "Success") {
@@ -2155,11 +2194,12 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       };
     }
 
-    case "GrantAdminClicked":
+    case "GrantAdminClicked": {
       return {
         model: { ...model, peopleBusy: true, peopleFailure: Option.none() },
         commands: [GrantAdmin({ personId: message.personId })],
       };
+    }
 
     case "GrantedAdmin": {
       if (message.outcome._tag === "Success") {
@@ -2180,11 +2220,12 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       };
     }
 
-    case "RevokeAdminClicked":
+    case "RevokeAdminClicked": {
       return {
         model: { ...model, peopleBusy: true, peopleFailure: Option.none() },
         commands: [RevokeAdmin({ personId: message.personId })],
       };
+    }
 
     case "RevokedAdmin": {
       if (message.outcome._tag === "Success") {
@@ -2222,11 +2263,13 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       };
     }
 
-    case "AskDropAction":
+    case "AskDropAction": {
       return { model: { ...model, pendingDropId: Option.some(message.actionId) } };
+    }
 
-    case "DismissDropAction":
+    case "DismissDropAction": {
       return { model: { ...model, pendingDropId: Option.none() } };
+    }
 
     case "ConfirmDropAction": {
       if (Option.isNone(model.pendingDropId)) return { model };
@@ -2238,20 +2281,27 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
 
     case "ToggleForm": {
       switch (message.form) {
-        case "createTeam":
+        case "createTeam": {
           return { model: { ...model, createTeamOpen: !model.createTeamOpen } };
-        case "renameTeam":
+        }
+        case "renameTeam": {
           return { model: { ...model, renameOpen: !model.renameOpen } };
-        case "addMember":
+        }
+        case "addMember": {
           return { model: { ...model, addMemberOpen: !model.addMemberOpen } };
-        case "assignLead":
+        }
+        case "assignLead": {
           return { model: { ...model, assignLeadOpen: !model.assignLeadOpen } };
-        case "skipWeek":
+        }
+        case "skipWeek": {
           return { model: { ...model, roundsSkipOpen: !model.roundsSkipOpen } };
-        case "commitAction":
+        }
+        case "commitAction": {
           return { model: { ...model, actionFormOpen: !model.actionFormOpen } };
-        case "minimumSize":
+        }
+        case "minimumSize": {
           return { model: { ...model, sizeOpen: !model.sizeOpen } };
+        }
       }
       return { model };
     }
@@ -2373,7 +2423,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     case "MoveQuestionClicked": {
       if (model.pulseDetail._tag !== "Loaded") return { model };
       const { detail } = model.pulseDetail;
-      const order: Array<QuestionId> = detail.questions.map((q) => q.questionId);
+      const order: QuestionId[] = detail.questions.map((q) => q.questionId);
       const [moved] = order.splice(message.index, 1);
       if (moved === undefined) return { model };
       order.splice(message.index + message.by, 0, moved);
@@ -2449,7 +2499,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       };
     }
 
-    case "ToggleWritingQuestion":
+    case "ToggleWritingQuestion": {
       return {
         model: {
           ...model,
@@ -2464,27 +2514,35 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
           formFailure: Option.none(),
         },
       };
+    }
 
-    case "FormTextChanged":
+    case "FormTextChanged": {
       return { model: { ...model, formText: message.text } };
+    }
 
-    case "FormKindChanged":
+    case "FormKindChanged": {
       return { model: { ...model, formKind: message.kind } };
+    }
 
-    case "FormDimensionChanged":
+    case "FormDimensionChanged": {
       return { model: { ...model, formDimension: message.dim } };
+    }
 
-    case "FormLowLabelChanged":
+    case "FormLowLabelChanged": {
       return { model: { ...model, formLowLabel: message.low } };
+    }
 
-    case "FormHighLabelChanged":
+    case "FormHighLabelChanged": {
       return { model: { ...model, formHighLabel: message.high } };
+    }
 
-    case "FormCommentToggled":
+    case "FormCommentToggled": {
       return { model: { ...model, formComment: message.comment } };
+    }
 
-    case "FormOptionsChanged":
+    case "FormOptionsChanged": {
       return { model: { ...model, formOptions: message.options } };
+    }
 
     case "SubmitQuestionForm": {
       if (model.pulseDetail._tag !== "Loaded") return { model };
@@ -2528,20 +2586,19 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
             }),
           ],
         };
-      } else {
-        if (Option.isNone(model.editingQuestionId)) return { model };
-        return {
-          model: { ...model, formBusy: true, formFailure: Option.none() },
-          commands: [
-            EditQuestionCmd({
-              teamId: detail.team.id,
-              pulseId: detail.id,
-              questionId: model.editingQuestionId.value,
-              payload: parsed.value,
-            }),
-          ],
-        };
       }
+      if (Option.isNone(model.editingQuestionId)) return { model };
+      return {
+        model: { ...model, formBusy: true, formFailure: Option.none() },
+        commands: [
+          EditQuestionCmd({
+            teamId: detail.team.id,
+            pulseId: detail.id,
+            questionId: model.editingQuestionId.value,
+            payload: parsed.value,
+          }),
+        ],
+      };
     }
 
     case "UpdatedPulse": {
@@ -2578,29 +2635,35 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       };
     }
 
-    case "SettingsNameChanged":
+    case "SettingsNameChanged": {
       return { model: { ...model, settingsName: message.name, settingsSaved: false } };
+    }
 
-    case "SettingsDayChanged":
+    case "SettingsDayChanged": {
       return { model: { ...model, settingsDay: message.day, settingsSaved: false } };
+    }
 
-    case "SettingsTimeChanged":
+    case "SettingsTimeChanged": {
       return { model: { ...model, settingsTime: message.time, settingsSaved: false } };
+    }
 
-    case "SettingsWindowChanged":
+    case "SettingsWindowChanged": {
       return {
         model: { ...model, settingsWindow: Number(message.days), settingsSaved: false },
       };
+    }
 
-    case "SettingsReviewWindowChanged":
+    case "SettingsReviewWindowChanged": {
       return {
         model: { ...model, settingsReviewWindow: Number(message.days), settingsSaved: false },
       };
+    }
 
-    case "SettingsRemindersChanged":
+    case "SettingsRemindersChanged": {
       return {
         model: { ...model, settingsReminders: Number(message.reminders), settingsSaved: false },
       };
+    }
 
     case "SubmitSettings": {
       if (model.pulseDetail._tag !== "Loaded") return { model };
@@ -2756,8 +2819,9 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       };
     }
 
-    case "SkipDateChanged":
+    case "SkipDateChanged": {
       return { model: { ...model, roundsSkipDate: message.date } };
+    }
 
     case "SkipWeekClicked": {
       if (model.route._tag !== "Rounds") return { model };
@@ -2803,7 +2867,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       };
     }
 
-    case "RoundConfirmRequested":
+    case "RoundConfirmRequested": {
       return {
         model: {
           ...model,
@@ -2811,9 +2875,11 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
           roundsFailure: Option.none(),
         },
       };
+    }
 
-    case "RoundConfirmDismissed":
+    case "RoundConfirmDismissed": {
       return { model: { ...model, roundConfirm: Option.none() } };
+    }
 
     case "RoundConfirmed": {
       if (model.route._tag !== "Rounds" || Option.isNone(model.roundConfirm)) return { model };
@@ -2898,15 +2964,17 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       };
     }
 
-    case "ClearKeptAnswersClicked":
+    case "ClearKeptAnswersClicked": {
       if (model.history._tag !== "Loaded") return { model };
       return { model, commands: [ClearKeptAnswersCmd()] };
+    }
 
-    case "ClearedKeptAnswers":
+    case "ClearedKeptAnswers": {
       if (model.history._tag !== "Loaded") return { model };
       return {
         model: { ...model, history: { ...model.history, kept: {}, cleared: true } },
       };
+    }
 
     case "GotResults": {
       const { outcome } = message;
@@ -2941,14 +3009,16 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       };
     }
 
-    case "CopyGuide":
+    case "CopyGuide": {
       return {
         model: { ...model, guideCopy: "idle" },
         commands: [CopyGuideTextCmd({ text: message.text })],
       };
+    }
 
-    case "CopiedGuide":
+    case "CopiedGuide": {
       return { model: { ...model, guideCopy: message.ok ? "copied" : "failed" } };
+    }
     case "ShareResultsClicked": {
       if (model.route._tag !== "RoundResults" || model.shareBusy) return { model };
       return {
@@ -3013,17 +3083,21 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       };
     }
 
-    case "ActionTitleChanged":
+    case "ActionTitleChanged": {
       return { model: { ...model, actionTitle: message.title } };
+    }
 
-    case "ActionOwnerChanged":
+    case "ActionOwnerChanged": {
       return { model: { ...model, actionOwnerId: Option.some(message.personId) } };
+    }
 
-    case "ActionDueDateChanged":
+    case "ActionDueDateChanged": {
       return { model: { ...model, actionDueDate: message.dueDate } };
+    }
 
-    case "ActionDimensionChanged":
+    case "ActionDimensionChanged": {
       return { model: { ...model, actionDimension: message.dimension } };
+    }
 
     case "SubmitAction": {
       if (model.route._tag !== "RoundResults" || model.actionTitle.trim() === "") {
@@ -3136,11 +3210,13 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       };
     }
 
-    case "NoteDraftChanged":
+    case "NoteDraftChanged": {
       return { model: { ...model, noteDraft: message.text } };
+    }
 
-    case "NoteCancelClicked":
+    case "NoteCancelClicked": {
       return { model: { ...model, noteEditing: false, noteFailure: Option.none() } };
+    }
 
     case "SubmitNote": {
       if (
@@ -3291,7 +3367,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
   let screenContent = null;
   switch (model.route._tag) {
     case "Teams":
-    case "NotFound":
+    case "NotFound": {
       screenContent = teamsScreenView(
         {
           teams: model.teams,
@@ -3314,8 +3390,9 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
         h,
       );
       break;
+    }
 
-    case "Team":
+    case "Team": {
       screenContent = teamScreenView(
         {
           team: model.teamDetail,
@@ -3357,23 +3434,26 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
         },
         teamOverviewView(
           model.teamOverview,
-          model.showTable["overview"] ?? false,
+          model.showTable.overview ?? false,
           Message.ToggleResultsTable({ key: "overview" }),
           h,
         ),
         h,
       );
       break;
+    }
 
-    case "Privacy":
+    case "Privacy": {
       screenContent = h.div([], privacyContent(h));
       break;
+    }
 
-    case "History":
+    case "History": {
       screenContent = historyView(model.history, { onClear: Message.ClearKeptAnswersClicked() }, h);
       break;
+    }
 
-    case "Settings":
+    case "Settings": {
       if (!organizationAdmin) {
         screenContent = teamsScreenView(
           {
@@ -3429,8 +3509,9 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
         );
       }
       break;
+    }
 
-    case "Pulses":
+    case "Pulses": {
       screenContent = pulsesScreenView(
         {
           teamId: model.route.teamId,
@@ -3444,8 +3525,9 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
         h,
       );
       break;
+    }
 
-    case "Pulse":
+    case "Pulse": {
       screenContent = pulseEditorView(
         {
           teamId: model.route.teamId,
@@ -3510,8 +3592,9 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
         h,
       );
       break;
+    }
 
-    case "Rounds":
+    case "Rounds": {
       screenContent = roundsScreenView(
         {
           teamId: model.route.teamId,
@@ -3541,8 +3624,9 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
         h,
       );
       break;
+    }
 
-    case "RoundResults":
+    case "RoundResults": {
       screenContent = resultsScreenView(
         {
           results: model.results,
@@ -3595,6 +3679,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
         h,
       );
       break;
+    }
   }
 
   return {

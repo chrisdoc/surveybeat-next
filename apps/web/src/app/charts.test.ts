@@ -1,8 +1,11 @@
-import { RoundId, type TrendPoint } from "@surveybeat/domain";
+import { RoundId } from "@surveybeat/domain";
+import type { TrendPoint } from "@surveybeat/domain";
 import { Schema } from "effect";
-import { type Html, inertHtml } from "foldkit/html";
+import { inertHtml } from "foldkit/html";
+import type { Html } from "foldkit/html";
 import { describe, expect, it } from "vitest";
-import { CHART_PAD, type ChartPoint, lineChart, plotPercent, plotYPercent } from "./charts.ts";
+import { CHART_PAD, lineChart, plotPercent, plotYPercent } from "./charts.ts";
+import type { ChartPoint } from "./charts.ts";
 import { distributionChart, trendChart } from "./results.ts";
 
 /** The slice of a foldkit VNode these tests read: element name, classes, attributes and children. */
@@ -15,16 +18,15 @@ interface Tree {
         readonly style?: Readonly<Record<string, string>>;
       }
     | undefined;
-  readonly children?: ReadonlyArray<Tree | string> | undefined;
+  readonly children?: readonly (Tree | string)[] | undefined;
 }
 
 const asTree = (html: Html): Tree => html as Tree;
 
-const descendants = (tree: Tree): Array<Tree> =>
+const descendants = (tree: Tree): Tree[] =>
   (tree.children ?? []).flatMap((child) => (typeof child === "string" ? [] : [child, ...descendants(child)]));
 
-const elements = (tree: Tree, sel: string): Array<Tree> =>
-  descendants(tree).filter((node) => node.sel === sel);
+const elements = (tree: Tree, sel: string): Tree[] => descendants(tree).filter((node) => node.sel === sel);
 
 const hasClass = (node: Tree, name: string): boolean => Object.hasOwn(node.data?.class ?? {}, name);
 
@@ -36,12 +38,12 @@ const point = (x: number, score: number | null, joinsPrevious = true): ChartPoin
   joinsPrevious,
 });
 
-const render = (points: ReadonlyArray<ChartPoint>, extra: Partial<Parameters<typeof lineChart>[0]> = {}) =>
+const render = (points: readonly ChartPoint[], extra: Partial<Parameters<typeof lineChart>[0]> = {}) =>
   asTree(lineChart({ points, ariaLabel: "test chart", ...extra }, inertHtml));
 
 /** Every string a subtree renders, so a count label can be found by its text. */
-const textsOf = (tree: Tree): Array<string> => {
-  const parts: Array<string> = [];
+const textsOf = (tree: Tree): string[] => {
+  const parts: string[] = [];
   const walk = (child: Tree | string): void => {
     if (typeof child === "string") {
       parts.push(child);
@@ -56,7 +58,7 @@ const textsOf = (tree: Tree): Array<string> => {
 };
 
 /** Data segments are the `stroke-primary` lines; horizontal guides are `stroke-line`, vertical guides `stroke-brass`. */
-const segments = (tree: Tree): Array<Tree> =>
+const segments = (tree: Tree): Tree[] =>
   elements(tree, "line").filter((node) => hasClass(node, "stroke-primary"));
 
 describe("lineChart", () => {
@@ -105,7 +107,7 @@ describe("lineChart", () => {
 
   /** A text element's label: foldkit wraps the string child in a text vnode, which carries `text`. */
   const textOf = (node: Tree): string => {
-    const parts: Array<string> = [];
+    const parts: string[] = [];
     const walk = (child: Tree | string): void => {
       if (typeof child === "string") {
         parts.push(child);
@@ -119,7 +121,7 @@ describe("lineChart", () => {
     return parts.join("");
   };
 
-  const labelsOf = (tree: Tree): Array<string> => elements(tree, "text").map(textOf);
+  const labelsOf = (tree: Tree): string[] => elements(tree, "text").map(textOf);
 
   it("names the 1–5 scale at 1, 3 and 5", () => {
     expect(labelsOf(render(scores)).slice(0, 3)).toEqual(["1", "3", "5"]);
@@ -156,11 +158,11 @@ describe("plotPercent", () => {
     const width = 720;
     const plotWidth = width - CHART_PAD.left - CHART_PAD.right;
     const percentAt = (x: number) => ((CHART_PAD.left + x * plotWidth) / width) * 100;
-    expect(parseFloat(plotPercent(0, width))).toBeCloseTo(percentAt(0), 10);
-    expect(parseFloat(plotPercent(1, width))).toBeCloseTo(percentAt(1), 10);
-    expect(parseFloat(plotPercent(0.5, width))).toBeCloseTo(percentAt(0.5), 10);
-    expect(parseFloat(plotPercent(0, width))).toBeCloseTo((24 / 720) * 100, 10);
-    expect(parseFloat(plotPercent(1, width))).toBeCloseTo((704 / 720) * 100, 10);
+    expect(Number.parseFloat(plotPercent(0, width))).toBeCloseTo(percentAt(0), 10);
+    expect(Number.parseFloat(plotPercent(1, width))).toBeCloseTo(percentAt(1), 10);
+    expect(Number.parseFloat(plotPercent(0.5, width))).toBeCloseTo(percentAt(0.5), 10);
+    expect(Number.parseFloat(plotPercent(0, width))).toBeCloseTo((24 / 720) * 100, 10);
+    expect(Number.parseFloat(plotPercent(1, width))).toBeCloseTo((704 / 720) * 100, 10);
     expect(plotPercent(0.5, 720).endsWith("%")).toBe(true);
   });
 });
@@ -177,7 +179,7 @@ describe("trendChart", () => {
   const points = [roundPoint(3, false), roundPoint(4, true), roundPoint(5, false)];
   const svgOf = (tree: Tree): Tree => elements(tree, "svg")[0]!;
   const overlayOf = (tree: Tree): Tree => elements(tree, "div").find((node) => hasClass(node, "absolute"))!;
-  const dotsOf = (tree: Tree): Array<Tree> =>
+  const dotsOf = (tree: Tree): Tree[] =>
     elements(tree, "span").filter((node) => hasClass(node, "rounded-full"));
 
   it("stretches to the container width at a fixed height, with no max-width cap", () => {
@@ -229,8 +231,7 @@ describe("trendChart", () => {
 describe("distributionChart", () => {
   const option = (label: string, count: number) => ({ option: label, count });
 
-  const bars = (tree: Tree): Array<Tree> =>
-    elements(tree, "div").filter((node) => hasClass(node, "bg-primary"));
+  const bars = (tree: Tree): Tree[] => elements(tree, "div").filter((node) => hasClass(node, "bg-primary"));
 
   it("draws no bar for an option with zero answers, but still shows its count", () => {
     const tree = asTree(distributionChart([option("Yes", 0), option("No", 4)], inertHtml));

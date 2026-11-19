@@ -1,4 +1,5 @@
-import { type Navigation, Runtime } from "foldkit";
+import { Runtime } from "foldkit";
+import type { Navigation } from "foldkit";
 import type { Url } from "foldkit/url";
 import { init, Message, Model, update, view } from "./App.ts";
 import "./app.css";

@@ -7,10 +7,10 @@ import {
   QuestionVersionId,
   SendId,
   TeamId,
-  type TestSendResult,
   testInvitationLifetimeMs,
   TimeZone,
 } from "@surveybeat/domain";
+import type { TestSendResult } from "@surveybeat/domain";
 import * as Effect from "effect/Effect";
 import { HttpServerRequest } from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";

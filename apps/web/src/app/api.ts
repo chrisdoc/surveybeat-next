@@ -26,36 +26,51 @@ export type Failure = typeof Failure.Type;
 
 export const failureMessage = (failure: Failure): string => {
   switch (failure) {
-    case "Unauthenticated":
+    case "Unauthenticated": {
       return message("error.Unauthenticated");
-    case "Forbidden":
+    }
+    case "Forbidden": {
       return message("error.Forbidden");
-    case "NotFound":
+    }
+    case "NotFound": {
       return message("error.NotFound");
-    case "LastLead":
+    }
+    case "LastLead": {
       return message("error.LastLead");
-    case "LastAdmin":
+    }
+    case "LastAdmin": {
       return message("error.LastAdmin");
-    case "TeamNameTaken":
+    }
+    case "TeamNameTaken": {
       return message("error.TeamNameTaken");
-    case "QuestionAlreadyInPulse":
+    }
+    case "QuestionAlreadyInPulse": {
       return message("error.QuestionAlreadyInPulse");
-    case "QuestionHasAnswers":
+    }
+    case "QuestionHasAnswers": {
       return message("error.QuestionHasAnswers");
-    case "PulseNeedsAQuestion":
+    }
+    case "PulseNeedsAQuestion": {
       return message("error.PulseNeedsAQuestion");
-    case "PulseFull":
+    }
+    case "PulseFull": {
       return message("error.PulseFull");
-    case "OrderMismatch":
+    }
+    case "OrderMismatch": {
       return message("error.OrderMismatch");
-    case "TestSendLimitReached":
+    }
+    case "TestSendLimitReached": {
       return message("error.TestSendLimitReached", { perHour: Policy.testSend.perHour });
-    case "EmailNotResendable":
+    }
+    case "EmailNotResendable": {
       return message("error.EmailNotResendable");
-    case "Invalid":
+    }
+    case "Invalid": {
       return message("error.Invalid");
-    case "Unavailable":
+    }
+    case "Unavailable": {
       return message("error.Unavailable");
+    }
   }
 };
 

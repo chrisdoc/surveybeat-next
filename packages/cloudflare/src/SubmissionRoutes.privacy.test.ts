@@ -30,19 +30,17 @@ const setupD1 = (): { readonly d1: DatabaseSync; readonly queryDb: Cloudflare.D1
     d1.exec(readFileSync(new URL(file, d1MigrationsDir), "utf8"));
   }
 
-  const statement = (sql: string, binds: ReadonlyArray<unknown>) => ({
-    bind: (...values: ReadonlyArray<unknown>) => statement(sql, values),
+  const statement = (sql: string, binds: readonly unknown[]) => ({
+    bind: (...values: readonly unknown[]) => statement(sql, values),
     first: <T>() =>
-      Effect.sync(
-        () => (d1.prepare(sql).get(...(binds as Array<null | string | number>)) ?? null) as T | null,
-      ),
+      Effect.sync(() => (d1.prepare(sql).get(...(binds as (null | string | number)[])) ?? null) as T | null),
     all: <T>() =>
       Effect.sync(() => ({
-        results: d1.prepare(sql).all(...(binds as Array<null | string | number>)) as Array<T>,
+        results: d1.prepare(sql).all(...(binds as (null | string | number)[])) as T[],
       })),
     run: () =>
       Effect.sync(() => {
-        d1.prepare(sql).run(...(binds as Array<null | string | number>));
+        d1.prepare(sql).run(...(binds as (null | string | number)[]));
         return { results: [] };
       }),
   });
@@ -59,7 +57,7 @@ const setupD1 = (): { readonly d1: DatabaseSync; readonly queryDb: Cloudflare.D1
  * call. Any call, including `getByName` itself, lands in `calls`.
  */
 const recordingOrganizations = (failing = false) => {
-  const calls: Array<string> = [];
+  const calls: string[] = [];
   const result = {
     _tag: "Success",
     answers: [{ questionVersionId: "qv-1", value: 5, comment: CANARY_ANSWER }],
@@ -121,24 +119,28 @@ const makeRequest = (
     url: urlPath,
     headers: {
       "content-type": "application/json",
-      ...(headers ?? {}),
+      ...headers,
     },
     text: Effect.succeed(bodyText),
-    json: Effect.sync(() => (body ? body : {})),
+    json: Effect.sync(() => body || {}),
   } as unknown as HttpServerRequest;
 };
 
 const bodyText = (response: HttpServerResponse.HttpServerResponse): string => {
   const body = response.body;
   switch (body._tag) {
-    case "Empty":
+    case "Empty": {
       return "";
-    case "Uint8Array":
+    }
+    case "Uint8Array": {
       return new TextDecoder().decode(body.body);
-    case "Raw":
+    }
+    case "Raw": {
       return JSON.stringify(body.body);
-    default:
+    }
+    default: {
       throw new Error(`unexpected response body ${body._tag}`);
+    }
   }
 };
 
@@ -188,10 +190,10 @@ const runWith = (
     return { response, text: bodyText(response), calls, d1, freshHash };
   });
 
-const cases: ReadonlyArray<{
+const cases: readonly {
   readonly name: string;
   readonly build: (path: string, editKeyHash: string) => HttpServerRequest;
-}> = [
+}[] = [
   {
     name: "body editKeyHash",
     build: (path, hash) => makeRequest("POST", path, { editKeyHash: hash }),
@@ -257,20 +259,24 @@ describe("Submission Worker never returns answers for an Edit key (ADR 0005, iss
 
 const validBody = (path: string, hashes: Hashes): Record<string, unknown> => {
   switch (path) {
-    case "/exchange":
+    case "/exchange": {
       return { token: TOKEN };
-    case "/first-answer":
+    }
+    case "/first-answer": {
       return { token: TOKEN, editKeyHash: hashes.freshHash, questionVersionId: "qv-1", value: 4 };
-    case "/answer":
+    }
+    case "/answer": {
       return { editKey: EDIT_KEY, questionVersionId: "qv-1", value: 4 };
-    default:
+    }
+    default: {
       throw new Error(`no valid body for ${path}`);
+    }
   }
 };
 
 const credentialRoutes = ["/exchange", "/first-answer", "/answer"] as const;
 
-const queryRefusals: ReadonlyArray<{ readonly name: string; readonly query: (hashes: Hashes) => string }> = [
+const queryRefusals: readonly { readonly name: string; readonly query: (hashes: Hashes) => string }[] = [
   { name: "query token", query: () => `token=${TOKEN}` },
   { name: "query t", query: () => `t=${TOKEN}` },
   { name: "query editKey", query: () => `editKey=${EDIT_KEY}` },
@@ -281,17 +287,17 @@ const queryRefusals: ReadonlyArray<{ readonly name: string; readonly query: (has
   { name: "query t with a test token", query: () => `t=${TEST_TOKEN}` },
 ];
 
-const headerRefusals: ReadonlyArray<{ readonly name: string; readonly headers: Record<string, string> }> = [
+const headerRefusals: readonly { readonly name: string; readonly headers: Record<string, string> }[] = [
   { name: "header x-invitation-token", headers: { "x-invitation-token": TOKEN } },
   { name: "header x-edit-key", headers: { "x-edit-key": EDIT_KEY } },
   { name: "header x-invitation-token with a test token", headers: { "x-invitation-token": TEST_TOKEN } },
 ];
 
-const bodyRefusals: ReadonlyArray<{
+const bodyRefusals: readonly {
   readonly path: (typeof credentialRoutes)[number];
   readonly name: string;
   readonly body: (hashes: Hashes) => Record<string, unknown>;
-}> = [
+}[] = [
   {
     path: "/answer",
     name: "body editKeyHash of the Edit key alongside a valid editKey",
@@ -456,7 +462,7 @@ describe("Submission Worker takes credentials only from the POST body (ADR 0005,
   );
 });
 
-const countRows = (d1: DatabaseSync, table: string, where = "1 = 1", ...binds: Array<string>): number =>
+const countRows = (d1: DatabaseSync, table: string, where = "1 = 1", ...binds: string[]): number =>
   (d1.prepare(`SELECT COUNT(*) AS n FROM ${table} WHERE ${where}`).get(...binds) as { n: number }).n;
 
 // Fixed expiries hold under Effect's TestClock (which starts at 0), which `it.effect` runs under, and
