@@ -55,6 +55,7 @@ const SETTINGS = {
   people: [
     { personId: "person-1", email: "ada@example.com", organizationAdmin: false, linked: true },
     { personId: "person-2", email: "grace@example.com", organizationAdmin: true, linked: true },
+    { personId: "person-3", email: "linus@example.com", organizationAdmin: false, linked: false },
   ],
 };
 
