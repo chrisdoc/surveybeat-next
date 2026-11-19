@@ -11,6 +11,15 @@ Read `SPEC.md` (authoritative spec), `GLOSSARY.md` (domain vocabulary), and `doc
 - Issues and specs live in GitHub issues (`gh`); conventions are in `docs/agents/issue-tracker.md`. Commit subjects name the release slice, e.g. `R1 03: ...`.
 - Privacy invariants are release blockers (SPEC §7): anonymous Submissions store no Person and no time (ADR 0005), comments are redacted at store time (ADR 0009), and every shown aggregate obeys the minimum group size (ADR 0004).
 
+## Branches and merging
+
+SurveyBeat is not live yet, so it uses trunk-based development: one short-lived branch per change, merged into `main` as soon as CI passes.
+
+- Branch from `origin/main` and keep each pull request to one change. Push only that branch (`git push -u origin <branch>`), never `main`. Open the pull request with `gh pr create --base main`.
+- Merge with `gh pr merge <n> --squash --auto` right after opening it. Auto-merge squashes once the required checks pass; no review is required. The squash subject is the pull request title, so the title follows the commit convention above.
+- `main` requires `check`, `privacy`, `e2e` and `preview-privacy`. A check its workflow skips counts as passed. Branches need not be up to date with `main`, so do not rebase only to merge. Force pushes to `main` and deleting it are blocked, and merged branches are deleted.
+- Fix a red `main` before merging anything else. When `main` moves while a branch is open, merge `main` into the branch with a follow-up commit; do not rewrite a pushed branch.
+
 ## Ratstack
 
 SurveyBeat keeps its own packages, commands, and deploy steps in this file. The [ratstack agent guide](https://ratstack.sh/llms.txt) is the reference for Effect, Alchemy, Foldkit, and XState. The template's package list and deploy steps describe the reference repo at [joelhooks/rat-stack](https://github.com/joelhooks/rat-stack).
