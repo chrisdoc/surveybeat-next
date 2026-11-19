@@ -5,7 +5,7 @@
 
 import { spawn } from "node:child_process";
 import { createServer } from "node:http";
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 interface LighthouseAudit {
@@ -17,8 +17,25 @@ interface LighthouseResult {
     "first-contentful-paint": LighthouseAudit;
     "largest-contentful-paint": LighthouseAudit;
     "total-blocking-time": LighthouseAudit;
+    metrics?: { details?: { items?: readonly { observedFirstContentfulPaint?: number }[] } };
+    "network-requests"?: {
+      details?: { items?: readonly { url: string; resourceType?: string; networkRequestTime?: number }[] };
+    };
   };
 }
+
+const reportDir = resolve(import.meta.dirname, "../../test-results/lighthouse");
+
+const observedTimings = (report: LighthouseResult): string => {
+  const observedFcp = report.audits.metrics?.details?.items?.[0]?.observedFirstContentfulPaint;
+  const requests = report.audits["network-requests"]?.details?.items ?? [];
+  const firstScript = requests
+    .filter((request) => request.resourceType === "Script")
+    .map((request) => request.networkRequestTime ?? 0)
+    .sort((a, b) => a - b)[0];
+  const fmt = (value: number | undefined) => (value === undefined ? "?" : `${Math.round(value)} ms`);
+  return `observed FCP ${fmt(observedFcp)}, first script request ${fmt(firstScript)}`;
+};
 
 const FCP_BUDGET = 800;
 const LCP_BUDGET = 1300;
@@ -127,7 +144,7 @@ async function main() {
         targetUrl,
         "--output=json",
 
-        "--only-audits=first-contentful-paint,largest-contentful-paint,total-blocking-time",
+        "--only-audits=first-contentful-paint,largest-contentful-paint,total-blocking-time,metrics,network-requests",
         "--quiet",
         "--chrome-flags=--headless=new --no-sandbox --disable-gpu",
       ];
@@ -162,13 +179,15 @@ async function main() {
     return sorted[Math.floor(sorted.length / 2)] ?? 0;
   };
 
-  const RUNS = 5;
+  const RUNS = 9;
   const auditUrl = async (targetUrl: string): Promise<AuditResult> => {
     console.log(`\nRunning Lighthouse audit on ${targetUrl} (1 warm-up, ${RUNS} measured runs)...`);
     await runLighthouse(targetUrl);
     const runs: { fcp: number; lcp: number; tbt: number }[] = [];
     for (let run = 1; run <= RUNS; run++) {
       const report = await runLighthouse(targetUrl);
+      mkdirSync(reportDir, { recursive: true });
+      writeFileSync(resolve(reportDir, `run-${run}.json`), JSON.stringify(report));
       const measured = {
         fcp: report.audits["first-contentful-paint"].numericValue,
         lcp: report.audits["largest-contentful-paint"].numericValue,
@@ -176,7 +195,7 @@ async function main() {
       };
       runs.push(measured);
       console.log(
-        `  run ${run}: FCP ${Math.round(measured.fcp)} ms, LCP ${Math.round(measured.lcp)} ms, TBT ${Math.round(measured.tbt)} ms`,
+        `  run ${run}: FCP ${Math.round(measured.fcp)} ms, LCP ${Math.round(measured.lcp)} ms, TBT ${Math.round(measured.tbt)} ms (${observedTimings(report)})`,
       );
     }
     const fcp = median(runs.map((run) => run.fcp));
