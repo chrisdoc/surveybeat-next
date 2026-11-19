@@ -5,7 +5,9 @@
 
 import { spawn } from "node:child_process";
 import { createServer } from "node:http";
-import { readFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
+import type { IncomingMessage } from "node:http";
+import { setTimeout as sleep } from "node:timers/promises";
+import { readFileSync, existsSync, mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 
 interface LighthouseAudit {
@@ -18,8 +20,17 @@ interface LighthouseResult {
     "largest-contentful-paint": LighthouseAudit;
     "total-blocking-time": LighthouseAudit;
     metrics?: { details?: { items?: readonly { observedFirstContentfulPaint?: number }[] } };
+    "render-blocking-insight"?: { details?: { items?: readonly { url: string }[] } };
     "network-requests"?: {
-      details?: { items?: readonly { url: string; resourceType?: string; networkRequestTime?: number }[] };
+      details?: {
+        items?: readonly {
+          url: string;
+          resourceType?: string;
+          priority?: string;
+          networkRequestTime?: number;
+          networkEndTime?: number;
+        }[];
+      };
     };
   };
 }
@@ -37,20 +48,43 @@ const observedTimings = (report: LighthouseResult): string => {
 
   const fmt = (value: number | undefined) => (value === undefined ? "?" : `${Math.round(value)} ms`);
 
-  return `observed FCP ${fmt(observedFcp)}, first script request ${fmt(firstScript)}`;
+  const requestTimings = requests
+    .filter((request) => !request.url.startsWith("data:"))
+    .map((request) => {
+      const path = new URL(request.url).pathname.replace(/-[\w-]{8}\.js$/u, ".js");
+      const ended = request.networkEndTime ?? 0;
+      const beforePaint = observedFcp !== undefined && ended <= observedFcp ? " before paint" : "";
+
+      return `${path} ${request.priority ?? "?"} ${fmt(request.networkRequestTime)}→${fmt(ended)}${beforePaint}`;
+    })
+    .join("; ");
+
+  return `observed FCP ${fmt(observedFcp)}, first script request ${fmt(firstScript)}; ${requestTimings}`;
 };
 
 const FCP_BUDGET = 800;
 
+const SUBRESOURCE_BODY_DELAY_MS = 100;
+
+const plantedStylesheet = "/assets/planted-render-blocking.css";
+
+const plantRenderBlocking = process.env.LIGHTHOUSE_PLANT_RENDER_BLOCKING === "1";
+
 const LCP_BUDGET = 1300;
 
 const TBT_BUDGET = 50;
+
+interface Reply {
+  headers: Record<string, string>;
+  body: string | Buffer;
+}
 
 interface AuditResult {
   url: string;
   fcp: number;
   lcp: number;
   tbt: number;
+  renderBlocking: readonly string[];
   failures: string[];
 }
 
@@ -63,18 +97,23 @@ async function main() {
     const port = 4173;
     const distPath = resolve(import.meta.dirname, "../../apps/web/dist");
 
-    const enHtml = readFileSync(resolve(distPath, "answer.html"), "utf8");
+    const builtHtml = readFileSync(resolve(distPath, "answer.html"), "utf8");
 
-    server = createServer((req, res) => {
+    const enHtml = plantRenderBlocking
+      ? builtHtml.replace("</head>", `<link rel="stylesheet" href="${plantedStylesheet}"></head>`)
+      : builtHtml;
+
+    const reply = (req: IncomingMessage): Reply => {
       const url = new URL(req.url ?? "/", `http://${req.headers.host}`);
 
+      if (url.pathname === plantedStylesheet) {
+        return { headers: { "content-type": "text/css" }, body: "body{}" };
+      }
+
       if (url.pathname === "/exchange" && req.method === "POST") {
-        res.writeHead(200, {
-          "content-type": "application/json",
-          "access-control-allow-origin": "*",
-        });
-        res.end(
-          JSON.stringify({
+        return {
+          headers: { "content-type": "application/json", "access-control-allow-origin": "*" },
+          body: JSON.stringify({
             roundId: "round-test-1",
             pulseName: "Weekly Pulse",
             minimumGroupSize: 4,
@@ -92,9 +131,7 @@ async function main() {
             state: "open",
             hasAnswered: false,
           }),
-        );
-
-        return;
+        };
       }
 
       if (url.pathname.startsWith("/assets/")) {
@@ -107,22 +144,35 @@ async function main() {
               ? "text/css"
               : "application/octet-stream";
 
-          res.writeHead(200, { "content-type": contentType });
-          res.end(readFileSync(filePath));
-
-          return;
+          return { headers: { "content-type": contentType }, body: readFileSync(filePath) };
         }
       }
 
-      res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-      res.end(enHtml);
+      return { headers: { "content-type": "text/html; charset=utf-8" }, body: enHtml };
+    };
+
+    server = createServer((req, res) => {
+      const { headers, body } = reply(req);
+
+      res.writeHead(200, headers);
+
+      if (req.headers["sec-fetch-dest"] === "document") {
+        res.end(body);
+
+        return;
+      }
+
+      res.flushHeaders();
+      void sleep(SUBRESOURCE_BODY_DELAY_MS).then(() => res.end(body));
     });
 
     await new Promise<void>((resolve) => {
       server?.listen(port, resolve);
     });
     targetUrls = [`http://127.0.0.1:${port}/a#t=test-token-123&v=4`];
-    console.log(`Local test server running at http://127.0.0.1:${port}`);
+    console.log(
+      `Local test server running at http://127.0.0.1:${port} (subresource bodies held ${SUBRESOURCE_BODY_DELAY_MS} ms${plantRenderBlocking ? ", planted render-blocking stylesheet" : ""})`,
+    );
   }
 
   const lighthouseBin = resolve(import.meta.dirname, "../node_modules/.bin/lighthouse");
@@ -160,13 +210,17 @@ async function main() {
 
   const chromePath = findChrome();
 
-  const runLighthouse = (targetUrl: string): Promise<LighthouseResult> =>
-    new Promise((resolve, reject) => {
+  const runLighthouse = (targetUrl: string, name: string): Promise<LighthouseResult> => {
+    const outputPath = resolve(reportDir, `${name}.json`);
+
+    return new Promise((resolve, reject) => {
       const args = [
         targetUrl,
         "--output=json",
+        `--output-path=${outputPath}`,
+        "--save-assets",
 
-        "--only-audits=first-contentful-paint,largest-contentful-paint,total-blocking-time,metrics,network-requests",
+        "--only-audits=first-contentful-paint,largest-contentful-paint,total-blocking-time,metrics,network-requests,render-blocking-insight",
         "--quiet",
         "--chrome-flags=--headless=new --no-sandbox --disable-gpu",
       ];
@@ -180,11 +234,8 @@ async function main() {
       const useLocalBin = existsSync(lighthouseBin);
       const cmd = useLocalBin ? lighthouseBin : "pnpm";
       const fullArgs = useLocalBin ? args : ["dlx", "lighthouse@13.6.0", ...args];
-      const proc = spawn(cmd, fullArgs, { env, stdio: ["ignore", "pipe", "inherit"] });
-      let stdout = "";
-      proc.stdout.on("data", (chunk: Buffer) => {
-        stdout += chunk.toString("utf8");
-      });
+      mkdirSync(reportDir, { recursive: true });
+      const proc = spawn(cmd, fullArgs, { env, stdio: ["ignore", "inherit", "inherit"] });
       proc.on("close", (code) => {
         if (code !== 0) {
           reject(new Error(`Lighthouse exited with code ${code}`));
@@ -193,13 +244,14 @@ async function main() {
         }
 
         try {
-          const parsed: LighthouseResult = JSON.parse(stdout);
+          const parsed: LighthouseResult = JSON.parse(readFileSync(outputPath, "utf8"));
           resolve(parsed);
         } catch (error) {
           reject(error instanceof Error ? error : new Error(String(error)));
         }
       });
     });
+  };
 
   const median = (values: readonly number[]): number => {
     const sorted = [...values].sort((a, b) => a - b);
@@ -207,17 +259,16 @@ async function main() {
     return sorted[Math.floor(sorted.length / 2)] ?? 0;
   };
 
-  const RUNS = 9;
+  const RUNS = plantRenderBlocking ? 1 : 9;
 
   const auditUrl = async (targetUrl: string): Promise<AuditResult> => {
     console.log(`\nRunning Lighthouse audit on ${targetUrl} (1 warm-up, ${RUNS} measured runs)...`);
-    await runLighthouse(targetUrl);
+    await runLighthouse(targetUrl, "warm-up");
     const runs: { fcp: number; lcp: number; tbt: number }[] = [];
+    const renderBlocking = new Set<string>();
 
     for (let run = 1; run <= RUNS; run++) {
-      const report = await runLighthouse(targetUrl);
-      mkdirSync(reportDir, { recursive: true });
-      writeFileSync(resolve(reportDir, `run-${run}.json`), JSON.stringify(report));
+      const report = await runLighthouse(targetUrl, `run-${run}`);
 
       const measured = {
         fcp: report.audits["first-contentful-paint"].numericValue,
@@ -226,6 +277,11 @@ async function main() {
       };
 
       runs.push(measured);
+
+      for (const item of report.audits["render-blocking-insight"]?.details?.items ?? []) {
+        renderBlocking.add(item.url);
+      }
+
       console.log(
         `  run ${run}: FCP ${Math.round(measured.fcp)} ms, LCP ${Math.round(measured.lcp)} ms, TBT ${Math.round(measured.tbt)} ms (${observedTimings(report)})`,
       );
@@ -245,11 +301,15 @@ async function main() {
       failures.push(`median LCP ${Math.round(lcp)} ms exceeds budget of ${LCP_BUDGET} ms`);
     }
 
+    if (renderBlocking.size > 0) {
+      failures.push(`render-blocking requests before first paint: ${[...renderBlocking].join(", ")}`);
+    }
+
     if (tbt > TBT_BUDGET) {
       failures.push(`median TBT ${Math.round(tbt)} ms exceeds budget of ${TBT_BUDGET} ms`);
     }
 
-    return { url: targetUrl, fcp, lcp, tbt, failures };
+    return { url: targetUrl, fcp, lcp, tbt, renderBlocking: [...renderBlocking], failures };
   };
 
   try {
@@ -266,6 +326,21 @@ async function main() {
       console.log(`• FCP: ${Math.round(result.fcp)} ms (Budget: ≤ ${FCP_BUDGET} ms)`);
       console.log(`• LCP: ${Math.round(result.lcp)} ms (Budget: ≤ ${LCP_BUDGET} ms)`);
       console.log(`• TBT: ${Math.round(result.tbt)} ms (Budget: ≤ ${TBT_BUDGET} ms)`);
+    }
+
+    if (plantRenderBlocking) {
+      const caught = results.every((result) =>
+        result.renderBlocking.some((url) => new URL(url).pathname === plantedStylesheet),
+      );
+
+      if (!caught) {
+        console.error(`\n❌ Positive control failed: the gate did not flag ${plantedStylesheet}`);
+        process.exit(1);
+      }
+
+      console.log(`\n✅ Positive control: the gate flags the planted render-blocking stylesheet`);
+
+      return;
     }
 
     const failed = results.filter((result) => result.failures.length > 0);

@@ -151,6 +151,11 @@ jobs:
       - name: Lighthouse CI gate (performance budgets)
         if: needs.select.outputs.lighthouse == 'true'
         run: pnpm test:lighthouse
+      - name: Lighthouse gate positive control (a planted render-blocking stylesheet must be caught)
+        if: needs.select.outputs.lighthouse == 'true'
+        run: pnpm test:lighthouse
+        env:
+          LIGHTHOUSE_PLANT_RENDER_BLOCKING: "1"
       - name: End-to-end tests
         run: pnpm test:e2e
         env:
@@ -162,9 +167,14 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: e2e-traces
-          path: |
-            test-results/e2e
-            test-results/lighthouse
+          path: test-results/e2e
+          retention-days: 7
+      - if: always() && needs.select.outputs.lighthouse == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: lighthouse-reports
+          path: test-results/lighthouse
+          if-no-files-found: ignore
           retention-days: 7
 
   destroy:
