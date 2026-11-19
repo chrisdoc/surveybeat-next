@@ -1,7 +1,7 @@
 import { Button, Checkbox, Input, Select, Textarea } from "@foldkit/ui";
 import { Policy } from "@surveybeat/domain";
 import { Option } from "effect";
-import type { Html, HtmlBuilder } from "foldkit/html";
+import type { Attribute, Html, HtmlBuilder } from "foldkit/html";
 import { message } from "../messages/locale.ts";
 import { type Failure, failureMessage } from "./api.ts";
 import { privacyHref, teamsHref } from "./routes.ts";
@@ -249,42 +249,103 @@ export const badge = <Message>(
   h.span(
     [
       h.Class(
-        `inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[13px] font-semibold ${badgeClasses[variant]}`,
+        `inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1 text-[13px] font-semibold ${badgeClasses[variant]}`,
       ),
     ],
     children,
+  );
+
+export const emailAddress = <Message>(
+  config: { readonly email: string; readonly className?: string | undefined },
+  h: HtmlBuilder<Message>,
+): Html => {
+  const at = config.email.indexOf("@");
+  const [local, domain] =
+    at === -1 ? [config.email, ""] : [config.email.slice(0, at), config.email.slice(at)];
+  return h.span(
+    [h.Class(`min-w-0 wrap-break-word ${config.className ?? ""}`.trim())],
+    [local, h.wbr([]), domain],
+  );
+};
+
+export const rowActionsMenu = <Message>(
+  config: { readonly label: string; readonly items: ReadonlyArray<Html | null> },
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.details(
+    [h.Class("relative")],
+    [
+      h.summary(
+        [
+          h.Class(
+            "inline-flex min-h-11 cursor-pointer list-none items-center gap-1 rounded-control border border-line bg-surface px-3 text-sm font-semibold text-ink hover:bg-subtle",
+          ),
+        ],
+        [config.label, h.span([h.AriaHidden(true)], [" \u203a"])],
+      ),
+      h.div(
+        [
+          h.Class(
+            "absolute left-0 z-20 mt-2 flex w-[min(20rem,calc(100vw-4rem))] flex-col items-start gap-2 rounded-panel border border-line bg-surface p-3 shadow-lg sm:left-auto sm:right-0",
+          ),
+        ],
+        config.items.filter((item): item is Html => item !== null),
+      ),
+    ],
   );
 
 export const dataTable = <Message>(
   headers: ReadonlyArray<string>,
   rows: ReadonlyArray<ReadonlyArray<Child>>,
   h: HtmlBuilder<Message>,
-): Html =>
-  h.table(
-    [h.Class("mt-2 w-full text-left text-sm")],
+  options: { readonly stackOnPhone?: boolean | undefined } = {},
+): Html => {
+  const stacked = options.stackOnPhone === true;
+  const role = (name: string): ReadonlyArray<Attribute<Message>> => (stacked ? [h.Role(name)] : []);
+  return h.table(
     [
-      h.thead(
-        [],
-        [
-          h.tr(
-            [h.Class("border-b border-line-soft")],
-            headers.map((header) =>
-              h.th([h.Class("py-2 pr-4 text-[13px] font-semibold text-muted")], [header]),
+      h.Class(stacked ? "mt-2 block w-full text-left text-sm sm:table" : "mt-2 w-full text-left text-sm"),
+      ...role("table"),
+    ],
+    [
+      h.thead(stacked ? [h.Class("sr-only sm:not-sr-only sm:table-header-group"), ...role("rowgroup")] : [], [
+        h.tr(
+          [h.Class("border-b border-line-soft"), ...role("row")],
+          headers.map((header) =>
+            h.th(
+              [h.Class("py-2 pr-4 text-[13px] font-semibold text-muted"), ...role("columnheader")],
+              [header],
             ),
           ),
-        ],
-      ),
+        ),
+      ]),
       h.tbody(
-        [],
+        stacked ? [h.Class("block sm:table-row-group"), ...role("rowgroup")] : [],
         rows.map((row) =>
           h.tr(
-            [h.Class("border-b border-line-soft last:border-b-0")],
-            row.map((cell) => h.td([h.Class("py-2 pr-4 tabular-nums")], [cell])),
+            [
+              h.Class(
+                stacked
+                  ? "flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-line-soft py-3 last:border-b-0 sm:table-row sm:py-0"
+                  : "border-b border-line-soft last:border-b-0",
+              ),
+              ...role("row"),
+            ],
+            row.map((cell) =>
+              h.td(
+                [
+                  h.Class(stacked ? "w-full py-2 pr-4 tabular-nums sm:w-auto" : "py-2 pr-4 tabular-nums"),
+                  ...role("cell"),
+                ],
+                [cell],
+              ),
+            ),
           ),
         ),
       ),
     ],
   );
+};
 
 export const statList = <Message>(
   items: ReadonlyArray<readonly [label: string, value: string]>,

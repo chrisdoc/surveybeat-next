@@ -504,7 +504,18 @@ describe("App Scenes", () => {
         }),
         Scene.expect(Scene.role("heading", { name: "Old Team Name" })).toExist(),
         Scene.expect(Scene.text("alice@acme.com")).toExist(),
-        Scene.expect(Scene.role("button", { name: "Remove" })).toExist(),
+        Scene.expect(Scene.selector("wbr")).toExist(),
+        Scene.expect(Scene.text("Member")).toExist(),
+        // The row's removal sits behind its own Actions disclosure as a link-style button, not a solid one
+        Scene.expect(Scene.role("button", { name: "Actions" })).toExist(),
+        Scene.expect(Scene.role("button", { name: "Remove" })).toHaveClass("text-danger"),
+        Scene.expect(Scene.role("button", { name: "Remove" })).not.toHaveClass("bg-danger"),
+        // Removing from the menu asks first; Cancel leaves the roster alone
+        Scene.click(Scene.role("button", { name: "Remove" })),
+        Scene.expect(Scene.role("alertdialog", { name: "Remove?" })).toExist(),
+        Scene.click(Scene.role("button", { name: "Cancel" })),
+        Scene.expect(Scene.role("alertdialog", { name: "Remove?" })).toBeAbsent(),
+        Scene.Command.expectNone(),
         // Rename team
         Scene.click(Scene.role("button", { name: "Rename Team" })),
         Scene.type(Scene.label("Team name"), "Renamed Team"),
@@ -600,6 +611,46 @@ describe("App Scenes", () => {
         Scene.expect(Scene.role("alertdialog", { name: "Remove?" })).toBeAbsent(),
         Scene.expect(Scene.text("alice@acme.com")).toExist(),
         Scene.Command.expectNone(),
+      );
+    });
+
+    it("shows no row actions to a Team member who may not remove People", () => {
+      const teamId = decodeTeamId("team-1");
+      const personId = decodePersonId("person-1");
+      const detail = {
+        team: {
+          id: teamId,
+          name: "Old Team Name",
+          timeZone: decodeTimeZone("UTC"),
+          yourRole: "member" as const,
+        },
+        roster: [
+          {
+            personId,
+            email: decodeEmail("alice@acme.com"),
+            role: "member" as const,
+            since: 1700000000000,
+          },
+        ],
+        may: {
+          update: false,
+          manageLeads: false,
+          manageMembers: false,
+          managePulses: false,
+          viewResults: true,
+        },
+      };
+
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}`), []),
+          session: signedInAdmin,
+          teamDetail: { _tag: "Loaded", detail },
+        }),
+        Scene.expect(Scene.text("alice@acme.com")).toExist(),
+        Scene.expect(Scene.role("button", { name: "Actions" })).toBeAbsent(),
+        Scene.expect(Scene.role("button", { name: "Remove" })).toBeAbsent(),
       );
     });
 

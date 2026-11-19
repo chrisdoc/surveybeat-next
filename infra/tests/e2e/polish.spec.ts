@@ -12,6 +12,16 @@ import { stubSignedIn } from "./signed-in.ts";
  * The `chromium` and `phone` projects both run this file, so every assertion below also holds at a
  * 393 px phone width, where these layouts are the easiest to break.
  */
+type Box = { readonly x: number; readonly y: number; readonly width: number; readonly height: number };
+
+const boxesOverlap = (a: Box | null, b: Box | null): boolean =>
+  a !== null &&
+  b !== null &&
+  a.x < b.x + b.width &&
+  b.x < a.x + a.width &&
+  a.y < b.y + b.height &&
+  b.y < a.y + a.height;
+
 const expectNoHorizontalScroll = async (page: Page): Promise<void> => {
   const scrollWidth = Number(await page.evaluate("document.documentElement.scrollWidth"));
   const width = page.viewportSize()?.width ?? 0;
@@ -45,6 +55,67 @@ test("a Person's actions open from their own row in Settings, and only theirs", 
 
   // Ada's disclosure opens Ada's actions only: the admin's row is still closed.
   await expect(grace.getByRole("button", { name: "Revoke admin" })).toBeHidden();
+
+  await expectNoHorizontalScroll(page);
+  expect(pageErrors).toEqual([]);
+});
+
+test("the People table stacks each Person at a phone width, with the pill on one line", async ({
+  page,
+  pageErrors,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "phone", "the stacked People rows are the phone layout");
+
+  await stubSignedIn(page);
+  await open(page, "/settings");
+
+  const linus = page.getByRole("row").filter({ hasText: "linus@example.com" });
+  const emailCell = linus.getByRole("cell").first();
+  const emailBox = await emailCell.boundingBox();
+  const actionsBox = await linus.locator("summary").boundingBox();
+  const roleBox = await linus.getByText("Member", { exact: true }).boundingBox();
+  expect(emailBox).not.toBeNull();
+  expect(actionsBox).not.toBeNull();
+  expect(roleBox).not.toBeNull();
+  // The email (and the not-signed-in pill beside it) fill the first line; the role and Actions sit beneath.
+  expect(actionsBox?.y ?? 0).toBeGreaterThanOrEqual((emailBox?.y ?? 0) + (emailBox?.height ?? 0));
+  expect(roleBox?.y ?? 0).toBeGreaterThanOrEqual((emailBox?.y ?? 0) + (emailBox?.height ?? 0));
+
+  // The pill stays on the screen and does not sit on top of the email.
+  const pill = linus.getByText("hasn't signed in yet", { exact: true });
+  await expect(pill).toBeVisible();
+  const pillBox = await pill.boundingBox();
+  const email = linus.getByText("linus@example.com");
+  const emailText = await email.boundingBox();
+  const viewportWidth = page.viewportSize()?.width ?? 0;
+  expect(pillBox).not.toBeNull();
+  expect(emailText).not.toBeNull();
+  expect((pillBox?.x ?? 0) + (pillBox?.width ?? 0)).toBeLessThanOrEqual(viewportWidth);
+  expect(boxesOverlap(pillBox, emailText)).toBe(false);
+
+  await expectNoHorizontalScroll(page);
+  expect(pageErrors).toEqual([]);
+});
+
+test("a Team roster row's Actions panel stays inside the phone screen", async ({
+  page,
+  pageErrors,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "phone", "the roster menu is checked at phone width");
+
+  await stubSignedIn(page);
+  await open(page, "/teams/team-1");
+
+  const ada = page.getByRole("listitem").filter({ hasText: "ada@example.com" });
+  await ada.locator("summary").click();
+  const panel = ada.locator("details > div");
+  await expect(panel.getByRole("button", { name: "Remove as Lead" })).toBeVisible();
+
+  const panelBox = await panel.boundingBox();
+  const viewportWidth = page.viewportSize()?.width ?? 0;
+  expect(panelBox).not.toBeNull();
+  expect(panelBox?.x ?? -1).toBeGreaterThanOrEqual(0);
+  expect((panelBox?.x ?? 0) + (panelBox?.width ?? 0)).toBeLessThanOrEqual(viewportWidth);
 
   await expectNoHorizontalScroll(page);
   expect(pageErrors).toEqual([]);
