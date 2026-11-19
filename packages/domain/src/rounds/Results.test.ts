@@ -949,3 +949,42 @@ describe("Raised N reports a lower-bound contributor count after the usable set 
     assert.isAtLeast(after?.contributors ?? 0, masked.effectiveMinimumGroupSize);
   });
 });
+
+describe("Trend is only derived for Rating Questions (Issue #265)", () => {
+  const LONG_TEXT = QuestionVersionId.make("q-4.1");
+  const longTextType: QuestionType = { _tag: "LongText" };
+
+  it("gives a SingleChoice and a LongText Question an empty trend while a Rating Question keeps one", () => {
+    const result = calculateRoundResult({
+      roundId: ROUND_1,
+      pulseId: PULSE_ID,
+      teamId: TEAM_ID,
+      status: "closed",
+      plannedOpenDate: "2026-11-02",
+      anonymityMode: "anonymous",
+      closedAt: 1730592000000,
+      effectiveMinimumGroupSize: 4,
+      eligibleMembersCount: 10,
+      questions: [
+        ...testQuestions,
+        { id: LONG_TEXT, position: 3, text: "Question 4 Long text", type: longTextType, dimension: null },
+      ],
+      submissions: Array.from({ length: 5 }, (_, i) => ({
+        id: `s${i}`,
+        answers: [
+          { questionVersionId: Q1, value: 4, comment: null },
+          { questionVersionId: Q3_CHOICE, value: 1, comment: null },
+          { questionVersionId: LONG_TEXT, value: null, comment: "Some words" },
+        ],
+      })),
+      pastRoundsHistory: [],
+    });
+
+    const rating = result.questions.find((q) => q.questionVersionId === Q1);
+    const choice = result.questions.find((q) => q.questionVersionId === Q3_CHOICE);
+    const longText = result.questions.find((q) => q.questionVersionId === LONG_TEXT);
+    assert.isTrue((rating?.trend.length ?? 0) > 0);
+    assert.deepStrictEqual(choice?.trend, []);
+    assert.deepStrictEqual(longText?.trend, []);
+  });
+});

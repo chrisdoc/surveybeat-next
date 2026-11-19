@@ -556,7 +556,7 @@ export const calculateRoundResult = (params: {
         distribution: tqs.distribution,
         change: null,
         typicalChange: null,
-        trend: trendPoints,
+        trend: q.type._tag === "Rating" ? trendPoints : [],
       };
     }
 

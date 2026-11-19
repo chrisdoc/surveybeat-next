@@ -2,8 +2,8 @@ import { RoundId, type TrendPoint } from "@surveybeat/domain";
 import { Schema } from "effect";
 import { type Html, inertHtml } from "foldkit/html";
 import { describe, expect, it } from "vitest";
-import { CHART_PAD, type ChartPoint, lineChart, plotPercent } from "./charts.ts";
-import { trendChart } from "./results.ts";
+import { CHART_PAD, type ChartPoint, lineChart, plotPercent, plotYPercent } from "./charts.ts";
+import { distributionChart, trendChart } from "./results.ts";
 
 /** The slice of a foldkit VNode these tests read: element name, classes, attributes and children. */
 interface Tree {
@@ -38,6 +38,22 @@ const point = (x: number, score: number | null, joinsPrevious = true): ChartPoin
 
 const render = (points: ReadonlyArray<ChartPoint>, extra: Partial<Parameters<typeof lineChart>[0]> = {}) =>
   asTree(lineChart({ points, ariaLabel: "test chart", ...extra }, inertHtml));
+
+/** Every string a subtree renders, so a count label can be found by its text. */
+const textsOf = (tree: Tree): Array<string> => {
+  const parts: Array<string> = [];
+  const walk = (child: Tree | string): void => {
+    if (typeof child === "string") {
+      parts.push(child);
+      return;
+    }
+    const inner = (child as { text?: string }).text;
+    if (inner !== undefined) parts.push(inner);
+    for (const grandchild of child.children ?? []) walk(grandchild);
+  };
+  walk(tree);
+  return parts;
+};
 
 /** Data segments are the `stroke-primary` lines; horizontal guides are `stroke-line`, vertical guides `stroke-brass`. */
 const segments = (tree: Tree): Array<Tree> =>
@@ -158,16 +174,77 @@ describe("trendChart", () => {
     hasGap,
   });
 
-  it("draws three dots, one segment that skips the gap, a brass last dot, and edge dots at the padding", () => {
-    const points = [roundPoint(3, false), roundPoint(4, true), roundPoint(5, false)];
-    const tree = asTree(trendChart(points, inertHtml, true));
+  const points = [roundPoint(3, false), roundPoint(4, true), roundPoint(5, false)];
+  const svgOf = (tree: Tree): Tree => elements(tree, "svg")[0]!;
+  const overlayOf = (tree: Tree): Tree => elements(tree, "div").find((node) => hasClass(node, "absolute"))!;
+  const dotsOf = (tree: Tree): Array<Tree> =>
+    elements(tree, "span").filter((node) => hasClass(node, "rounded-full"));
 
-    const dots = elements(tree, "circle");
-    expect(dots).toHaveLength(3);
+  it("stretches to the container width at a fixed height, with no max-width cap", () => {
+    const svg = svgOf(asTree(trendChart(points, inertHtml, true)));
+    expect(attr(svg, "preserveAspectRatio")).toBe("none");
+    expect(hasClass(svg, "h-32")).toBe(true);
+    expect(hasClass(svg, "w-full")).toBe(true);
+    expect(Object.keys(svg.data?.class ?? {}).some((name) => name.startsWith("max-w-"))).toBe(false);
+  });
+
+  it("keeps strokes at their designed width under the stretch", () => {
+    const tree = asTree(trendChart(points, inertHtml, true));
+    const lines = segments(tree);
+    expect(lines).toHaveLength(1);
+    expect(hasClass(lines[0]!, "[vector-effect:non-scaling-stroke]")).toBe(true);
+  });
+
+  it("draws one segment that skips the gap, and no SVG dots or text", () => {
+    const tree = asTree(trendChart(points, inertHtml, true));
     expect(segments(tree)).toHaveLength(1);
-    expect(hasClass(dots[2]!, "fill-brass")).toBe(true);
-    expect(hasClass(dots[0]!, "fill-primary")).toBe(true);
-    expect(attr(dots[0]!, "cx")).toBe("24");
-    expect(attr(dots[2]!, "cx")).toBe("344");
+    expect(elements(svgOf(tree), "circle")).toHaveLength(0);
+    expect(elements(svgOf(tree), "text")).toHaveLength(0);
+  });
+
+  it("places an HTML dot per score at its percentage position, the last one brass when unusual", () => {
+    const tree = asTree(trendChart(points, inertHtml, true));
+    const dots = dotsOf(tree);
+    expect(dots).toHaveLength(3);
+    expect(dots[0]!.data?.style?.left).toBe(plotPercent(0));
+    expect(dots[0]!.data?.style?.top).toBe(plotYPercent(3));
+    expect(dots[2]!.data?.style?.left).toBe(plotPercent(1));
+    expect(hasClass(dots[0]!, "bg-primary")).toBe(true);
+    expect(hasClass(dots[2]!, "bg-brass")).toBe(true);
+    expect(dots[0]!.data?.style?.width).toBe(`${4 * 2}px`);
+  });
+
+  it("writes the date labels and the latest value as HTML text in an aria-hidden overlay", () => {
+    const tree = asTree(trendChart([roundPoint(3, false), roundPoint(4.2, false)], inertHtml, false));
+    const overlay = overlayOf(tree);
+    expect(attr(overlay, "aria-hidden")).toBe("true");
+    const labels = textsOf(overlay);
+    expect(labels).toEqual(expect.arrayContaining(["1", "3", "5", "4.2"]));
+    // Scale (3), two date ticks and the latest value.
+    expect(labels).toHaveLength(6);
+    expect(attr(svgOf(tree), "aria-label")).toBe("2-Round trend");
+  });
+});
+
+describe("distributionChart", () => {
+  const option = (label: string, count: number) => ({ option: label, count });
+
+  const bars = (tree: Tree): Array<Tree> =>
+    elements(tree, "div").filter((node) => hasClass(node, "bg-primary"));
+
+  it("draws no bar for an option with zero answers, but still shows its count", () => {
+    const tree = asTree(distributionChart([option("Yes", 0), option("No", 4)], inertHtml));
+
+    const drawn = bars(tree);
+    expect(drawn).toHaveLength(1);
+    expect(drawn[0]!.data?.style?.width).toBe("100%");
+    expect(textsOf(tree)).toContain("0");
+    expect(textsOf(tree)).toContain("4");
+  });
+
+  it("fills the panel width with no max-width cap", () => {
+    const tree = asTree(distributionChart([option("Yes", 2)], inertHtml));
+    expect(hasClass(tree, "w-full")).toBe(true);
+    expect(Object.keys(tree.data?.class ?? {}).some((name) => name.startsWith("max-w-"))).toBe(false);
   });
 });

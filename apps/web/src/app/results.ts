@@ -118,6 +118,7 @@ export const trendChart = <Message>(
       })),
       ariaLabel: trendTitle(points.length),
       highlightLast: unusual,
+      fillWidth: true,
       ...(points.length <= 1
         ? {}
         : {
@@ -157,11 +158,7 @@ export const distributionChart = <Message>(
   const maxCount = Math.max(...distribution.map((d) => d.count), 1);
 
   return h.div(
-    [
-      h.Class("flex w-full max-w-xs flex-col gap-3"),
-      h.Role("img"),
-      h.AriaLabel(message("results.distributionTitle")),
-    ],
+    [h.Class("flex w-full flex-col gap-3"), h.Role("img"), h.AriaLabel(message("results.distributionTitle"))],
     distribution.map((d) =>
       h.div(
         [h.Class("flex flex-col gap-1")],
@@ -173,10 +170,12 @@ export const distributionChart = <Message>(
               h.div(
                 [h.Class("min-w-0 flex-1")],
                 [
-                  h.div([
-                    h.Class("h-5 rounded bg-primary"),
-                    h.Style({ width: `${(d.count / maxCount) * 100}%`, minWidth: "2px" }),
-                  ]),
+                  d.count > 0
+                    ? h.div([
+                        h.Class("h-5 rounded bg-primary"),
+                        h.Style({ width: `${(d.count / maxCount) * 100}%`, minWidth: "2px" }),
+                      ])
+                    : null,
                 ],
               ),
               h.span([h.Class("text-xs text-muted tabular-nums")], [String(d.count)]),
@@ -1059,17 +1058,22 @@ export const resultsScreenView = <Message>(
         [
           sectionTitle(message("actions.title"), h, "onDark"),
           h.p([h.Class("mt-2 text-mint-text")], [message("actions.intro")]),
-          h.div([h.Class("mt-6 flex flex-col gap-4")], actionsItems),
-          isLead
-            ? appButton(
-                {
-                  text: message("actions.commitOpen"),
-                  onClick: callbacks.onToggleActionForm,
-                  className: darkOutlineButtonClass,
-                },
-                h,
-              )
-            : null,
+          h.div(
+            [h.Class("mt-6 flex flex-col gap-4")],
+            [
+              ...actionsItems,
+              isLead
+                ? appButton(
+                    {
+                      text: message("actions.commitOpen"),
+                      onClick: callbacks.onToggleActionForm,
+                      className: darkOutlineButtonClass,
+                    },
+                    h,
+                  )
+                : null,
+            ],
+          ),
           state.actionFormOpen ? commitForm : null,
         ].filter(Predicate.isNotNull),
         h,
@@ -1248,7 +1252,7 @@ export const resultsScreenView = <Message>(
                     )
                   : null,
 
-                q.trend.length > 0
+                q.type._tag === "Rating" && q.trend.length > 0
                   ? h.div(
                       [h.Class("mt-2 rounded-control bg-subtle p-4")],
                       [
