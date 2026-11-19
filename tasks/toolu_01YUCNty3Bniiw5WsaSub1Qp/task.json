@@ -1,0 +1,23 @@
+{
+  "tool_use_id": "toolu_01YUCNty3Bniiw5WsaSub1Qp",
+  "agent_id": "adac21668897f6f24",
+  "subagent_type": "implementer",
+  "task_description": "Implement #248 Organization.ts split",
+  "files": [
+    ".githooks/post-commit",
+    "packages/cloudflare/src/Organization.ts",
+    "packages/cloudflare/src/organization/RoundCommands.ts",
+    "packages/cloudflare/src/organization/RoundJobs.ts",
+    "packages/cloudflare/src/organization/Scheduling.ts",
+    "packages/cloudflare/src/organization/TestSupport.ts"
+  ],
+  "token_usage": {
+    "input_tokens": 120,
+    "cache_creation_tokens": 210654,
+    "cache_read_tokens": 9272577,
+    "output_tokens": 111025,
+    "api_call_count": 60
+  },
+  "started_at": "2026-11-18T18:13:40.300030247Z",
+  "completed_at": "2026-11-18T18:13:40.300639932Z"
+}

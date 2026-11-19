@@ -1,0 +1,77 @@
+{
+  "cli_version": "0.13.4",
+  "checkpoint_id": "01M7TQDX51YRNDNBHFHBBE3S5B",
+  "strategy": "manual-commit",
+  "branch": "t3/r1-249-decide-round-command",
+  "checkpoints_count": 11,
+  "files_touched": [
+    ".githooks/post-commit",
+    "docs/infra.md",
+    "packages/cloudflare/src/DirectoryApi.test.ts",
+    "packages/cloudflare/src/DirectoryHandlers.ts",
+    "packages/cloudflare/src/EmailDelivery.test.ts",
+    "packages/cloudflare/src/EmailDelivery.ts",
+    "packages/cloudflare/src/EmailTestRoutes.ts",
+    "packages/cloudflare/src/MainWorker.ts",
+    "packages/cloudflare/src/Organization.test.ts",
+    "packages/cloudflare/src/Organization.ts",
+    "packages/cloudflare/src/PulseHandlers.ts",
+    "packages/cloudflare/src/ResendEmailTestRoutes.ts",
+    "packages/cloudflare/src/TestInvitationTestRoutes.ts",
+    "packages/cloudflare/src/auth/PeopleTestRoutes.ts",
+    "packages/cloudflare/src/auth/testing.ts",
+    "packages/cloudflare/src/index.ts",
+    "packages/cloudflare/src/organization/Directory.ts",
+    "packages/cloudflare/src/organization/EmailVisibility.ts",
+    "packages/cloudflare/src/organization/RoundCommands.ts",
+    "packages/cloudflare/src/organization/RoundJobs.ts",
+    "packages/cloudflare/src/organization/Scheduling.ts",
+    "packages/cloudflare/src/organization/TestSupport.ts",
+    "packages/domain/src/people/Directory.test.ts",
+    "packages/domain/src/people/Directory.ts",
+    "packages/domain/src/people/DirectoryFlow.ts",
+    "packages/domain/src/pulses/Editor.ts",
+    "packages/domain/src/pulses/PulseFlow.ts",
+    "packages/domain/src/rounds/RoundCommand.test.ts",
+    "packages/domain/src/rounds/RoundCommand.ts",
+    "packages/domain/src/rounds/index.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 231,
+    "cache_creation_tokens": 330098,
+    "cache_read_tokens": 19491808,
+    "output_tokens": 63617,
+    "api_call_count": 102,
+    "subagent_tokens": {
+      "input_tokens": 408,
+      "cache_creation_tokens": 810269,
+      "cache_read_tokens": 21908103,
+      "output_tokens": 305794,
+      "api_call_count": 204
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 23,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 12,
+      "key_context": 11,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}

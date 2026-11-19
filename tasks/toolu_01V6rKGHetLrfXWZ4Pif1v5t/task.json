@@ -1,0 +1,21 @@
+{
+  "tool_use_id": "toolu_01V6rKGHetLrfXWZ4Pif1v5t",
+  "agent_id": "adcc60d4c6f949bf5",
+  "subagent_type": "reviewer",
+  "task_description": "Review #249 decideRoundCommand diff",
+  "files": [
+    ".githooks/post-commit",
+    "packages/cloudflare/src/organization/RoundCommands.ts",
+    "packages/domain/src/pulses/Editor.ts",
+    "packages/domain/src/rounds/index.ts"
+  ],
+  "token_usage": {
+    "input_tokens": 16,
+    "cache_creation_tokens": 49641,
+    "cache_read_tokens": 272006,
+    "output_tokens": 4613,
+    "api_call_count": 8
+  },
+  "started_at": "2026-11-18T18:49:45.964134423Z",
+  "completed_at": "2026-11-18T18:49:45.964617306Z"
+}
