@@ -84,7 +84,7 @@ import {
   testSendKeepsPolling,
 } from "./pulses.ts";
 import { GuideCopy, LoadedActions, LoadedNote, LoadedResults, resultsScreenView } from "./results.ts";
-import { isLead, LoadedRounds, RoundConfirm, roundOpenDate, roundsScreenView } from "./rounds.ts";
+import { isLead, LoadedRounds, RoundConfirm, roundDate, roundsScreenView } from "./rounds.ts";
 import {
   AppRoute,
   pulseHref,
@@ -1238,7 +1238,7 @@ const attentionItems = (model: Model): ReadonlyArray<AttentionItem> => {
               text: round.pulseName,
               detail: message("home.attention.shareDetail", {
                 team: team.name,
-                date: roundOpenDate(round),
+                date: roundDate(round),
               }),
               href: roundResultsHref(team.id, round.id),
             });
@@ -1248,7 +1248,7 @@ const attentionItems = (model: Model): ReadonlyArray<AttentionItem> => {
               text: round.pulseName,
               detail: message("home.attention.openDetail", {
                 team: team.name,
-                date: roundOpenDate(round),
+                date: roundDate(round),
               }),
               href: roundsHref(team.id, pulse.id),
             });
@@ -1311,7 +1311,7 @@ const firstRunChecklist = (model: Model): ReadonlyArray<ChecklistStep> | null =>
         scheduled === undefined
           ? message("team.checklist.round")
           : message("team.checklist.roundScheduled", {
-              date: roundOpenDate(scheduled),
+              date: roundDate(scheduled),
             }),
       href: firstPulse === undefined ? pulsesHref(route.teamId) : roundsHref(route.teamId, firstPulse.id),
       done: false,

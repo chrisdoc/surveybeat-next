@@ -3302,24 +3302,43 @@ describe("App Scenes", () => {
       );
     });
 
-    it("titles a Round from its window's open date, not the date it was first planned", () => {
-      const staleId = Schema.decodeSync(RoundId)("round-stale");
-      const stale: RoundSummary = {
-        ...summary(staleId, "scheduled", "2026-11-24"),
-        plannedOpenAt: instant("2026-11-18T09:00:00Z"),
-        plannedCloseAt: instant("2026-11-19T09:00:00Z"),
+    it("titles a Round by its planned open date, the date Results and History show, even when it opened early", () => {
+      const earlyId = Schema.decodeSync(RoundId)("round-early");
+      const early: RoundSummary = {
+        ...summary(earlyId, "open", "2026-11-23"),
+        openedAt: instant("2026-11-19T09:00:00Z"),
+        plannedCloseAt: instant("2026-11-26T09:00:00Z"),
       };
       Scene.scene(
         { update, view },
         Scene.given({
           ...given("lead"),
-          rounds: { _tag: "Loaded" as const, list: { ...rounds, rounds: [stale] } },
+          rounds: { _tag: "Loaded" as const, list: { ...rounds, rounds: [early] } },
           roundDetails: {},
           roundRates: {},
         }),
-        Scene.expect(Scene.text("Round Nov 18, 2026")).toExist(),
-        Scene.expect(Scene.text("Round Nov 24, 2026")).toBeAbsent(),
-        Scene.expect(Scene.text("Nov 18, 2026 to Nov 19, 2026")).toExist(),
+        Scene.expect(Scene.text("Round Nov 23, 2026")).toExist(),
+        Scene.expect(Scene.text("Round Nov 19, 2026")).toBeAbsent(),
+        Scene.expect(Scene.text("Nov 19, 2026 to Nov 26, 2026")).toExist(),
+      );
+    });
+
+    it("titles a Round by the Team's calendar day when its open instant falls on another day for the viewer", () => {
+      const aheadId = Schema.decodeSync(RoundId)("round-ahead");
+      const ahead: RoundSummary = {
+        ...summary(aheadId, "scheduled", "2026-11-23"),
+        plannedOpenAt: instant("2026-11-22T20:00:00Z"),
+      };
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...given("lead"),
+          rounds: { _tag: "Loaded" as const, list: { ...rounds, rounds: [ahead] } },
+          roundDetails: {},
+          roundRates: {},
+        }),
+        Scene.expect(Scene.text("Round Nov 23, 2026")).toExist(),
+        Scene.expect(Scene.text("Round Nov 22, 2026")).toBeAbsent(),
       );
     });
 
