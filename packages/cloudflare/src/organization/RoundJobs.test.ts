@@ -38,11 +38,11 @@ const QUESTION_A = { text: "How clear is the plan?", lowLabel: "Unclear", highLa
 
 const QUESTION_B = { text: "How heard do you feel?", lowLabel: "Unheard", highLabel: "Heard" };
 
-type RecordedSend = {
+interface RecordedSend {
   readonly sendId: SendId;
   readonly recipient: EmailAddress;
   readonly email: StoredEmail;
-};
+}
 
 /** A typed failure of a Round job, standing in for a provider or send error that carries a recipient. */
 class SendFailed extends Schema.TaggedError<SendFailed, { readonly brand: unique symbol }>()("SendFailed", {

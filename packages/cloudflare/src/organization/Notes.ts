@@ -90,11 +90,9 @@ export const organizationNotes = ({
 
           const change = noteChange(text);
 
-          if (change._tag === "Delete") {
-            yield* notes.deleteNote(roundId);
-          } else {
-            yield* notes.upsertNote({ roundId, teamId, text: change.text, updatedAt: now });
-          }
+          yield* change._tag === "Delete"
+            ? notes.deleteNote(roundId)
+            : notes.upsertNote({ roundId, teamId, text: change.text, updatedAt: now });
 
           const note = yield* notes.getNote(roundId);
           const viewed: NoteViewed<RoundNoteView> = { _tag: "Viewed", value: { roundId, note } };

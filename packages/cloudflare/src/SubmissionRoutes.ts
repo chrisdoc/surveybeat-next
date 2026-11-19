@@ -72,11 +72,11 @@ const credentialHeaders = ["x-invitation-token", "x-edit-key"] as const;
 
 const EDIT_KEY_HASH = /^[0-9a-f]{64}$/;
 
-type TestIndexRow = {
+interface TestIndexRow {
   readonly organization_id: string;
   readonly pulse_id: string;
   readonly expires_at: number;
-};
+}
 
 const findTestInvitation = (database: Cloudflare.D1.QueryDatabaseClient, tokenHash: string, now: number) =>
   database

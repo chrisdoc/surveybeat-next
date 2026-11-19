@@ -2,6 +2,7 @@ import * as Cloudflare from "@alchemy.run/cloudflare";
 import { Stack } from "alchemy/Stack";
 import { Layer } from "effect";
 import * as Effect from "effect/Effect";
+import { constVoid } from "effect/Function";
 import { Database } from "./Database.ts";
 import { hostnameFor } from "./Hostnames.ts";
 import Organization from "./Organization.ts";
@@ -32,7 +33,7 @@ export default class SubmissionWorker extends Cloudflare.Worker<SubmissionWorker
 
     const hostOfOrganization = {
       workerName: main.workerName,
-      "~alchemy/dependencies": (_: Organization) => undefined,
+      "~alchemy/dependencies": constVoid,
     };
 
     const organizations = yield* Organization.from(hostOfOrganization);

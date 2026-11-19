@@ -37,7 +37,7 @@ export interface Messages {
   readonly locale: Locale;
 
   message: {
-    <K extends KeysWithoutParams>(key: K): string;
+    (key: KeysWithoutParams): string;
     <K extends KeysWithParams>(key: K, params: Params<K>): string;
   };
 }
@@ -52,7 +52,7 @@ export const messagesFor = (locale: Locale): Messages => {
   }
 
   const table: Translation = tables[locale];
-  function message<K extends KeysWithoutParams>(key: K): string;
+  function message(key: KeysWithoutParams): string;
   function message<K extends KeysWithParams>(key: K, params: Params<K>): string;
   function message(key: MessageKey, params: Readonly<Record<string, Value>> = {}): string {
     return fill(table[key], params);

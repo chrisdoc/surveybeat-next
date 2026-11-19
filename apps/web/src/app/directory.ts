@@ -401,7 +401,8 @@ export const teamsScreenView = <Message>(
         h.ul(
           [h.Class("mt-6 flex flex-col gap-3")],
           state.teams.teams.map((team) =>
-            h.li(
+            h.keyed("li")(
+              team.id,
               [],
               [
                 h.a(
@@ -733,8 +734,8 @@ export const teamScreenView = <Message>(
     );
   }
 
-  children.push(h.div([h.Class("mt-8")], [subSectionTitle(message("team.roster"), h, 2)]));
   children.push(
+    h.div([h.Class("mt-8")], [subSectionTitle(message("team.roster"), h, 2)]),
     h.ul(
       [h.Class("mt-3 rounded-panel border border-line bg-surface px-6")],
       detail.roster.map((entry) => {
@@ -1006,8 +1007,10 @@ const failedEmailActionView = <Message>(
         if (resend.failure === "EmailNotResendable") {
           children.push(h.p([h.Role("status")], [failureMessage(resend.failure)]));
         } else {
-          children.push(h.p([h.Role("status")], [message("settings.failedEmails.resendFailed")]));
-          children.push(resendButton(false, message("settings.failedEmails.resend")));
+          children.push(
+            h.p([h.Role("status")], [message("settings.failedEmails.resendFailed")]),
+            resendButton(false, message("settings.failedEmails.resend")),
+          );
         }
 
         break;
@@ -1209,10 +1212,7 @@ export const settingsScreenView = <Message>(
         problemView(state.aiFailure, h),
       ].filter(Predicate.isNotNull),
     ),
-  );
-
-  children.push(h.div([h.Class("mt-8")], [subSectionTitle(message("settings.people"), h, 2)]));
-  children.push(
+    h.div([h.Class("mt-8")], [subSectionTitle(message("settings.people"), h, 2)]),
     dataTable(
       [message("settings.people.email"), message("settings.people.role"), message("settings.people.actions")],
       settings.people.map((person) => {

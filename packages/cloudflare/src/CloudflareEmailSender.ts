@@ -65,7 +65,7 @@ export const cloudflareEmailSender = (client: Cloudflare.Email.SendClient) =>
             ...(message.headers !== undefined ? { headers: { ...message.headers } } : {}),
           })
           .pipe(
-            Effect.mapError((error) => classifySendError(error.cause)),
+            Effect.mapError((failure) => classifySendError(failure.cause)),
             Effect.flatMap((result) =>
               Option.match(decodeResult(result), {
                 onNone: () => Effect.fail(new EmailOutcomeUnknown({ code: "E_NO_MESSAGE_ID" })),

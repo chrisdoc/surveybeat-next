@@ -1,6 +1,9 @@
 import * as Cause from "effect/Cause";
 
-type Tagged = { readonly _tag?: unknown; readonly cause?: unknown };
+interface Tagged {
+  readonly _tag?: unknown;
+  readonly cause?: unknown;
+}
 
 const isObject = (value: unknown): value is Tagged => typeof value === "object" && value !== null;
 

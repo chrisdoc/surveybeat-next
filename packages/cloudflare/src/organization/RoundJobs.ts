@@ -299,21 +299,19 @@ export const makeRoundJobs = ({
           aiProcessing: dirState.aiProcessing,
         };
 
-        if (m.sendAt <= now) {
-          yield* sends.create(sendId, person.email, invitationEmail);
-        } else {
-          yield* rounds.insertJob({
-            id: JobId.make(randomId()),
-            roundId,
-            type: "send",
-            dueAt: m.sendAt,
-            status: "pending",
-            payload: JSON.stringify({ personId: m.personId }),
-            createdAt: now,
-            completedAt: null,
-            failures: 0,
-          });
-        }
+        yield* m.sendAt <= now
+          ? sends.create(sendId, person.email, invitationEmail)
+          : rounds.insertJob({
+              id: JobId.make(randomId()),
+              roundId,
+              type: "send",
+              dueAt: m.sendAt,
+              status: "pending",
+              payload: JSON.stringify({ personId: m.personId }),
+              createdAt: now,
+              completedAt: null,
+              failures: 0,
+            });
 
         const reminderInstants = calculateReminders(
           m.sendAt,

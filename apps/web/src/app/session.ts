@@ -63,6 +63,11 @@ export const SessionResult = defineTaggedUnion({
 
 export type SessionResult = typeof SessionResult.Type;
 
+const recoverSession = (failure: unknown): Effect.Effect<SessionResult> =>
+  Effect.succeed<SessionResult>(
+    Predicate.isTagged(failure, "Unauthenticated") ? { _tag: "SignedOut" } : { _tag: "Failed" },
+  );
+
 export const runSessionCall = <E>(
   call: (api: ApiClient) => Effect.Effect<DomainSessionState, E>,
 ): Effect.Effect<SessionResult> =>
@@ -94,11 +99,7 @@ export const runSessionCall = <E>(
         }
       }
     }),
-    Effect.catch((error: unknown) =>
-      Effect.succeed<SessionResult>(
-        Predicate.isTagged(error, "Unauthenticated") ? { _tag: "SignedOut" } : { _tag: "Failed" },
-      ),
-    ),
+    Effect.catch(recoverSession),
     Effect.provide(FetchHttpClient.layer),
   );
 
@@ -287,7 +288,8 @@ export const chooseOrganizationView = <Message>(
       h.ul(
         [h.Class("mt-6 flex flex-col gap-3")],
         organizations.map((org) =>
-          h.li(
+          h.keyed("li")(
+            org.id,
             [],
             [
               appButton(
