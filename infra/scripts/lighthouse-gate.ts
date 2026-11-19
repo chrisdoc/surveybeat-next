@@ -19,7 +19,15 @@ interface LighthouseResult {
     "total-blocking-time": LighthouseAudit;
     metrics?: { details?: { items?: readonly { observedFirstContentfulPaint?: number }[] } };
     "network-requests"?: {
-      details?: { items?: readonly { url: string; resourceType?: string; networkRequestTime?: number }[] };
+      details?: {
+        items?: readonly {
+          url: string;
+          resourceType?: string;
+          priority?: string;
+          networkRequestTime?: number;
+          networkEndTime?: number;
+        }[];
+      };
     };
   };
 }
@@ -37,7 +45,18 @@ const observedTimings = (report: LighthouseResult): string => {
 
   const fmt = (value: number | undefined) => (value === undefined ? "?" : `${Math.round(value)} ms`);
 
-  return `observed FCP ${fmt(observedFcp)}, first script request ${fmt(firstScript)}`;
+  const requestTimings = requests
+    .filter((request) => !request.url.startsWith("data:"))
+    .map((request) => {
+      const path = new URL(request.url).pathname.replace(/-[\w-]{8}\.js$/u, ".js");
+      const ended = request.networkEndTime ?? 0;
+      const beforePaint = observedFcp !== undefined && ended <= observedFcp ? " before paint" : "";
+
+      return `${path} ${request.priority ?? "?"} ${fmt(request.networkRequestTime)}→${fmt(ended)}${beforePaint}`;
+    })
+    .join("; ");
+
+  return `observed FCP ${fmt(observedFcp)}, first script request ${fmt(firstScript)}; ${requestTimings}`;
 };
 
 const FCP_BUDGET = 800;
