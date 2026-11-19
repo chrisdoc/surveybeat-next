@@ -5,7 +5,7 @@
 
 import { spawn } from "node:child_process";
 import { createServer } from "node:http";
-import { readFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { readFileSync, existsSync, mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 
 interface LighthouseAudit {
@@ -179,11 +179,15 @@ async function main() {
 
   const chromePath = findChrome();
 
-  const runLighthouse = (targetUrl: string): Promise<LighthouseResult> =>
+  const runLighthouse = (targetUrl: string, name: string): Promise<LighthouseResult> =>
     new Promise((resolvePromise, reject) => {
+      const outputPath = resolve(reportDir, `${name}.json`);
+
       const args = [
         targetUrl,
         "--output=json",
+        `--output-path=${outputPath}`,
+        "--save-assets",
 
         "--only-audits=first-contentful-paint,largest-contentful-paint,total-blocking-time,metrics,network-requests",
         "--quiet",
@@ -199,11 +203,8 @@ async function main() {
       const useLocalBin = existsSync(lighthouseBin);
       const cmd = useLocalBin ? lighthouseBin : "pnpm";
       const fullArgs = useLocalBin ? args : ["dlx", "lighthouse@13.6.0", ...args];
-      const proc = spawn(cmd, fullArgs, { env, stdio: ["ignore", "pipe", "inherit"] });
-      let stdout = "";
-      proc.stdout.on("data", (chunk: Buffer) => {
-        stdout += chunk.toString("utf8");
-      });
+      mkdirSync(reportDir, { recursive: true });
+      const proc = spawn(cmd, fullArgs, { env, stdio: ["ignore", "inherit", "inherit"] });
       proc.on("close", (code) => {
         if (code !== 0) {
           reject(new Error(`Lighthouse exited with code ${code}`));
@@ -212,7 +213,7 @@ async function main() {
         }
 
         try {
-          const parsed: LighthouseResult = JSON.parse(stdout);
+          const parsed: LighthouseResult = JSON.parse(readFileSync(outputPath, "utf8"));
           resolvePromise(parsed);
         } catch (error) {
           reject(error instanceof Error ? error : new Error(String(error)));
@@ -230,13 +231,11 @@ async function main() {
 
   const auditUrl = async (targetUrl: string): Promise<AuditResult> => {
     console.log(`\nRunning Lighthouse audit on ${targetUrl} (1 warm-up, ${RUNS} measured runs)...`);
-    await runLighthouse(targetUrl);
+    await runLighthouse(targetUrl, "warm-up");
     const runs: { fcp: number; lcp: number; tbt: number }[] = [];
 
     for (let run = 1; run <= RUNS; run++) {
-      const report = await runLighthouse(targetUrl);
-      mkdirSync(reportDir, { recursive: true });
-      writeFileSync(resolve(reportDir, `run-${run}.json`), JSON.stringify(report));
+      const report = await runLighthouse(targetUrl, `run-${run}`);
 
       const measured = {
         fcp: report.audits["first-contentful-paint"].numericValue,
