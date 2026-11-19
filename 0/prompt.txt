@@ -1,0 +1,29 @@
+setuop https://github.com/interfere-inc/landmines
+
+---
+
+lets add it and push it
+
+---
+
+always create a PR
+
+---
+
+Update on pull request #253 (https://github.com/chrisdoc/surveybeat-next/pull/253), which T3 Code is watching for you:
+- 1 new comment:
+  - coderabbitai: "> [!WARNING] > ## Review limit reached > > You've used all free OSS reviews for now. Wait for the free limit to reset to keep reviewing this public repository. > > **Next included review available ..." https://github.com/chrisdoc/surveybeat-next/pull/253#issuecomment-6988001429
+
+Look into each item and act on it as your task requires. This PR stays linked and watched, so do not link, watch, or list it again. End your turn when you are done, and T3 Code wakes you on the next change. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.
+
+---
+
+https://www.ultracite.ai/docs/presets#agent-shortcut-rules-with-landmines
+
+---
+
+Update on pull request #258 (https://github.com/chrisdoc/surveybeat-next/pull/258), which T3 Code is watching for you:
+- 1 new comment:
+  - coderabbitai: "> [!WARNING] > ## Review limit reached > > You've used all free OSS reviews for now. Wait for the free limit to reset to keep reviewing this public repository. > > **Next included review available ..." https://github.com/chrisdoc/surveybeat-next/pull/258#issuecomment-6988426385
+
+Look into each item and act on it as your task requires. This PR stays linked and watched, so do not link, watch, or list it again. End your turn when you are done, and T3 Code wakes you on the next change. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.

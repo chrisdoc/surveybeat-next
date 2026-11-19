@@ -1,0 +1,96 @@
+{
+  "cli_version": "0.13.4",
+  "checkpoint_id": "01M7TQDVH9HH7ZSET3MNXC6HFT",
+  "session_id": "00b1bbb9-44d6-470d-9cd6-ff4bc6815861",
+  "strategy": "manual-commit",
+  "created_at": "2026-11-19T20:19:36.092907697Z",
+  "branch": "t3/landmines-ultracite-preset",
+  "checkpoints_count": 8,
+  "save_step_count": 6,
+  "files_touched": [
+    ".githooks/post-commit",
+    "AGENTS.md",
+    "apps/web/src/app/App.scene.test.ts",
+    "apps/web/src/app/App.story.test.ts",
+    "apps/web/src/app/App.ts",
+    "apps/web/src/app/overview.test.ts",
+    "docs/agents/lint-scope.md",
+    "oxlint.config.ts",
+    "package.json",
+    "packages/cloudflare/src/ActionsApi.test.ts",
+    "packages/cloudflare/src/DirectoryApi.test.ts",
+    "packages/cloudflare/src/MemberHistoryApi.test.ts",
+    "packages/cloudflare/src/NotesApi.test.ts",
+    "packages/cloudflare/src/PulsesApi.test.ts",
+    "packages/cloudflare/src/TeamOverviewApi.test.ts",
+    "packages/cloudflare/src/auth/SignIn.test.ts",
+    "packages/cloudflare/src/auth/testing.ts",
+    "packages/cloudflare/src/testing.ts",
+    "pnpm-lock.yaml",
+    "pnpm-workspace.yaml",
+    "tools/oxlint/fixtures/oxlint.fixtures.json",
+    "tools/oxlint/fixtures/packages/detached/package.json",
+    "tools/oxlint/fixtures/packages/detached/src/detached.test.ts",
+    "tools/oxlint/fixtures/packages/detached/src/owner/thing.ts",
+    "tools/oxlint/fixtures/packages/open-exports/package.json",
+    "tools/oxlint/fixtures/packages/open-exports/src/index.ts",
+    "tools/oxlint/fixtures/packages/slop/src/fixed-sleep.test.ts",
+    "tools/oxlint/fixtures/packages/slop/src/flake-masking.test.ts",
+    "tools/oxlint/fixtures/packages/slop/src/strict-msw.test.ts",
+    "tools/oxlint/fixtures/packages/slop/src/test-doubles.test.ts",
+    "tools/oxlint/fixtures/packages/slop/src/thing.mocks.ts",
+    "tools/oxlint/fixtures/packages/slop/src/unsignaled-poll.test.ts",
+    "tools/oxlint/rules.test.ts"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-5-5",
+  "turn_id": "e932fb4055a3",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 200,
+    "cache_creation_tokens": 154168,
+    "cache_read_tokens": 12311463,
+    "output_tokens": 41351,
+    "api_call_count": 91,
+    "subagent_tokens": {
+      "input_tokens": 8,
+      "cache_creation_tokens": 20850,
+      "cache_read_tokens": 53316,
+      "output_tokens": 1969,
+      "api_call_count": 4
+    },
+    "subagent_tokens_complete": true
+  },
+  "session_token_usage": {
+    "input_tokens": 200,
+    "cache_creation_tokens": 154168,
+    "cache_read_tokens": 12311463,
+    "output_tokens": 41351,
+    "api_call_count": 91,
+    "subagent_tokens": {
+      "input_tokens": 8,
+      "cache_creation_tokens": 20850,
+      "cache_read_tokens": 53316,
+      "output_tokens": 1969,
+      "api_call_count": 4
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 6,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 6,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  },
+  "session_metrics": {
+    "turn_count": 8
+  }
+}
