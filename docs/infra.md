@@ -52,7 +52,7 @@ The first job, `select`, decides what the revision needs before any stage work s
 After the deploy, two jobs run against the stage. Both are skipped when `stage` is off:
 
 - `preview-privacy` reads back the Submission Worker's settings (below) on every stage. It runs the canary sweep (`infra/tests/privacy/canary-sweep.ts`) only when `canary` is on.
-- `e2e` runs the Playwright tests in `infra/tests/e2e/`, including the SPEC §7 flow (local stage only, see AGENTS.md). It builds the web app and runs the Lighthouse gate only when `lighthouse` is on.
+- `e2e` runs the Playwright tests in `infra/tests/e2e/`, including the SPEC §7 flow (local stage only, see AGENTS.md). It builds the web app and runs the Lighthouse gate only when `lighthouse` is on. The gate (`infra/scripts/lighthouse-gate.ts`) serves the built answer page locally and takes the median of 9 runs against ADR 0008's budgets. It also fails when Lighthouse reports any render-blocking request, which is ADR 0008's "1 request before first paint". The local server holds every subresource body back 100 ms but sends its headers at once. On localhost the module script would otherwise arrive before first paint in some runs, and Lantern would then count it as render-blocking, adding ~300 ms of simulated FCP (#285). Sending headers at once keeps Lantern's per-origin server-time estimate unchanged. A second step reruns the gate with `LIGHTHOUSE_PLANT_RENDER_BLOCKING=1`, which injects a stylesheet into `<head>`; that step passes only when the gate flags it.
 
 ## Sign-in (Better Auth, email codes)
 

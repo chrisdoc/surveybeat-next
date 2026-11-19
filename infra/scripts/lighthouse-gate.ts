@@ -5,6 +5,8 @@
 
 import { spawn } from "node:child_process";
 import { createServer } from "node:http";
+import type { IncomingMessage } from "node:http";
+import { setTimeout as sleep } from "node:timers/promises";
 import { readFileSync, existsSync, mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -18,6 +20,7 @@ interface LighthouseResult {
     "largest-contentful-paint": LighthouseAudit;
     "total-blocking-time": LighthouseAudit;
     metrics?: { details?: { items?: readonly { observedFirstContentfulPaint?: number }[] } };
+    "render-blocking-insight"?: { details?: { items?: readonly { url: string }[] } };
     "network-requests"?: {
       details?: {
         items?: readonly {
@@ -61,15 +64,27 @@ const observedTimings = (report: LighthouseResult): string => {
 
 const FCP_BUDGET = 800;
 
+const SUBRESOURCE_BODY_DELAY_MS = 100;
+
+const plantedStylesheet = "/assets/planted-render-blocking.css";
+
+const plantRenderBlocking = process.env.LIGHTHOUSE_PLANT_RENDER_BLOCKING === "1";
+
 const LCP_BUDGET = 1300;
 
 const TBT_BUDGET = 50;
+
+interface Reply {
+  headers: Record<string, string>;
+  body: string | Buffer;
+}
 
 interface AuditResult {
   url: string;
   fcp: number;
   lcp: number;
   tbt: number;
+  renderBlocking: readonly string[];
   failures: string[];
 }
 
@@ -82,18 +97,23 @@ async function main() {
     const port = 4173;
     const distPath = resolve(import.meta.dirname, "../../apps/web/dist");
 
-    const enHtml = readFileSync(resolve(distPath, "answer.html"), "utf8");
+    const builtHtml = readFileSync(resolve(distPath, "answer.html"), "utf8");
 
-    server = createServer((req, res) => {
+    const enHtml = plantRenderBlocking
+      ? builtHtml.replace("</head>", `<link rel="stylesheet" href="${plantedStylesheet}"></head>`)
+      : builtHtml;
+
+    const reply = (req: IncomingMessage): Reply => {
       const url = new URL(req.url ?? "/", `http://${req.headers.host}`);
 
+      if (url.pathname === plantedStylesheet) {
+        return { headers: { "content-type": "text/css" }, body: "body{}" };
+      }
+
       if (url.pathname === "/exchange" && req.method === "POST") {
-        res.writeHead(200, {
-          "content-type": "application/json",
-          "access-control-allow-origin": "*",
-        });
-        res.end(
-          JSON.stringify({
+        return {
+          headers: { "content-type": "application/json", "access-control-allow-origin": "*" },
+          body: JSON.stringify({
             roundId: "round-test-1",
             pulseName: "Weekly Pulse",
             minimumGroupSize: 4,
@@ -111,9 +131,7 @@ async function main() {
             state: "open",
             hasAnswered: false,
           }),
-        );
-
-        return;
+        };
       }
 
       if (url.pathname.startsWith("/assets/")) {
@@ -126,22 +144,35 @@ async function main() {
               ? "text/css"
               : "application/octet-stream";
 
-          res.writeHead(200, { "content-type": contentType });
-          res.end(readFileSync(filePath));
-
-          return;
+          return { headers: { "content-type": contentType }, body: readFileSync(filePath) };
         }
       }
 
-      res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-      res.end(enHtml);
+      return { headers: { "content-type": "text/html; charset=utf-8" }, body: enHtml };
+    };
+
+    server = createServer((req, res) => {
+      const { headers, body } = reply(req);
+
+      res.writeHead(200, headers);
+
+      if (req.headers["sec-fetch-dest"] === "document") {
+        res.end(body);
+
+        return;
+      }
+
+      res.flushHeaders();
+      void sleep(SUBRESOURCE_BODY_DELAY_MS).then(() => res.end(body));
     });
 
     await new Promise<void>((res) => {
       server?.listen(port, res);
     });
     targetUrls = [`http://127.0.0.1:${port}/a#t=test-token-123&v=4`];
-    console.log(`Local test server running at http://127.0.0.1:${port}`);
+    console.log(
+      `Local test server running at http://127.0.0.1:${port} (subresource bodies held ${SUBRESOURCE_BODY_DELAY_MS} ms${plantRenderBlocking ? ", planted render-blocking stylesheet" : ""})`,
+    );
   }
 
   const lighthouseBin = resolve(import.meta.dirname, "../node_modules/.bin/lighthouse");
@@ -189,7 +220,7 @@ async function main() {
         `--output-path=${outputPath}`,
         "--save-assets",
 
-        "--only-audits=first-contentful-paint,largest-contentful-paint,total-blocking-time,metrics,network-requests",
+        "--only-audits=first-contentful-paint,largest-contentful-paint,total-blocking-time,metrics,network-requests,render-blocking-insight",
         "--quiet",
         "--chrome-flags=--headless=new --no-sandbox --disable-gpu",
       ];
@@ -227,12 +258,13 @@ async function main() {
     return sorted[Math.floor(sorted.length / 2)] ?? 0;
   };
 
-  const RUNS = 9;
+  const RUNS = plantRenderBlocking ? 1 : 9;
 
   const auditUrl = async (targetUrl: string): Promise<AuditResult> => {
     console.log(`\nRunning Lighthouse audit on ${targetUrl} (1 warm-up, ${RUNS} measured runs)...`);
     await runLighthouse(targetUrl, "warm-up");
     const runs: { fcp: number; lcp: number; tbt: number }[] = [];
+    const renderBlocking = new Set<string>();
 
     for (let run = 1; run <= RUNS; run++) {
       const report = await runLighthouse(targetUrl, `run-${run}`);
@@ -244,6 +276,11 @@ async function main() {
       };
 
       runs.push(measured);
+
+      for (const item of report.audits["render-blocking-insight"]?.details?.items ?? []) {
+        renderBlocking.add(item.url);
+      }
+
       console.log(
         `  run ${run}: FCP ${Math.round(measured.fcp)} ms, LCP ${Math.round(measured.lcp)} ms, TBT ${Math.round(measured.tbt)} ms (${observedTimings(report)})`,
       );
@@ -263,11 +300,15 @@ async function main() {
       failures.push(`median LCP ${Math.round(lcp)} ms exceeds budget of ${LCP_BUDGET} ms`);
     }
 
+    if (renderBlocking.size > 0) {
+      failures.push(`render-blocking requests before first paint: ${[...renderBlocking].join(", ")}`);
+    }
+
     if (tbt > TBT_BUDGET) {
       failures.push(`median TBT ${Math.round(tbt)} ms exceeds budget of ${TBT_BUDGET} ms`);
     }
 
-    return { url: targetUrl, fcp, lcp, tbt, failures };
+    return { url: targetUrl, fcp, lcp, tbt, renderBlocking: [...renderBlocking], failures };
   };
 
   try {
@@ -284,6 +325,21 @@ async function main() {
       console.log(`• FCP: ${Math.round(result.fcp)} ms (Budget: ≤ ${FCP_BUDGET} ms)`);
       console.log(`• LCP: ${Math.round(result.lcp)} ms (Budget: ≤ ${LCP_BUDGET} ms)`);
       console.log(`• TBT: ${Math.round(result.tbt)} ms (Budget: ≤ ${TBT_BUDGET} ms)`);
+    }
+
+    if (plantRenderBlocking) {
+      const caught = results.every((result) =>
+        result.renderBlocking.some((url) => new URL(url).pathname === plantedStylesheet),
+      );
+
+      if (!caught) {
+        console.error(`\n❌ Positive control failed: the gate did not flag ${plantedStylesheet}`);
+        process.exit(1);
+      }
+
+      console.log(`\n✅ Positive control: the gate flags the planted render-blocking stylesheet`);
+
+      return;
     }
 
     const failed = results.filter((result) => result.failures.length > 0);

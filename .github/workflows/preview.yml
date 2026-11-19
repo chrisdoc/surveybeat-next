@@ -151,6 +151,11 @@ jobs:
       - name: Lighthouse CI gate (performance budgets)
         if: needs.select.outputs.lighthouse == 'true'
         run: pnpm test:lighthouse
+      - name: Lighthouse gate positive control (a planted render-blocking stylesheet must be caught)
+        if: needs.select.outputs.lighthouse == 'true'
+        run: pnpm test:lighthouse
+        env:
+          LIGHTHOUSE_PLANT_RENDER_BLOCKING: "1"
       - name: End-to-end tests
         run: pnpm test:e2e
         env:
