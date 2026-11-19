@@ -108,7 +108,7 @@ export const catalog = {
   "overview.intro":
     "One line per Dimension across every shared Round. Gaps are Rounds with too few answers to show.",
   "overview.loading": "Loading the overview…",
-  "overview.empty": "No shared Rounds yet. The overview fills in as Rounds are shared.",
+  "overview.empty": "Scores and trends appear here once a Lead shares a Round's Results.",
   "overview.chartLabel": "{dimension} across all shared Rounds",
   "overview.gap": "Too few answers",
   "overview.tableRoundDate": "Round Date",
@@ -244,7 +244,7 @@ export const catalog = {
   "settings.revokeAdmin": "Remove admin role",
   "settings.removePerson": "Remove from Organization",
   "settings.failedEmails.title": "Failed emails",
-  "settings.failedEmails.empty": "No failed emails.",
+  "settings.failedEmails.empty": "Emails that can't be delivered show up here, so you can send them again.",
   "settings.failedEmails.kind": "Kind",
   "settings.failedEmails.recipient": "Recipient",
   "settings.failedEmails.reason": "Reason",
