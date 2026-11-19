@@ -8,6 +8,7 @@ import type { AnswerMessage } from "./answer-messages.ts";
 import { keepAnswer } from "./kept-answers.ts";
 import { anonymityStatement, type QuestionData, parseRoundContext } from "./round-context.ts";
 import { scaleText } from "./scale.ts";
+import { isWellFormedToken } from "./token.ts";
 
 declare global {
   interface Window {
@@ -170,12 +171,14 @@ async function run(message: AnswerMessage): Promise<void> {
   const token = getStoredToken();
   const submitOrigin = getSubmitOrigin();
 
+  if (!isWellFormedToken(token)) {
+    window.sessionStorage.removeItem("sb_token");
+    showStateMessage(message("answer.state.noLink"));
+    return;
+  }
+
   let exchangePromise = window.__exchangePromise;
   if (!exchangePromise) {
-    if (token.length === 0) {
-      showFatalError(message("answer.error"));
-      return;
-    }
     exchangePromise = postJson(`${submitOrigin}/exchange`, { token });
   }
 

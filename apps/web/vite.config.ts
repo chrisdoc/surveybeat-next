@@ -47,7 +47,7 @@ const prerenderAnswer = (): Plugin => {
     if (hash) {
       history.replaceState(null, "", location.pathname + location.search);
     }
-    if (t) {
+    if (t && /^[A-Za-z0-9_-]+$/.test(t)) {
       var host = location.hostname;
       var submitOrigin = (host === "dashboard.surveybeat.app" || host === "app.surveybeat.app")
         ? "https://submit.surveybeat.app"

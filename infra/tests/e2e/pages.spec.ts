@@ -48,9 +48,12 @@ test("a client route answers the app shell on a hard load", async ({ page, pageE
 });
 
 test("the answer page loads", async ({ page, pageErrors }) => {
-  // Opened without an Invitation token, the page loads and shows only its error (#143, B10).
+  // Opened without an Invitation token, the page loads and shows the incomplete-link state, not the error (#143, B10, #271).
   await open(page, "/answer");
-  await expect(page.locator("#err")).toBeVisible();
+  await expect(page.locator("#state-message")).toHaveText(
+    "This link is incomplete. Open the link in your Invitation email again.",
+  );
+  await expect(page.locator("#err")).toBeHidden();
   await expect(page.locator("#screen-1")).toBeHidden();
   await expect(page).toHaveTitle("Your answer");
   expect(pageErrors).toEqual([]);
