@@ -8,6 +8,7 @@ import type { AnswerMessage } from "./answer-messages.ts";
 import { keepAnswer } from "./kept-answers.ts";
 import { anonymityStatement, type QuestionData, parseRoundContext } from "./round-context.ts";
 import { scaleText } from "./scale.ts";
+import { isWellFormedToken } from "./token.ts";
 
 declare global {
   interface Window {
@@ -51,10 +52,6 @@ function getStoredToken(): string {
   }
   const stored = window.sessionStorage.getItem("sb_token");
   return typeof stored === "string" ? stored : "";
-}
-
-export function isWellFormedToken(token: string): boolean {
-  return /^[A-Za-z0-9_-]+$/.test(token);
 }
 
 function generateEditKey(): string {

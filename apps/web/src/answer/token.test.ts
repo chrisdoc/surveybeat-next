@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isWellFormedToken } from "./main.ts";
+import { isWellFormedToken } from "./token.ts";
 
 describe("isWellFormedToken", () => {
   it("accepts a token in the server's base64url alphabet", () => {
