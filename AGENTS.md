@@ -18,6 +18,7 @@ SurveyBeat is not live yet, so it uses trunk-based development: one short-lived 
 - Branch from `origin/main` and keep each pull request to one change. Push only that branch (`git push -u origin <branch>`), never `main`. Open the pull request with `gh pr create --base main`.
 - Merge with `gh pr merge <n> --squash --auto` right after opening it. Auto-merge squashes once the required checks pass; no review is required. The squash subject is the pull request title, so the title follows the commit convention above.
 - `main` requires `check`, `privacy`, `e2e` and `preview-privacy`. A check its workflow skips counts as passed. Branches need not be up to date with `main`, so do not rebase only to merge. Force pushes to `main` and deleting it are blocked, and merged branches are deleted.
+- A merge is done when its Deploy run is: after `main` moves, check the `Deploy` workflow for that commit (`gh run list --workflow Deploy --branch main`). A Deploy that is skipped because a newer CI run superseded its commit is fine, since the newer one deploys. A failed one leaves production on the previous commit until the next merge, so rerun it (`gh run rerun <id> --failed`) or fix the cause.
 - Fix a red `main` before merging anything else. When `main` moves while a branch is open, merge `main` into the branch with a follow-up commit; do not rewrite a pushed branch.
 
 ## Ratstack
