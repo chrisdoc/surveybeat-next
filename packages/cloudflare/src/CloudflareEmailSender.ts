@@ -20,16 +20,24 @@ const PERMANENT = new Set([
 const AMBIGUOUS = new Set(["E_INTERNAL_SERVER_ERROR"]);
 
 const codeOf = (error: unknown): string | undefined => {
-  if (typeof error !== "object" || error === null) return undefined;
+  if (typeof error !== "object" || error === null) {
+    return undefined;
+  }
   const code: unknown = "code" in error ? error.code : undefined;
-  if (typeof code === "string" && code.startsWith("E_")) return code;
+  if (typeof code === "string" && code.startsWith("E_")) {
+    return code;
+  }
   return "cause" in error ? codeOf(error.cause) : undefined;
 };
 
 export const classifySendError = (error: unknown): EmailRejected | EmailOutcomeUnknown => {
   const code = codeOf(error);
-  if (code === undefined) return new EmailOutcomeUnknown({ code: "E_UNCLASSIFIED" });
-  if (AMBIGUOUS.has(code)) return new EmailOutcomeUnknown({ code });
+  if (code === undefined) {
+    return new EmailOutcomeUnknown({ code: "E_UNCLASSIFIED" });
+  }
+  if (AMBIGUOUS.has(code)) {
+    return new EmailOutcomeUnknown({ code });
+  }
   return new EmailRejected({ code, permanent: PERMANENT.has(code) || code.startsWith("E_HEADER_") });
 };
 

@@ -22,7 +22,9 @@ export const setReviewWindowDays = (
 ) =>
   Effect.gen(function* () {
     const detail = yield* organization.viewPulse(admin, teamId, pulseId);
-    if (detail._tag !== "Viewed") return;
+    if (detail._tag !== "Viewed") {
+      return;
+    }
     yield* organization.runPulseCommand(
       admin,
       {
@@ -133,7 +135,9 @@ const roundOf = (people: People, status: string | null) =>
     const listed = yield* people.organization.viewRounds(people.admin, people.teamId, people.pulseId);
     const rounds = listed._tag === "Viewed" ? listed.value.rounds : [];
     const match = status === null ? rounds[0] : rounds.find((round) => round.status === status);
-    if (match === undefined) return yield* Effect.die(new Error(`no ${status ?? "first"} round`));
+    if (match === undefined) {
+      return yield* Effect.die(new Error(`no ${status ?? "first"} round`));
+    }
     return RoundId.make(match.id);
   });
 
@@ -141,7 +145,9 @@ const openAndAnswer = (people: People, roundId: RoundId, tag: string) =>
   Effect.gen(function* () {
     const { organization, lead, member, otherMember } = people;
     const openJob = (yield* organization.getJobsForRound(roundId)).find((job) => job.type === "open");
-    if (openJob === undefined) return yield* Effect.die(new Error("no open job"));
+    if (openJob === undefined) {
+      return yield* Effect.die(new Error("no open job"));
+    }
     yield* organization.runScheduleJob(openJob.id, openJob.due_at);
 
     const context = yield* organization.getSubmissionRoundContext(roundId, lead);
@@ -161,7 +167,9 @@ const openAndAnswer = (people: People, roundId: RoundId, tag: string) =>
     }
 
     const closeJob = (yield* organization.getJobsForRound(roundId)).find((job) => job.type === "close");
-    if (closeJob === undefined) return yield* Effect.die(new Error("no close job"));
+    if (closeJob === undefined) {
+      return yield* Effect.die(new Error("no close job"));
+    }
     const cast: Cast = { ...people, roundId, closeJobId: closeJob.id, closeDue: closeJob.due_at };
     return cast;
   });
@@ -254,7 +262,9 @@ export const reviewTestRoutes = (organizations: Organizations) =>
 
     const manual = yield* closedRound(organizations, `${run}-manual`, 3, now);
     const manualShare = (yield* jobsOfType(manual, "share"))[0];
-    if (manualShare === undefined) return yield* Effect.die(new Error("no share job"));
+    if (manualShare === undefined) {
+      return yield* Effect.die(new Error("no share job"));
+    }
     const roundBefore = yield* statusOf(manual);
     const resultsReadyBefore = yield* resultsReadyFor(manual);
     const leadBefore = yield* viewOf(manual, manual.lead);
@@ -299,7 +309,9 @@ export const reviewTestRoutes = (organizations: Organizations) =>
     const auto = yield* closedRound(organizations, `${run}-auto`, 3, now);
     yield* setReviewWindowDays(auto.organization, auto.admin, auto.teamId, auto.pulseId, 7, auto.closeDue);
     const autoShare = (yield* jobsOfType(auto, "share"))[0];
-    if (autoShare === undefined) return yield* Effect.die(new Error("no share job"));
+    if (autoShare === undefined) {
+      return yield* Effect.die(new Error("no share job"));
+    }
     const autoBefore = {
       roundStatus: yield* statusOf(auto),
       shareJobDueDays: (autoShare.due_at - auto.closeDue) / DAY_MS,
@@ -345,7 +357,9 @@ export const reviewTestRoutes = (organizations: Organizations) =>
     const early = yield* openedRound(organizations, `${run}-early`, 2, now);
     const openedRoundRecord = yield* early.organization.getRound(early.roundId);
     const openedAt = openedRoundRecord?.openedAt ?? null;
-    if (openedAt === null) return yield* Effect.die(new Error("round not open"));
+    if (openedAt === null) {
+      return yield* Effect.die(new Error("round not open"));
+    }
     const closeEarly = yield* early.organization.runRoundCommand(
       early.lead,
       { _tag: "CloseRoundEarly", teamId: early.teamId, roundId: early.roundId },

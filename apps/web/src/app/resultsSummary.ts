@@ -4,7 +4,9 @@ import { message } from "../messages/locale.ts";
 const list = new Intl.ListFormat("en", { style: "long", type: "conjunction" });
 
 export const resultsSummary = (result: RoundResult): string | null => {
-  if (result.status === "open" || result.delayed) return null;
+  if (result.status === "open" || result.delayed) {
+    return null;
+  }
 
   const checkedIn = message("results.summary.checkedIn", {
     count: result.submissionsCount,
@@ -15,10 +17,14 @@ export const resultsSummary = (result: RoundResult): string | null => {
   }
 
   const shown = result.dimensions.filter((dimension) => dimension.meetsMinimumGroupSize);
-  if (shown.length === 0) return checkedIn;
+  if (shown.length === 0) {
+    return checkedIn;
+  }
   const changes = shown.flatMap((dimension) => {
     const highlight = dimension.change?.highlight;
-    if (highlight === null || highlight === undefined || !highlight.isLargerThanUsual) return [];
+    if (highlight === null || highlight === undefined || !highlight.isLargerThanUsual) {
+      return [];
+    }
     const label = message(`dimension.${dimension.dimension}`);
     return highlight.direction === "rise"
       ? [message("results.summary.rise", { dimension: label })]

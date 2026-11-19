@@ -52,7 +52,9 @@ describe("page routes", () => {
   });
 
   it("carries no Result data on a page route", () => {
-    for (const key of pageRouteKeys) assert.strictEqual(pageRoutePrivacy[key]._tag, "NoResultData");
+    for (const key of pageRouteKeys) {
+      assert.strictEqual(pageRoutePrivacy[key]._tag, "NoResultData");
+    }
   });
 
   it("lists no page route that the Worker does not serve", () => {
@@ -87,7 +89,9 @@ describe("privacy registry", () => {
   });
 
   for (const [key, entry] of Object.entries(privacyRegistry)) {
-    if (entry._tag !== "ResultData") continue;
+    if (entry._tag !== "ResultData") {
+      continue;
+    }
     const respond = resultResponders[key];
 
     // Property test over the registry's own generator: whatever Round and viewer the generator produces,
@@ -216,7 +220,9 @@ describe("privacy registry", () => {
       };
       const { result } = buildResult(member);
       const wire = JSON.stringify(Schema.encodeSync(RoundResult)(result));
-      if (themes === "ready") assert.isNotEmpty(result.themes ?? [], "the ready member view carries themes");
+      if (themes === "ready") {
+        assert.isNotEmpty(result.themes ?? [], "the ready member view carries themes");
+      }
 
       assert.notInclude(wire, "supportingComments", `themes ${themes}`);
       assert.notInclude(wire, "discussionGuide", `themes ${themes}`);
@@ -300,7 +306,9 @@ const buildResult = (scenario: RoundResultScenario): Built => {
     id: `s${s}`,
     answers: questions.flatMap((question, index): readonly SubmissionAnswer[] => {
       const answer = submission[index];
-      if (answer === undefined || !answer.answered) return [];
+      if (answer === undefined || !answer.answered) {
+        return [];
+      }
       const kind = scenario.questions[index]?.kind;
       return [
         {
@@ -401,7 +409,9 @@ const resultResponders: Record<
 /** Contributors to a Question counted from the raw Submissions, never from the Result under test. */
 const contributorsOf = (built: Built, index: number): number => {
   const question = built.questions[index];
-  if (question === undefined) return 0;
+  if (question === undefined) {
+    return 0;
+  }
   return built.submissions.filter((submission) =>
     submission.answers.some(
       (answer) =>
@@ -457,13 +467,17 @@ const overviewViolations = (scenario: RoundResultScenario): readonly string[] =>
   });
   const n = built.effectiveN;
   const found: string[] = [];
-  if (overview.rounds.length !== 1) found.push(`overview has ${overview.rounds.length} rounds, expected 1`);
+  if (overview.rounds.length !== 1) {
+    found.push(`overview has ${overview.rounds.length} rounds, expected 1`);
+  }
   for (const line of overview.dimensions) {
     const label = `overview ${line.dimension}`;
     const fresh = built.direct.dimensions.find((each) => each.dimension === line.dimension);
     const { usable, contributors } = dimensionContributors(built, line.dimension, n);
     for (const point of line.points) {
-      if (point.score === null) continue;
+      if (point.score === null) {
+        continue;
+      }
       if (fresh?.score !== point.score) {
         found.push(`${label} differs from the Result computed at N=${n}`);
       }
@@ -496,20 +510,29 @@ const violations = (
   const found: string[] = [];
   const open = scenario.status === "open";
   const roundMeetsN = !open && result.submissionsCount >= n;
-  if (result.submissionsCount !== scenario.submissions.length) found.push("submissionsCount differs");
+  if (result.submissionsCount !== scenario.submissions.length) {
+    found.push("submissionsCount differs");
+  }
 
-  if (!roundMeetsN && result.comments.length > 0) found.push("comments shown below N");
+  if (!roundMeetsN && result.comments.length > 0) {
+    found.push("comments shown below N");
+  }
   if (roundMeetsN) {
     const raw = built.submissions
       .flatMap((submission) => submission.answers)
       .filter((a) => a.comment?.trim());
-    if (result.comments.length > raw.length) found.push("more comments than the Submissions carry");
+    if (result.comments.length > raw.length) {
+      found.push("more comments than the Submissions carry");
+    }
   }
 
   // ADR 0016: Comment themes are shown only to a Round that meets N, and only with two supporters.
-  if (!roundMeetsN && (result.themes ?? []).length > 0) found.push("Comment themes shown below N");
-  if (!roundMeetsN && result.discussionGuide !== null && result.discussionGuide !== undefined)
+  if (!roundMeetsN && (result.themes ?? []).length > 0) {
+    found.push("Comment themes shown below N");
+  }
+  if (!roundMeetsN && result.discussionGuide !== null && result.discussionGuide !== undefined) {
     found.push("discussion guide shown below N");
+  }
   if (
     (result.themes ?? []).some(
       (theme) => theme.supportingComments !== undefined && theme.supportingComments < 2,
@@ -525,11 +548,15 @@ const violations = (
       result.comments.length > 0 ||
       (result.themes ?? []).length > 0 ||
       Object.hasOwn(result, "discussionGuide");
-    if (shown) found.push("Result data shown to a member before Shared");
+    if (shown) {
+      found.push("Result data shown to a member before Shared");
+    }
   }
   if (scenario.viewer === "member") {
     for (const field of leadOnly) {
-      if (leadOnlyLeaks[field](result)) found.push(`${field} shown to a member`);
+      if (leadOnlyLeaks[field](result)) {
+        found.push(`${field} shown to a member`);
+      }
     }
   }
 
@@ -544,7 +571,9 @@ const violations = (
     if (!shown && (question.change !== null || question.typicalChange !== null)) {
       found.push(`${label} shows a change or typical change without a visible score`);
     }
-    if (question.score !== null) visibleScore.set(question.questionVersionId, question.score);
+    if (question.score !== null) {
+      visibleScore.set(question.questionVersionId, question.score);
+    }
     for (const point of question.trend) {
       if (point.score !== null && point.contributors < n) {
         found.push(
@@ -603,8 +632,9 @@ const violations = (
           scores.reduce<number>((sum, score) => sum + (score ?? 0), 0) / scores.length,
           2,
         );
-        if (mean !== dimension.score)
+        if (mean !== dimension.score) {
           found.push(`${label} score ${dimension.score} is not the mean of the visible Questions ${mean}`);
+        }
       }
       if (
         dimension.contributors !== undefined &&
@@ -667,7 +697,9 @@ const historyViolations = (scenario: RoundResultScenario): readonly string[] => 
       found.push(`history shows the Round with ${built.result.submissionsCount} Submissions (N=${n})`);
     }
     for (const question of round.questions) {
-      if (question.teamScore === null) continue;
+      if (question.teamScore === null) {
+        continue;
+      }
       const index = built.questions.findIndex((each) => each.id === question.questionVersionId);
       if (
         round.teamResult !== "shown" ||
@@ -690,7 +722,9 @@ describe("member history endpoint (ADR 0017)", () => {
     HttpApi.reflect(SurveyBeatApi, {
       onGroup: () => {},
       onEndpoint: ({ group, endpoint }) => {
-        if (group.identifier === "rounds" && endpoint.identifier === "getMyHistory") endpoints.push(endpoint);
+        if (group.identifier === "rounds" && endpoint.identifier === "getMyHistory") {
+          endpoints.push(endpoint);
+        }
       },
     });
     assert.strictEqual(endpoints.length, 1);
@@ -761,7 +795,9 @@ describe("member history endpoint (ADR 0017)", () => {
 
 /** Every object key in a JSON value, at any depth. */
 const keysOf = (value: unknown): readonly string[] => {
-  if (Array.isArray(value)) return value.flatMap((item: unknown) => keysOf(item));
+  if (Array.isArray(value)) {
+    return value.flatMap((item: unknown) => keysOf(item));
+  }
   if (typeof value === "object" && value !== null) {
     return Object.entries(value).flatMap(([key, child]: [string, unknown]) => [key, ...keysOf(child)]);
   }

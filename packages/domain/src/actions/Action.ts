@@ -99,7 +99,9 @@ export const selectActionsForRound = <A extends ActionSelectionInput>(
   const previousCutoff = previousRound ? (previousRound.openedAt ?? previousRound.plannedOpenAt) : 0;
   return actions
     .filter((action) => {
-      if (action.status === "committed") return true;
+      if (action.status === "committed") {
+        return true;
+      }
       if (action.status === "done" && action.doneAt !== null) {
         return previousRound !== null ? action.doneAt >= previousCutoff : false;
       }

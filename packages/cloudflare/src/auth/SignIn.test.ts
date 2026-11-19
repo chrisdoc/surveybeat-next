@@ -43,7 +43,9 @@ describe("first sign-in with no matching Person", () => {
     });
 
     const organizationId = [...world.durable.organizations.keys()][0];
-    if (organizationId === undefined) throw new Error("no Organization");
+    if (organizationId === undefined) {
+      throw new Error("no Organization");
+    }
     expect(world.durable.organizations.get(organizationId)?.state.organizationName).toBe("Acme");
     expect((await browser.session()).body).toMatchObject({
       _tag: "SignedIn",
@@ -122,7 +124,9 @@ describe("creating an Organization is idempotent per user", () => {
 describe("a creator removed from their Organization", () => {
   const removeCreator = (world: SignInWorld) => {
     const [claim] = [...world.index.claims.values()];
-    if (claim === undefined) throw new Error("no claim");
+    if (claim === undefined) {
+      throw new Error("no claim");
+    }
     world.durable.remove(claim.organization.id, claim.adminPersonId);
   };
 
@@ -144,7 +148,9 @@ describe("languages in the session (ADR 0018)", () => {
     const acme = world.addOrganization("Acme");
     const personId = world.addPerson(acme.id, "ada@example.com");
     const organization = world.durable.organizations.get(acme.id);
-    if (organization === undefined) throw new Error("no Organization");
+    if (organization === undefined) {
+      throw new Error("no Organization");
+    }
     organization.state = { ...organization.state, defaultLocale: "en" };
     world.durable.update(acme.id, personId, { locale: "en", detectedLocale: "en" });
 

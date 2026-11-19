@@ -88,7 +88,9 @@ export const trendTitle = (rounds: number): string => pluralMessage("results.tre
 const latestScore = (points: readonly (TrendPoint | DimensionTrendPoint)[]): number | null => {
   for (let i = points.length - 1; i >= 0; i--) {
     const point = points[i]!;
-    if (point.score !== null) return point.score;
+    if (point.score !== null) {
+      return point.score;
+    }
   }
   return null;
 };
@@ -98,7 +100,9 @@ export const trendChart = <Message>(
   h: HtmlBuilder<Message>,
   unusual = false,
 ): Html => {
-  if (points.length === 0) return null;
+  if (points.length === 0) {
+    return null;
+  }
   const last = points.length - 1;
   const first = points[0]!;
   const newest = points[last]!;
@@ -132,7 +136,9 @@ export const trendTable = <Message>(
   points: readonly (TrendPoint | DimensionTrendPoint)[],
   h: HtmlBuilder<Message>,
 ): Html => {
-  if (points.length === 0) return null;
+  if (points.length === 0) {
+    return null;
+  }
 
   return dataTable(
     [message("results.tableDate"), message("results.tableScore"), message("results.tableContributors")],
@@ -149,7 +155,9 @@ export const distributionChart = <Message>(
   distribution: readonly DistributionOption[],
   h: HtmlBuilder<Message>,
 ): Html => {
-  if (distribution.length === 0) return null;
+  if (distribution.length === 0) {
+    return null;
+  }
   const maxCount = Math.max(...distribution.map((d) => d.count), 1);
 
   return h.div(
@@ -186,7 +194,9 @@ export const distributionTable = <Message>(
   distribution: readonly DistributionOption[],
   h: HtmlBuilder<Message>,
 ): Html => {
-  if (distribution.length === 0) return null;
+  if (distribution.length === 0) {
+    return null;
+  }
   const total = distribution.reduce((sum, d) => sum + d.count, 0);
 
   return dataTable(
@@ -233,7 +243,9 @@ const highlightBadge = <Message>(
   typical: TypicalChange | null,
   h: HtmlBuilder<Message>,
 ): Html => {
-  if (highlight === null || !highlight.isLargerThanUsual) return null;
+  if (highlight === null || !highlight.isLargerThanUsual) {
+    return null;
+  }
   const direction = highlight.direction;
   return h.div(
     [h.Class("flex flex-wrap items-center gap-2")],
@@ -277,7 +289,9 @@ const highlightBadge = <Message>(
 };
 
 const changeView = <Message>(change: QuestionChange | null, h: HtmlBuilder<Message>): Html => {
-  if (change === null || change.change === null || change.previousRoundDate === null) return null;
+  if (change === null || change.change === null || change.previousRoundDate === null) {
+    return null;
+  }
   const d = formatRoundDate(change.previousRoundDate);
 
   const shown = Math.round(change.change * 10) / 10;
@@ -297,7 +311,9 @@ const changeView = <Message>(change: QuestionChange | null, h: HtmlBuilder<Messa
 };
 
 const baselineNote = <Message>(typical: TypicalChange | null, h: HtmlBuilder<Message>): Html => {
-  if (typical === null || typical.status !== "buildingBaseline") return null;
+  if (typical === null || typical.status !== "buildingBaseline") {
+    return null;
+  }
   return h.p(
     [h.Class("text-[13px] text-muted italic")],
     [
@@ -318,7 +334,9 @@ const scoreView = <Message>(text: string, h: HtmlBuilder<Message>): Html =>
 const scoreOfFive = (score: number): string => message("results.scoreOf5", { score: formatScore(score) });
 
 const countdown = (reviewEndsAt: number | undefined): number | null => {
-  if (reviewEndsAt === undefined) return null;
+  if (reviewEndsAt === undefined) {
+    return null;
+  }
   const days = Math.ceil((reviewEndsAt - DateTime.toEpochMillis(DateTime.nowUnsafe())) / 86_400_000);
   return days > 0 ? days : null;
 };
@@ -427,7 +445,9 @@ export const discussionGuideText = (guide: DiscussionGuide): string =>
   ].join("\n\n");
 
 const guideCopyStatus = <Message>(copy: GuideCopy, h: HtmlBuilder<Message>): Html => {
-  if (copy === "idle") return null;
+  if (copy === "idle") {
+    return null;
+  }
   return h.p(
     [h.Role("status"), h.Class("text-sm font-medium text-primary")],
     [message(copy === "copied" ? "results.guide.copied" : "results.guide.copyFailed")],
@@ -520,7 +540,9 @@ const themesSection = <Message>(result: RoundResult, isLead: boolean, h: HtmlBui
     );
   }
 
-  if (!isLead) return null;
+  if (!isLead) {
+    return null;
+  }
 
   const reason =
     status === "ready"
@@ -551,7 +573,9 @@ const noteSection = <Message>(
   isLead: boolean,
   h: HtmlBuilder<Message>,
 ): Html => {
-  if (state.roundNote._tag === "Loading") return null;
+  if (state.roundNote._tag === "Loading") {
+    return null;
+  }
 
   if (state.roundNote._tag === "Failed") {
     return h.section([h.Class("mt-8")], [alertView(failureMessage(state.roundNote.failure), h)]);
@@ -559,7 +583,9 @@ const noteSection = <Message>(
 
   const note = state.roundNote.note;
 
-  if (note === null && !isLead) return null;
+  if (note === null && !isLead) {
+    return null;
+  }
 
   const body: Html[] = [sectionTitle(message("note.title"), h)];
 

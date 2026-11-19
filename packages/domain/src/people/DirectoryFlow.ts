@@ -139,8 +139,12 @@ export const runDirectoryCommand = Effect.fnUntraced(function* (member: Member, 
     command,
     yield* Clock.currentTimeMillis,
   );
-  if (result._tag === "Rejected") return yield* fail(result.rejection);
-  for (const step of result.followUps) yield* followUp(organizationId, step);
+  if (result._tag === "Rejected") {
+    return yield* fail(result.rejection);
+  }
+  for (const step of result.followUps) {
+    yield* followUp(organizationId, step);
+  }
 });
 
 export const viewTeams = (member: Member) =>
@@ -172,7 +176,9 @@ export const resendFailedEmail = (member: Member, sendId: SendId) =>
       sendId,
       yield* Clock.currentTimeMillis,
     );
-    if (result._tag === "Rejected") return yield* fail(result.rejection);
+    if (result._tag === "Rejected") {
+      return yield* fail(result.rejection);
+    }
     return result.status;
   });
 

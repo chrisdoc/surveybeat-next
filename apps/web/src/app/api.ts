@@ -75,8 +75,12 @@ export const failureMessage = (failure: Failure): string => {
 };
 
 export const failureOf = (error: unknown): Failure => {
-  if (Predicate.isTagged(error, "Unauthenticated")) return "Unauthenticated";
-  if (Predicate.isTagged(error, "Forbidden")) return "Forbidden";
+  if (Predicate.isTagged(error, "Unauthenticated")) {
+    return "Unauthenticated";
+  }
+  if (Predicate.isTagged(error, "Forbidden")) {
+    return "Forbidden";
+  }
   if (
     Predicate.isTagged(error, "TeamNotFound") ||
     Predicate.isTagged(error, "PersonNotFound") ||
@@ -86,12 +90,21 @@ export const failureOf = (error: unknown): Failure => {
     Predicate.isTagged(error, "ActionNotFound") ||
     Predicate.isTagged(error, "ResultsNotReady") ||
     Predicate.isTagged(error, "FailedEmailNotFound")
-  )
+  ) {
     return "NotFound";
-  if (Predicate.isTagged(error, "OwnerNotInTeam")) return "Invalid";
-  if (Predicate.isTagged(error, "LastLead")) return "LastLead";
-  if (Predicate.isTagged(error, "LastAdmin")) return "LastAdmin";
-  if (Predicate.isTagged(error, "TeamNameTaken")) return "TeamNameTaken";
+  }
+  if (Predicate.isTagged(error, "OwnerNotInTeam")) {
+    return "Invalid";
+  }
+  if (Predicate.isTagged(error, "LastLead")) {
+    return "LastLead";
+  }
+  if (Predicate.isTagged(error, "LastAdmin")) {
+    return "LastAdmin";
+  }
+  if (Predicate.isTagged(error, "TeamNameTaken")) {
+    return "TeamNameTaken";
+  }
   for (const tag of [
     "QuestionAlreadyInPulse",
     "QuestionHasAnswers",
@@ -101,10 +114,13 @@ export const failureOf = (error: unknown): Failure => {
     "TestSendLimitReached",
     "EmailNotResendable",
   ] as const) {
-    if (Predicate.isTagged(error, tag)) return tag;
+    if (Predicate.isTagged(error, tag)) {
+      return tag;
+    }
   }
-  if (Predicate.isTagged(error, "HttpApiSchemaError") || Predicate.isTagged(error, "SchemaError"))
+  if (Predicate.isTagged(error, "HttpApiSchemaError") || Predicate.isTagged(error, "SchemaError")) {
     return "Invalid";
+  }
   return "Unavailable";
 };
 

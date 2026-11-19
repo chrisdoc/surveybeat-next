@@ -69,14 +69,20 @@ export const resendEmailTestRoutes = (organizations: Organizations, db: Cloudfla
       roundsView._tag === "Viewed" && roundsView.value.rounds[0] !== undefined
         ? roundsView.value.rounds[0].id
         : null;
-    if (roundId === null) return yield* HttpServerResponse.json({ error: "no_round" });
+    if (roundId === null) {
+      return yield* HttpServerResponse.json({ error: "no_round" });
+    }
     const openJob = (yield* organization.getJobsForRound(roundId)).find((job) => job.type === "open");
-    if (openJob === undefined) return yield* HttpServerResponse.json({ error: "no_open_job" });
+    if (openJob === undefined) {
+      return yield* HttpServerResponse.json({ error: "no_open_job" });
+    }
     yield* organization.runScheduleJob(openJob.id, openJob.due_at);
     const invitations = yield* organization.getInvitations(roundId);
     const sendOf = (personId: PersonId) => {
       const found = invitations.find((each) => each.personId === personId);
-      if (found === undefined) throw new Error(`no Invitation for ${personId}`);
+      if (found === undefined) {
+        throw new Error(`no Invitation for ${personId}`);
+      }
       return found.sendId;
     };
 

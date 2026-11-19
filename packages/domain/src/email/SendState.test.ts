@@ -214,8 +214,12 @@ describe("send state properties", () => {
     { state: SendStateSchema, attempt: Schema.Int, outcome: Outcome, now: Schema.Int, policy: Policy },
     ({ state, attempt, outcome, now, policy }) => {
       const settled = settle(state, attempt, outcome, now, policy);
-      if (state._tag !== "Sending" || state.attempt !== attempt) return Option.isNone(settled);
-      if (Option.isNone(settled)) return false;
+      if (state._tag !== "Sending" || state.attempt !== attempt) {
+        return Option.isNone(settled);
+      }
+      if (Option.isNone(settled)) {
+        return false;
+      }
       const next = settled.value;
       switch (outcome._tag) {
         case "Accepted": {

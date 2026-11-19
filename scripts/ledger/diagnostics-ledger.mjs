@@ -21,9 +21,15 @@ const trackedFiles = () =>
 const countFile = (text, tally) => {
   /** @param {string} kind */
   const bump = (kind) => tally.set(kind, (tally.get(kind) ?? 0) + 1);
-  for (const match of text.matchAll(effectNextLine)) bump(`effect-next-line:${match[1]}`);
-  for (const match of text.matchAll(effectFile)) bump(`effect-file:${match[1]}`);
-  for (const match of text.matchAll(lintDisable)) bump(`lint:${match[1] ?? "block"}`);
+  for (const match of text.matchAll(effectNextLine)) {
+    bump(`effect-next-line:${match[1]}`);
+  }
+  for (const match of text.matchAll(effectFile)) {
+    bump(`effect-file:${match[1]}`);
+  }
+  for (const match of text.matchAll(lintDisable)) {
+    bump(`lint:${match[1] ?? "block"}`);
+  }
 };
 
 const collect = () => {
@@ -68,11 +74,15 @@ const main = () => {
   const problems = [];
   for (const [kind, count] of Object.entries(current)) {
     const allowed = baseline[kind] ?? 0;
-    if (count > allowed) problems.push(`${kind}: ${allowed} -> ${count}`);
+    if (count > allowed) {
+      problems.push(`${kind}: ${allowed} -> ${count}`);
+    }
   }
   for (const [kind, count] of Object.entries(baseline)) {
     const now = current[kind] ?? 0;
-    if (now < count) problems.push(`${kind}: ${count} -> ${now} (baseline is stale)`);
+    if (now < count) {
+      problems.push(`${kind}: ${count} -> ${now} (baseline is stale)`);
+    }
   }
 
   if (problems.length === 0) {
@@ -82,7 +92,9 @@ const main = () => {
   }
 
   console.error("ledger: the override counts changed, and the ledger only shrinks:");
-  for (const problem of problems) console.error(`  ${problem}`);
+  for (const problem of problems) {
+    console.error(`  ${problem}`);
+  }
   console.error(
     "ledger: remove the override and fix the code, or run `pnpm check:ledger --update` when the count went down.",
   );

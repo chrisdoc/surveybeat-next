@@ -32,9 +32,7 @@ export type PluralParams<B extends PluralKey> = Readonly<
 const LOCALE = "en";
 let cachedPluralRules: Intl.PluralRules | undefined;
 function getPluralRules(): Intl.PluralRules {
-  if (!cachedPluralRules) {
-    cachedPluralRules = new Intl.PluralRules(LOCALE);
-  }
+  cachedPluralRules ??= new Intl.PluralRules(LOCALE);
   return cachedPluralRules;
 }
 
@@ -56,9 +54,6 @@ export function pluralMessage<B extends PluralKey>(base: B, count: number, param
   return fill(template, { ...params, count: new Intl.NumberFormat(LOCALE).format(count) });
 }
 
-export function formatDate(
-  date: DateTime.DateTime,
-  options: Intl.DateTimeFormatOptions = { dateStyle: "medium" },
-): string {
-  return DateTime.formatIntl(date, new Intl.DateTimeFormat(LOCALE, options));
+export function formatDate(date: DateTime.DateTime, options?: Intl.DateTimeFormatOptions): string {
+  return DateTime.formatIntl(date, new Intl.DateTimeFormat(LOCALE, options ?? { dateStyle: "medium" }));
 }

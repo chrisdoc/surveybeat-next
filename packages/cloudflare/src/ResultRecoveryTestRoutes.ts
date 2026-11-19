@@ -40,9 +40,13 @@ const firstComputeJob = (cast: Cast) =>
   Effect.gen(function* () {
     const listed = yield* jobsOfType(cast, "compute");
     const first = listed[0];
-    if (first === undefined) return yield* Effect.die(new Error("no compute job"));
+    if (first === undefined) {
+      return yield* Effect.die(new Error("no compute job"));
+    }
     const job = yield* cast.organization.getJob(first.id);
-    if (job === null) return yield* Effect.die(new Error("compute job missing"));
+    if (job === null) {
+      return yield* Effect.die(new Error("compute job missing"));
+    }
     return job;
   });
 
@@ -53,7 +57,9 @@ const closeAndGiveUp = (cast: Cast) =>
     const offsets: number[] = [0];
     let job = yield* firstComputeJob(cast);
     while (job.status === "pending") {
-      if (offsets.length > 50) return yield* Effect.die(new Error("compute job never gave up"));
+      if (offsets.length > 50) {
+        return yield* Effect.die(new Error("compute job never gave up"));
+      }
       offsets.push(minutesOf(job.dueAt - cast.closeDue));
       yield* cast.organization.runDueJobs(job.dueAt);
       job = yield* firstComputeJob(cast);
@@ -194,7 +200,9 @@ export const resultRecoveryTestRoutes = (organizations: Organizations) =>
       ),
     );
     const pendingRetry = (yield* jobsOfType(again, "compute")).find((job) => job.status === "pending");
-    if (pendingRetry === undefined) return yield* Effect.die(new Error("no pending retry"));
+    if (pendingRetry === undefined) {
+      return yield* Effect.die(new Error("no pending retry"));
+    }
     const pendingJob = yield* again.organization.getJob(pendingRetry.id);
     const failedRetrySummary = {
       firstRetry,

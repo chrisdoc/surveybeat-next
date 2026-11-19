@@ -337,7 +337,7 @@ describe("buildTeamOverview performance", () => {
         storedN: 3,
         submissions: submissions(5, [Q1, Q2]),
       }),
-    ).reverse();
+    ).toReversed();
 
     // DateTime.nowUnsafe() reads the wall clock directly; millisecond resolution suffices for a 1500 ms bound.
     const started = DateTime.toEpochMillis(DateTime.nowUnsafe());

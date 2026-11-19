@@ -109,11 +109,15 @@ const enter = Effect.fnUntraced(function* (session: SignedInSession, candidate: 
       identity.userId,
       identity.email,
     );
-    if (!linked) return yield* new Forbidden();
+    if (!linked) {
+      return yield* new Forbidden();
+    }
     yield* index.linkPerson(organizationId, candidate.personId, identity.userId);
   }
   const member = yield* memberOf(session, candidate.organization);
-  if (Option.isNone(member)) return yield* new Forbidden();
+  if (Option.isNone(member)) {
+    return yield* new Forbidden();
+  }
   yield* sessions.chooseOrganization(session.sessionId, organizationId);
   return signedIn(session, member.value);
 });
@@ -160,10 +164,14 @@ export const sessionState = Effect.fnUntraced(function* (
   allowlist: OrganizationCreationAllowlist,
 ) {
   const { session } = checked;
-  if (Option.isSome(checked.member)) return signedIn(session, checked.member.value);
+  if (Option.isSome(checked.member)) {
+    return signedIn(session, checked.member.value);
+  }
 
   const claim = yield* (yield* PeopleIndex).claimOf(session.identity.userId);
-  if (isUnfinished(claim, session, allowlist)) return yield* finishCreation(session, claim.value);
+  if (isUnfinished(claim, session, allowlist)) {
+    return yield* finishCreation(session, claim.value);
+  }
 
   const decision = decideSignIn(session.identity, yield* candidatesOf(session), allowlist);
   switch (decision._tag) {
@@ -205,14 +213,22 @@ export const createOrganization = Effect.fnUntraced(function* (
   const ids = yield* NewIds;
   const { session } = checked;
 
-  if (Option.isSome(checked.member)) return signedIn(session, checked.member.value);
-  if (!allowlist.allows(session.identity)) return yield* new Forbidden();
+  if (Option.isSome(checked.member)) {
+    return signedIn(session, checked.member.value);
+  }
+  if (!allowlist.allows(session.identity)) {
+    return yield* new Forbidden();
+  }
 
   const existing = yield* index.claimOf(session.identity.userId);
-  if (Option.isSome(existing)) return yield* finishOrEnter(session, existing.value);
+  if (Option.isSome(existing)) {
+    return yield* finishOrEnter(session, existing.value);
+  }
 
   const decision = decideSignIn(session.identity, yield* candidatesOf(session), allowlist);
-  if (decision._tag !== "CreateOrganization") return yield* new Forbidden();
+  if (decision._tag !== "CreateOrganization") {
+    return yield* new Forbidden();
+  }
 
   const claimed = yield* index.claimOrganization(session.identity.userId, {
     organization: { id: yield* ids.organizationId, name },
@@ -229,13 +245,17 @@ export const chooseOrganization = Effect.fnUntraced(function* (
   const candidate = (yield* candidatesOf(checked.session)).find(
     (each) => each.organization.id === organizationId,
   );
-  if (candidate === undefined) return yield* new Forbidden();
+  if (candidate === undefined) {
+    return yield* new Forbidden();
+  }
   return yield* enter(checked.session, candidate);
 });
 
 export const signOut = Effect.fnUntraced(function* (cookie: Redacted.Redacted) {
   const sessions = yield* SessionIdentityProvider;
   const session = yield* sessions.authenticate(cookie).pipe(Effect.option);
-  if (Option.isNone(session)) return yield* Effect.void;
+  if (Option.isNone(session)) {
+    return yield* Effect.void;
+  }
   yield* sessions.revokeSession(session.value.sessionId);
 });

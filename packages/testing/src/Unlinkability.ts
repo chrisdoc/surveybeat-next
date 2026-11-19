@@ -86,7 +86,9 @@ export const measure = <E, R>(
       for (let i = 0; i < k; i++) {
         participants.push({ person: `person-${yield* randomHex()}`, answer: `answer-${yield* randomHex()}` });
       }
-      for (const participant of participants) yield* subject.write(participant);
+      for (const participant of participants) {
+        yield* subject.write(participant);
+      }
       const dump = yield* subject.dump;
       return { seed, k, attacks: runAttacks(dump, participants) };
     }).pipe(Random.withSeed(seed)),
@@ -122,7 +124,9 @@ export const runAttacks = (dump: Dump, participants: readonly Participant[]): re
     const guess: number[][] = participation.rows.map(() => []);
     pOrder.forEach((p, rank) => {
       const s = sOrder[rank];
-      if (s !== undefined) guess[p] = [s];
+      if (s !== undefined) {
+        guess[p] = [s];
+      }
     });
     return guess;
   };
@@ -211,29 +215,43 @@ const sortBy = (table: Table, key: readonly string[]): readonly number[] =>
   indices(table.rows).toSorted((a, b) => {
     for (const column of key) {
       const order = compareValues(table.rows[a]?.[column], table.rows[b]?.[column]);
-      if (order !== 0) return order;
+      if (order !== 0) {
+        return order;
+      }
     }
     return 0;
   });
 
 const typeRank = (value: unknown): number => {
-  if (value === null || value === undefined) return 0;
-  if (typeof value === "number" || typeof value === "bigint") return 1;
-  if (typeof value === "string") return 2;
+  if (value === null || value === undefined) {
+    return 0;
+  }
+  if (typeof value === "number" || typeof value === "bigint") {
+    return 1;
+  }
+  if (typeof value === "string") {
+    return 2;
+  }
   return 3;
 };
 
 const compareValues = (a: unknown, b: unknown): number => {
   const rankDifference = typeRank(a) - typeRank(b);
-  if (rankDifference !== 0) return rankDifference;
+  if (rankDifference !== 0) {
+    return rankDifference;
+  }
   if ((typeof a === "number" || typeof a === "bigint") && (typeof b === "number" || typeof b === "bigint")) {
     return a < b ? -1 : a > b ? 1 : 0;
   }
-  if (typeof a === "string" && typeof b === "string") return a < b ? -1 : a > b ? 1 : 0;
+  if (typeof a === "string" && typeof b === "string") {
+    return a < b ? -1 : a > b ? 1 : 0;
+  }
   if (a instanceof Uint8Array && b instanceof Uint8Array) {
     for (let i = 0; i < Math.min(a.length, b.length); i++) {
       const difference = (a[i] ?? 0) - (b[i] ?? 0);
-      if (difference !== 0) return difference;
+      if (difference !== 0) {
+        return difference;
+      }
     }
     return a.length - b.length;
   }
@@ -241,10 +259,17 @@ const compareValues = (a: unknown, b: unknown): number => {
 };
 
 const valueKey = (value: unknown): string => {
-  if (value === null || value === undefined) return "null";
-  if (typeof value === "number" || typeof value === "bigint") return `n:${String(value)}`;
-  if (typeof value === "string") return `s:${value}`;
-  if (value instanceof Uint8Array)
+  if (value === null || value === undefined) {
+    return "null";
+  }
+  if (typeof value === "number" || typeof value === "bigint") {
+    return `n:${String(value)}`;
+  }
+  if (typeof value === "string") {
+    return `s:${value}`;
+  }
+  if (value instanceof Uint8Array) {
     return `b:${Array.from(value, (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
+  }
   return `o:${JSON.stringify(value)}`;
 };

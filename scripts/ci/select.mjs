@@ -37,14 +37,20 @@ export const classify = (paths) => {
 
 const readStdin = async () => {
   let input = "";
-  for await (const chunk of process.stdin) input += chunk;
+  for await (const chunk of process.stdin) {
+    input += chunk;
+  }
   return input;
 };
 
 export const main = async () => {
   const paths = (await readStdin()).split("\n").map((line) => line.replace(/\r$/, ""));
   const result = classify(paths);
-  for (const path of paths) if (path !== "") console.log(path);
+  for (const path of paths) {
+    if (path !== "") {
+      console.log(path);
+    }
+  }
   console.log(`stage=${result.stage} canary=${result.canary} lighthouse=${result.lighthouse}`);
   const output = process.env.GITHUB_OUTPUT;
   if (output !== undefined && output !== "") {
@@ -56,4 +62,6 @@ export const main = async () => {
 };
 
 const entry = process.argv[1];
-if (entry !== undefined && import.meta.url === pathToFileURL(entry).href) await main();
+if (entry !== undefined && import.meta.url === pathToFileURL(entry).href) {
+  await main();
+}

@@ -107,7 +107,9 @@ const wordsOf = (text: string): readonly string[] =>
 const sixWordRuns = (text: string): readonly string[] => {
   const words = wordsOf(text);
   const runs: string[] = [];
-  for (let i = 0; i + 6 <= words.length; i++) runs.push(words.slice(i, i + 6).join(" "));
+  for (let i = 0; i + 6 <= words.length; i++) {
+    runs.push(words.slice(i, i + 6).join(" "));
+  }
   return runs;
 };
 
@@ -127,7 +129,9 @@ const seededRandom = (seed: number) => {
 
 const pick = <A>(random: () => number, items: readonly A[]): A => {
   const item = items[Math.floor(random() * items.length)];
-  if (item === undefined) throw new Error("pick from an empty list");
+  if (item === undefined) {
+    throw new Error("pick from an empty list");
+  }
   return item;
 };
 

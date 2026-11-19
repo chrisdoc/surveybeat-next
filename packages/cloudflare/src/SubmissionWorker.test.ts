@@ -73,7 +73,7 @@ const makeRequest = (
       ...headers,
     },
     text: Effect.succeed(bodyText),
-    json: Effect.sync(() => body || {}),
+    json: Effect.sync(() => body ?? {}),
   } as unknown as HttpServerRequest;
 };
 

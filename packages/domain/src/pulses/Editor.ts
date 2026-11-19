@@ -180,9 +180,12 @@ export const pulseWarnings = (
   if (seconds > RECOMMENDED_MAX_SECONDS) {
     warnings.push({ _tag: "TooLong", seconds, recommended: RECOMMENDED_MAX_SECONDS });
   }
-  if (contents[0]?.type._tag !== "Rating") warnings.push({ _tag: "NoOneTap" });
-  if (members < minimumGroupSize)
+  if (contents[0]?.type._tag !== "Rating") {
+    warnings.push({ _tag: "NoOneTap" });
+  }
+  if (members < minimumGroupSize) {
     warnings.push({ _tag: "TeamBelowMinimumGroupSize", members, minimumGroupSize });
+  }
   return warnings;
 };
 
@@ -237,9 +240,12 @@ const authorize = (
   | { readonly _tag: "Rejected"; readonly rejection: PulseRejection }
   | { readonly _tag: "Allowed"; readonly actor: Actor } => {
   const actor = actorOf(directory, actorId);
-  if (Option.isNone(actor) || !can(actor.value, action, { _tag: "Team", teamId }))
+  if (Option.isNone(actor) || !can(actor.value, action, { _tag: "Team", teamId })) {
     return reject({ _tag: "Forbidden" });
-  if (!directory.teams.some((team) => team.id === teamId)) return reject({ _tag: "TeamNotFound" });
+  }
+  if (!directory.teams.some((team) => team.id === teamId)) {
+    return reject({ _tag: "TeamNotFound" });
+  }
   return { _tag: "Allowed", actor: actor.value };
 };
 
@@ -251,15 +257,20 @@ const addQuestion = (
   locale: Locale,
   now: number,
 ): PulseDecision => {
-  if (pulse.questions.length >= MAX_QUESTIONS) return reject({ _tag: "PulseFull", maximum: MAX_QUESTIONS });
+  if (pulse.questions.length >= MAX_QUESTIONS) {
+    return reject({ _tag: "PulseFull", maximum: MAX_QUESTIONS });
+  }
   let added: Extract<PulseChange, { readonly _tag: "QuestionAdded" }>;
   if (question._tag === "Written") {
     added = newQuestion(questionId, null, contentOf(question), now);
   } else {
     const fromTemplate = templateQuestion(question.key, locale);
-    if (fromTemplate === undefined) return reject({ _tag: "QuestionNotFound" });
-    if (questionsOf(state, pulse).some(({ templateKey }) => templateKey === question.key))
+    if (fromTemplate === undefined) {
+      return reject({ _tag: "QuestionNotFound" });
+    }
+    if (questionsOf(state, pulse).some(({ templateKey }) => templateKey === question.key)) {
       return reject({ _tag: "QuestionAlreadyInPulse" });
+    }
     added = newQuestion(questionId, question.key, contentOf(fromTemplate), now);
   }
   return accept([
@@ -277,12 +288,16 @@ export const decidePulse = (
 ): PulseDecision => {
   const action = command._tag === "CreatePulse" ? "team.createPulse" : "team.editPulse";
   const allowed = authorize(directory, actorId, action, command.teamId);
-  if (allowed._tag === "Rejected") return allowed;
+  if (allowed._tag === "Rejected") {
+    return allowed;
+  }
 
   const locale = emailLocaleOf(directory, actorId);
 
   if (command._tag === "CreatePulse") {
-    if (state.pulses.some((pulse) => pulse.id === command.pulseId)) return accept([]);
+    if (state.pulses.some((pulse) => pulse.id === command.pulseId)) {
+      return accept([]);
+    }
     const added = weeklyTeamHealth(locale).questions.map((question) =>
       newQuestion(initialQuestionId(command.pulseId, question.key), question.key, contentOf(question), now),
     );
@@ -302,7 +317,9 @@ export const decidePulse = (
   }
 
   const pulse = findPulse(state, command.teamId, command.pulseId);
-  if (pulse === undefined) return reject({ _tag: "PulseNotFound" });
+  if (pulse === undefined) {
+    return reject({ _tag: "PulseNotFound" });
+  }
 
   switch (command._tag) {
     case "UpdatePulseSettings": {
@@ -315,8 +332,12 @@ export const decidePulse = (
 
     case "EditQuestion": {
       const version = versionInPulse(state, pulse, command.questionId);
-      if (version === undefined) return reject({ _tag: "QuestionNotFound" });
-      if (hasAnswers(state, command.questionId)) return reject({ _tag: "QuestionHasAnswers" });
+      if (version === undefined) {
+        return reject({ _tag: "QuestionNotFound" });
+      }
+      if (hasAnswers(state, command.questionId)) {
+        return reject({ _tag: "QuestionHasAnswers" });
+      }
       return accept([
         {
           _tag: "QuestionRewritten",
@@ -329,8 +350,12 @@ export const decidePulse = (
 
     case "RemoveQuestion": {
       const version = versionInPulse(state, pulse, command.questionId);
-      if (version === undefined) return reject({ _tag: "QuestionNotFound" });
-      if (pulse.questions.length <= MIN_QUESTIONS) return reject({ _tag: "PulseNeedsAQuestion" });
+      if (version === undefined) {
+        return reject({ _tag: "QuestionNotFound" });
+      }
+      if (pulse.questions.length <= MIN_QUESTIONS) {
+        return reject({ _tag: "PulseNeedsAQuestion" });
+      }
       return accept([
         {
           _tag: "PulseQuestionsSet",
@@ -380,12 +405,20 @@ export const decideTestSend = (
   pulseId: PulseId,
 ): TestSendDecision => {
   const allowed = authorize(directory, actorId, "team.editPulse", teamId);
-  if (allowed._tag === "Rejected") return allowed;
+  if (allowed._tag === "Rejected") {
+    return allowed;
+  }
   const pulse = findPulse(state, teamId, pulseId);
-  if (pulse === undefined) return reject({ _tag: "PulseNotFound" });
-  if (pulse.questions.length < MIN_QUESTIONS) return reject({ _tag: "PulseNeedsAQuestion" });
+  if (pulse === undefined) {
+    return reject({ _tag: "PulseNotFound" });
+  }
+  if (pulse.questions.length < MIN_QUESTIONS) {
+    return reject({ _tag: "PulseNeedsAQuestion" });
+  }
   const person = directory.people.find((each) => each.id === actorId);
-  if (person === undefined) return reject({ _tag: "Forbidden" });
+  if (person === undefined) {
+    return reject({ _tag: "Forbidden" });
+  }
   return { _tag: "Allowed", person, pulse };
 };
 
@@ -430,7 +463,9 @@ const questionsOf = (state: PulseState, pulse: PulseRecord): readonly PulseQuest
   pulse.questions.flatMap((versionId) => {
     const version = versionOf(state, versionId);
     const question = state.questions.find((each) => each.id === version?.questionId);
-    if (version === undefined || question === undefined) return [];
+    if (version === undefined || question === undefined) {
+      return [];
+    }
     return [
       {
         questionId: question.id,
@@ -463,7 +498,9 @@ export const pulsesView = (
 ): PulseViewed<PulseList> =>
   viewAuthorized(directory, actorId, teamId, (actor) => {
     const team = directory.teams.find((each) => each.id === teamId);
-    if (team === undefined) return reject({ _tag: "TeamNotFound" });
+    if (team === undefined) {
+      return reject({ _tag: "TeamNotFound" });
+    }
     const pulses = state.pulses
       .filter((pulse) => pulse.teamId === teamId)
       .sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id, "en"))
@@ -491,9 +528,13 @@ export const pulseView = (
 ): PulseViewed<PulseDetail> =>
   viewAuthorized(directory, actorId, teamId, (actor) => {
     const team = directory.teams.find((each) => each.id === teamId);
-    if (team === undefined) return reject({ _tag: "TeamNotFound" });
+    if (team === undefined) {
+      return reject({ _tag: "TeamNotFound" });
+    }
     const pulse = findPulse(state, teamId, pulseId);
-    if (pulse === undefined) return reject({ _tag: "PulseNotFound" });
+    if (pulse === undefined) {
+      return reject({ _tag: "PulseNotFound" });
+    }
     const questions = questionsOf(state, pulse);
     const asked = new Set(questions.map((question) => question.templateKey));
     return {
@@ -553,7 +594,9 @@ export const testSendView = (
   now: number,
 ): PulseViewed<TestSendStatus> => {
   const allowed = authorize(directory, actorId, "team.editPulse", teamId);
-  if (allowed._tag === "Rejected") return allowed;
+  if (allowed._tag === "Rejected") {
+    return allowed;
+  }
   if (
     found === null ||
     found.personId !== actorId ||

@@ -180,10 +180,16 @@ describe("redact", () => {
       const redacted = redact(text, roster);
       const segmenter = new Intl.Segmenter("en", { granularity: "word" });
       for (const segment of segmenter.segment(redacted)) {
-        if (!segment.isWordLike) continue;
+        if (!segment.isWordLike) {
+          continue;
+        }
         let word = segment.segment.toLowerCase();
-        if (word.endsWith("'s") || word.endsWith("\u2019s")) word = word.slice(0, -2);
-        if (ROSTER_NAMES.some((name) => name.toLowerCase() === word)) return false;
+        if (word.endsWith("'s") || word.endsWith("\u2019s")) {
+          word = word.slice(0, -2);
+        }
+        if (ROSTER_NAMES.some((name) => name.toLowerCase() === word)) {
+          return false;
+        }
       }
       return true;
     },

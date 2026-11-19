@@ -66,7 +66,9 @@ describe("the Organization's email outbox", () => {
     Effect.gen(function* () {
       const { outbox, rows } = yield* setUp();
       let recorded = 0;
-      const after = Effect.sync(() => void recorded++);
+      const after = Effect.sync(() => {
+        recorded++;
+      });
 
       const fresh = outbox.recording(storeAnswering(pending, { _tag: "Requeued" }), after);
       yield* fresh.create(SendId.make("a"), EmailAddress.make("ada@example.com"), email);
@@ -86,7 +88,9 @@ describe("the Organization's email outbox", () => {
     Effect.gen(function* () {
       const { db, outbox, batches, rows } = yield* setUp();
       const insert = db.prepare("INSERT INTO email_outbox (send_id) VALUES (?)");
-      for (let i = 0; i < 205; i++) insert.run(`send-${i}`);
+      for (let i = 0; i < 205; i++) {
+        insert.run(`send-${i}`);
+      }
 
       yield* outbox.dispatch.pipe(Effect.provide(RuntimeContext.phantom));
 

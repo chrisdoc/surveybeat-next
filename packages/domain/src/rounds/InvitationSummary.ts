@@ -27,16 +27,28 @@ export const invitationSummaryOf = ({
   invitedPersonIds,
   memberships,
 }: InvitationSummaryInput): InvitationSummary | null => {
-  if (round.openedAt === null) return null;
+  if (round.openedAt === null) {
+    return null;
+  }
   const openedAt = round.openedAt;
   const windowEnd = round.closedAt ?? round.plannedCloseAt;
   const joinedAfterOpen = new Set<PersonId>();
   for (const membership of memberships) {
-    if (membership.teamId !== round.teamId) continue;
-    if (membership.role !== "lead" && membership.role !== "member") continue;
-    if (membership.startedAt <= openedAt || membership.startedAt > windowEnd) continue;
-    if (membership.endedAt !== null && membership.endedAt <= windowEnd) continue;
-    if (invitedPersonIds.has(membership.personId)) continue;
+    if (membership.teamId !== round.teamId) {
+      continue;
+    }
+    if (membership.role !== "lead" && membership.role !== "member") {
+      continue;
+    }
+    if (membership.startedAt <= openedAt || membership.startedAt > windowEnd) {
+      continue;
+    }
+    if (membership.endedAt !== null && membership.endedAt <= windowEnd) {
+      continue;
+    }
+    if (invitedPersonIds.has(membership.personId)) {
+      continue;
+    }
     joinedAfterOpen.add(membership.personId);
   }
   return { invited: invitedPersonIds.size, joinedAfterOpen: joinedAfterOpen.size };

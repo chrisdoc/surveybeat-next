@@ -179,9 +179,7 @@ async function run(message: AnswerMessage): Promise<void> {
   }
 
   let exchangePromise = window.__exchangePromise;
-  if (!exchangePromise) {
-    exchangePromise = postJson(`${submitOrigin}/exchange`, { token });
-  }
+  exchangePromise ??= postJson(`${submitOrigin}/exchange`, { token });
 
   let rawContext: unknown;
   try {
@@ -262,7 +260,9 @@ async function run(message: AnswerMessage): Promise<void> {
   let firstSaved = context.hasAnswered;
 
   const doFirstSave = async (ratingVal: number): Promise<void> => {
-    if (firstSaved) return;
+    if (firstSaved) {
+      return;
+    }
     if (saveBtn instanceof HTMLButtonElement) {
       saveBtn.disabled = true;
     }
@@ -270,7 +270,9 @@ async function run(message: AnswerMessage): Promise<void> {
     try {
       editKey = generateEditKey();
       const editKeyHash = await sha256Hex(editKey);
-      if (!context.test) window.localStorage.setItem(roundStorageKey, editKey);
+      if (!context.test) {
+        window.localStorage.setItem(roundStorageKey, editKey);
+      }
 
       await postJson(`${submitOrigin}/first-answer`, {
         token,
@@ -386,7 +388,9 @@ async function run(message: AnswerMessage): Promise<void> {
 
   const renderRemainingQuestions = (questions: readonly QuestionData[]) => {
     const container = document.getElementById("remaining-screens");
-    if (!(container instanceof HTMLElement)) return;
+    if (!(container instanceof HTMLElement)) {
+      return;
+    }
 
     container.hidden = false;
     container.replaceChildren();
@@ -488,7 +492,9 @@ async function run(message: AnswerMessage): Promise<void> {
 
         const saveComment = async () => {
           const val = textarea.value.trim();
-          if (val.length === 0) return;
+          if (val.length === 0) {
+            return;
+          }
           try {
             const raw = await saveAnswer(q.id, { comment: val });
             const shownToLead = extractShownToLead(raw);

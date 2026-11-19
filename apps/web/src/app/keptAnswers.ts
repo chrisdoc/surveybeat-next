@@ -20,7 +20,9 @@ const keptAnswersKeys = (storage: Pick<Storage, "length" | "key">): string[] => 
   const keys: string[] = [];
   for (let index = 0; index < storage.length; index++) {
     const key = storage.key(index);
-    if (key !== null && key.startsWith(keptAnswersPrefix)) keys.push(key);
+    if (key !== null && key.startsWith(keptAnswersPrefix)) {
+      keys.push(key);
+    }
   }
   return keys;
 };
@@ -47,7 +49,9 @@ export const readKeptAnswers = (
 
 export const clearKeptAnswers = (storage: Pick<Storage, "length" | "key" | "removeItem">): void => {
   try {
-    for (const key of keptAnswersKeys(storage)) storage.removeItem(key);
+    for (const key of keptAnswersKeys(storage)) {
+      storage.removeItem(key);
+    }
   } catch {}
 };
 

@@ -146,7 +146,7 @@ test(
     const written = `written-${run}`;
     assert.deepStrictEqual(
       view.value.questions.map((question) => question.questionId),
-      [...[...body.rest].reverse(), `again-${run}`, written],
+      [...[...body.rest].toReversed(), `again-${run}`, written],
     );
     assert.strictEqual(body.first, `${pulseId}.workload-manageable`);
     assert.deepStrictEqual(view.value.questions.at(-2)?.templateKey, "workload-manageable");
@@ -173,7 +173,9 @@ test(
       };
     };
     assert.strictEqual(list._tag, "Viewed");
-    if (list._tag !== "Viewed") return;
+    if (list._tag !== "Viewed") {
+      return;
+    }
     // The list names each Pulse's state and next Round; the date comes from its scheduled Round.
     const { nextRoundDate, ...pulse } = list.value.pulses[0]!;
     assert.match(nextRoundDate ?? "", /^\d{4}-\d{2}-\d{2}$/);

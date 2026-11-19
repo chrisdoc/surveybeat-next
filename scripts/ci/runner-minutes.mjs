@@ -27,7 +27,9 @@ export const windowStart = (now, days) =>
 
 /** @param {Job} job */
 export const jobMinutes = (job) => {
-  if (job.conclusion === "skipped" || job.started_at === null || job.completed_at === null) return 0;
+  if (job.conclusion === "skipped" || job.started_at === null || job.completed_at === null) {
+    return 0;
+  }
   return Math.max(0, (Date.parse(job.completed_at) - Date.parse(job.started_at)) / MS_PER_MINUTE);
 };
 
@@ -43,21 +45,29 @@ export const summarize = (runs, jobs, { days, price }) => {
   /** @param {string} name */
   const entry = (name) => {
     const existing = workflows.get(name);
-    if (existing !== undefined) return existing;
+    if (existing !== undefined) {
+      return existing;
+    }
     const created = { runs: 0, minutes: 0, jobs: new Map() };
     workflows.set(name, created);
     return created;
   };
 
-  for (const run of runs) entry(run.name).runs += 1;
+  for (const run of runs) {
+    entry(run.name).runs += 1;
+  }
 
   for (const job of jobs) {
     const name = workflowOf.get(job.run_id);
-    if (name === undefined) continue;
+    if (name === undefined) {
+      continue;
+    }
     const workflow = entry(name);
     const minutes = jobMinutes(job);
     workflow.minutes += minutes;
-    if (job.conclusion === "skipped") continue;
+    if (job.conclusion === "skipped") {
+      continue;
+    }
     const perJob = workflow.jobs.get(job.name) ?? { minutes: 0, count: 0 };
     perJob.minutes += minutes;
     perJob.count += 1;
@@ -114,13 +124,19 @@ export const parseArgs = (argv) => {
   for (let index = 0; index < argv.length; index += 2) {
     const flag = argv[index];
     const value = argv[index + 1];
-    if (value === undefined) throw new Error(`Missing value for ${flag ?? "a flag"}.`);
+    if (value === undefined) {
+      throw new Error(`Missing value for ${flag ?? "a flag"}.`);
+    }
     if (flag === "--days") {
       options.days = Number(value);
-      if (!(options.days > 0)) throw new Error("--days must be a positive number.");
+      if (!(options.days > 0)) {
+        throw new Error("--days must be a positive number.");
+      }
     } else if (flag === "--price") {
       options.price = Number(value);
-      if (!(options.price >= 0)) throw new Error("--price must be zero or more.");
+      if (!(options.price >= 0)) {
+        throw new Error("--price must be zero or more.");
+      }
     } else if (flag === "--repo") {
       options.repo = value;
     } else {
@@ -162,4 +178,6 @@ export const main = () => {
 };
 
 const entry = process.argv[1];
-if (entry !== undefined && import.meta.url === pathToFileURL(entry).href) main();
+if (entry !== undefined && import.meta.url === pathToFileURL(entry).href) {
+  main();
+}

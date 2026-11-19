@@ -31,15 +31,19 @@ function fill(template: string, params: Readonly<Record<string, Value>>): string
 export interface Messages {
   readonly locale: Locale;
 
-  message<K extends KeysWithoutParams>(key: K): string;
-  message<K extends KeysWithParams>(key: K, params: Params<K>): string;
+  message: {
+    <K extends KeysWithoutParams>(key: K): string;
+    <K extends KeysWithParams>(key: K, params: Params<K>): string;
+  };
 }
 
 const cache = new Map<Locale, Messages>();
 
 export const messagesFor = (locale: Locale): Messages => {
   const cached = cache.get(locale);
-  if (cached !== undefined) return cached;
+  if (cached !== undefined) {
+    return cached;
+  }
 
   const table: Translation = tables[locale];
   function message<K extends KeysWithoutParams>(key: K): string;

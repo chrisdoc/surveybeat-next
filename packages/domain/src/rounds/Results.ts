@@ -172,16 +172,20 @@ export const roundDecimals = (value: number, decimals: number): number => {
 };
 
 export const median = (values: readonly number[]): number => {
-  if (values.length === 0) return 0;
+  if (values.length === 0) {
+    return 0;
+  }
   const sorted = [...values].sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
   if (sorted.length % 2 === 1) {
     const val = sorted[mid];
-    return val !== undefined ? val : 0;
+    return val ?? 0;
   }
   const low = sorted[mid - 1];
   const high = sorted[mid];
-  if (low === undefined || high === undefined) return 0;
+  if (low === undefined || high === undefined) {
+    return 0;
+  }
   return roundDecimals((low + high) / 2, 4);
 };
 
@@ -289,7 +293,7 @@ const pastDimContributors = (
   if (pastDim.contributors !== undefined && pastDim.contributors !== null) {
     return { contributors: pastDim.contributors };
   }
-  const ids = new Set<string>(questions.filter((q) => q.dimension === pastDim.dimension).map((q) => q.id));
+  const ids = new Set<string>(questions.flatMap((q) => (q.dimension === pastDim.dimension ? [q.id] : [])));
   const counts = past.questions.filter((pq) => ids.has(pq.questionVersionId)).map((pq) => pq.contributors);
   return counts.length === 0 ? {} : { contributors: Math.max(...counts) };
 };
@@ -303,7 +307,9 @@ const pastDimMeetsN = (
   if (pastDim.score === null || !pastDim.meetsMinimumGroupSize || past.submissionsCount < pastEffectiveN) {
     return false;
   }
-  if (pastEffectiveN <= past.effectiveMinimumGroupSize) return true;
+  if (pastEffectiveN <= past.effectiveMinimumGroupSize) {
+    return true;
+  }
   if (
     pastDim.contributors !== undefined &&
     pastDim.contributors !== null &&
@@ -311,7 +317,7 @@ const pastDimMeetsN = (
   ) {
     return false;
   }
-  const ids = new Set<string>(questions.filter((q) => q.dimension === pastDim.dimension).map((q) => q.id));
+  const ids = new Set<string>(questions.flatMap((q) => (q.dimension === pastDim.dimension ? [q.id] : [])));
   const averaged = past.questions.filter((pq) => ids.has(pq.questionVersionId) && pq.score !== null);
   return (
     averaged.length > 0 &&
@@ -913,8 +919,12 @@ const maskEarlierTrendPoints = <P extends MaskableTrendPoint>(
 ): { readonly points: readonly P[]; readonly newlyMasked: ReadonlySet<RoundId> } => {
   const newlyMasked = new Set<RoundId>();
   const masked = points.map((p) => {
-    if (p.roundId === currentRoundId || p.score === null) return p;
-    if (p.contributors !== undefined && p.contributors >= effectiveN) return p;
+    if (p.roundId === currentRoundId || p.score === null) {
+      return p;
+    }
+    if (p.contributors !== undefined && p.contributors >= effectiveN) {
+      return p;
+    }
     newlyMasked.add(p.roundId);
     return { ...p, score: null, hasGap: true };
   });
@@ -937,7 +947,9 @@ export const enforceEffectiveNOnResult = (result: RoundResult, currentOrgN: numb
     );
     const earlierChanged = earlier.newlyMasked.size > 0;
     if (meetsN) {
-      if (!earlierChanged) return q;
+      if (!earlierChanged) {
+        return q;
+      }
       return {
         ...q,
         change:
@@ -974,7 +986,9 @@ export const enforceEffectiveNOnResult = (result: RoundResult, currentOrgN: numb
     const earlier = {
       newlyMasked,
       points: base.points.map((p) => {
-        if (p.roundId === result.roundId || p.score === null) return p;
+        if (p.roundId === result.roundId || p.score === null) {
+          return p;
+        }
         const averaged = dimensionQuestions.flatMap((q) =>
           q.trend.filter((t) => t.roundId === p.roundId && t.score !== null),
         );
@@ -995,7 +1009,9 @@ export const enforceEffectiveNOnResult = (result: RoundResult, currentOrgN: numb
       },
     ): readonly DimensionTrendPoint[] =>
       earlier.points.map((p) => {
-        if (p.roundId !== result.roundId) return p;
+        if (p.roundId !== result.roundId) {
+          return p;
+        }
         const { contributors: _previous, ...rest } = p;
         return {
           ...rest,

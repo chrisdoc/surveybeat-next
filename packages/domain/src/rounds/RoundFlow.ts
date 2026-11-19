@@ -115,7 +115,9 @@ export const runRoundCommand = Effect.fnUntraced(function* (member: Member, comm
     command,
     yield* Clock.currentTimeMillis,
   );
-  if (result._tag === "Rejected") return yield* failRoundRejection(result.rejection);
+  if (result._tag === "Rejected") {
+    return yield* failRoundRejection(result.rejection);
+  }
 });
 
 export const viewRounds = (member: Member, teamId: TeamId, pulseId: PulseId) =>

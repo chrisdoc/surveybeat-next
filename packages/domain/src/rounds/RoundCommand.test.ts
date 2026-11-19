@@ -308,14 +308,18 @@ describe("decideRoundCommand: Pulse commands", () => {
       tag: Schema.Literals(["SkipWeek", "UnskipWeek", "PausePulse", "ResumePulse"]),
     },
     ({ first, second, tag }) => {
-      if (first === second) return true;
+      if (first === second) {
+        return true;
+      }
       const teamA = TeamId.make(first);
       const teamB = TeamId.make(second);
       const dir = directoryFor(teamA, teamB);
       const state = pulsesFor(teamA, teamB);
       const leadOfA = dir.memberships.find((m) => m.teamId === teamA && m.role === "lead")?.personId;
       const leadOfB = dir.memberships.find((m) => m.teamId === teamB && m.role === "lead")?.personId;
-      if (leadOfA === undefined || leadOfB === undefined) return false;
+      if (leadOfA === undefined || leadOfB === undefined) {
+        return false;
+      }
       const attempt = (actorId: PersonId, teamId: TeamId, pulseId: PulseId) =>
         decideRoundCommand({
           directory: dir,
@@ -544,7 +548,9 @@ describe("decideRoundCommand agrees with the Round machine", () => {
       for (const status of statuses) {
         const command = commandFor(tag);
         const machine = roundCommandRejection(status, command);
-        if (machine === null) continue;
+        if (machine === null) {
+          continue;
+        }
         expect(
           decide({ command, round: roundOf(status), invitation: { resendCount: 0 } }),
           `${tag} on ${status}`,

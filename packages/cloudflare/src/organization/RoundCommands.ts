@@ -77,7 +77,9 @@ export const organizationRoundCommands = ({
             if (decision._tag === "Rejected") {
               return { _tag: "Rejected", rejection: decision.rejection } satisfies RoundCommandResult;
             }
-            if (decision._tag === "Unchanged") return { _tag: "Accepted" } satisfies RoundCommandResult;
+            if (decision._tag === "Unchanged") {
+              return { _tag: "Accepted" } satisfies RoundCommandResult;
+            }
 
             const plan = decision.plan;
             switch (plan._tag) {

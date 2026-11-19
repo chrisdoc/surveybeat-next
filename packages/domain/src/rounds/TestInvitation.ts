@@ -42,7 +42,9 @@ export const previewAnswers = (
   let shownToLead: string | null = null;
   for (const answer of answers) {
     const redacted = answer.comment ? redact(answer.comment, roster) : null;
-    if (redacted !== null) shownToLead = redacted;
+    if (redacted !== null) {
+      shownToLead = redacted;
+    }
   }
   return { shownToLead };
 };

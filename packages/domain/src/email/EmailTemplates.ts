@@ -19,7 +19,9 @@ export const withToken = (email: StoredEmail): Effect.Effect<RenderableEmail, ne
   Effect.gen(function* () {
     switch (email._tag) {
       case "InvitationEmail": {
-        if ("token" in email) return email;
+        if ("token" in email) {
+          return email;
+        }
         const { invitation, ...rest } = email;
         const token = yield* (yield* InvitationTokens).derive(invitation);
         return { ...rest, token };
@@ -30,7 +32,9 @@ export const withToken = (email: StoredEmail): Effect.Effect<RenderableEmail, ne
         return { ...rest, _tag: "InvitationEmail", token, test: true };
       }
       case "ReminderEmail": {
-        if ("token" in email) return email;
+        if ("token" in email) {
+          return email;
+        }
         const { invitation, ...rest } = email;
         const token = yield* (yield* InvitationTokens).derive(invitation);
         return { ...rest, token };

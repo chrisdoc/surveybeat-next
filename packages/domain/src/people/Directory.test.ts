@@ -55,14 +55,18 @@ class World {
 
   run(actor: PersonId, command: DirectoryCommand): Decision {
     const decision = decide(this.state, actor, command, this.now);
-    if (decision._tag === "Accepted") this.state = applyChanges(this.state, decision.changes);
+    if (decision._tag === "Accepted") {
+      this.state = applyChanges(this.state, decision.changes);
+    }
     return decision;
   }
 
   /** Runs a command that must succeed. */
   ok(actor: PersonId, command: DirectoryCommand): Extract<Decision, { _tag: "Accepted" }> {
     const decision = this.run(actor, command);
-    if (decision._tag !== "Accepted") throw new Error(`${command._tag} rejected: ${decision.rejection._tag}`);
+    if (decision._tag !== "Accepted") {
+      throw new Error(`${command._tag} rejected: ${decision.rejection._tag}`);
+    }
     return decision;
   }
 
@@ -84,13 +88,17 @@ class World {
 
   personWith(email: string): PersonId {
     const person = this.state.people.find((each) => each.email === email);
-    if (person === undefined) throw new Error(`no Person ${email}`);
+    if (person === undefined) {
+      throw new Error(`no Person ${email}`);
+    }
     return person.id;
   }
 
   roster(teamId: TeamId) {
     const view = teamView(this.state, ADMIN, teamId);
-    if (view._tag !== "Viewed") throw new Error("no roster");
+    if (view._tag !== "Viewed") {
+      throw new Error("no roster");
+    }
     return view.value.roster.map(({ email, role }) => `${role} ${email}`);
   }
 }
@@ -98,13 +106,24 @@ class World {
 const rejection = (decision: Decision) =>
   decision._tag === "Rejected" ? decision.rejection._tag : "Accepted";
 
+function newTeam(world: World) {
+  return {
+    teamId: TeamId.make("new-team"),
+    name: "New",
+    timeZone: TimeZone.make("UTC"),
+    lead: world.newMember("new-lead@example.com"),
+  };
+}
+
 describe("adding members by email", () => {
   it("creates a Person with email only, a Membership, and the 'You've been added' email", () => {
     const world = new World();
     const platform = world.createTeam("Platform", "grace@example.com");
     const grace = world.personWith("grace@example.com");
     const decision = world.add(grace, platform, "Ada@Example.COM");
-    if (decision._tag !== "Accepted") throw new Error("rejected");
+    if (decision._tag !== "Accepted") {
+      throw new Error("rejected");
+    }
 
     const ada = world.state.people.find((person) => person.email === "ada@example.com");
     expect(ada).toMatchObject({ authUserId: null, organizationAdmin: false, removedAt: null });
@@ -558,21 +577,16 @@ describe("the AI processing setting", () => {
   });
 });
 
-function newTeam(world: World) {
-  return {
-    teamId: TeamId.make("new-team"),
-    name: "New",
-    timeZone: TimeZone.make("UTC"),
-    lead: world.newMember("new-lead@example.com"),
-  };
-}
-
 describe("languages (ADR 0018)", () => {
   const addedEmailLocale = (world: World, teamId: TeamId, email: string) => {
     const decision = world.add(ADMIN, teamId, email);
-    if (decision._tag !== "Accepted") throw new Error("rejected");
+    if (decision._tag !== "Accepted") {
+      throw new Error("rejected");
+    }
     const sent = decision.changes.find((change) => change._tag === "EmailRequested");
-    if (sent?._tag !== "EmailRequested" || sent.email._tag !== "AddedToTeam") throw new Error("no email");
+    if (sent?._tag !== "EmailRequested" || sent.email._tag !== "AddedToTeam") {
+      throw new Error("no email");
+    }
     return sent.email.locale;
   };
 

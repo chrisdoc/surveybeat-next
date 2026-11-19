@@ -486,7 +486,9 @@ describe("Raised Organization N masks derived values (ADR 0004)", () => {
     }
     for (const q of masked.questions) {
       assert.isNull(q.typicalChange);
-      for (const p of q.trend) assert.isNull(p.score);
+      for (const p of q.trend) {
+        assert.isNull(p.score);
+      }
     }
   });
 

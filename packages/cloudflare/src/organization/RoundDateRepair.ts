@@ -34,7 +34,9 @@ export const latestLocalDate = (instant: number, timeZones: readonly string[]): 
   let latest: string | null = null;
   for (const timeZone of timeZones) {
     const date = localDateOf(instant, timeZone);
-    if (latest === null || date > latest) latest = date;
+    if (latest === null || date > latest) {
+      latest = date;
+    }
   }
   return latest;
 };
@@ -60,7 +62,9 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
 
 const applyDateMove = (node: unknown, move: PlannedOpenDateMove): boolean => {
-  if (!isRecord(node)) return false;
+  if (!isRecord(node)) {
+    return false;
+  }
   let changed = false;
   if (node.roundId === move.roundId && node.plannedOpenDate === move.from) {
     node.plannedOpenDate = move.to;
@@ -71,7 +75,9 @@ const applyDateMove = (node: unknown, move: PlannedOpenDateMove): boolean => {
     changed = true;
   }
   for (const child of Object.values(node)) {
-    if (applyDateMove(child, move)) changed = true;
+    if (applyDateMove(child, move)) {
+      changed = true;
+    }
   }
   return changed;
 };
@@ -88,7 +94,9 @@ export const rewritePayloadDates = (
   }
   let changed = false;
   for (const move of moves) {
-    if (applyDateMove(parsed, move)) changed = true;
+    if (applyDateMove(parsed, move)) {
+      changed = true;
+    }
   }
   return changed ? JSON.stringify(parsed) : null;
 };
@@ -111,7 +119,9 @@ export const repairRoundPlannedOpenDates = ({
   Effect.gen(function* () {
     const alreadyDone = yield* sql<{ name: string }>`SELECT name FROM maintenance_done
         WHERE name = ${ROUND_PLANNED_OPEN_DATE_REPAIR}`.pipe(Effect.map((found) => found.length > 0));
-    if (alreadyDone) return;
+    if (alreadyDone) {
+      return;
+    }
 
     yield* sql
       .withTransaction(
@@ -120,7 +130,9 @@ export const repairRoundPlannedOpenDates = ({
           let waiting: { readonly round: RoundWithFrozenZones; readonly wanted: string }[] = [];
           for (const round of yield* rounds.getRoundsWithFrozenMembers()) {
             const wanted = latestLocalDate(round.plannedOpenAt, round.timeZones);
-            if (wanted === null || wanted === round.plannedOpenDate) continue;
+            if (wanted === null || wanted === round.plannedOpenDate) {
+              continue;
+            }
             if (Math.abs(daysBetween(round.plannedOpenDate, wanted)) < minimumCadenceShiftDays) {
               yield* Effect.logWarning("ROUND_PLANNED_OPEN_DATE_UNCERTAIN", {
                 roundId: round.id,
@@ -162,7 +174,9 @@ export const repairRoundPlannedOpenDates = ({
             const stored = yield* rounds.getRoundResultPayloads();
             for (const result of stored) {
               const rewritten = rewritePayloadDates(result.payload, moves);
-              if (rewritten !== null) yield* rounds.setRoundResultPayload(result.roundId, rewritten);
+              if (rewritten !== null) {
+                yield* rounds.setRoundResultPayload(result.roundId, rewritten);
+              }
             }
           }
 
@@ -170,9 +184,13 @@ export const repairRoundPlannedOpenDates = ({
           const pulseState = yield* pulses.load;
           for (const pulse of pulseState.pulses) {
             const scheduled = yield* rounds.findScheduledRound(pulse.id);
-            if (scheduled === null) continue;
+            if (scheduled === null) {
+              continue;
+            }
             const team = dirState.teams.find((t) => t.id === scheduled.teamId);
-            if (team === undefined) continue;
+            if (team === undefined) {
+              continue;
+            }
             const { memberTimeZones } = yield* scheduling.activeMembersWithTimeZones(
               dirState,
               scheduled.teamId,
@@ -184,7 +202,9 @@ export const repairRoundPlannedOpenDates = ({
               teamTimeZone: team.timeZone,
               answerWindowDays: pulse.settings.answerWindowDays,
             });
-            if (!healthy) yield* scheduling.updateScheduledRoundForPulse(pulse.id, now);
+            if (!healthy) {
+              yield* scheduling.updateScheduledRoundForPulse(pulse.id, now);
+            }
           }
 
           yield* sql`INSERT INTO maintenance_done (name, done_at) VALUES (${ROUND_PLANNED_OPEN_DATE_REPAIR}, ${now})`;

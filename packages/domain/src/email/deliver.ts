@@ -44,7 +44,9 @@ const attempt = (claimed: Extract<ClaimResult, { _tag: "Send" }>) =>
     const sender = yield* EmailSender;
 
     const rendered = yield* templates.render(claimed.email).pipe(Effect.exit);
-    if (rendered._tag === "Failure") return rejected("E_RENDER_FAILED", true);
+    if (rendered._tag === "Failure") {
+      return rejected("E_RENDER_FAILED", true);
+    }
 
     return yield* sender.send({ to: claimed.recipient, ...rendered.value }).pipe(
       Effect.timeout(sendTimeout),

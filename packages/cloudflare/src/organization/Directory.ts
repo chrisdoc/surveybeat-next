@@ -49,7 +49,9 @@ export const organizationDirectory = ({
           Effect.gen(function* () {
             const other = yield* sql<{ id: string }>`
             SELECT id FROM person WHERE auth_user_id = ${authUserId} AND id <> ${personId}`;
-            if (other.length > 0) return false;
+            if (other.length > 0) {
+              return false;
+            }
             yield* sql`
             UPDATE person SET auth_user_id = ${authUserId}
              WHERE id = ${personId} AND email = ${email} AND removed_at IS NULL AND auth_user_id IS NULL`;
@@ -75,7 +77,9 @@ export const organizationDirectory = ({
        WHERE person.auth_user_id = ${authUserId} AND person.removed_at IS NULL`.pipe(
         Effect.map((rows) => {
           const row = rows[0];
-          if (row === undefined) return null;
+          if (row === undefined) {
+            return null;
+          }
           return {
             id: row.id,
             organizationAdmin: row.organization_admin === 1,
@@ -92,7 +96,9 @@ export const organizationDirectory = ({
         .withTransaction(
           Effect.gen(function* () {
             const decision = decide(yield* directory.load, actorId, command, now);
-            if (decision._tag === "Rejected") return decision satisfies CommandResult;
+            if (decision._tag === "Rejected") {
+              return decision satisfies CommandResult;
+            }
             yield* directory.apply(decision.changes);
             if (command._tag === "RemovePerson") {
               yield* rounds.revokeInvitationForPerson(command.personId, now);
@@ -109,7 +115,9 @@ export const organizationDirectory = ({
     viewTeams: (actorId: PersonId) =>
       Effect.gen(function* () {
         const view = teamsView(yield* directory.load, actorId);
-        if (view._tag !== "Viewed") return view;
+        if (view._tag !== "Viewed") {
+          return view;
+        }
         const nextRoundDates = yield* rounds.nextRoundDates();
         return {
           _tag: "Viewed" as const,

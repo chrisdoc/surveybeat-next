@@ -49,19 +49,26 @@ for (const config of projects) {
   const plainAgree = same(effectFree, plainEffectFree);
 
   const ok = verdictAgrees && plainVerdictAgrees && codesAgree && plainAgree;
-  if (!ok) mismatched = true;
+  if (!ok) {
+    mismatched = true;
+  }
   console.log(`${ok ? "ok  " : "FAIL"} ${name}`);
-  if (!verdictAgrees)
+  if (!verdictAgrees) {
     console.log(`  effect-tsrs ${verdict(effect.status)}, patched tsc ${verdict(tsc.status)}`);
-  if (!plainVerdictAgrees) console.log(`  plain tsrs ${verdict(plain.status)}, expected ${plainExpected}`);
-  if (!codesAgree)
+  }
+  if (!plainVerdictAgrees) {
+    console.log(`  plain tsrs ${verdict(plain.status)}, expected ${plainExpected}`);
+  }
+  if (!codesAgree) {
     console.log(
       `  codes: effect-tsrs ${effectCodes.join(" ") || "none"}; tsc ${tscCodes.join(" ") || "none"}`,
     );
-  if (!plainAgree)
+  }
+  if (!plainAgree) {
     console.log(
       `  codes without Effect: effect-tsrs ${effectFree.join(" ") || "none"}; plain tsrs ${plainEffectFree.join(" ") || "none"}`,
     );
+  }
 }
 
 console.log(`parity compared ${projects.length} projects${mismatched ? "" : "; the checkers agree"}.`);

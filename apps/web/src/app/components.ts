@@ -356,7 +356,9 @@ export const statList = <Message>(
   );
 
 export const problemView = <Message>(failure: Failure | undefined, h: HtmlBuilder<Message>): Html | null => {
-  if (failure === undefined) return null;
+  if (failure === undefined) {
+    return null;
+  }
   return alertView(failureMessage(failure), h);
 };
 

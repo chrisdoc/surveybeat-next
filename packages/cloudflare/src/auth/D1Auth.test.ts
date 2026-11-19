@@ -18,8 +18,9 @@ const migrations = new URL("../../d1-migrations/", import.meta.url);
 
 const makeIndex = () => {
   const sqlite = new DatabaseSync(":memory:");
-  for (const file of readdirSync(migrations).sort())
+  for (const file of readdirSync(migrations).sort()) {
     sqlite.exec(readFileSync(new URL(file, migrations), "utf8"));
+  }
   const statement = (sql: string, binds: readonly unknown[]) => ({
     bind: (...values: readonly unknown[]) => statement(sql, values),
     all: () =>
@@ -114,7 +115,9 @@ describe("D1 PeopleIndex", () => {
     const sqlite = new DatabaseSync(":memory:");
     const files = readdirSync(migrations).sort();
     const before = files.filter((file) => file < "0004");
-    for (const file of before) sqlite.exec(readFileSync(new URL(file, migrations), "utf8"));
+    for (const file of before) {
+      sqlite.exec(readFileSync(new URL(file, migrations), "utf8"));
+    }
     sqlite.exec(`
       INSERT INTO organization_claim VALUES ('user_done', 'org-done', 'Done', 'admin-done');
       INSERT INTO organization_claim VALUES ('user_open', 'org-open', 'Open', 'admin-open');

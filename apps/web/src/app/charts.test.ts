@@ -50,8 +50,12 @@ const textsOf = (tree: Tree): string[] => {
       return;
     }
     const inner = (child as { text?: string }).text;
-    if (inner !== undefined) parts.push(inner);
-    for (const grandchild of child.children ?? []) walk(grandchild);
+    if (inner !== undefined) {
+      parts.push(inner);
+    }
+    for (const grandchild of child.children ?? []) {
+      walk(grandchild);
+    }
   };
   walk(tree);
   return parts;
@@ -114,10 +118,16 @@ describe("lineChart", () => {
         return;
       }
       const inner = (child as { text?: string }).text;
-      if (inner !== undefined) parts.push(inner);
-      for (const grandchild of child.children ?? []) walk(grandchild);
+      if (inner !== undefined) {
+        parts.push(inner);
+      }
+      for (const grandchild of child.children ?? []) {
+        walk(grandchild);
+      }
     };
-    for (const child of node.children ?? []) walk(child);
+    for (const child of node.children ?? []) {
+      walk(child);
+    }
     return parts.join("");
   };
 

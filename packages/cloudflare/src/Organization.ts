@@ -167,8 +167,9 @@ const organizationObject = Effect.gen(function* () {
       Effect.gen(function* () {
         const [people, library] = yield* both;
         const decision = decideTestSend(people, library, actorId, teamId, pulseId);
-        if (decision._tag === "Rejected")
+        if (decision._tag === "Rejected") {
           return { _tag: "Rejected", rejection: decision.rejection } satisfies TestSendResult;
+        }
         const { person, pulse } = decision;
 
         if (perHour) {
@@ -177,11 +178,12 @@ const organizationObject = Effect.gen(function* () {
             Effect.flatMap(Schema.decodeUnknownEffect(Schema.Array(TestSendCount))),
             Effect.orDie,
           );
-          if ((sentRecently[0]?.n ?? 0) >= testSendsPerHour)
+          if ((sentRecently[0]?.n ?? 0) >= testSendsPerHour) {
             return {
               _tag: "Rejected",
               rejection: { _tag: "TestSendLimitReached", perHour: testSendsPerHour },
             } satisfies TestSendResult;
+          }
         }
 
         yield* sql`DELETE FROM test_send WHERE sent_at <= ${now - testInvitationLifetimeMs}`;
@@ -224,7 +226,9 @@ const organizationObject = Effect.gen(function* () {
             Effect.gen(function* () {
               const [people, library] = yield* both;
               const decision = decidePulse(people, library, actorId, command, now);
-              if (decision._tag === "Rejected") return decision satisfies PulseCommandResult;
+              if (decision._tag === "Rejected") {
+                return decision satisfies PulseCommandResult;
+              }
               yield* pulses.apply(decision.changes);
 
               if (command._tag === "CreatePulse") {
@@ -300,7 +304,9 @@ const organizationObject = Effect.gen(function* () {
             dirState.memberships.filter((m) => m.personId === pid && m.endedAt === null).map((m) => m.teamId),
           );
           for (const pulse of pulseState.pulses) {
-            if (teamIds.has(pulse.teamId)) yield* scheduling.updateScheduledRoundForPulse(pulse.id, now);
+            if (teamIds.has(pulse.teamId)) {
+              yield* scheduling.updateScheduledRoundForPulse(pulse.id, now);
+            }
           }
         }),
       failInvitation: (roundId: string, personId: string, reason: string, now?: number) =>

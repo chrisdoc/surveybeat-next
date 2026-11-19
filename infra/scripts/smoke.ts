@@ -23,7 +23,9 @@ export const request = async (url: string, init?: RequestInit): Promise<Response
   for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
     try {
       const response = await fetch(url, init);
-      if (response.status !== 404 && response.status < 500) return response;
+      if (response.status !== 404 && response.status < 500) {
+        return response;
+      }
       last = `HTTP ${response.status}`;
     } catch (error) {
       last = error instanceof Error ? error.message : String(error);
@@ -42,7 +44,9 @@ function fail(message: string): never {
 }
 
 const session = await request(`${mainUrl}/auth/session`);
-if (session.status !== 401) fail(`GET /auth/session without a cookie answered ${session.status}`);
+if (session.status !== 401) {
+  fail(`GET /auth/session without a cookie answered ${session.status}`);
+}
 console.log(`GET /auth/session -> 401 (OK)`);
 
 const login = await fetch(`${mainUrl}/auth/login`, { redirect: "manual" });
@@ -52,7 +56,9 @@ if (login.status !== 302 || login.headers.get("location") !== `${mainUrl}/`) {
 console.log(`GET /auth/login -> ${mainUrl}/ (OK)`);
 
 const form = await request(`${mainUrl}/`);
-if (form.status !== 200) fail(`GET / answered ${form.status}`);
+if (form.status !== 200) {
+  fail(`GET / answered ${form.status}`);
+}
 if (!(form.headers.get("content-type") ?? "").includes("text/html")) {
   fail(`GET / serves ${form.headers.get("content-type") ?? "no content type"}`);
 }
@@ -60,7 +66,9 @@ console.log(`GET / -> 200 text/html (OK)`);
 
 if (submissionUrl !== undefined) {
   const submitted = await request(`${submissionUrl}/submit`, { method: "POST", body: "{}" });
-  if (submitted.status !== 202) fail(`POST /submit answered ${submitted.status}`);
+  if (submitted.status !== 202) {
+    fail(`POST /submit answered ${submitted.status}`);
+  }
   console.log("POST /submit -> 202");
 }
 console.log("OK");

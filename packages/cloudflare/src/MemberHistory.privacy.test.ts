@@ -175,11 +175,15 @@ describe("Member history privacy (ADR 0017, ADR 0005, ADR 0004)", () => {
           (row) => row.id,
         );
         assert.strictEqual(submissionIds.length, 5);
-        for (const id of submissionIds) assert.notInclude(json, id);
+        for (const id of submissionIds) {
+          assert.notInclude(json, id);
+        }
         const editKeyHashes = (
           db.prepare("SELECT edit_key_hash FROM submission").all() as { edit_key_hash: string }[]
         ).map((row) => row.edit_key_hash);
-        for (const hash of editKeyHashes) assert.notInclude(json, hash);
+        for (const hash of editKeyHashes) {
+          assert.notInclude(json, hash);
+        }
         assert.notInclude(json, "secret comment");
         assert.notInclude(json, "another secret");
         for (const person of ["person-1", "person-2", "person-other"]) {

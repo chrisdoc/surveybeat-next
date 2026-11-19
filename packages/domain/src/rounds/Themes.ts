@@ -206,11 +206,15 @@ export const checkThemesReply = (
 
   const themes = envelope.themes.slice(0, MAX_THEMES).flatMap((entry) => {
     const decoded = Option.getOrNull(decodeThemeReply(entry));
-    if (decoded === null) return [];
+    if (decoded === null) {
+      return [];
+    }
     const supporters = new Set(
       decoded.supportingCommentIndexes.filter((index) => index >= 0 && index < comments.length),
     ).size;
-    if (supporters < MIN_SUPPORTING_COMMENTS) return [];
+    if (supporters < MIN_SUPPORTING_COMMENTS) {
+      return [];
+    }
 
     if (repeatsCommentWords(`${decoded.label} ${decoded.sentence}`, comments)) {
       return [];
@@ -301,7 +305,9 @@ const themesDecision = (
   });
   const [next, effects] = transition(themesRetryMachine, snapshot, event);
   const decision = isUnhandled(snapshot, [next, effects]) ? null : next.context.decision;
-  if (decision === null) throw new Error(`Themes retry refused ${event.type}`);
+  if (decision === null) {
+    throw new Error(`Themes retry refused ${event.type}`);
+  }
   return decision;
 };
 
@@ -381,7 +387,9 @@ export const viewRoundResult = (params: {
 
   const record = params.themes;
   const closed = status === "closed" || status === "ready" || status === "shared";
-  if (!closed || !r.meetsMinimumGroupSize || record === null) return hidden("notRequested");
+  if (!closed || !r.meetsMinimumGroupSize || record === null) {
+    return hidden("notRequested");
+  }
 
   switch (record.status) {
     case "pending": {

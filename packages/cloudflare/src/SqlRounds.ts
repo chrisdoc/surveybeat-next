@@ -243,7 +243,9 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
 
   const decodeHistoricalPayload = (payload: string): HistoricalRoundData | null => {
     const res = decodeRoundResultPayload(payload);
-    if (res === null) return null;
+    if (res === null) {
+      return null;
+    }
     return {
       roundId: res.roundId,
       plannedOpenDate: res.plannedOpenDate,
@@ -760,7 +762,9 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
           let lastRedactedComment: string | null = null;
           for (const ans of answers) {
             const redacted = ans.comment ? redact(ans.comment, roster) : null;
-            if (redacted !== null) lastRedactedComment = redacted;
+            if (redacted !== null) {
+              lastRedactedComment = redacted;
+            }
             yield* sql`INSERT INTO answer (submission_id, question_version_id, value, comment)
                        VALUES (${submissionId}, ${ans.questionVersionId}, ${ans.value}, ${redacted})
                        ON CONFLICT (submission_id, question_version_id) DO UPDATE SET value = excluded.value, comment = excluded.comment`;
@@ -795,7 +799,9 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
           let lastRedactedComment: string | null = null;
           for (const ans of answers) {
             const redacted = ans.comment ? redact(ans.comment, roster) : null;
-            if (redacted !== null) lastRedactedComment = redacted;
+            if (redacted !== null) {
+              lastRedactedComment = redacted;
+            }
             yield* sql`INSERT INTO answer (submission_id, question_version_id, value, comment)
                        VALUES (${sub.id}, ${ans.questionVersionId}, ${ans.value}, ${redacted})
                        ON CONFLICT (submission_id, question_version_id) DO UPDATE SET value = excluded.value, comment = excluded.comment`;
@@ -813,7 +819,9 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
   ): Effect.Effect<SubmissionRoundContext | null> =>
     Effect.gen(function* () {
       const round = yield* getRound(roundId);
-      if (round === null) return null;
+      if (round === null) {
+        return null;
+      }
 
       const questions = yield* sql<{
         position: number;
@@ -922,7 +930,9 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
        WHERE rr.round_id = ${roundId}`.pipe(
       Effect.map((rows) => {
         const row = rows[0];
-        if (row === undefined) return null;
+        if (row === undefined) {
+          return null;
+        }
         const result = decodeRoundResultPayload(row.payload);
         return result === null ? null : { ...result, pulseName: row.pulse_name };
       }),
@@ -1021,7 +1031,9 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
       const subRows = yield* sql<{
         id: string;
       }>`SELECT id FROM submission WHERE round_id = ${roundId} ORDER BY id ASC`;
-      if (subRows.length === 0) return [];
+      if (subRows.length === 0) {
+        return [];
+      }
 
       const ansRows = yield* sql<{
         submission_id: string;
@@ -1080,7 +1092,7 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
             LIMIT ${limit}`;
 
       const history: HistoricalRoundData[] = [];
-      for (const row of [...rows].reverse()) {
+      for (const row of [...rows].toReversed()) {
         const item = decodeHistoricalPayload(row.payload);
         if (item !== null) {
           history.push(item);
@@ -1108,7 +1120,9 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
           Effect.flatMap(rows(ThemesRow)),
         );
       const row = found[0];
-      if (row === undefined) return null;
+      if (row === undefined) {
+        return null;
+      }
       if (row.status === "pending") {
         const pending: RoundThemesRecord = {
           status: "pending",

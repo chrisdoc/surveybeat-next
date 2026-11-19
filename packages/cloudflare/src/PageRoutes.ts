@@ -39,19 +39,25 @@ const parseJson = (text: string): unknown => {
 
 const formFields = (text: string): Record<string, string> => {
   const fields: Record<string, string> = {};
-  for (const [key, value] of new URLSearchParams(text).entries()) fields[key] = value;
+  for (const [key, value] of new URLSearchParams(text).entries()) {
+    fields[key] = value;
+  }
   return fields;
 };
 
 const pageBody = (request: HttpServerRequest): Effect.Effect<PageBodyOutcome> =>
   Effect.gen(function* () {
     const text = yield* request.text.pipe(Effect.orDie);
-    if (text.trim().length === 0) return malformed;
+    if (text.trim().length === 0) {
+      return malformed;
+    }
 
     const contentType = request.headers["content-type"] ?? "";
     const raw = contentType.includes("application/json") ? parseJson(text) : formFields(text);
     const decoded = decodePageBody(raw);
-    if (Option.isNone(decoded)) return malformed;
+    if (Option.isNone(decoded)) {
+      return malformed;
+    }
 
     const outcome: PageBodyOutcome = { _tag: "Decoded", body: decoded.value };
     return outcome;
@@ -81,7 +87,9 @@ export const pageRoutes = (organizations: Organizations, database: Cloudflare.D1
     const url = new URL(request.url, APP_ORIGIN);
 
     if (path === DELIVERY_PAGE_PATH) {
-      if (request.method === "HEAD") return HttpServerResponse.empty({ status: 200 });
+      if (request.method === "HEAD") {
+        return HttpServerResponse.empty({ status: 200 });
+      }
 
       if (request.method === "GET") {
         const token = url.searchParams.get("token") ?? "";
@@ -96,15 +104,21 @@ export const pageRoutes = (organizations: Organizations, database: Cloudflare.D1
           request.headers["accept-language"],
         );
         const m = messagesFor(locale);
-        if (body._tag === "Malformed") return missing(m.message("page.error.missingTokenOrTimeZone"));
+        if (body._tag === "Malformed") {
+          return missing(m.message("page.error.missingTokenOrTimeZone"));
+        }
 
         const token = body.body.token ?? "";
         const timeZone = body.body.timeZone ?? "";
-        if (!token || !timeZone) return missing(m.message("page.error.missingTokenOrTimeZone"));
+        if (!token || !timeZone) {
+          return missing(m.message("page.error.missingTokenOrTimeZone"));
+        }
 
         const tokenHash = yield* Effect.promise(() => hashToken(token));
         const row = yield* invitationRow(database, tokenHash);
-        if (row === null) return invalid(m.message("page.error.invalid"));
+        if (row === null) {
+          return invalid(m.message("page.error.invalid"));
+        }
 
         yield* organizations
           .getByName(row.organization_id)
@@ -122,7 +136,9 @@ export const pageRoutes = (organizations: Organizations, database: Cloudflare.D1
     }
 
     if (path === UNSUBSCRIBE_PAGE_PATH) {
-      if (request.method === "HEAD") return HttpServerResponse.empty({ status: 200 });
+      if (request.method === "HEAD") {
+        return HttpServerResponse.empty({ status: 200 });
+      }
 
       if (request.method === "GET") {
         const token = url.searchParams.get("t") ?? "";
@@ -137,14 +153,20 @@ export const pageRoutes = (organizations: Organizations, database: Cloudflare.D1
           request.headers["accept-language"],
         );
         const m = messagesFor(locale);
-        if (body._tag === "Malformed") return missing(m.message("page.error.missingToken"));
+        if (body._tag === "Malformed") {
+          return missing(m.message("page.error.missingToken"));
+        }
 
         const token = url.searchParams.get("t") ?? body.body.t ?? body.body.token ?? null;
-        if (!token) return missing(m.message("page.error.missingToken"));
+        if (!token) {
+          return missing(m.message("page.error.missingToken"));
+        }
 
         const tokenHash = yield* Effect.promise(() => hashToken(token));
         const row = yield* invitationRow(database, tokenHash);
-        if (row === null) return invalid(m.message("page.error.invalid"));
+        if (row === null) {
+          return invalid(m.message("page.error.invalid"));
+        }
 
         yield* organizations
           .getByName(row.organization_id)

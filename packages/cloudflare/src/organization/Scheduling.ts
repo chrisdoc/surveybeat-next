@@ -34,16 +34,24 @@ export const makeScheduling = ({
   const scheduleNextRound = (pulseId: PulseId, teamId: TeamId, now: number) =>
     Effect.gen(function* () {
       const paused = yield* rounds.isPulsePaused(pulseId);
-      if (paused) return;
+      if (paused) {
+        return;
+      }
 
       const existingScheduled = yield* rounds.findScheduledRound(pulseId);
-      if (existingScheduled !== null) return;
+      if (existingScheduled !== null) {
+        return;
+      }
 
       const [dirState, pulseState] = yield* both;
       const pulse = pulseState.pulses.find((p) => p.id === pulseId);
-      if (pulse === undefined) return;
+      if (pulse === undefined) {
+        return;
+      }
       const team = dirState.teams.find((t) => t.id === teamId);
-      if (team === undefined) return;
+      if (team === undefined) {
+        return;
+      }
 
       const { memberTimeZones } = yield* activeMembersWithTimeZones(dirState, teamId, team.timeZone);
       const { plannedOpenDate, instants } = nextRoundSlot({
@@ -96,13 +104,19 @@ export const makeScheduling = ({
   const updateScheduledRoundForPulse = (pulseId: PulseId, now: number) =>
     Effect.gen(function* () {
       const scheduled = yield* rounds.findScheduledRound(pulseId);
-      if (scheduled === null) return;
+      if (scheduled === null) {
+        return;
+      }
 
       const [dirState, pulseState] = yield* both;
       const pulse = pulseState.pulses.find((p) => p.id === pulseId);
-      if (pulse === undefined) return;
+      if (pulse === undefined) {
+        return;
+      }
       const team = dirState.teams.find((t) => t.id === scheduled.teamId);
-      if (team === undefined) return;
+      if (team === undefined) {
+        return;
+      }
 
       const { memberTimeZones } = yield* activeMembersWithTimeZones(
         dirState,

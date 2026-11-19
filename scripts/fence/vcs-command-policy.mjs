@@ -57,7 +57,9 @@ export const tokenize = (input) => {
   let started = false;
   let quoted = false;
   const pushWord = () => {
-    if (started) tokens.push({ type: "word", value: word, quoted });
+    if (started) {
+      tokens.push({ type: "word", value: word, quoted });
+    }
     word = "";
     started = false;
     quoted = false;
@@ -136,13 +138,19 @@ const segmentsOf = (tokens) => {
   let current = [];
   for (const token of tokens) {
     if (token.type === "op" && SEGMENT_BREAKS.has(token.value)) {
-      if (current.length > 0) segments.push(current);
+      if (current.length > 0) {
+        segments.push(current);
+      }
       current = [];
       continue;
     }
-    if (token.type === "word") current.push(token);
+    if (token.type === "word") {
+      current.push(token);
+    }
   }
-  if (current.length > 0) segments.push(current);
+  if (current.length > 0) {
+    segments.push(current);
+  }
   return segments;
 };
 
@@ -157,7 +165,9 @@ const withoutPrefixes = (words) => {
   let i = 0;
   while (i < words.length) {
     const word = words[i];
-    if (word === undefined) break;
+    if (word === undefined) {
+      break;
+    }
     const value = word.value;
     if (!sawEnv && basename(value) === "env") {
       sawEnv = true;
@@ -191,15 +201,23 @@ const commandIndex = (words) => {
   let i = 0;
   while (i < words.length) {
     const word = words[i];
-    if (word === undefined) break;
-    if (!PREFIX_COMMANDS.has(basename(word.value))) break;
+    if (word === undefined) {
+      break;
+    }
+    if (!PREFIX_COMMANDS.has(basename(word.value))) {
+      break;
+    }
     i += 1;
     while (i < words.length) {
       const token = words[i];
-      if (token === undefined || !token.value.startsWith("-")) break;
+      if (token === undefined || !token.value.startsWith("-")) {
+        break;
+      }
       const flag = token.value;
       i += 1;
-      if (flag === "-u" || flag === "-n" || flag === "--user" || flag === "-c") i += 1;
+      if (flag === "-u" || flag === "-n" || flag === "--user" || flag === "-c") {
+        i += 1;
+      }
     }
   }
   return i;
@@ -230,8 +248,12 @@ const disabledHookEnvironment = (assignments) =>
     if (name === "GIT_CONFIG_PARAMETERS" || name === "GIT_CONFIG_COUNT") {
       return value.toLowerCase().includes("hookspath");
     }
-    if (name === "LEFTHOOK_EXCLUDE") return true;
-    if (!HOOK_ENV.has(name)) return false;
+    if (name === "LEFTHOOK_EXCLUDE") {
+      return true;
+    }
+    if (!HOOK_ENV.has(name)) {
+      return false;
+    }
     return value === "0" || value.toLowerCase() === "false";
   });
 
@@ -244,7 +266,9 @@ const shellPayload = (words, start) => {
   const flagIndex = words.findIndex(
     (word, index) => index >= start && /^-[A-Za-z]*c[A-Za-z]*$/.test(word.value),
   );
-  if (flagIndex === -1) return "";
+  if (flagIndex === -1) {
+    return "";
+  }
   return words[flagIndex + 1]?.value ?? "";
 };
 
@@ -256,11 +280,17 @@ const commitSkip = (args) => {
   let i = 0;
   while (i < args.length) {
     const token = args[i];
-    if (token === undefined) break;
+    if (token === undefined) {
+      break;
+    }
     const value = token.value;
-    if (value === "--") return null;
+    if (value === "--") {
+      return null;
+    }
     if (value.startsWith("--")) {
-      if (NO_VERIFY.test(value.split("=")[0] ?? "")) return "no-verify";
+      if (NO_VERIFY.test(value.split("=")[0] ?? "")) {
+        return "no-verify";
+      }
       i += 1;
       continue;
     }
@@ -269,7 +299,9 @@ const commitSkip = (args) => {
       let consumesNext = false;
       for (let j = 0; j < letters.length; j += 1) {
         const letter = letters[j] ?? "";
-        if (letter === "n") return "no-verify";
+        if (letter === "n") {
+          return "no-verify";
+        }
         if (SHORT_WITH_VALUE.has(letter)) {
           consumesNext = j === letters.length - 1;
           break;
@@ -291,9 +323,13 @@ const gitSubcommand = (args) => {
   let i = 0;
   while (i < args.length) {
     const token = args[i];
-    if (token === undefined) break;
+    if (token === undefined) {
+      break;
+    }
     const value = token.value;
-    if (value === "--") return { name: "", rest: [] };
+    if (value === "--") {
+      return { name: "", rest: [] };
+    }
     if (value === "-C" || value === "-c" || value === "-p" || value === "-P") {
       i += 2;
       continue;
@@ -318,39 +354,55 @@ const gitSubcommand = (args) => {
  * @returns {Decision}
  */
 const evaluateSegment = (words, depth, gatePassed) => {
-  if (hooksPathMentioned(words)) return { decision: "deny", reason: REASON_HOOKS_PATH };
-  if (hookFilesMentioned(words)) return { decision: "deny", reason: REASON_HOOK_FILES };
+  if (hooksPathMentioned(words)) {
+    return { decision: "deny", reason: REASON_HOOKS_PATH };
+  }
+  if (hookFilesMentioned(words)) {
+    return { decision: "deny", reason: REASON_HOOK_FILES };
+  }
 
   const { assignments, rest } = withoutPrefixes(words);
-  if (disabledHookEnvironment(assignments)) return { decision: "deny", reason: REASON_HOOK_ENV };
-  if (rest.length === 0) return { decision: "allow" };
+  if (disabledHookEnvironment(assignments)) {
+    return { decision: "deny", reason: REASON_HOOK_ENV };
+  }
+  if (rest.length === 0) {
+    return { decision: "allow" };
+  }
 
   const index = commandIndex(rest);
   const command = rest[index];
-  if (command === undefined) return { decision: "allow" };
+  if (command === undefined) {
+    return { decision: "allow" };
+  }
   const name = basename(command.value);
 
   if (SHELLS.has(name)) {
     const payload = shellPayload(rest, index + 1);
-    if (payload === "" || depth >= MAX_DEPTH) return { decision: "allow" };
+    if (payload === "" || depth >= MAX_DEPTH) {
+      return { decision: "allow" };
+    }
     return evaluateCommand(payload, { gatePassed, depth: depth + 1 });
   }
 
   const args = rest.slice(index + 1);
 
   if (name === "lefthook" || name === "husky") {
-    if (args.some((arg) => arg.value === "uninstall"))
+    if (args.some((arg) => arg.value === "uninstall")) {
       return { decision: "deny", reason: REASON_LEFTHOOK_UNINSTALL };
+    }
     return { decision: "allow" };
   }
 
   if (name === "but") {
-    if (args.some((arg) => arg.value === "commit") && !gatePassed)
+    if (args.some((arg) => arg.value === "commit") && !gatePassed) {
       return { decision: "deny", reason: REASON_GATE };
+    }
     return { decision: "allow" };
   }
 
-  if (name !== "git") return { decision: "allow" };
+  if (name !== "git") {
+    return { decision: "allow" };
+  }
 
   const subcommand = gitSubcommand(args);
   if (subcommand.name === "commit" && commitSkip(subcommand.rest) !== null) {
@@ -367,11 +419,15 @@ const evaluateSegment = (words, depth, gatePassed) => {
  */
 export const evaluateCommand = (command, options = {}) => {
   const { gatePassed = false, depth = 0 } = options;
-  if (typeof command !== "string" || command.trim() === "") return { decision: "allow" };
+  if (typeof command !== "string" || command.trim() === "") {
+    return { decision: "allow" };
+  }
   const segments = segmentsOf(tokenize(command));
   for (const segment of segments) {
     const result = evaluateSegment(segment, depth, gatePassed);
-    if (result.decision === "deny") return result;
+    if (result.decision === "deny") {
+      return result;
+    }
   }
   return { decision: "allow" };
 };
@@ -382,7 +438,9 @@ const gitOutput = (args) => spawnSync("git", args, { encoding: "utf8" });
 export const gateHasPassed = () => {
   const tree = gitOutput(["write-tree"]);
   const gitDir = gitOutput(["rev-parse", "--git-dir"]);
-  if (tree.status !== 0 || gitDir.status !== 0) return false;
+  if (tree.status !== 0 || gitDir.status !== 0) {
+    return false;
+  }
   try {
     const recorded = readFileSync(join(gitDir.stdout.trim(), "surveybeat-fence"), "utf8").trim();
     return recorded === tree.stdout.trim();
@@ -393,7 +451,9 @@ export const gateHasPassed = () => {
 
 const readStdin = async () => {
   let input = "";
-  for await (const chunk of process.stdin) input += chunk;
+  for await (const chunk of process.stdin) {
+    input += chunk;
+  }
   return input;
 };
 
@@ -473,8 +533,12 @@ export const main = async () => {
     return;
   }
 
-  if (format === "cursor") console.log(JSON.stringify({ permission: "allow" }));
+  if (format === "cursor") {
+    console.log(JSON.stringify({ permission: "allow" }));
+  }
 };
 
 const entry = process.argv[1];
-if (entry !== undefined && import.meta.url === pathToFileURL(entry).href) await main();
+if (entry !== undefined && import.meta.url === pathToFileURL(entry).href) {
+  await main();
+}
