@@ -1,0 +1,62 @@
+{
+  "cli_version": "0.13.4",
+  "checkpoint_id": "01M7TSZTYNVWBJ90GE7CK2BME0",
+  "session_id": "8e76d15d-8600-421b-94bc-994b3d193e87",
+  "strategy": "manual-commit",
+  "created_at": "2026-11-19T21:04:21.935738579Z",
+  "branch": "t3/issue-285-lantern-requests",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "infra/scripts/lighthouse-gate.ts"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-5-5",
+  "turn_id": "8b9aa8ae32c2",
+  "checkpoint_transcript_start": 248,
+  "transcript_lines_at_start": 248,
+  "compact_transcript_start": 27,
+  "token_usage": {
+    "input_tokens": 28,
+    "cache_creation_tokens": 17155,
+    "cache_read_tokens": 1933260,
+    "output_tokens": 8068,
+    "api_call_count": 13,
+    "subagent_tokens": {
+      "input_tokens": 210,
+      "cache_creation_tokens": 230269,
+      "cache_read_tokens": 13974304,
+      "output_tokens": 136165,
+      "api_call_count": 105
+    },
+    "subagent_tokens_complete": true
+  },
+  "session_token_usage": {
+    "input_tokens": 80,
+    "cache_creation_tokens": 133703,
+    "cache_read_tokens": 4731149,
+    "output_tokens": 25305,
+    "api_call_count": 39,
+    "subagent_tokens": {
+      "input_tokens": 210,
+      "cache_creation_tokens": 230269,
+      "cache_read_tokens": 13974304,
+      "output_tokens": 136165,
+      "api_call_count": 105
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 5,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 2,
+      "credentialed_uri": 0,
+      "entropy": 2,
+      "key_context": 1,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
