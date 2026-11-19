@@ -47,6 +47,7 @@ export interface ScheduleJobRecord {
   readonly payload: string | null;
   readonly createdAt: number;
   readonly completedAt: number | null;
+  readonly failures: number;
 }
 
 export const localToUtc = (
