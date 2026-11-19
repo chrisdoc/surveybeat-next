@@ -38,10 +38,21 @@ Values for those commands come from `.env.schema`, which declares every variable
 
 ## Preview stages in CI
 
-`.github/workflows/preview.yml` deploys `pr-<number>` on every push to a pull request, smoke tests the stage, and destroys it when the pull request closes. It needs the repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`, (no sign-in secret beyond `ORG_CREATION_ALLOWLIST`, which `infra/alchemy.run.ts` reads). Fork pull requests are skipped. After the deploy, two jobs run against the stage:
+`.github/workflows/preview.yml` deploys `pr-<number>` for a push to a pull request, smoke tests the stage, and destroys it when the pull request closes. It needs the repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`, (no sign-in secret beyond `ORG_CREATION_ALLOWLIST`, which `infra/alchemy.run.ts` reads). Fork pull requests are skipped. The decision and its backtest are in ADR 0026.
 
-- `preview-privacy` reads back the Submission Worker's settings (below) on every PR. When the PR touches `packages/cloudflare`, `infra`, the answer entry (`apps/web/answer.html`, `src/answer`, `src/messages`, `vite.config.ts`), the dependency pins or this workflow, it also runs the canary sweep (`infra/tests/privacy/canary-sweep.ts`).
-- `e2e` runs the Playwright tests in `infra/tests/e2e/`, including the SPEC §7 flow (local stage only, see AGENTS.md).
+The first job, `select`, decides what the revision needs before any stage work starts:
+
+- A revision that is no longer the head of its pull request stops there, and the newer revision owns the stage. If the read of the pull request fails, the revision keeps its stage.
+- `scripts/ci/select.mjs` classifies the PR's changed files, read from the compare endpoint `base...head` by commit SHA. It matches the old `git diff BASE...HEAD` and includes the old name of a rename. `scripts/ci/select.test.ts` locks its rules. It sets three gates:
+  - `stage` is off only when every changed file is prose or agent tooling: under `docs/`, any `*.md`, the agent instruction directories, `.githooks/`, `skills-lock.json`, or the root `scripts/`. An empty list, a mixed list or any other path deploys a stage.
+  - `canary` is on when the PR touches `packages/cloudflare`, `infra`, `scripts/ci`, the answer entry (`apps/web/answer.html`, `src/answer`, `src/messages`, `vite.config.ts`), the dependency pins or this workflow.
+  - `lighthouse` is on when the PR touches the answer entry, `infra/scripts/lighthouse` or `infra/package.json`.
+- If the changed files cannot be read, or the compare endpoint lists 3000 or more files, all three gates are on.
+
+After the deploy, two jobs run against the stage. Both are skipped when `stage` is off:
+
+- `preview-privacy` reads back the Submission Worker's settings (below) on every stage. It runs the canary sweep (`infra/tests/privacy/canary-sweep.ts`) only when `canary` is on.
+- `e2e` runs the Playwright tests in `infra/tests/e2e/`, including the SPEC §7 flow (local stage only, see AGENTS.md). It builds the web app and runs the Lighthouse gate only when `lighthouse` is on.
 
 ## Sign-in (Better Auth, email codes)
 
