@@ -286,24 +286,48 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
         const request = yield* HttpServerRequest;
         const path = request.url.split("?")[0] ?? "/";
 
-        if (path === DELIVERY_PAGE_PATH || path === UNSUBSCRIBE_PAGE_PATH) return yield* pages;
+        if (path === DELIVERY_PAGE_PATH || path === UNSUBSCRIBE_PAGE_PATH) {
+          return yield* pages;
+        }
 
-        if (path.startsWith("/auth/") && !SURVEYBEAT_AUTH_PATHS.has(path))
+        if (path.startsWith("/auth/") && !SURVEYBEAT_AUTH_PATHS.has(path)) {
           return yield* authInstance.fetch.pipe(Effect.provide(RuntimeContext.phantom));
+        }
 
         if (isTestStage(stage)) {
-          if (path === TEST_ROUTES && testRoutes) return yield* testRoutes;
-          if (path === PEOPLE_TEST_ROUTE) return yield* peopleTestRoutes(organizations, database);
-          if (path === PULSES_TEST_ROUTE) return yield* pulseTestRoutes(organizations);
-          if (path === ROUNDS_TEST_ROUTE) return yield* roundTestRoutes(organizations, database);
-          if (path === ROUND_DELIVERY_TEST_ROUTE) return yield* roundDeliveryTestRoutes(organizations);
-          if (path === THEMES_TEST_ROUTE) return yield* themesTestRoutes(organizations);
-          if (path === REVIEW_TEST_ROUTE) return yield* reviewTestRoutes(organizations);
-          if (path === RESULT_RECOVERY_TEST_ROUTE) return yield* resultRecoveryTestRoutes(organizations);
-          if (path === TEST_INVITATION_TEST_ROUTE)
+          if (path === TEST_ROUTES && testRoutes) {
+            return yield* testRoutes;
+          }
+          if (path === PEOPLE_TEST_ROUTE) {
+            return yield* peopleTestRoutes(organizations, database);
+          }
+          if (path === PULSES_TEST_ROUTE) {
+            return yield* pulseTestRoutes(organizations);
+          }
+          if (path === ROUNDS_TEST_ROUTE) {
+            return yield* roundTestRoutes(organizations, database);
+          }
+          if (path === ROUND_DELIVERY_TEST_ROUTE) {
+            return yield* roundDeliveryTestRoutes(organizations);
+          }
+          if (path === THEMES_TEST_ROUTE) {
+            return yield* themesTestRoutes(organizations);
+          }
+          if (path === REVIEW_TEST_ROUTE) {
+            return yield* reviewTestRoutes(organizations);
+          }
+          if (path === RESULT_RECOVERY_TEST_ROUTE) {
+            return yield* resultRecoveryTestRoutes(organizations);
+          }
+          if (path === TEST_INVITATION_TEST_ROUTE) {
             return yield* testInvitationTestRoutes(organizations, database);
-          if (path === RESEND_EMAIL_TEST_ROUTE) return yield* resendEmailTestRoutes(organizations, database);
-          if (path === FLOW_TEST_ROUTE) return yield* flowTestRoutes(organizations);
+          }
+          if (path === RESEND_EMAIL_TEST_ROUTE) {
+            return yield* resendEmailTestRoutes(organizations, database);
+          }
+          if (path === FLOW_TEST_ROUTE) {
+            return yield* flowTestRoutes(organizations);
+          }
         }
 
         return yield* api;

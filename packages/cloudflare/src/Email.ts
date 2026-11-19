@@ -21,7 +21,9 @@ export type EmailSendRequested = typeof EmailSendRequested.Type;
 
 export const ProductionEmail = Effect.gen(function* () {
   const { stage } = yield* Stack;
-  if (!sendsRealEmail(stage)) return undefined;
+  if (!sendsRealEmail(stage)) {
+    return undefined;
+  }
   const subdomain = yield* Cloudflare.Email.SendingSubdomain("Notify", {
     zoneId: ZONE_ID,
     name: SENDING_DOMAIN,

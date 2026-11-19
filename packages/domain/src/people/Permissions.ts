@@ -78,8 +78,12 @@ export const PERMISSIONS: Readonly<Record<Action, readonly Grantee[]>> = {
 
 export const can = <A extends Action>(actor: Actor, action: A, resource: ResourceOf<A>): boolean => {
   const grantees = PERMISSIONS[action];
-  if (actor.organizationAdmin && grantees.includes("admin")) return true;
-  if (resource._tag !== "Team") return false;
+  if (actor.organizationAdmin && grantees.includes("admin")) {
+    return true;
+  }
+  if (resource._tag !== "Team") {
+    return false;
+  }
   const role = actor.roles.get(resource.teamId);
   return role !== undefined && grantees.includes(role);
 };

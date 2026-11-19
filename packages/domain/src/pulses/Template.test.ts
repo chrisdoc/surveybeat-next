@@ -34,7 +34,9 @@ describe("the weekly team health Template", () => {
         expect(Schema.is(ScaleLabel)(question.type.highLabel)).toBe(true);
       }
       if (question.type._tag === "SingleChoice") {
-        for (const option of question.type.options) expect(Schema.is(ChoiceOption)(option)).toBe(true);
+        for (const option of question.type.options) {
+          expect(Schema.is(ChoiceOption)(option)).toBe(true);
+        }
       }
     }
   });

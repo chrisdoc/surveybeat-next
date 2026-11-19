@@ -56,7 +56,9 @@ const expireSessionCookie = HttpEffect.appendPreResponseHandler((_request, respo
 export const requireSameOrigin = Effect.gen(function* () {
   const request = yield* HttpServerRequest;
   const origin = request.headers.origin;
-  if (origin !== undefined && origin !== (yield* requestOrigin)) return yield* new Forbidden();
+  if (origin !== undefined && origin !== (yield* requestOrigin)) {
+    return yield* new Forbidden();
+  }
 });
 
 const setSessionCookie = (token: Redacted.Redacted) =>
@@ -69,7 +71,9 @@ const setSessionCookie = (token: Redacted.Redacted) =>
 
 const authenticated = Effect.gen(function* () {
   const cookie = yield* sessionCookie;
-  if (Option.isNone(cookie)) return yield* new Unauthenticated();
+  if (Option.isNone(cookie)) {
+    return yield* new Unauthenticated();
+  }
   return yield* checkSession(cookie.value).pipe(
     Effect.tapError((error) => (error._tag === "Unauthenticated" ? expireSessionCookie : Effect.void)),
   );
@@ -77,7 +81,9 @@ const authenticated = Effect.gen(function* () {
 
 export const currentMember = Effect.gen(function* () {
   const checked = yield* authenticated;
-  if (Option.isNone(checked.member)) return yield* new Forbidden();
+  if (Option.isNone(checked.member)) {
+    return yield* new Forbidden();
+  }
   return checked.member.value;
 });
 
@@ -124,7 +130,9 @@ export const authHandlers = <R>({ services, allowlist }: AuthHandlerOptions<R>) 
             yield* requireSameOrigin;
             yield* expireSessionCookie;
             const cookie = yield* sessionCookie;
-            if (Option.isSome(cookie)) yield* signOut(cookie.value);
+            if (Option.isSome(cookie)) {
+              yield* signOut(cookie.value);
+            }
             const home = `${yield* requestOrigin}/`;
             return HttpServerResponse.redirect(home, { status: 303 });
           }),

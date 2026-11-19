@@ -49,7 +49,9 @@ const signedIn = () =>
       auth,
       chosenOrganization: (sessionId) => Effect.sync(() => Option.fromNullishOr(chosen.get(sessionId))),
       rememberOrganization: (sessionId, organizationId) =>
-        Effect.sync(() => void chosen.set(sessionId, organizationId)),
+        Effect.sync(() => {
+          chosen.set(sessionId, organizationId);
+        }),
       deleteSession: (sessionId) =>
         Effect.sync(() => {
           sent.push(sessionId);

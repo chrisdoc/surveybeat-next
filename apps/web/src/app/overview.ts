@@ -36,17 +36,14 @@ const plotBox = <Message>(children: readonly Html[], h: HtmlBuilder<Message>): H
   h.div([h.Class("flex flex-col gap-2 rounded-control bg-subtle p-4")], children);
 
 const eventGlyph = <Message>(kind: ActionMarker["kind"], h: HtmlBuilder<Message>): Html =>
-  h.span(
-    [
-      h.AriaHidden(true),
-      h.Class(
-        kind === "committed"
-          ? "block size-3 shrink-0 rounded-full border-2 border-brass bg-surface"
-          : "block size-3 shrink-0 rounded-full bg-primary",
-      ),
-    ],
-    [],
-  );
+  h.span([
+    h.AriaHidden(true),
+    h.Class(
+      kind === "committed"
+        ? "block size-3 shrink-0 rounded-full border-2 border-brass bg-surface"
+        : "block size-3 shrink-0 rounded-full bg-primary",
+    ),
+  ]);
 
 const markerText = (marker: ActionMarker): string =>
   message(marker.kind === "committed" ? "overview.marker.committed" : "overview.marker.done", {
@@ -58,8 +55,12 @@ const tooltipBaseClass =
   "pointer-events-none hidden absolute bottom-full z-10 mb-1 w-max max-w-[min(20rem,calc(100vw-2rem))] whitespace-normal rounded-control bg-evergreen px-2 py-1 text-xs text-on-primary group-hover:block group-focus-visible:block group-focus:block";
 
 const tooltipAnchor = (x: number): string => {
-  if (x < 0.15) return "left-0";
-  if (x > 0.85) return "right-0";
+  if (x < 0.15) {
+    return "left-0";
+  }
+  if (x > 0.85) {
+    return "right-0";
+  }
   return "left-1/2 -translate-x-1/2";
 };
 
@@ -100,7 +101,9 @@ export const overviewXs = (overview: TeamOverview): OverviewXs => {
     tMax = Math.max(tMax, marker.at);
   }
   const markerX = (at: number): number => {
-    if (tMax === tMin) return 0.5;
+    if (tMax === tMin) {
+      return 0.5;
+    }
     return Math.min(1, Math.max(0, (at - tMin) / (tMax - tMin)));
   };
   const rounds = new Map<RoundId, number>();
@@ -134,7 +137,9 @@ const markerOverlay = <Message>(
       : [h.AriaHidden(true), h.Class("absolute inset-0")],
     markers.map((marker, i) => {
       const x = xs[i] ?? 0.5;
-      if (interactive) return markerButton(marker, x, h);
+      if (interactive) {
+        return markerButton(marker, x, h);
+      }
       return h.span(
         [
           h.AriaHidden(true),
@@ -149,7 +154,9 @@ const markerOverlay = <Message>(
 const latestDimensionScore = (dimension: DimensionOverview): number | null => {
   for (let i = dimension.points.length - 1; i >= 0; i--) {
     const point = dimension.points[i]!;
-    if (point.score !== null) return point.score;
+    if (point.score !== null) {
+      return point.score;
+    }
   }
   return null;
 };
@@ -167,7 +174,9 @@ const dimensionPanel = <Message>(
   const points: ChartPoint[] = [];
   for (const point of dimension.points) {
     const x = xByRound.get(point.roundId);
-    if (x !== undefined) points.push({ x, score: point.score, joinsPrevious: true });
+    if (x !== undefined) {
+      points.push({ x, score: point.score, joinsPrevious: true });
+    }
   }
   const first = rounds[0];
   const newest = rounds.at(-1);
@@ -254,7 +263,9 @@ const roundName = (round: OverviewRound): string =>
 
 const latestResults = <Message>(overview: TeamOverview, h: HtmlBuilder<Message>): Html | null => {
   const latest = overview.rounds.at(-1);
-  if (latest === undefined) return null;
+  if (latest === undefined) {
+    return null;
+  }
   return panel(
     [
       subSectionTitle(message("overview.latest.title"), h, 2),
@@ -276,7 +287,7 @@ const recentRounds = <Message>(overview: TeamOverview, h: HtmlBuilder<Message>):
       h.ul(
         [h.Class("mt-1 flex flex-col")],
         [...overview.rounds]
-          .reverse()
+          .toReversed()
           .slice(0, RECENT_ROUNDS)
           .map((round) =>
             h.li(
@@ -309,7 +320,9 @@ export const teamOverviewView = <Message>(
   }
 
   if (state._tag === "Failed") {
-    if (state.failure === "Forbidden") return null;
+    if (state.failure === "Forbidden") {
+      return null;
+    }
     return problemView(state.failure, h);
   }
 

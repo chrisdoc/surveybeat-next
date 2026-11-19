@@ -34,7 +34,9 @@ export const organizationSubmissions = ({
       Effect.gen(function* () {
         const [dirState, pulseState] = yield* both;
         const pulse = pulseState.pulses.find((p) => p.id === PulseId.make(pulseId));
-        if (pulse === undefined || pulse.questions.length === 0) return null;
+        if (pulse === undefined || pulse.questions.length === 0) {
+          return null;
+        }
         const questions = pulse.questions.flatMap((versionId) => {
           const version = pulseState.versions.find((v) => v.id === versionId);
           return version === undefined

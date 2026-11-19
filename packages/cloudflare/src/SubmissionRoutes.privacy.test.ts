@@ -84,7 +84,9 @@ const recordingOrganizations = (failing = false) => {
       {},
       {
         get: (_target, method) => {
-          if (typeof method !== "string") return undefined;
+          if (typeof method !== "string") {
+            return undefined;
+          }
           calls.push(method);
           return () =>
             failing
@@ -97,7 +99,9 @@ const recordingOrganizations = (failing = false) => {
     {},
     {
       get: (_target, method) => {
-        if (typeof method !== "string") return undefined;
+        if (typeof method !== "string") {
+          return undefined;
+        }
         calls.push(method);
         return () => organizationFor();
       },
@@ -122,7 +126,7 @@ const makeRequest = (
       ...headers,
     },
     text: Effect.succeed(bodyText),
-    json: Effect.sync(() => body || {}),
+    json: Effect.sync(() => body ?? {}),
   } as unknown as HttpServerRequest;
 };
 

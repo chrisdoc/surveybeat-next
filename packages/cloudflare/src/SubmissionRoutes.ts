@@ -31,7 +31,9 @@ const decodeBody = Schema.decodeUnknownOption(RawBody);
 const parseBody = (req: HttpServerRequest): Effect.Effect<RawBody> =>
   Effect.gen(function* () {
     const text = yield* req.text.pipe(Effect.orDie);
-    if (!text || text.trim().length === 0) return {};
+    if (!text || text.trim().length === 0) {
+      return {};
+    }
     const parsed = yield* Effect.try((): unknown => JSON.parse(text)).pipe(
       Effect.orElseSucceed((): unknown => null),
     );

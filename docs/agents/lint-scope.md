@@ -25,11 +25,10 @@ Each is an `overrides` entry that names the rule and the files it cannot apply t
 
 Adopting the reference's surface verbatim would have meant rewriting this tree: Ultracite core alone produced 6,713 findings here and the plugin set another 6,431. #205's rule is "`error` when clean, otherwise a counted baseline". Rather than carry a 14k baseline, the rules that need a repo-wide restyle are off by name in `restyleExceptionsOff`, with the count each one produced on 2026-11-14. The follow-up restyle is issue #216; as it lands, delete the rule's line from `restyleExceptionsOff` so it runs again at its reference severity.
 
-13035 findings across 94 rules are excepted, by namespace: `anti-slop` 11, `anti-slop-effect` 4, `eslint` 22, `foldkit` 8, `import` 1, `jsdoc` 2, `landmines-types` 1, `oxc` 2, `promise` 3, `typescript` 21, `unicorn` 19.
+12294 findings across 81 rules are excepted, by namespace: `anti-slop` 10, `anti-slop-effect` 4, `eslint` 19, `foldkit` 7, `import` 1, `jsdoc` 2, `landmines-types` 1, `oxc` 2, `promise` 3, `typescript` 15, `unicorn` 17.
 
 | Rule | Findings on adoption |
 | --- | ---: |
-| `anti-slop/no-array-filter-map` | 7 |
 | `anti-slop/no-chained-type-assertions` | 19 |
 | `anti-slop/no-conditional-empty-object-spread` | 32 |
 | `anti-slop/no-known-value-widening` | 48 |
@@ -46,7 +45,6 @@ Adopting the reference's surface verbatim would have meant rewriting this tree: 
 | `anti-slop-effect/prefer-effect-match` | 16 |
 | `eslint/array-callback-return` | 4 |
 | `eslint/complexity` | 24 |
-| `eslint/curly` | 629 |
 | `eslint/default-case` | 47 |
 | `eslint/func-names` | 321 |
 | `eslint/func-style` | 50 |
@@ -60,8 +58,6 @@ Adopting the reference's surface verbatim would have meant rewriting this tree: 
 | `eslint/no-plusplus` | 71 |
 | `eslint/no-redeclare` | 153 |
 | `eslint/no-shadow` | 35 |
-| `eslint/no-use-before-define` | 74 |
-| `eslint/no-void` | 7 |
 | `eslint/prefer-destructuring` | 79 |
 | `eslint/prefer-named-capture-group` | 24 |
 | `eslint/require-unicode-regexp` | 136 |
@@ -70,7 +66,6 @@ Adopting the reference's surface verbatim would have meant rewriting this tree: 
 | `foldkit/got-wrapper-carries-only-routing` | 15 |
 | `foldkit/keyed-required-for-mapped-rows` | 5 |
 | `foldkit/no-child-message-construction-in-root` | 4 |
-| `foldkit/no-empty-children-array` | 1 |
 | `foldkit/no-module-level-mutable-state` | 9 |
 | `foldkit/no-switch-on-message-tag` | 13 |
 | `foldkit/prefer-option-over-nullable-in-model` | 1 |
@@ -85,9 +80,7 @@ Adopting the reference's surface verbatim would have meant rewriting this tree: 
 | `promise/prefer-await-to-callbacks` | 11 |
 | `typescript/consistent-return` | 50 |
 | `typescript/consistent-type-definitions` | 5 |
-| `typescript/method-signature-style` | 2 |
 | `typescript/no-confusing-void-expression` | 17 |
-| `typescript/no-deprecated` | 2 |
 | `typescript/no-non-null-assertion` | 43 |
 | `typescript/no-unnecessary-type-parameters` | 9 |
 | `typescript/no-unsafe-argument` | 16 |
@@ -96,11 +89,7 @@ Adopting the reference's surface verbatim would have meant rewriting this tree: 
 | `typescript/no-unsafe-member-access` | 133 |
 | `typescript/no-unsafe-return` | 16 |
 | `typescript/no-unsafe-type-assertion` | 125 |
-| `typescript/parameter-properties` | 2 |
-| `typescript/prefer-nullish-coalescing` | 4 |
-| `typescript/prefer-promise-reject-errors` | 1 |
 | `typescript/promise-function-async` | 113 |
-| `typescript/return-await` | 1 |
 | `typescript/strict-boolean-expressions` | 40 |
 | `typescript/strict-void-return` | 15 |
 | `typescript/switch-exhaustiveness-check` | 4 |
@@ -110,11 +99,9 @@ Adopting the reference's surface verbatim would have meant rewriting this tree: 
 | `unicorn/no-array-for-each` | 23 |
 | `unicorn/no-array-method-this-argument` | 48 |
 | `unicorn/no-array-reduce` | 3 |
-| `unicorn/no-array-reverse` | 8 |
 | `unicorn/no-array-sort` | 52 |
 | `unicorn/no-await-expression-member` | 140 |
 | `unicorn/no-negated-condition` | 49 |
-| `unicorn/no-object-as-default-parameter` | 3 |
 | `unicorn/no-useless-undefined` | 9 |
 | `unicorn/prefer-number-coercion` | 29 |
 | `unicorn/prefer-query-selector` | 20 |

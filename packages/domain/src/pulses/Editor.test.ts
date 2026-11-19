@@ -78,7 +78,9 @@ const run = (
 ): PulseState =>
   commands.reduce((current, command) => {
     const decision = decidePulse(dir, current, by, command, 1);
-    if (decision._tag === "Rejected") throw new Error(`${command._tag}: ${decision.rejection._tag}`);
+    if (decision._tag === "Rejected") {
+      throw new Error(`${command._tag}: ${decision.rejection._tag}`);
+    }
     return applyPulseChanges(current, decision.changes);
   }, state);
 
@@ -87,7 +89,9 @@ const created = () => run([create]);
 
 const detail = (state: PulseState, by = lead, dir: DirectoryState = directory) => {
   const view = pulseView(dir, state, by, team, pulseId);
-  if (view._tag === "Rejected") throw new Error(view.rejection._tag);
+  if (view._tag === "Rejected") {
+    throw new Error(view.rejection._tag);
+  }
   return view.value;
 };
 
@@ -185,7 +189,9 @@ describe("the language of a Pulse (ADR 0018, ADR 0025)", () => {
   it("copies a Template Question added by a Lead in English", () => {
     const start = run([create], lead, EMPTY_PULSE_STATE, english);
     const [original] = detail(start, lead, english).questions.map(({ questionId }) => questionId);
-    if (original === undefined) throw new Error("no Questions");
+    if (original === undefined) {
+      throw new Error("no Questions");
+    }
     const state = run(
       [
         { _tag: "RemoveQuestion", teamId: team, pulseId, questionId: original },
@@ -210,7 +216,9 @@ describe("the language of a Pulse (ADR 0018, ADR 0025)", () => {
   it("lists the Template Questions a Pulse lacks in the viewer's language", () => {
     const start = run([create]);
     const [original] = detail(start).questions.map(({ questionId }) => questionId);
-    if (original === undefined) throw new Error("no Questions");
+    if (original === undefined) {
+      throw new Error("no Questions");
+    }
     const state = run([{ _tag: "RemoveQuestion", teamId: team, pulseId, questionId: original }], lead, start);
     expect(detail(state, lead, english).templateQuestions).toEqual([weeklyTeamHealth("en").questions[0]]);
     expect(detail(state).templateQuestions).toEqual([weeklyTeamHealth("en").questions[0]]);
@@ -220,7 +228,9 @@ describe("the language of a Pulse (ADR 0018, ADR 0025)", () => {
 describe("the Pulse editor", () => {
   it("removes and reorders Questions", () => {
     const [first, second, ...rest] = ids(created());
-    if (first === undefined || second === undefined) throw new Error("no Questions");
+    if (first === undefined || second === undefined) {
+      throw new Error("no Questions");
+    }
     const state = run(
       [
         { _tag: "RemoveQuestion", teamId: team, pulseId, questionId: first },
@@ -238,7 +248,9 @@ describe("the Pulse editor", () => {
   it("adds a Template Question as a new library Question, and never twice", () => {
     const workload = key("workload-manageable");
     const [original] = ids(created());
-    if (original === undefined) throw new Error("no Questions");
+    if (original === undefined) {
+      throw new Error("no Questions");
+    }
     const add: PulseCommand = {
       _tag: "AddQuestion",
       teamId: team,
@@ -265,7 +277,9 @@ describe("the Pulse editor", () => {
 
   it("detaches an edited Template Question, so the Template's original can be added again", () => {
     const [original] = ids(created());
-    if (original === undefined) throw new Error("no Questions");
+    if (original === undefined) {
+      throw new Error("no Questions");
+    }
     const workload = key("workload-manageable");
     const state = run(
       [
@@ -305,7 +319,9 @@ describe("the Pulse editor", () => {
   it("keeps at least one Question", () => {
     const all = ids(created());
     const [last, ...others] = all;
-    if (last === undefined) throw new Error("no Questions");
+    if (last === undefined) {
+      throw new Error("no Questions");
+    }
     const state = run(
       others.map((questionId) => ({ _tag: "RemoveQuestion", teamId: team, pulseId, questionId })),
       lead,
@@ -330,7 +346,9 @@ describe("the Pulse editor", () => {
   it("refuses a reorder that does not list each Question exactly once", () => {
     const all = ids(created());
     const [first, ...rest] = all;
-    if (first === undefined) throw new Error("no Questions");
+    if (first === undefined) {
+      throw new Error("no Questions");
+    }
     const reorder = (order: readonly QuestionId[]): PulseCommand => ({
       _tag: "ReorderQuestions",
       teamId: team,
@@ -340,7 +358,7 @@ describe("the Pulse editor", () => {
     expect(rejection(created(), reorder(rest))).toBe("OrderMismatch");
     expect(rejection(created(), reorder([...rest, rest[0] ?? first]))).toBe("OrderMismatch");
     expect(rejection(created(), reorder([...rest, QuestionId.make("elsewhere")]))).toBe("OrderMismatch");
-    expect(rejection(created(), reorder([...all].reverse()))).toBe("Accepted");
+    expect(rejection(created(), reorder([...all].toReversed()))).toBe("Accepted");
   });
 
   it("updates the settings", () => {
@@ -402,7 +420,9 @@ describe("Question versions", () => {
 
   it("keep exactly one version per Question through every command", () => {
     const [first, second] = ids(created());
-    if (first === undefined || second === undefined) throw new Error("no Questions");
+    if (first === undefined || second === undefined) {
+      throw new Error("no Questions");
+    }
     const state = run(
       [
         addWritten(1),
@@ -436,7 +456,9 @@ describe("Question versions", () => {
 
   it("rewrite a Question without Answers in place", () => {
     const [first] = ids(created());
-    if (first === undefined) throw new Error("no Questions");
+    if (first === undefined) {
+      throw new Error("no Questions");
+    }
     const state = run([editCommand(first)], lead, created());
     expect(detail(state).questions[0]).toMatchObject({
       questionId: first,
@@ -447,7 +469,9 @@ describe("Question versions", () => {
 
   it("refuse to edit a Question that has Answers, but still let it be removed", () => {
     const [first] = ids(created());
-    if (first === undefined) throw new Error("no Questions");
+    if (first === undefined) {
+      throw new Error("no Questions");
+    }
     const answered: PulseState = { ...created(), answered: [firstVersionId(first)] };
     expect(hasAnswers(answered, first)).toBe(true);
     expect(detail(answered).questions[0]?.hasAnswers).toBe(true);
@@ -688,7 +712,8 @@ describe("the state of a test send (ADR 0021, issue 147)", () => {
 describe("reading a test send (ADR 0021, issue 147)", () => {
   const now = 1_000_000_000;
   const sentAt = now - 1000;
-  const own = (by: PersonId, state: SendState = { _tag: "Pending", attempts: 0, lastCode: null }) => ({
+  const pendingSend: SendState = { _tag: "Pending", attempts: 0, lastCode: null };
+  const own = (by: PersonId, state: SendState = pendingSend) => ({
     personId: by,
     pulseId,
     sentAt,

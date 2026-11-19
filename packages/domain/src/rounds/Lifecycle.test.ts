@@ -571,7 +571,9 @@ describe("the Round lifecycle table", () => {
     ({ status, tag }) => {
       const rejection = roundCommandRejection(status, commandOf(tag));
       const next = modelNext(status, tag);
-      if (next === undefined) return rejection !== null;
+      if (next === undefined) {
+        return rejection !== null;
+      }
       return rejection === null && roundStatusAfter(status, commandOf(tag)) === next;
     },
   );
@@ -586,12 +588,18 @@ describe("the Round lifecycle table", () => {
         const rejection = roundCommandRejection(status, command);
         const next = modelNext(status, tag);
         if (next === undefined) {
-          if (rejection === null) return false;
+          if (rejection === null) {
+            return false;
+          }
           continue;
         }
-        if (rejection !== null) return false;
+        if (rejection !== null) {
+          return false;
+        }
         const after = roundStatusAfter(status, command);
-        if (after !== next) return false;
+        if (after !== next) {
+          return false;
+        }
         status = after;
       }
       return true;
@@ -725,7 +733,9 @@ describe("the next Round slot", () => {
       });
       const recomputed = calculateRoundInstants(slot.plannedOpenDate, sendTime, memberTimeZones, team, 2);
       let firstFree = unskipped.plannedOpenDate;
-      while (unavailableDates.has(firstFree)) firstFree = shiftDays(firstFree, 7);
+      while (unavailableDates.has(firstFree)) {
+        firstFree = shiftDays(firstFree, 7);
+      }
       return (
         weekdayOf(slot.plannedOpenDate) === weekday &&
         slot.instants.openInstant > now &&

@@ -23,7 +23,9 @@ const textOf = (comment) => comment.value.replaceAll("\r", "");
 const isDirective = (comment) => DIRECTIVE.test(textOf(comment));
 
 const isTypesOnlyJsdoc = (comment) => {
-  if (comment.type !== "Block") return false;
+  if (comment.type !== "Block") {
+    return false;
+  }
   return textOf(comment)
     .split("\n")
     .map((line) => line.replace(/^\s*\*?/, "").trim())
@@ -33,15 +35,21 @@ const isTypesOnlyJsdoc = (comment) => {
 
 const isAllowed = (comment) => {
   const text = textOf(comment);
-  if (isDirective(comment)) return true;
-  if (SAFETY.test(text)) return true;
+  if (isDirective(comment)) {
+    return true;
+  }
+  if (SAFETY.test(text)) {
+    return true;
+  }
   return isTypesOnlyJsdoc(comment);
 };
 
 const commentsOf = (context, node) => {
   const source = context.sourceCode ?? context.getSourceCode?.();
   const fromSource = source?.getAllComments?.();
-  if (Array.isArray(fromSource)) return fromSource;
+  if (Array.isArray(fromSource)) {
+    return fromSource;
+  }
   return node.comments ?? [];
 };
 
@@ -61,7 +69,9 @@ const noComments = {
     return {
       Program(node) {
         for (const comment of commentsOf(context, node)) {
-          if (isAllowed(comment)) continue;
+          if (isAllowed(comment)) {
+            continue;
+          }
           context.report({ loc: comment.loc, messageId: "prose" });
         }
       },
@@ -85,8 +95,12 @@ const directiveReason = {
     return {
       Program(node) {
         for (const comment of commentsOf(context, node)) {
-          if (!isDirective(comment)) continue;
-          if (REASON.test(textOf(comment))) continue;
+          if (!isDirective(comment)) {
+            continue;
+          }
+          if (REASON.test(textOf(comment))) {
+            continue;
+          }
           context.report({ loc: comment.loc, messageId: "reason" });
         }
       },

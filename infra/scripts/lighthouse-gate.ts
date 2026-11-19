@@ -118,9 +118,13 @@ async function main() {
   const lighthouseBin = resolve(import.meta.dirname, "../node_modules/.bin/lighthouse");
 
   const findChrome = (): string | undefined => {
-    if (process.env.CHROME_PATH) return process.env.CHROME_PATH;
+    if (process.env.CHROME_PATH) {
+      return process.env.CHROME_PATH;
+    }
     const base = resolve(process.env.HOME ?? "/home/ubuntu", ".cache/ms-playwright");
-    if (!existsSync(base)) return undefined;
+    if (!existsSync(base)) {
+      return undefined;
+    }
     for (const entry of ["chromium_headless_shell-1248", "chromium-1248"]) {
       const dir = resolve(base, entry);
       if (existsSync(dir)) {
@@ -130,7 +134,9 @@ async function main() {
           resolve(dir, "chrome-linux/chrome"),
           resolve(dir, "chrome-headless-shell-linux/chrome-headless-shell"),
         ].find(existsSync);
-        if (match) return match;
+        if (match) {
+          return match;
+        }
       }
     }
     return undefined;
@@ -169,7 +175,7 @@ async function main() {
           const parsed: LighthouseResult = JSON.parse(stdout);
           resolvePromise(parsed);
         } catch (error) {
-          reject(error);
+          reject(error instanceof Error ? error : new Error(String(error)));
         }
       });
     });
@@ -203,12 +209,15 @@ async function main() {
     const tbt = median(runs.map((run) => run.tbt));
 
     const failures: string[] = [];
-    if (fcp > FCP_BUDGET)
+    if (fcp > FCP_BUDGET) {
       failures.push(`median FCP ${Math.round(fcp)} ms exceeds budget of ${FCP_BUDGET} ms`);
-    if (lcp > LCP_BUDGET)
+    }
+    if (lcp > LCP_BUDGET) {
       failures.push(`median LCP ${Math.round(lcp)} ms exceeds budget of ${LCP_BUDGET} ms`);
-    if (tbt > TBT_BUDGET)
+    }
+    if (tbt > TBT_BUDGET) {
       failures.push(`median TBT ${Math.round(tbt)} ms exceeds budget of ${TBT_BUDGET} ms`);
+    }
     return { url: targetUrl, fcp, lcp, tbt, failures };
   };
 

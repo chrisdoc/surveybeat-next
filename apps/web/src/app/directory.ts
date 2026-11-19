@@ -956,7 +956,9 @@ const failedEmailActionView = <Message>(
     appButton({ text, isDisabled, className: linkButton, onClick: onResend(email.sendId) }, h);
   const children: Child[] = [];
   if (resend === undefined) {
-    if (email.resendable) children.push(resendButton(false, message("settings.failedEmails.resend")));
+    if (email.resendable) {
+      children.push(resendButton(false, message("settings.failedEmails.resend")));
+    }
   } else {
     switch (resend._tag) {
       case "Resending": {
@@ -1102,7 +1104,7 @@ export const settingsScreenView = <Message>(
     );
   }
 
-  if (state.sizeOpen)
+  if (state.sizeOpen) {
     children.push(
       h.form(
         [h.Class(formPanelClass), h.OnSubmit(actions.onSubmitSize)],
@@ -1153,6 +1155,7 @@ export const settingsScreenView = <Message>(
         ].filter(Predicate.isNotNull),
       ),
     );
+  }
 
   children.push(
     h.div(

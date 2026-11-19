@@ -26,7 +26,9 @@ export const candidatesFor = (
   unlinkedWithEmail: readonly PersonCandidate[],
 ): readonly PersonCandidate[] => {
   const byOrganization = new Map<OrganizationId, PersonCandidate>();
-  for (const candidate of linked) byOrganization.set(candidate.organization.id, candidate);
+  for (const candidate of linked) {
+    byOrganization.set(candidate.organization.id, candidate);
+  }
   if (identity.emailMatchable) {
     for (const candidate of unlinkedWithEmail) {
       if (!byOrganization.has(candidate.organization.id)) {
@@ -43,8 +45,12 @@ export const decideSignIn = (
   allowlist: OrganizationCreationAllowlist,
 ): SignInDecision => {
   const [only, ...rest] = candidates;
-  if (only !== undefined && rest.length === 0) return { _tag: "Enter", candidate: only };
-  if (only !== undefined) return { _tag: "ChooseOrganization", candidates };
+  if (only !== undefined && rest.length === 0) {
+    return { _tag: "Enter", candidate: only };
+  }
+  if (only !== undefined) {
+    return { _tag: "ChooseOrganization", candidates };
+  }
   return allowlist.allows(identity) ? { _tag: "CreateOrganization" } : { _tag: "NotInOrganization" };
 };
 

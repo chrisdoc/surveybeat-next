@@ -121,7 +121,9 @@ export class FakeSessions {
     const existing = [...this.users.values()].find(
       (user) => normaliseEmail(user.email) === normaliseEmail(email),
     );
-    if (existing !== undefined) return this.issue(existing.id);
+    if (existing !== undefined) {
+      return this.issue(existing.id);
+    }
     const user = AuthUserId.make(`user_${++this.counter}`);
     this.users.set(user, { id: user, email, emailVerified });
     return this.issue(user);
@@ -137,7 +139,9 @@ export class FakeSessions {
     const found = [...this.users.values()].find(
       (user) => normaliseEmail(user.email) === normaliseEmail(email),
     );
-    if (found === undefined) throw new Error(`no user ${email}`);
+    if (found === undefined) {
+      throw new Error(`no user ${email}`);
+    }
     return found.id;
   }
 
@@ -157,25 +161,35 @@ export class FakeSessions {
       }),
     chosenOrganization: (sessionId) => Effect.sync(() => Option.fromNullishOr(this.chosen.get(sessionId))),
     chooseOrganization: (sessionId, organizationId) =>
-      Effect.sync(() => void this.chosen.set(sessionId, organizationId)),
+      Effect.sync(() => {
+        this.chosen.set(sessionId, organizationId);
+      }),
     sendSignInCode: (email) =>
-      Effect.sync(() => void this.codes.set(`code_${++this.counter}`, normaliseEmail(email))),
+      Effect.sync(() => {
+        this.codes.set(`code_${++this.counter}`, normaliseEmail(email));
+      }),
     verifySignInCode: (email, code) =>
       Effect.sync(() => {
         const expected = this.codes.get(code);
         const user = [...this.users.values()].find(
           (each) => normaliseEmail(each.email) === normaliseEmail(email),
         );
-        if (expected !== normaliseEmail(email) || user === undefined) return Option.none<string>();
+        if (expected !== normaliseEmail(email) || user === undefined) {
+          return Option.none<string>();
+        }
         this.codes.delete(code);
         return Option.some(this.issue(user.id));
       }),
     revokeSession: (sessionId) =>
       Effect.suspend(() => {
-        if (this.failRevoke) return Effect.fail(new AuthUnavailable());
+        if (this.failRevoke) {
+          return Effect.fail(new AuthUnavailable());
+        }
         this.revocations.push(sessionId);
         for (const [token, session] of this.sessions) {
-          if (session.sessionId === sessionId) this.revoked.add(token);
+          if (session.sessionId === sessionId) {
+            this.revoked.add(token);
+          }
         }
         return Effect.void;
       }),
@@ -198,18 +212,22 @@ export class MemoryIndex {
   readonly service = PeopleIndex.of({
     linkedPersons: (userId) =>
       Effect.sync(() =>
-        [...this.persons.values()]
-          .filter((person) => person.userId === userId)
-          .map((person) => this.candidate(person.organizationId, person.personId, true)),
+        [...this.persons.values()].flatMap((person) =>
+          person.userId === userId ? [this.candidate(person.organizationId, person.personId, true)] : [],
+        ),
       ),
     unlinkedPersons: (email) =>
       Effect.sync(() =>
-        [...this.persons.values()]
-          .filter((person) => person.userId === null && person.email === normaliseEmail(email))
-          .map((person) => this.candidate(person.organizationId, person.personId, false)),
+        [...this.persons.values()].flatMap((person) =>
+          person.userId === null && person.email === normaliseEmail(email)
+            ? [this.candidate(person.organizationId, person.personId, false)]
+            : [],
+        ),
       ),
     putOrganization: (organization) =>
-      Effect.sync(() => void this.organizations.set(organization.id, { name: organization.name })),
+      Effect.sync(() => {
+        this.organizations.set(organization.id, { name: organization.name });
+      }),
     putPerson: (person) =>
       Effect.sync(() => {
         const key = `${person.organizationId}/${person.personId}`;
@@ -222,16 +240,22 @@ export class MemoryIndex {
         });
       }),
     removePerson: (organizationId, personId) =>
-      Effect.sync(() => void this.persons.delete(`${organizationId}/${personId}`)),
+      Effect.sync(() => {
+        this.persons.delete(`${organizationId}/${personId}`);
+      }),
     linkPerson: (organizationId, personId, userId) =>
       Effect.sync(() => {
         const person = this.persons.get(`${organizationId}/${personId}`);
-        if (person !== undefined && person.userId === null) person.userId = userId;
+        if (person !== undefined && person.userId === null) {
+          person.userId = userId;
+        }
       }),
     claimOrganization: (userId, proposed) =>
       Effect.sync(() => {
         const existing = this.claims.get(userId);
-        if (existing !== undefined) return existing;
+        if (existing !== undefined) {
+          return existing;
+        }
         const claim = { ...proposed, completed: false };
         this.claims.set(userId, claim);
         return claim;
@@ -240,7 +264,9 @@ export class MemoryIndex {
     completeClaim: (userId) =>
       Effect.sync(() => {
         const claim = this.claims.get(userId);
-        if (claim !== undefined) this.claims.set(userId, { ...claim, completed: true });
+        if (claim !== undefined) {
+          this.claims.set(userId, { ...claim, completed: true });
+        }
       }),
   });
 }
@@ -280,7 +306,9 @@ export class MemoryOrganizations {
 
   private organization(organizationId: OrganizationId): MemoryOrganization {
     const found = this.organizations.get(organizationId);
-    if (found !== undefined) return found;
+    if (found !== undefined) {
+      return found;
+    }
     return {
       state: {
         organizationName: "",
@@ -304,7 +332,9 @@ export class MemoryOrganizations {
   readonly service = OrganizationPeople.of({
     createWithAdmin: (organization, admin) =>
       Effect.sync(() => {
-        if (this.organizations.has(organization.id)) return;
+        if (this.organizations.has(organization.id)) {
+          return;
+        }
         this.organizations.set(organization.id, {
           state: {
             organizationName: organization.name,
@@ -337,13 +367,23 @@ export class MemoryOrganizations {
     linkPerson: (organizationId, personId, userId, email) =>
       Effect.sync(() => {
         const organization = this.organizations.get(organizationId);
-        if (organization === undefined) return false;
+        if (organization === undefined) {
+          return false;
+        }
         const { people } = organization.state;
         const person = people.find((each) => each.id === personId);
-        if (person === undefined || person.removedAt !== null) return false;
-        if (person.email !== normaliseEmail(email)) return false;
-        if (people.some((other) => other.id !== personId && other.authUserId === userId)) return false;
-        if (person.authUserId === null) this.update(organizationId, personId, { authUserId: userId });
+        if (person === undefined || person.removedAt !== null) {
+          return false;
+        }
+        if (person.email !== normaliseEmail(email)) {
+          return false;
+        }
+        if (people.some((other) => other.id !== personId && other.authUserId === userId)) {
+          return false;
+        }
+        if (person.authUserId === null) {
+          this.update(organizationId, personId, { authUserId: userId });
+        }
         return this.person(organizationId, personId)?.authUserId === userId;
       }),
     activePerson: (organizationId, userId) =>
@@ -366,9 +406,13 @@ export class MemoryOrganizations {
     run: (organizationId, actorId, command, now) =>
       Effect.sync((): CommandResult => {
         const organization = this.organizations.get(organizationId);
-        if (organization === undefined) return { _tag: "Rejected", rejection: { _tag: "Forbidden" } };
+        if (organization === undefined) {
+          return { _tag: "Rejected", rejection: { _tag: "Forbidden" } };
+        }
         const decision = decide(organization.state, actorId, command, now);
-        if (decision._tag === "Rejected") return decision;
+        if (decision._tag === "Rejected") {
+          return decision;
+        }
         organization.state = applyChanges(organization.state, decision.changes);
         for (const change of decision.changes) {
           if (change._tag === "EmailRequested" && !organization.sends.has(change.sendId)) {
@@ -400,7 +444,9 @@ export class MemoryOrganizations {
         const organization = this.organization(organizationId);
         const failed = [...organization.sends]
           .flatMap(([sendId, send]): readonly FailedEmail[] => {
-            if (send.state._tag !== "Failed") return [];
+            if (send.state._tag !== "Failed") {
+              return [];
+            }
             return [
               {
                 sendId,
@@ -423,18 +469,23 @@ export class MemoryOrganizations {
     resendFailedEmail: (organizationId, actorId, sendId, _now) =>
       Effect.sync((): ResendResult => {
         const organization = this.organization(organizationId);
-        if (!isEmailAdmin(organization.state, actorId))
+        if (!isEmailAdmin(organization.state, actorId)) {
           return { _tag: "Rejected", rejection: { _tag: "Forbidden" } };
+        }
         const send = organization.sends.get(sendId);
-        if (send === undefined) return { _tag: "Rejected", rejection: { _tag: "FailedEmailNotFound" } };
-        if (send.state._tag !== "Failed")
+        if (send === undefined) {
+          return { _tag: "Rejected", rejection: { _tag: "FailedEmailNotFound" } };
+        }
+        if (send.state._tag !== "Failed") {
           return {
             _tag: "Accepted",
             status: { sendId, state: progressOf(send.state) },
           };
+        }
         const facts = fakeResendFacts(organization, sendId, send.email, send.state.reason);
-        if (!isResendable(sendId, facts))
+        if (!isResendable(sendId, facts)) {
           return { _tag: "Rejected", rejection: { _tag: "EmailNotResendable" } };
+        }
         organization.sends.set(sendId, { ...send, state: pending });
         return { _tag: "Accepted", status: { sendId, state: progressOf(pending) } };
       }),
@@ -454,9 +505,13 @@ export class MemoryOrganizations {
     run: (organizationId, actorId, command, now) =>
       Effect.sync((): PulseCommandResult => {
         const organization = this.organizations.get(organizationId);
-        if (organization === undefined) return { _tag: "Rejected", rejection: { _tag: "Forbidden" } };
+        if (organization === undefined) {
+          return { _tag: "Rejected", rejection: { _tag: "Forbidden" } };
+        }
         const decision = decidePulse(organization.state, organization.pulses, actorId, command, now);
-        if (decision._tag === "Rejected") return decision;
+        if (decision._tag === "Rejected") {
+          return decision;
+        }
         organization.pulses = applyPulseChanges(organization.pulses, decision.changes);
         return { _tag: "Accepted" };
       }),
@@ -496,7 +551,9 @@ export class MemoryOrganizations {
       Effect.sync((): TestSendResult => {
         const organization = this.organization(organizationId);
         const decision = decideTestSend(organization.state, organization.pulses, actorId, teamId, pulseId);
-        if (decision._tag === "Rejected") return decision;
+        if (decision._tag === "Rejected") {
+          return decision;
+        }
         const { person, pulse } = decision;
         const recent = (organization.testSendTimes.get(actorId) ?? []).filter((at) => at > now - 3_600_000);
         if (recent.length >= testSendsPerHour) {
@@ -541,7 +598,9 @@ export class MemoryOrganizations {
       Effect.sync((): RoundViewed<TeamOverview> => {
         const organization = this.organization(organizationId);
         const auth = authorizeRoundAction(organization.state, actorId, "team.viewResults", teamId);
-        if (auth._tag === "Rejected") return auth;
+        if (auth._tag === "Rejected") {
+          return auth;
+        }
         return { _tag: "Viewed", value: { teamId, rounds: [], dimensions: [], markers: [] } };
       }),
     history: () => Effect.succeed({ rounds: [] }),
@@ -598,7 +657,9 @@ export class MemoryOrganizations {
           };
         }
         const team = organization.state.teams.find((t) => t.id === teamId);
-        if (team === undefined) return { _tag: "Rejected", rejection: { _tag: "TeamNotFound" } };
+        if (team === undefined) {
+          return { _tag: "Rejected", rejection: { _tag: "TeamNotFound" } };
+        }
         const all: ActionItem[] = [];
         for (const act of organization.actions.values()) {
           if (act.teamId === teamId) {
@@ -633,11 +694,15 @@ export class MemoryOrganizations {
           };
         }
         const team = organization.state.teams.find((t) => t.id === teamId);
-        if (team === undefined) return { _tag: "Rejected", rejection: { _tag: "TeamNotFound" } };
+        if (team === undefined) {
+          return { _tag: "Rejected", rejection: { _tag: "TeamNotFound" } };
+        }
         const isMember = organization.state.memberships.some(
           (m) => m.teamId === teamId && m.personId === payload.ownerId && m.endedAt === null,
         );
-        if (!isMember) return { _tag: "Rejected", rejection: { _tag: "OwnerNotInTeam" } };
+        if (!isMember) {
+          return { _tag: "Rejected", rejection: { _tag: "OwnerNotInTeam" } };
+        }
         const owner = organization.state.people.find((p) => p.id === payload.ownerId);
         const actionId = ActionId.make(`action-${organization.actions.size + 1}`);
         const record: ActionRecord = {
@@ -683,7 +748,9 @@ export class MemoryOrganizations {
           };
         }
         const team = organization.state.teams.find((t) => t.id === teamId);
-        if (team === undefined) return { _tag: "Rejected", rejection: { _tag: "TeamNotFound" } };
+        if (team === undefined) {
+          return { _tag: "Rejected", rejection: { _tag: "TeamNotFound" } };
+        }
         const existing = organization.actions.get(actionId);
         if (existing === undefined || existing.teamId !== teamId) {
           return { _tag: "Rejected", rejection: { _tag: "ActionNotFound" } };
@@ -692,7 +759,9 @@ export class MemoryOrganizations {
           const isMember = organization.state.memberships.some(
             (m) => m.teamId === teamId && m.personId === payload.ownerId && m.endedAt === null,
           );
-          if (!isMember) return { _tag: "Rejected", rejection: { _tag: "OwnerNotInTeam" } };
+          if (!isMember) {
+            return { _tag: "Rejected", rejection: { _tag: "OwnerNotInTeam" } };
+          }
         }
         let newDoneAt: number | null = existing.doneAt;
         if (payload.status === "done" && existing.status !== "done") {
@@ -738,7 +807,9 @@ export class MemoryOrganizations {
 
   update(organizationId: OrganizationId, personId: PersonId, patch: Partial<PersonRecord>) {
     const organization = this.organizations.get(organizationId);
-    if (organization === undefined) throw new Error(`no Organization ${organizationId}`);
+    if (organization === undefined) {
+      throw new Error(`no Organization ${organizationId}`);
+    }
     organization.state = {
       ...organization.state,
       people: organization.state.people.map((person) =>
@@ -757,8 +828,11 @@ export class SignInWorld {
   readonly index = new MemoryIndex();
   readonly durable = new MemoryOrganizations();
   private ids = 0;
+  readonly allowlist: string;
 
-  constructor(readonly allowlist = "") {}
+  constructor(allowlist = "") {
+    this.allowlist = allowlist;
+  }
 
   addOrganization(name: string): OrganizationSummary {
     const id = OrganizationId.make(`organization-${++this.ids}`);
@@ -787,7 +861,9 @@ export class SignInWorld {
   addRound(organizationId: OrganizationId, teamId: TeamId): RoundId {
     const roundId = RoundId.make(`round-${++this.ids}`);
     const organization = this.durable.organizations.get(organizationId);
-    if (organization === undefined) throw new Error(`no Organization ${organizationId}`);
+    if (organization === undefined) {
+      throw new Error(`no Organization ${organizationId}`);
+    }
     organization.rounds.set(roundId, teamId);
     return roundId;
   }
@@ -795,7 +871,9 @@ export class SignInWorld {
   addPerson(organizationId: OrganizationId, email: string, organizationAdmin = false): PersonId {
     const personId = PersonId.make(`person-${++this.ids}`);
     const organization = this.durable.organizations.get(organizationId);
-    if (organization === undefined) throw new Error(`no Organization ${organizationId}`);
+    if (organization === undefined) {
+      throw new Error(`no Organization ${organizationId}`);
+    }
     const normalised = EmailAddress.make(normaliseEmail(email));
     organization.state = {
       ...organization.state,
@@ -867,7 +945,11 @@ export const ORIGIN = "https://pr-1.app.surveybeat.app";
 
 export class Browser {
   readonly cookies = new Map<string, string>();
-  constructor(private readonly handle: (request: Request) => Promise<Response>) {}
+  private readonly handle: (request: Request) => Promise<Response>;
+
+  constructor(handle: (request: Request) => Promise<Response>) {
+    this.handle = handle;
+  }
 
   async fetch(path: string, init: RequestInit = {}): Promise<Response> {
     const headers = new Headers(init.headers);
@@ -883,8 +965,11 @@ export class Browser {
       const expired = attributes.some(
         (attribute) => /^max-age=0$/i.test(attribute) || /^expires=.*1970/i.test(attribute),
       );
-      if (expired || value === "") this.cookies.delete(name);
-      else this.cookies.set(name, value);
+      if (expired || value === "") {
+        this.cookies.delete(name);
+      } else {
+        this.cookies.set(name, value);
+      }
     }
     return response;
   }

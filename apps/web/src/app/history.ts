@@ -37,7 +37,9 @@ const ratingText = (
   highLabel: string | undefined,
 ): string => {
   const label = value === 1 ? lowLabel : value === 5 ? highLabel : undefined;
-  if (label === undefined || label === "") return String(value);
+  if (label === undefined || label === "") {
+    return String(value);
+  }
   return message("history.yours.rating", { value: String(value), label });
 };
 
@@ -75,9 +77,13 @@ const yourAnswerView = <Message>(
   roundAnswers: KeptAnswers[string] | undefined,
   h: HtmlBuilder<Message>,
 ): Html => {
-  if (roundAnswers === undefined) return h.span([], [message("history.yours.notOnDevice")]);
+  if (roundAnswers === undefined) {
+    return h.span([], [message("history.yours.notOnDevice")]);
+  }
   const { main, comment } = yourAnswer(question.type, roundAnswers[question.questionVersionId]);
-  if (main === undefined && comment === undefined) return h.span([], [message("history.yours.none")]);
+  if (main === undefined && comment === undefined) {
+    return h.span([], [message("history.yours.none")]);
+  }
   return h.div(
     [h.Class("flex flex-col gap-1")],
     [
@@ -90,15 +96,22 @@ const yourAnswerView = <Message>(
 };
 
 const teamScoreText = (round: HistoryRound, question: HistoryQuestion): string => {
-  if (question.teamScore !== null)
+  if (question.teamScore !== null) {
     return message("history.team.score", { score: formatScore(question.teamScore) });
-  if (round.teamResult === "shown" && question.type._tag === "Rating") return message("history.team.hidden");
+  }
+  if (round.teamResult === "shown" && question.type._tag === "Rating") {
+    return message("history.team.hidden");
+  }
   return message("results.dash");
 };
 
 const teamResultNote = (teamResult: HistoryTeamResult): string | null => {
-  if (teamResult === "notShared") return message("history.team.notShared");
-  if (teamResult === "belowMinimumGroupSize") return message("history.team.belowMinimum");
+  if (teamResult === "notShared") {
+    return message("history.team.notShared");
+  }
+  if (teamResult === "belowMinimumGroupSize") {
+    return message("history.team.belowMinimum");
+  }
   return null;
 };
 
@@ -193,7 +206,9 @@ export const historyView = <Message>(
 
   if (state._tag === "Failed") {
     const problem = problemView(state.failure, h);
-    if (problem !== null) children.push(problem);
+    if (problem !== null) {
+      children.push(problem);
+    }
     return h.section([], children);
   }
 

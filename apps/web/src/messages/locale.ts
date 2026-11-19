@@ -64,11 +64,8 @@ const build = (locale: Locale): Messages => {
     return fill(template, { ...params, count: numberFormat.format(count) });
   }
 
-  function formatDate(
-    date: DateTime.DateTime,
-    options: Intl.DateTimeFormatOptions = { dateStyle: "medium" },
-  ): string {
-    return DateTime.formatIntl(date, new Intl.DateTimeFormat(locale, options));
+  function formatDate(date: DateTime.DateTime, options?: Intl.DateTimeFormatOptions): string {
+    return DateTime.formatIntl(date, new Intl.DateTimeFormat(locale, options ?? { dateStyle: "medium" }));
   }
 
   function formatNumber(value: number): string {
@@ -111,7 +108,9 @@ const cache = new Map<Locale, Messages>();
 
 export const messagesFor = (locale: Locale): Messages => {
   const cached = cache.get(locale);
-  if (cached !== undefined) return cached;
+  if (cached !== undefined) {
+    return cached;
+  }
   const messages = build(locale);
   cache.set(locale, messages);
   return messages;
@@ -143,5 +142,7 @@ export const setLocale = (locale: Locale): void => {
   formatChange = messages.formatChange;
   formatPercent = messages.formatPercent;
   formatRoundDate = messages.formatRoundDate;
-  if (typeof document !== "undefined") document.documentElement.lang = locale;
+  if (typeof document !== "undefined") {
+    document.documentElement.lang = locale;
+  }
 };

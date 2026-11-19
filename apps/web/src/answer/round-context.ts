@@ -50,18 +50,34 @@ export function anonymityStatement(context: RoundContextData, message: AnswerMes
 }
 
 export function parseRoundContext(data: unknown): RoundContextData | null {
-  if (typeof data !== "object" || data === null) return null;
-  if (!("roundId" in data) || typeof data.roundId !== "string") return null;
-  if (!("pulseName" in data) || typeof data.pulseName !== "string") return null;
-  if (!("minimumGroupSize" in data) || typeof data.minimumGroupSize !== "number") return null;
-  if (!("closeTime" in data) || typeof data.closeTime !== "number") return null;
-  if (!("state" in data) || typeof data.state !== "string") return null;
-  if (!("hasAnswered" in data) || typeof data.hasAnswered !== "boolean") return null;
+  if (typeof data !== "object" || data === null) {
+    return null;
+  }
+  if (!("roundId" in data) || typeof data.roundId !== "string") {
+    return null;
+  }
+  if (!("pulseName" in data) || typeof data.pulseName !== "string") {
+    return null;
+  }
+  if (!("minimumGroupSize" in data) || typeof data.minimumGroupSize !== "number") {
+    return null;
+  }
+  if (!("closeTime" in data) || typeof data.closeTime !== "number") {
+    return null;
+  }
+  if (!("state" in data) || typeof data.state !== "string") {
+    return null;
+  }
+  if (!("hasAnswered" in data) || typeof data.hasAnswered !== "boolean") {
+    return null;
+  }
 
   const aiProcessing = "aiProcessing" in data && data.aiProcessing === true;
 
   const test = "test" in data && data.test === true;
-  if (!("questions" in data) || !Array.isArray(data.questions)) return null;
+  if (!("questions" in data) || !Array.isArray(data.questions)) {
+    return null;
+  }
 
   const questions: QuestionData[] = [];
   for (const item of data.questions) {
@@ -98,7 +114,9 @@ export function parseRoundContext(data: unknown): RoundContextData | null {
         ) {
           const opts: string[] = [];
           for (const opt of item.type.options) {
-            if (typeof opt === "string") opts.push(opt);
+            if (typeof opt === "string") {
+              opts.push(opt);
+            }
           }
           qType = { _tag: "SingleChoice", options: opts };
         } else if (item.type._tag === "LongText") {

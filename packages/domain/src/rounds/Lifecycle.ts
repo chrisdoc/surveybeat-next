@@ -214,7 +214,9 @@ export const calculateReminders = (
   remindersCount: number,
   closeInstant: number,
 ): readonly number[] => {
-  if (remindersCount <= 0) return [];
+  if (remindersCount <= 0) {
+    return [];
+  }
 
   const candidates: number[] = [];
   if (answerWindowDays === 1) {

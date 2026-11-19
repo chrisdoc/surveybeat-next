@@ -33,7 +33,9 @@ describe("InvitationSummary privacy (SPEC §7, ADR 0005)", () => {
     });
     assert.isNotNull(summary);
     const json = JSON.stringify(Schema.encodeSync(InvitationSummary)(summary));
-    for (const personId of people) assert.notInclude(json, personId);
+    for (const personId of people) {
+      assert.notInclude(json, personId);
+    }
     assert.deepStrictEqual(Object.keys(JSON.parse(json)), ["invited", "joinedAfterOpen"]);
   });
 
@@ -63,7 +65,9 @@ describe("InvitationSummary privacy (SPEC §7, ADR 0005)", () => {
       ],
     });
     const json = JSON.stringify(list);
-    for (const personId of people) assert.notInclude(json, personId);
+    for (const personId of people) {
+      assert.notInclude(json, personId);
+    }
     assert.deepStrictEqual(list.rounds[0]?.invitations, { invited: 1, joinedAfterOpen: 0 });
   });
 
@@ -79,7 +83,9 @@ describe("InvitationSummary privacy (SPEC §7, ADR 0005)", () => {
       });
       assert.isNotNull(summary);
       const json = JSON.stringify(Schema.encodeSync(InvitationSummary)(summary));
-      for (const personId of people) assert.notInclude(json, personId);
+      for (const personId of people) {
+        assert.notInclude(json, personId);
+      }
       assert.deepStrictEqual(Object.keys(JSON.parse(json)), ["invited", "joinedAfterOpen"]);
     },
   );

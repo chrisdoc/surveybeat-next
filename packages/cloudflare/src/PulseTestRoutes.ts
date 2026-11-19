@@ -63,7 +63,7 @@ export const pulseTestRoutes = (organizations: Organizations) =>
       created,
       createdAgain: yield* step({ _tag: "CreatePulse", ...target }),
       removed: yield* step({ _tag: "RemoveQuestion", ...target, questionId: firstId }),
-      reordered: yield* step({ _tag: "ReorderQuestions", ...target, order: [...rest].reverse() }),
+      reordered: yield* step({ _tag: "ReorderQuestions", ...target, order: [...rest].toReversed() }),
       addedBack: yield* step({
         _tag: "AddQuestion",
         ...target,

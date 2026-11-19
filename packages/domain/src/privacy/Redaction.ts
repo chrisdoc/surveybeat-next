@@ -87,15 +87,23 @@ const redactGermanPhones = (text: string): string => {
   for (let match = pattern.exec(text); match !== null; match = pattern.exec(text)) {
     const start = match.index;
     const digits = germanSignificantDigits(match[0]);
-    if (digits < 7) continue;
+    if (digits < 7) {
+      continue;
+    }
     let end = start + match[0].length;
     if (digits > 12) {
       let cut: number | undefined;
       for (let i = 1; i < match[0].length; i++) {
-        if (!PHONE_SPLIT_CHARACTER.test(match[0].charAt(i))) continue;
+        if (!PHONE_SPLIT_CHARACTER.test(match[0].charAt(i))) {
+          continue;
+        }
         const prefixDigits = germanSignificantDigits(match[0].slice(0, i));
-        if (prefixDigits > 12) break;
-        if (prefixDigits < 7) continue;
+        if (prefixDigits > 12) {
+          break;
+        }
+        if (prefixDigits < 7) {
+          continue;
+        }
         cut ??= i;
         if (GERMAN_NUMBER_START.test(match[0].slice(i))) {
           cut = i;
@@ -136,30 +144,42 @@ const extractCandidateNames = (roster: Roster): readonly CandidateName[] => {
         if (localPart) {
           rawNames.add(localPart);
           for (const sub of localPart.split(/[._-]/)) {
-            if (sub) rawNames.add(sub);
+            if (sub) {
+              rawNames.add(sub);
+            }
           }
         }
       } else {
         rawNames.add(trimmed);
         for (const sub of trimmed.split(/\s+/)) {
-          if (sub) rawNames.add(sub);
+          if (sub) {
+            rawNames.add(sub);
+          }
         }
       }
     } else if (item && typeof item === "object") {
       if (item.name) {
         rawNames.add(item.name.trim());
         for (const sub of item.name.trim().split(/\s+/)) {
-          if (sub) rawNames.add(sub);
+          if (sub) {
+            rawNames.add(sub);
+          }
         }
       }
-      if (item.firstName) rawNames.add(item.firstName.trim());
-      if (item.lastName) rawNames.add(item.lastName.trim());
+      if (item.firstName) {
+        rawNames.add(item.firstName.trim());
+      }
+      if (item.lastName) {
+        rawNames.add(item.lastName.trim());
+      }
       if (item.email) {
         const localPart = item.email.trim().split("@")[0] ?? "";
         if (localPart) {
           rawNames.add(localPart);
           for (const sub of localPart.split(/[._-]/)) {
-            if (sub) rawNames.add(sub);
+            if (sub) {
+              rawNames.add(sub);
+            }
           }
         }
       }
@@ -171,7 +191,9 @@ const extractCandidateNames = (roster: Roster): readonly CandidateName[] => {
 
   for (const name of rawNames) {
     const norm = stripDiacritics(name.trim());
-    if (norm.length < 2 || seen.has(norm)) continue;
+    if (norm.length < 2 || seen.has(norm)) {
+      continue;
+    }
     seen.add(norm);
 
     const words = norm.split(/\s+/).filter((w) => w.length > 0);
@@ -188,7 +210,9 @@ const extractCandidateNames = (roster: Roster): readonly CandidateName[] => {
 };
 
 const redactNames = (text: string, candidates: readonly CandidateName[]): string => {
-  if (candidates.length === 0) return text;
+  if (candidates.length === 0) {
+    return text;
+  }
 
   const segmenter = new Intl.Segmenter("en", { granularity: "word" });
   const segments = [...segmenter.segment(text)];
@@ -198,7 +222,9 @@ const redactNames = (text: string, candidates: readonly CandidateName[]): string
 
   while (i < segments.length) {
     const seg = segments[i];
-    if (seg === undefined) break;
+    if (seg === undefined) {
+      break;
+    }
 
     if (!seg.isWordLike) {
       result += seg.segment;
@@ -218,7 +244,9 @@ const redactNames = (text: string, candidates: readonly CandidateName[]): string
 
         while (wordIdx < segments.length && matchedCount < candidate.wordCount) {
           const nextSeg = segments[wordIdx];
-          if (nextSeg === undefined) break;
+          if (nextSeg === undefined) {
+            break;
+          }
           if (nextSeg.isWordLike) {
             let segWord = nextSeg.segment;
             if (
@@ -268,7 +296,9 @@ const redactNames = (text: string, candidates: readonly CandidateName[]): string
 };
 
 export const redact = (text: string, roster: Roster): string => {
-  if (!text) return "";
+  if (!text) {
+    return "";
+  }
 
   const normalized = text.normalize("NFC");
   const bounded =

@@ -12,7 +12,9 @@ const readAnswers = (raw: string | null): Record<string, unknown> => {
   } catch {
     return {};
   }
-  if (typeof data !== "object" || data === null || !("answers" in data)) return {};
+  if (typeof data !== "object" || data === null || !("answers" in data)) {
+    return {};
+  }
   const { answers } = data;
   return typeof answers === "object" && answers !== null ? { ...answers } : {};
 };

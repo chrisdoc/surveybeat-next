@@ -38,7 +38,9 @@ const domainBoundary = {
   create(context) {
     const filename = toPath(context.filename);
     const zone = ZONES.find((z) => filename.includes(z.path));
-    if (zone === undefined) return {};
+    if (zone === undefined) {
+      return {};
+    }
     const check = (node, source) => {
       if (typeof source === "string" && zone.banned.some((re) => re.test(source))) {
         context.report({ node, messageId: "banned", data: { zone: zone.name, source } });
@@ -96,14 +98,24 @@ const noLiteralUiText = {
     return {
       JSXText: (node) => hasLetters(node.value) && report(node),
       JSXExpressionContainer: (node) => {
-        if (node.parent.type !== "JSXAttribute" && isTextLiteral(node.expression)) report(node);
+        if (node.parent.type !== "JSXAttribute" && isTextLiteral(node.expression)) {
+          report(node);
+        }
       },
       JSXAttribute: (node) => {
-        if (node.name.type !== "JSXIdentifier" || !UI_ATTRIBUTES.has(node.name.name)) return;
+        if (node.name.type !== "JSXIdentifier" || !UI_ATTRIBUTES.has(node.name.name)) {
+          return;
+        }
         const value = node.value;
-        if (value === null) return;
-        if (isTextLiteral(value)) report(value);
-        if (value.type === "JSXExpressionContainer" && isTextLiteral(value.expression)) report(value);
+        if (value === null) {
+          return;
+        }
+        if (isTextLiteral(value)) {
+          report(value);
+        }
+        if (value.type === "JSXExpressionContainer" && isTextLiteral(value.expression)) {
+          report(value);
+        }
       },
       CallExpression: (node) => {
         const callee = node.callee;
@@ -113,13 +125,17 @@ const noLiteralUiText = {
           if (objName === "h" || objName === "inertHtml" || objName === "ih") {
             if (UI_H_ATTRIBUTES.has(propName)) {
               const arg = node.arguments[0];
-              if (arg && isTextLiteral(arg)) report(arg);
+              if (arg && isTextLiteral(arg)) {
+                report(arg);
+              }
             }
             const children = node.arguments[1];
             if (children) {
               if (children.type === "ArrayExpression") {
                 for (const element of children.elements) {
-                  if (element && isTextLiteral(element)) report(element);
+                  if (element && isTextLiteral(element)) {
+                    report(element);
+                  }
                 }
               } else if (isTextLiteral(children)) {
                 report(children);
@@ -165,7 +181,9 @@ const privacyQuery = {
   },
   create(context) {
     const checkSql = (node, sqlText) => {
-      if (typeof sqlText !== "string") return;
+      if (typeof sqlText !== "string") {
+        return;
+      }
       if (ROWID_PATTERN.test(sqlText)) {
         context.report({ node, messageId: "rowid" });
       }

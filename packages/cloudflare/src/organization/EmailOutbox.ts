@@ -52,12 +52,15 @@ export const makeEmailOutbox = (
       Effect.flatMap(decodeOutboxRows),
     );
     const last = rows.at(-1);
-    if (last === undefined) return false;
+    if (last === undefined) {
+      return false;
+    }
     const [organization] = yield* sql`SELECT id FROM organization LIMIT 1`.pipe(
       Effect.flatMap(decodeOrganizationRows),
     );
-    if (organization === undefined)
+    if (organization === undefined) {
       return yield* Effect.die("an Organization with sends has no organization row");
+    }
     const messages = yield* Effect.forEach(rows, (row) =>
       encodeRequest({ organizationId: organization.id, sendId: row.send_id }).pipe(
         Effect.map((body) => ({ body })),

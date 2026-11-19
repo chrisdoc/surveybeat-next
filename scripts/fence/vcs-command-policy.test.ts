@@ -88,8 +88,12 @@ describe("the hook-bypass policy", () => {
     const hooksPath = evaluateCommand("git config core.hooksPath /tmp/hooks", { gatePassed: false });
     expect(noVerify.decision).toBe("deny");
     expect(hooksPath.decision).toBe("deny");
-    if (noVerify.decision === "deny") expect(noVerify.reason).toMatch(/no-verify/i);
-    if (hooksPath.decision === "deny") expect(hooksPath.reason).toMatch(/core\.hooksPath/);
+    if (noVerify.decision === "deny") {
+      expect(noVerify.reason).toMatch(/no-verify/i);
+    }
+    if (hooksPath.decision === "deny") {
+      expect(hooksPath.reason).toMatch(/core\.hooksPath/);
+    }
   });
 
   it("prints a deny decision and the reason on stdin, as the harnesses call it", () => {

@@ -16,7 +16,9 @@ const escapeHtml = (text: string): string =>
 
 export const pageLocale = (lang: string | null | undefined, acceptLanguage: string | undefined): Locale => {
   const explicit = lang === null || lang === undefined ? undefined : matchLocale(lang);
-  if (explicit !== undefined) return explicit;
+  if (explicit !== undefined) {
+    return explicit;
+  }
   const languages = (acceptLanguage ?? "").split(",").map((part) => part.split(";")[0] ?? "");
   return browserLocale(languages) ?? DEFAULT_LOCALE;
 };

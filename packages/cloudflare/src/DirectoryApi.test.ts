@@ -43,8 +43,9 @@ const setup = async () => {
 const teamIdOf = (body: unknown): string => {
   if (typeof body === "object" && body !== null && "team" in body) {
     const { team } = body;
-    if (typeof team === "object" && team !== null && "id" in team && typeof team.id === "string")
+    if (typeof team === "object" && team !== null && "id" in team && typeof team.id === "string") {
       return team.id;
+    }
   }
   throw new Error("no Team in the response");
 };
@@ -53,7 +54,9 @@ const personIdOf = (world: SignInWorld, organizationId: OrganizationId, email: s
   const person = world.durable.organizations
     .get(organizationId)
     ?.state.people.find((each) => each.email === email);
-  if (person === undefined) throw new Error(`no Person ${email}`);
+  if (person === undefined) {
+    throw new Error(`no Person ${email}`);
+  }
   return person.id;
 };
 
@@ -447,7 +450,9 @@ describe("the failed emails of the Organization (issue 147)", () => {
   const failSendTo = (world: SignInWorld, recipient: string, state: SendState) => {
     for (const organization of world.durable.organizations.values()) {
       for (const [sendId, send] of organization.sends) {
-        if (send.recipient === recipient) organization.sends.set(sendId, { ...send, state });
+        if (send.recipient === recipient) {
+          organization.sends.set(sendId, { ...send, state });
+        }
       }
     }
   };
@@ -506,7 +511,9 @@ describe("resending a failed email (issue 159)", () => {
   const sendTo = (world: SignInWorld, recipient: string): SendId => {
     for (const organization of world.durable.organizations.values()) {
       for (const [sendId, send] of organization.sends) {
-        if (send.recipient === recipient) return sendId;
+        if (send.recipient === recipient) {
+          return sendId;
+        }
       }
     }
     throw new Error(`no send to ${recipient}`);
@@ -517,7 +524,9 @@ describe("resending a failed email (issue 159)", () => {
     const sendId = sendTo(world, recipient);
     for (const organization of world.durable.organizations.values()) {
       const send = organization.sends.get(sendId);
-      if (send !== undefined) organization.sends.set(sendId, { ...send, state });
+      if (send !== undefined) {
+        organization.sends.set(sendId, { ...send, state });
+      }
     }
     return sendId;
   };

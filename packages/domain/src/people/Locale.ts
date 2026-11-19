@@ -15,7 +15,9 @@ export const matchLocale = (tag: string): Locale | undefined => {
 export const browserLocale = (languages: readonly string[]): Locale | undefined => {
   for (const tag of languages) {
     const locale = matchLocale(tag);
-    if (locale !== undefined) return locale;
+    if (locale !== undefined) {
+      return locale;
+    }
   }
   return undefined;
 };

@@ -427,7 +427,9 @@ const driveThemesJob = (themesInput: AiInput, requestedAt: number) =>
     for (let step = 0; step < 50; step++) {
       const decision = yield* runThemesAttempt({ input: themesInput, requestedAt, attempts, now });
       decisions.push(decision);
-      if (decision._tag !== "RetryAt") break;
+      if (decision._tag !== "RetryAt") {
+        break;
+      }
       attempts = decision.attempts;
       now = decision.dueAt;
     }
@@ -484,7 +486,9 @@ describe("themes job lifecycle (ADR 0016)", () => {
       while (attemptTimes.length <= 100) {
         const failures = attemptTimes.length;
         const next = (attemptTimes[failures - 1] ?? 0) + gap(failures);
-        if (next > REQUESTED_AT + RETRY_WINDOW_MS) break;
+        if (next > REQUESTED_AT + RETRY_WINDOW_MS) {
+          break;
+        }
         attemptTimes.push(next);
       }
 

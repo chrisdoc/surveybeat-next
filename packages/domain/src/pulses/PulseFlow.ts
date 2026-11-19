@@ -131,7 +131,9 @@ export const runPulseCommand = Effect.fnUntraced(function* (member: Member, comm
     command,
     yield* Clock.currentTimeMillis,
   );
-  if (result._tag === "Rejected") return yield* fail(result.rejection);
+  if (result._tag === "Rejected") {
+    return yield* fail(result.rejection);
+  }
 });
 
 export const viewPulses = (member: Member, teamId: TeamId) =>
@@ -157,7 +159,9 @@ export const sendTestInvitation = Effect.fnUntraced(function* (
     pulseId,
     yield* Clock.currentTimeMillis,
   );
-  if (result._tag === "Rejected") return yield* fail(result.rejection);
+  if (result._tag === "Rejected") {
+    return yield* fail(result.rejection);
+  }
   return { email: result.email, sendId: result.sendId };
 });
 

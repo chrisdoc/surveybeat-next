@@ -109,7 +109,9 @@ export const sendMachine = setup({
           return { target: "failed", context: { state: failedState("unknown", null, event.now) } };
         },
         Settle: ({ context, event }) => {
-          if (context.state._tag !== "Sending" || context.state.attempt !== event.attempt) return;
+          if (context.state._tag !== "Sending" || context.state.attempt !== event.attempt) {
+            return;
+          }
           switch (event.outcome._tag) {
             case "Accepted": {
               return {
@@ -147,7 +149,9 @@ export const sendMachine = setup({
     sent: {
       on: {
         Delivery: ({ event }) => {
-          if (event.kind === "delivered" || event.kind === "deferred") return;
+          if (event.kind === "delivered" || event.kind === "deferred") {
+            return;
+          }
           return {
             target: "failed",
             context: {

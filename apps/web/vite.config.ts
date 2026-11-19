@@ -131,13 +131,17 @@ const preloadAnswerChunks = (): Plugin => ({
     order: "post",
     handler(html, ctx) {
       const { bundle, chunk } = ctx;
-      if (!ctx.path.endsWith("answer.html") || bundle === undefined || chunk === undefined) return html;
+      if (!ctx.path.endsWith("answer.html") || bundle === undefined || chunk === undefined) {
+        return html;
+      }
       const seen = new Set<string>();
       const pending = [...chunk.imports];
       while (pending.length > 0) {
         const fileName = pending.pop() ?? "";
         const imported = bundle[fileName];
-        if (seen.has(fileName) || imported === undefined || imported.type !== "chunk") continue;
+        if (seen.has(fileName) || imported === undefined || imported.type !== "chunk") {
+          continue;
+        }
         seen.add(fileName);
         pending.push(...imported.imports);
       }
@@ -151,7 +155,7 @@ export default defineConfig({
   plugins: [tailwindcss(), foldkit(), prerenderAnswer(), preloadAnswerChunks()],
   build: {
     modulePreload: false,
-    rollupOptions: {
+    rolldownOptions: {
       input: {
         app: "index.html",
         answer: "answer.html",

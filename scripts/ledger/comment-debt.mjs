@@ -34,7 +34,9 @@ const stdoutOf = (thrown) =>
 
 const oxlint = () => {
   const args = ["exec", "oxlint", "--config", configPath, "--format", "json"];
-  for (const pattern of IGNORED) args.push("--ignore-pattern", pattern);
+  for (const pattern of IGNORED) {
+    args.push("--ignore-pattern", pattern);
+  }
   args.push(".");
   try {
     return execFileSync("pnpm", args, {
@@ -63,7 +65,9 @@ const collect = () => {
   /** @type {Record<string, number>} */
   const current = {};
   for (const diagnostic of report.diagnostics) {
-    if (typeof diagnostic.code !== "string" || !diagnostic.code.startsWith(RULE)) continue;
+    if (typeof diagnostic.code !== "string" || !diagnostic.code.startsWith(RULE)) {
+      continue;
+    }
     const key = `${packageOf(diagnostic.filename)}:${diagnostic.code.slice(RULE.length, -1)}`;
     current[key] = (current[key] ?? 0) + 1;
   }
@@ -98,11 +102,15 @@ const main = () => {
   const problems = [];
   for (const [kind, count] of Object.entries(current)) {
     const allowed = ledger[kind] ?? 0;
-    if (count > allowed) problems.push(`${kind}: ${allowed} -> ${count}`);
+    if (count > allowed) {
+      problems.push(`${kind}: ${allowed} -> ${count}`);
+    }
   }
   for (const [kind, count] of Object.entries(ledger)) {
     const now = current[kind] ?? 0;
-    if (now < count) problems.push(`${kind}: ${count} -> ${now} (ledger is stale)`);
+    if (now < count) {
+      problems.push(`${kind}: ${count} -> ${now} (ledger is stale)`);
+    }
   }
 
   if (problems.length === 0) {
@@ -111,7 +119,9 @@ const main = () => {
   }
 
   console.error("comments: the count changed, and it may only shrink:");
-  for (const problem of problems) console.error(`  ${problem}`);
+  for (const problem of problems) {
+    console.error(`  ${problem}`);
+  }
   console.error(
     "comments: move the reason into a name, a test, a commit subject, or an ADR; run `pnpm check:comments --update` after a batch lands.",
   );

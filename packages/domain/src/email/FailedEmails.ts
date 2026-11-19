@@ -87,7 +87,9 @@ export interface ResendFacts {
 }
 
 export const isResendable = (sendId: SendId, facts: ResendFacts): boolean => {
-  if (facts.reason === "complained") return false;
+  if (facts.reason === "complained") {
+    return false;
+  }
   switch (facts.kind) {
     case "AddedToTeam":
     case "ResultsReadyEmail": {

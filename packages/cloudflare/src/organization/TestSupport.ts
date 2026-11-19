@@ -39,8 +39,9 @@ export const organizationTestSupport = <E>({
       .withTransaction(
         Effect.gen(function* () {
           const result = yield* queueTestSend(actorId, teamId, pulseId, now, false);
-          if (result._tag === "Rejected")
+          if (result._tag === "Rejected") {
             return yield* Effect.die(`test send refused: ${result.rejection._tag}`);
+          }
           yield* sends.claim(result.sendId, now + 1);
           yield* sends.settle(
             result.sendId,
@@ -57,7 +58,9 @@ export const organizationTestSupport = <E>({
     Effect.gen(function* () {
       const rid = RoundId.make(roundId);
       const r = yield* rounds.getRound(rid);
-      if (r === null) return false;
+      if (r === null) {
+        return false;
+      }
       const dirState = yield* directory.load;
       const effectiveN = Math.max(
         dirState.minimumGroupSize,

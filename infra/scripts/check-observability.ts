@@ -37,15 +37,30 @@ export const findViolations = (worker: WorkerSettings): string[] => {
   const logs = observability?.logs;
   const traces = observability?.traces;
   const found: string[] = [];
-  if (observability?.enabled === true) found.push("observability.enabled is on");
-  if (logs?.enabled === true) found.push("observability.logs.enabled is on");
-  if (logs?.enabled === true && logs.invocation_logs === true)
+  if (observability?.enabled === true) {
+    found.push("observability.enabled is on");
+  }
+  if (logs?.enabled === true) {
+    found.push("observability.logs.enabled is on");
+  }
+  if (logs?.enabled === true && logs.invocation_logs === true) {
     found.push("observability.logs.invocation_logs is on");
-  if (logs?.enabled === true && logs.persist === true) found.push("observability.logs.persist is on");
-  if (traces?.enabled === true) found.push("observability.traces.enabled is on");
-  if (traces?.enabled === true && traces.persist === true) found.push("observability.traces.persist is on");
-  if (worker.logpush === true) found.push("logpush is on");
-  if ((worker.tail_consumers?.length ?? 0) > 0) found.push("tail consumers are attached");
+  }
+  if (logs?.enabled === true && logs.persist === true) {
+    found.push("observability.logs.persist is on");
+  }
+  if (traces?.enabled === true) {
+    found.push("observability.traces.enabled is on");
+  }
+  if (traces?.enabled === true && traces.persist === true) {
+    found.push("observability.traces.persist is on");
+  }
+  if (worker.logpush === true) {
+    found.push("logpush is on");
+  }
+  if ((worker.tail_consumers?.length ?? 0) > 0) {
+    found.push("tail consumers are attached");
+  }
   return found;
 };
 
@@ -53,8 +68,10 @@ const api = "https://api.cloudflare.com/client/v4";
 
 const get = async (path: string, token: string): Promise<unknown> => {
   const response = await fetch(`${api}${path}`, { headers: { authorization: `Bearer ${token}` } });
-  if (!response.ok) throw new Error(`GET ${path} failed with HTTP ${response.status}`);
-  return response.json();
+  if (!response.ok) {
+    throw new Error(`GET ${path} failed with HTTP ${response.status}`);
+  }
+  return await response.json();
 };
 
 export const findWorker = async (
@@ -105,7 +122,9 @@ const main = async (): Promise<number> => {
   );
   const violations = findViolations(worker);
   if (violations.length > 0) {
-    for (const violation of violations) console.error(`FAIL: ${violation}`);
+    for (const violation of violations) {
+      console.error(`FAIL: ${violation}`);
+    }
     return 1;
   }
   console.log("OK: every log channel is off and no tail consumer is attached");

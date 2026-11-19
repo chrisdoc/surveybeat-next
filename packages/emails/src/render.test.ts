@@ -78,7 +78,9 @@ describe("a send stored before locales were recorded", () => {
       signInUrl: "https://app.surveybeat.app/",
     });
     expect(stored.locale).toBe("en");
-    if (stored._tag !== "AddedToTeam") throw new Error("expected an AddedToTeam");
+    if (stored._tag !== "AddedToTeam") {
+      throw new Error("expected an AddedToTeam");
+    }
     const { subject, html } = await renderEmail(stored);
     expect(subject).toBe("You've been added to Platform");
     expect(html).toContain('<html dir="ltr" lang="en">');

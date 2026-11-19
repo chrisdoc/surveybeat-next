@@ -47,9 +47,13 @@ export interface OverviewActionInput {
 const compareStrings = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
 
 const pointScore = (result: RoundResult, dimension: Dimension): number | null => {
-  if (!result.meetsMinimumGroupSize) return null;
+  if (!result.meetsMinimumGroupSize) {
+    return null;
+  }
   const dimensionResult = result.dimensions.find((each) => each.dimension === dimension);
-  if (dimensionResult === undefined || !dimensionResult.meetsMinimumGroupSize) return null;
+  if (dimensionResult === undefined || !dimensionResult.meetsMinimumGroupSize) {
+    return null;
+  }
   return dimensionResult.score;
 };
 
@@ -73,7 +77,9 @@ export const buildTeamOverview = (params: {
         (question) => question.dimension === dimension && question.type._tag === "Rating",
       ),
     );
-    if (!asked) continue;
+    if (!asked) {
+      continue;
+    }
     dimensions.push({
       dimension,
       points: shared.map((result) => ({ roundId: result.roundId, score: pointScore(result, dimension) })),
@@ -82,7 +88,9 @@ export const buildTeamOverview = (params: {
 
   const markers: ActionMarker[] = [];
   for (const action of params.actions) {
-    if (action.status !== "committed" && action.status !== "done") continue;
+    if (action.status !== "committed" && action.status !== "done") {
+      continue;
+    }
     markers.push({ actionId: action.id, title: action.title, kind: "committed", at: action.createdAt });
     if (action.status === "done" && action.doneAt !== null) {
       markers.push({ actionId: action.id, title: action.title, kind: "done", at: action.doneAt });

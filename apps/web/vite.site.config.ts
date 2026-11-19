@@ -25,7 +25,7 @@ export default defineConfig({
   build: {
     outDir: "dist-site",
     emptyOutDir: true,
-    rollupOptions: {
+    rolldownOptions: {
       input: { site: "site.html" },
     },
   },

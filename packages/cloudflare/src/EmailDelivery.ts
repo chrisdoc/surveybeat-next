@@ -71,7 +71,9 @@ const indexMessage = (db: Cloudflare.D1.QueryDatabaseClient, request: EmailSendR
     : Effect.void;
 
 const logOutcome = (sendId: SendId, state: SendState | null) => {
-  if (state === null) return Effect.logWarning("EMAIL_SEND_MISSING", { sendId });
+  if (state === null) {
+    return Effect.logWarning("EMAIL_SEND_MISSING", { sendId });
+  }
   if (state._tag === "Failed") {
     return Effect.logWarning("EMAIL_SEND_FAILED", { sendId, reason: state.reason, code: state.code });
   }
@@ -93,7 +95,9 @@ export const handleSendMessage = (
     const result = yield* deliver(sendId).pipe(
       Effect.provideService(SendStore, organizationSendStore(organizations.getByName(organizationId))),
     );
-    if (result._tag === "RetryAfter") return message.retry({ delaySeconds: result.seconds });
+    if (result._tag === "RetryAfter") {
+      return message.retry({ delaySeconds: result.seconds });
+    }
     if (result.state !== null) {
       yield* indexMessage(db, request.value, result.state);
       const inv = yield* organizations.getByName(organizationId).getInvitationBySendId(sendId);
@@ -184,7 +188,9 @@ export const parseDeliveryEvent = (body: unknown): Option.Option<DeliveryEvent> 
     Option.flatMap((event) => {
       const name = event.type.replace(/^cf\.email\.sending\./, "").replace(/^message\./, "");
       const kind = KINDS.find((candidate) => candidate === name);
-      if (kind === undefined) return Option.none();
+      if (kind === undefined) {
+        return Option.none();
+      }
       const { payload } = event;
       const code =
         payload.delivery?.smtpEnhancedStatusCode ??

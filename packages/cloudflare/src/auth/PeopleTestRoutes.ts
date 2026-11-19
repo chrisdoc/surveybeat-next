@@ -75,8 +75,13 @@ export const peopleTestRoutes = (organizations: Organizations, database: Cloudfl
       verifySignInCode: () => Effect.succeedNone,
       chosenOrganization: (sessionId) => Effect.sync(() => Option.fromNullishOr(chosen.get(sessionId))),
       chooseOrganization: (sessionId, organizationId) =>
-        Effect.sync(() => void chosen.set(sessionId, organizationId)),
-      revokeSession: (sessionId) => Effect.sync(() => void chosen.delete(sessionId)),
+        Effect.sync(() => {
+          chosen.set(sessionId, organizationId);
+        }),
+      revokeSession: (sessionId) =>
+        Effect.sync(() => {
+          chosen.delete(sessionId);
+        }),
     });
     const services = Context.make(SessionIdentityProvider, sessions).pipe(
       Context.add(PeopleIndex, index),

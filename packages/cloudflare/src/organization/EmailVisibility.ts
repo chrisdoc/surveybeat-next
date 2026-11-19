@@ -106,35 +106,40 @@ export const organizationEmailVisibility = ({
       .withTransaction(
         Effect.gen(function* () {
           const dirState = yield* directory.load;
-          if (!isEmailAdmin(dirState, actorId))
+          if (!isEmailAdmin(dirState, actorId)) {
             return { _tag: "Rejected", rejection: { _tag: "Forbidden" } } satisfies ResendResult;
+          }
           const record = yield* sends.get(sendId);
-          if (Option.isNone(record))
+          if (Option.isNone(record)) {
             return {
               _tag: "Rejected",
               rejection: { _tag: "FailedEmailNotFound" },
             } satisfies ResendResult;
+          }
           const { state } = record.value;
-          if (state._tag !== "Failed")
+          if (state._tag !== "Failed") {
             return {
               _tag: "Accepted",
               status: { sendId, state: progressOf(state) },
             } satisfies ResendResult;
+          }
           const rows = yield* sql
             .unsafe<SendFactsRow>(`${SEND_FACTS_SQL} WHERE es.id = ?`, [sendId])
             .pipe(Effect.orDie);
           const row = rows[0];
-          if (row === undefined)
+          if (row === undefined) {
             return {
               _tag: "Rejected",
               rejection: { _tag: "EmailNotResendable" },
             } satisfies ResendResult;
+          }
           const facts = resendFactsOf(row, state.reason);
-          if (!isResendable(sendId, facts))
+          if (!isResendable(sendId, facts)) {
             return {
               _tag: "Rejected",
               rejection: { _tag: "EmailNotResendable" },
             } satisfies ResendResult;
+          }
 
           yield* sends.requeue(sendId);
           const invitation = invitationOf(row);

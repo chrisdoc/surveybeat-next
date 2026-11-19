@@ -253,7 +253,9 @@ describe("RoundResult storage and performance (Issue #45, ADR 0004)", () => {
     const legacy: unknown = JSON.parse(JSON.stringify(result));
     const dimensions = (legacy as { dimensions: Record<string, unknown>[] }).dimensions;
     const first = dimensions[0];
-    if (first === undefined) throw new Error("the Result has no Dimension to strip");
+    if (first === undefined) {
+      throw new Error("the Result has no Dimension to strip");
+    }
     delete first.contributors;
 
     const decoded = Option.getOrNull(Schema.decodeUnknownOption(RoundResult)(legacy));

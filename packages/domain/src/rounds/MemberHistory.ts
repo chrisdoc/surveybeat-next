@@ -68,7 +68,9 @@ const historyRound = (input: MemberHistoryRoundInput, minimumGroupSize: number):
   }
 
   const enforced = enforceEffectiveNOnResult(input.result, minimumGroupSize);
-  if (!enforced.meetsMinimumGroupSize) return noScores("belowMinimumGroupSize");
+  if (!enforced.meetsMinimumGroupSize) {
+    return noScores("belowMinimumGroupSize");
+  }
 
   return {
     ...base,

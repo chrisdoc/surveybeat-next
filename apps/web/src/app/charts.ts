@@ -193,7 +193,9 @@ export const lineChart = <Message>(options: LineChartOptions, h: HtmlBuilder<Mes
 
   let lastPoint: ChartPoint | undefined;
   for (const p of points) {
-    if (p.score !== null) lastPoint = p;
+    if (p.score !== null) {
+      lastPoint = p;
+    }
   }
   if (options.latestLabel !== undefined && lastPoint !== undefined && lastPoint.score !== null) {
     const nearEnd = lastPoint.x > 0.85;

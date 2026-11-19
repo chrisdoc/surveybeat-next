@@ -125,9 +125,9 @@ describe("a Lead", () => {
     expect((removed.body as Detail).questions.map(({ questionId }) => questionId)).toEqual(rest);
     expect((removed.body as Detail).templateQuestions.map(({ key }) => key)).toEqual(["workload-manageable"]);
 
-    const reordered = await lead.call("PUT", `${base}/order`, { order: [...rest].reverse() });
+    const reordered = await lead.call("PUT", `${base}/order`, { order: [...rest].toReversed() });
     expect((reordered.body as Detail).questions.map(({ questionId }) => questionId)).toEqual(
-      [...rest].reverse(),
+      [...rest].toReversed(),
     );
     // The long text Question is first now: no one-tap from the email.
     expect((reordered.body as Detail).warnings.map(({ _tag }) => _tag)).toContain("NoOneTap");
@@ -380,7 +380,9 @@ describe("sending a test of a Pulse (ADR 0021)", () => {
     const { lead, teamId } = await setup();
     const pulse = await createPulse(lead, teamId);
     const statuses = [];
-    for (let i = 0; i < 5; i++) statuses.push((await lead.call("POST", testPath(teamId, pulse.id))).status);
+    for (let i = 0; i < 5; i++) {
+      statuses.push((await lead.call("POST", testPath(teamId, pulse.id))).status);
+    }
     expect(statuses).toEqual([200, 200, 200, 200, 200]);
     expect(await lead.call("POST", testPath(teamId, pulse.id))).toMatchObject({
       status: 429,
@@ -413,7 +415,9 @@ describe("reading a test send's state (issue 147)", () => {
   const setState = (world: SignInWorld, sendId: string, state: SendState) => {
     for (const organization of world.durable.organizations.values()) {
       const send = organization.sends.get(SendId.make(sendId));
-      if (send !== undefined) organization.sends.set(SendId.make(sendId), { ...send, state });
+      if (send !== undefined) {
+        organization.sends.set(SendId.make(sendId), { ...send, state });
+      }
     }
   };
 
