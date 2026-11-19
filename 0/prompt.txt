@@ -1,0 +1,530 @@
+check the progress we made on surveybeat-next and plan the next work
+
+---
+
+lets gooo
+
+---
+
+<task-notification>
+<task-id>bvvnm6fi2</task-id>
+<tool-use-id>toolu_01DDhJg6ggPYy3MP1prxNLow</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-db64dfae-08a48960ffac2386/26b511c7-42b5-4775-b3e5-ad414ca2fb45/tasks/bvvnm6fi2.output</output-file>
+<status>completed</status>
+<summary>Monitor "wait for dependabot to rebase PR 221" stream ended</summary>
+<event>221 rebased</event>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>b76bmrqb5</task-id>
+<tool-use-id>toolu_011gicofooEw61X4tBYcecZV</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-db64dfae-08a48960ffac2386/26b511c7-42b5-4775-b3e5-ad414ca2fb45/tasks/b76bmrqb5.output</output-file>
+<status>failed</status>
+<summary>Monitor "wait for rebased PR 221 CI to finish" script failed (exit 1)</summary>
+<event>check SUCCESS
+privacy SUCCESS</event>
+</task-notification>
+
+---
+
+Update on pull request #228 (https://github.com/chrisdoc/surveybeat-next/pull/228), which T3 Code is watching for you:
+- 1 new comment:
+  - coderabbitai: "> [!NOTE] > > > Currently processing new changes in this PR. This may take a few minutes, please wait... Review info Run configuration - **Source mode**: Auto - **Repository**: Unavailable - **Bran..." https://github.com/chrisdoc/surveybeat-next/pull/228#issuecomment-6958316643
+
+Look into each item and act on it as your task requires. This PR stays linked and watched, so do not link, watch, or list it again. End your turn when you are done, and T3 Code wakes you on the next change. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.
+
+---
+
+Update on pull request #228 (https://github.com/chrisdoc/surveybeat-next/pull/228), which T3 Code is watching for you:
+- 1 new comment:
+  - codecov: "## [Codecov](https://app.codecov.io/gh/chrisdoc/surveybeat-next/pull/228?dropdown=coverage&src=pr&el=h1&utm_medium=referral&utm_source=github&utm_content=comment&utm_campaign=pr+comments&utm_term=C..." https://github.com/chrisdoc/surveybeat-next/pull/228#issuecomment-6958356195
+
+Look into each item and act on it as your task requires. This PR stays linked and watched, so do not link, watch, or list it again. End your turn when you are done, and T3 Code wakes you on the next change. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.
+
+---
+
+fix the pnpm store
+
+---
+
+i give you an email you can use
+
+List the existing API keys, then create a new one scoped to this inbox (chrisdoc-hermes@agentmail.to).
+
+Context: Inbox · chrisdoc-hermes@agentmail.to. Use the AgentMail API (docs: https://docs.agentmail.to) with the API key in the AGENTMAIL_API_KEY environment variable.
+
+ask me for AGENTMAIL_API_KEY and store it safely
+
+---
+
+yes add it and then use it to test the workflow
+
+---
+
+Update on pull request #229 (https://github.com/chrisdoc/surveybeat-next/pull/229), which T3 Code is watching for you:
+- 1 new comment:
+  - assert-app: reviewed https://github.com/chrisdoc/surveybeat-next/pull/229#issuecomment-6958808432
+
+Look into each item and act on it as your task requires. This PR stays linked and watched, so do not link, watch, or list it again. End your turn when you are done, and T3 Code wakes you on the next change. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.
+
+---
+
+Update on pull request #229 (https://github.com/chrisdoc/surveybeat-next/pull/229), which T3 Code is watching for you:
+- 1 new comment:
+  - coderabbitai: "> [!WARNING] > ## Review limit reached > > You've used all free OSS reviews for now. Wait for the free limit to reset to keep reviewing this public repository. > > **Next included review available ..." https://github.com/chrisdoc/surveybeat-next/pull/229#issuecomment-6958810840
+
+Look into each item and act on it as your task requires. This PR stays linked and watched, so do not link, watch, or list it again. End your turn when you are done, and T3 Code wakes you on the next change. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.
+
+---
+
+Update on pull request #229 (https://github.com/chrisdoc/surveybeat-next/pull/229), which T3 Code is watching for you:
+- 1 new comment:
+  - codecov: "## [Codecov](https://app.codecov.io/gh/chrisdoc/surveybeat-next/pull/229?dropdown=coverage&src=pr&el=h1&utm_medium=referral&utm_source=github&utm_content=comment&utm_campaign=pr+comments&utm_term=C..." https://github.com/chrisdoc/surveybeat-next/pull/229#issuecomment-6958851153
+
+Look into each item and act on it as your task requires. This PR stays linked and watched, so do not link, watch, or list it again. End your turn when you are done, and T3 Code wakes you on the next change. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.
+
+---
+
+Update on pull request #229 (https://github.com/chrisdoc/surveybeat-next/pull/229), which T3 Code is watching for you:
+- All 11 checks passed on 67a9419.
+
+Look into each item and act on it as your task requires. This PR stays linked and watched, so do not link, watch, or list it again. End your turn when you are done, and T3 Code wakes you on the next change. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.
+
+---
+
+Update on pull request #229 (https://github.com/chrisdoc/surveybeat-next/pull/229), which T3 Code is watching for you:
+- 1 new comment:
+  - coderabbitai: "> [!WARNING] > ## Review limit reached > > You've used all free OSS reviews for now. Wait for the free limit to reset to keep reviewing this public repository. > > **Next included review available ..." https://github.com/chrisdoc/surveybeat-next/pull/229#issuecomment-6958810840
+
+Look into each item and act on it as your task requires. This PR stays linked and watched, so do not link, watch, or list it again. End your turn when you are done, and T3 Code wakes you on the next change. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.
+
+---
+
+Update on pull request #229 (https://github.com/chrisdoc/surveybeat-next/pull/229), which T3 Code is watching for you:
+- 1 new comment:
+  - codecov: "## [Codecov](https://app.codecov.io/gh/chrisdoc/surveybeat-next/pull/229?dropdown=coverage&src=pr&el=h1&utm_medium=referral&utm_source=github&utm_content=comment&utm_campaign=pr+comments&utm_term=C..." https://github.com/chrisdoc/surveybeat-next/pull/229#issuecomment-6958851153
+
+Look into each item and act on it as your task requires. This PR stays linked and watched, so do not link, watch, or list it again. End your turn when you are done, and T3 Code wakes you on the next change. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.
+
+---
+
+<task-notification>
+<task-id>brj8j3gn6</task-id>
+<tool-use-id>toolu_01LQiNSuRK4VQkRFcTJnNAKT</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-db64dfae-08a48960ffac2386/26b511c7-42b5-4775-b3e5-ad414ca2fb45/tasks/brj8j3gn6.output</output-file>
+<status>completed</status>
+<summary>Monitor "wait for production deploy of 360f287c to complete" stream ended</summary>
+<event>deploy conclusion: success</event>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>bgi1hd0js</task-id>
+<tool-use-id>toolu_01Uy2LFvrrwM31uGotch6KvH</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-db64dfae-08a48960ffac2386/26b511c7-42b5-4775-b3e5-ad414ca2fb45/tasks/bgi1hd0js.output</output-file>
+<status>completed</status>
+<summary>Monitor "wait for the production deploy of the merged allowlist change" stream ended</summary>
+<event>deploy for 360f287cb0f8ed5dbbb60609d0af69f2e5db26ce: completed success</event>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>bn8zusp37</task-id>
+<summary>Monitor event: "watch the inbox for the first real Round Invitation"</summary>
+<event>[Monitor expired after 10m with no events delivered. Re-arm it if you still need the watch — and widen the filter if silence was unexpected.]</event>
+</task-notification>
+
+---
+
+Received
+From
+
+team@notify.surveybeat.app
+To
+
+chrisdoc-hermes@agentmail.to
+At
+Nov 17, 2026, 8:56 PM
+Size
+19.9 KB
+Authentication
+
+spf ✓passed
+dkim ✓passed
+dmarc ✓passed
+SPF
+cf-bounce.notify.surveybeat.app
+DMARC
+notify.surveybeat.app
+Identifiers
+
+Msg
+
+<REDACTED@notify.surveybeat.app>
+Thread
+
+5aaa7823-a17a-4341-9cc0-430f45930ab1
+Labels
+
+---
+
+go with the next fixes
+
+---
+
+<task-notification>
+<task-id>a3e5dd9a6896cab4a</task-id>
+<tool-use-id>toolu_01QpbGi8Zuf9kB18XzyKZgwE</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-db64dfae-08a48960ffac2386/26b511c7-42b5-4775-b3e5-ad414ca2fb45/tasks/a3e5dd9a6896cab4a.output</output-file>
+<status>completed</status>
+<summary>Agent "Review Submission DO binding fix" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>**Verdict: one serious finding (a privacy regression), and the Durable Object identity and cross-script binding are fine.**
+
+**MAJOR: the Submission Worker bundle now contains the whole Main Worker.**
+- Location: `packages/cloudflare/src/SubmissionWorker.ts:7`, the new `import MainWorker from "./MainWorker.ts"`.
+- Evidence: I checked the bundles Alchemy left in `/home/ubuntu/fix-scratch/.alchemy/bundles/`.
+  - `SurveybeatOrganizationTest-test_ubuntu-Submission/SubmissionWorker.js` and the `SurveybeatSubmissionExchangeTest` equivalent are both about 2.15 MB.
+  - Each contains `authHandlers`, `betterAuth` (7 hits), `createWithAdmin` (13) and `INVITATION_TOKEN_KEY` (4). That is the Organization implementation plus the auth/API handlers.
+  - Nothing in this commit tree-shakes `MainWorker`, because its implementation is inline in the exported class rather than behind a `.make()`.
+- Failure scenario: the Submission Worker ships Main's auth, email and Organization code, which defeats the "minimal for privacy" requirement. It also bloats the bundle, and the answer path is now one stray top-level side effect away from touching Main code. Secrets are not embedded, only env-name references. Before this commit the bundle held the Organization implementation but not the Main API.
+- Fix: avoid importing `MainWorker.ts` from the Submission Worker.
+  - Pass the Main Worker's logical id or script name as a string to `Organization.from(...)`. This is the simplest option, but check that it keeps the ordering described below.
+  - Alternatively, split a lightweight `MainWorker` identity class from its `.make()`, the way Alchemy does for modular Durable Objects.
+  - Either way, add a test assertion that the Submission bundle does not contain `createWithAdmin`.
+
+**Durable Object identity: no change.**
+- Checked in the Alchemy source, `DurableObject.ts` around line 1553.
+- The inline form and the modular `.make(impl)` both go through the same `binding(undefined, classProps?.transferredFrom, ...)`. Both use `className = namespace = "Organization"`, the same binding name and the same `exportDurableObjectClass`.
+- Neither form passes `storage`, `renamedFrom` or `transferredFrom`, so no migration is emitted for Main.
+- Main's data is safe.
+
+**Cross-script binding and ordering: correct.**
+- `from()` passes `w.workerName` into `binding`. Here `w` is the hand-built object, and `main.workerName` stays a `PropExpr` on the Worker resource.
+- `hostNamespaceOf` therefore still matches (`identifier === "workerName"`, `isResourceExpr`, `isWorker`).
+- That adds the dependency on Main's `durableObjectNamespaces`, so Main reconciles before Submission. The hand-built object does not weaken this.
+- `scriptName` is non-undefined, so Submission emits no class migrations for it.
+- The `"~alchemy/dependencies"` shim is a type-only stand-in. `asEffect` only needs a plain object here.
+
+**Test quality: acceptable.**
+- The new deploy-both-Workers test in `Organization.test.ts` exercises the real `/exchange` path with a real token and asserts the CORS header.
+- It should fail pre-fix, since you reproduced the `RpcCallError`.
+- The 500-with-CORS unit test is meaningful.
+- Nothing is weakened.
+
+**MINOR: `SubmissionRoutes.ts:287` catches all causes.**
+- `Effect.catchCause` also swallows interrupts and returns a 500 for them, and it discards the error with no trace. The no-logging stance is deliberate, so this is acceptable. `catchCauseIf` or catching only defects would be tighter.
+
+**MINOR: `TestInvitationTestRoutes.ts` parses `now`.**
+- `Number(params.get("now")) || default` is fine on test stages only. It is gated by `isTestStage`, so there is no production exposure.</result>
+<usage><subagent_tokens>48285</subagent_tokens><tool_uses>10</tool_uses><duration_ms>44223</duration_ms></usage>
+</task-notification>
+
+---
+
+Update on pull request #233 (https://github.com/chrisdoc/surveybeat-next/pull/233), which T3 Code is watching for you:
+- 2 new comments:
+  - assert-app: reviewed https://github.com/chrisdoc/surveybeat-next/pull/233#issuecomment-6960421816
+  - coderabbitai: "> [!NOTE] > > > Currently processing new changes in this PR. This may take a few minutes, please wait... Review info Run configuration - **Source mode**: Auto - **Repository**: Unavailable - **Bran..." https://github.com/chrisdoc/surveybeat-next/pull/233#issuecomment-6960427988
+
+Look into each item and act on it as your task requires. This PR stays linked and watched, so do not link, watch, or list it again. End your turn when you are done, and T3 Code wakes you on the next change. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.
+
+---
+
+Update on pull request #233 (https://github.com/chrisdoc/surveybeat-next/pull/233), which T3 Code is watching for you:
+- Checks failed on 1a74abb:
+  - codecov/project https://app.codecov.io/gh/chrisdoc/surveybeat-next/pull/233
+- 1 new comment:
+  - codecov: "## [Codecov](https://app.codecov.io/gh/chrisdoc/surveybeat-next/pull/233?dropdown=coverage&src=pr&el=h1&utm_medium=referral&utm_source=github&utm_content=comment&utm_campaign=pr+comments&utm_term=C..." https://github.com/chrisdoc/surveybeat-next/pull/233#issuecomment-6960478289
+
+Look into each item and act on it as your task requires. This PR stays linked and watched, so do not link, watch, or list it again. End your turn when you are done, and T3 Code wakes you on the next change. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.
+
+---
+
+Update on pull request #233 (https://github.com/chrisdoc/surveybeat-next/pull/233), which T3 Code is watching for you:
+- 1 new comment:
+  - coderabbitai: "No actionable comments were generated in the recent review. Walkthrough The Submission Worker now returns a 204 response with CORS headers for OPTIONS requests and a 503 JSON error with CORS header..." https://github.com/chrisdoc/surveybeat-next/pull/233#issuecomment-6960427988
+
+Look into each item and act on it as your task requires. This PR stays linked and watched, so do not link, watch, or list it again. End your turn when you are done, and T3 Code wakes you on the next change. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.
+
+---
+
+Update on pull request #233 (https://github.com/chrisdoc/surveybeat-next/pull/233), which T3 Code is watching for you:
+- Checks failed on 1a74abb:
+  - deploy https://github.com/chrisdoc/surveybeat-next/actions/runs/44172023059/job/134353368122
+
+Look into each item and act on it as your task requires. This PR stays linked and watched, so do not link, watch, or list it again. End your turn when you are done, and T3 Code wakes you on the next change. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.
+
+---
+
+Update on pull request #233 (https://github.com/chrisdoc/surveybeat-next/pull/233), which T3 Code is watching for you:
+- 1 new comment:
+  - coderabbitai: "> [!WARNING] > ## Review limit reached > > You've used all free OSS reviews for now. Wait for the free limit to reset to keep reviewing this public repository. > > **Next included review available ..." https://github.com/chrisdoc/surveybeat-next/pull/233#issuecomment-6960427988
+
+Look into each item and act on it as your task requires. This PR stays linked and watched, so do not link, watch, or list it again. End your turn when you are done, and T3 Code wakes you on the next change. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.
+
+---
+
+Update on pull request #233 (https://github.com/chrisdoc/surveybeat-next/pull/233), which T3 Code is watching for you:
+- Checks failed on 6b71985:
+  - preview-privacy https://github.com/chrisdoc/surveybeat-next/actions/runs/44175018101/job/134364472074
+- 1 new comment:
+  - codecov: "## [Codecov](https://app.codecov.io/gh/chrisdoc/surveybeat-next/pull/233?dropdown=coverage&src=pr&el=h1&utm_medium=referral&utm_source=github&utm_content=comment&utm_campaign=pr+comments&utm_term=C..." https://github.com/chrisdoc/surveybeat-next/pull/233#issuecomment-6960478289
+
+Look into each item and act on it as your task requires. This PR stays linked and watched, so do not link, watch, or list it again. End your turn when you are done, and T3 Code wakes you on the next change. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.
+
+---
+
+Update on pull request #233 (https://github.com/chrisdoc/surveybeat-next/pull/233), which T3 Code is watching for you:
+- All 11 checks passed on 6b71985.
+
+Look into each item and act on it as your task requires. This PR stays linked and watched, so do not link, watch, or list it again. End your turn when you are done, and T3 Code wakes you on the next change. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.
+
+---
+
+<task-notification>
+<task-id>bkwruoc91</task-id>
+<tool-use-id>toolu_01BD9sUEfiENrDKg4w2f3BsJ</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-db64dfae-08a48960ffac2386/26b511c7-42b5-4775-b3e5-ad414ca2fb45/tasks/bkwruoc91.output</output-file>
+<status>completed</status>
+<summary>Monitor "wait for staging+production deploy of step 1" stream ended</summary>
+<event>deploy run success
+deploy-staging: success
+staging-e2e: success
+staging-privacy: success
+deploy-production: success</event>
+</task-notification>
+
+---
+
+Update on pull request #234 (https://github.com/chrisdoc/surveybeat-next/pull/234), which T3 Code is watching for you:
+- 1 new comment:
+  - coderabbitai: "> [!WARNING] > ## Review limit reached > > You've used all free OSS reviews for now. Wait for the free limit to reset to keep reviewing this public repository. > > **Next included review available ..." https://github.com/chrisdoc/surveybeat-next/pull/234#issuecomment-6961267519
+
+Look into each item and act on it as your task requires. This PR stays linked and watched, so do not link, watch, or list it again. End your turn when you are done, and T3 Code wakes you on the next change. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.
+
+---
+
+Update on pull request #234 (https://github.com/chrisdoc/surveybeat-next/pull/234), which T3 Code is watching for you:
+- Checks failed on 2e4d69a:
+  - codecov/patch https://app.codecov.io/gh/chrisdoc/surveybeat-next/pull/234
+- 1 new comment:
+  - codecov: "## [Codecov](https://app.codecov.io/gh/chrisdoc/surveybeat-next/pull/234?dropdown=coverage&src=pr&el=h1&utm_medium=referral&utm_source=github&utm_content=comment&utm_campaign=pr+comments&utm_term=C..." https://github.com/chrisdoc/surveybeat-next/pull/234#issuecomment-6961319276
+
+Look into each item and act on it as your task requires. This PR stays linked and watched, so do not link, watch, or list it again. End your turn when you are done, and T3 Code wakes you on the next change. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.
+
+---
+
+<task-notification>
+<task-id>bbmehe44c</task-id>
+<tool-use-id>toolu_013WN1v5TNePp2t2kgk6jGJi</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-db64dfae-08a48960ffac2386/26b511c7-42b5-4775-b3e5-ad414ca2fb45/tasks/bbmehe44c.output</output-file>
+<status>completed</status>
+<summary>Monitor "wait for staging+production deploy of step 2" stream ended</summary>
+<event>deploy run success
+deploy-staging: success
+staging-privacy: success
+staging-e2e: success
+deploy-production: success</event>
+</task-notification>
+
+---
+
+yes go for 232 copy fixes, also lets get rid of german for now and foucs only on english
+
+---
+
+Update on pull request #235 (https://github.com/chrisdoc/surveybeat-next/pull/235), which T3 Code is watching for you:
+- 1 new comment:
+  - coderabbitai: "> [!NOTE] > > > Currently processing new changes in this PR. This may take a few minutes, please wait... Review info Run configuration - **Source mode**: Auto - **Repository**: Unavailable - **Bran..." https://github.com/chrisdoc/surveybeat-next/pull/235#issuecomment-6969138645
+
+Look into each item and act on it as your task requires. This PR stays linked and watched, so do not link, watch, or list it again. End your turn when you are done, and T3 Code wakes you on the next change. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.
+
+---
+
+Update on pull request #235 (https://github.com/chrisdoc/surveybeat-next/pull/235), which T3 Code is watching for you:
+- Checks failed on 3840181:
+  - deploy https://github.com/chrisdoc/surveybeat-next/actions/runs/44238115861/job/134579080643
+- 1 new comment:
+  - codecov: "## [Codecov](https://app.codecov.io/gh/chrisdoc/surveybeat-next/pull/235?dropdown=coverage&src=pr&el=h1&utm_medium=referral&utm_source=github&utm_content=comment&utm_campaign=pr+comments&utm_term=C..." https://github.com/chrisdoc/surveybeat-next/pull/235#issuecomment-6969162375
+
+Look into each item and act on it as your task requires. This PR stays linked and watched, so do not link, watch, or list it again. End your turn when you are done, and T3 Code wakes you on the next change. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.
+
+---
+
+shall we have a config effect module? https://ratstack.sh/lore/configuration-is-a-dependency so that we don't have magic numbers in multiple palces like SIGN_IN_CODE_MINUTES etc
+
+---
+
+go ahead
+
+---
+
+<task-notification>
+<task-id>a3a93825ebea82632</task-id>
+<tool-use-id>toolu_01WnSXqAYBxzKkVzdmctA9MZ</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-db64dfae-08a48960ffac2386/26b511c7-42b5-4775-b3e5-ad414ca2fb45/tasks/a3a93825ebea82632.output</output-file>
+<status>completed</status>
+<summary>Agent "Remove German, English only" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>German is removed from the English-only worktree and the locale plumbing is kept. Everything is uncommitted in `/home/ubuntu/english-only`, and all eight validation commands pass on the final tree.
+
+## Changes
+
+**Locale core (`packages/domain`)**
+- `people/Locale.ts`: `Locale = Schema.Literals(["en"])`. `matchLocale`, `browserLocale`, `resolveLocale` are unchanged. I added `localeOrNull` and `localeOr`, lenient readers that map anything that isn't a known locale to unset or the fallback.
+- `email/Email.ts`: `EmailLocale` gets a `Schema.catchDecoding` so a stored `de` decodes as `en` instead of failing. This covers queued sends in `SqlSendRepository`.
+- `pulses/Template.ts`: the German branch is removed. The record is still keyed by `Locale`, and `weeklyTeamHealth(locale)` keeps its signature.
+
+**Cloudflare**
+- `SqlDirectory.ts`: `person.locale`, `person.detected_locale` and `organization.default_locale` are read as plain strings and mapped leniently. No migration.
+- `organization/Directory.ts`: uses the shared helpers instead of its own copies.
+
+**Web app**
+- Deleted `messages/de.ts`, `messages/answer.de.ts`, `answer/de.ts`, `de/answer.html`.
+- `messages/locale.ts`: the `tables` map is English only.
+- `catalog.ts`: removed `language.*`, `settings.defaultLanguage*`, `site.footer.language`.
+- `app/directory.ts` and `app/App.ts`: removed the account-menu language field, the Settings "Default language" section, their messages, update branches and commands, and the `shellView` language argument.
+- `site/render.ts`: removed the language link, `/de` path, and `pathFor`. `og:locale` is a table.
+- `vite.config.ts`, `vite.site.config.ts`: removed the `/de` pages and the answer-de entry.
+
+**Emails (`packages/emails`)**
+- Deleted `messages/de.ts`. `messages/index.ts` has an English-only table.
+- `links.ts`: `answerPath` and `langQuery` are table-driven, English only.
+
+**Infra**
+- `lighthouse-gate.ts`: no German page.
+- `answer.spec.ts`: removed the German test.
+
+**Docs**
+- New `docs/adr/0025-english-only-for-now.md`.
+- Supersession line at the top of ADR 0018.
+- SPEC lines 135 and 252 updated.
+
+**Tests**
+- Deleted or rewritten the German cases in the domain, Cloudflare, email, and web suites. The English coverage they carried is kept.
+- `SqlDirectory.test.ts`: new test that a row holding `de` reads back as unset.
+- `EmailTemplates.test.ts`: a stored `de` email decodes as English.
+- `DirectoryApi.test.ts`: `de` is now refused with 400.
+- Pruned 12 obsolete German email snapshots. The snapshot diff is deletions only.
+
+## Decisions that differ from the brief
+
+- **Sign-in language sync removed.** `App.ts` used to send `UpdateOwnLanguage({ detectedLocale })` at sign-in. That is a language sent from the UI, so I removed it. The domain command, the API endpoint, and `PersonLanguageSet` are kept.
+- **ADR 0020 also marked superseded.** It prescribes the German `/de/` landing page. AGENTS.md says a contradicting change must be recorded, so I added the same one-line note. You did not ask for this.
+- **`answerPath` and `langQuery` kept as tables.** They are not deleted, so `lang` plumbing stays for a later second locale.
+- **Some tests lost their meaning.** Locale precedence (person, then browser, then organization) can no longer be tested with two values. Those tests now assert English. The precedence coverage returns when a second locale does.
+- **Two lines of cover moved.** The placeholder check in the web and email catalogs now mutates the English table. The `budget.test.ts` cross-check against the other locale's save label is gone.
+
+## Validation
+
+- `pnpm typecheck`: exit 0, all 12 projects ok, 0 Effect errors, 0 TypeScript diagnostics.
+- `pnpm lint`: exit 0, no findings.
+- `pnpm format:check`: exit 0, all 353 files formatted. I ran `pnpm format` first, which only touched my own files.
+- `pnpm check:ledger`: exit 0, 96 overrides across 15 kinds, none added.
+- `pnpm check:comments`: exit 0, 0 prose comments, none added.
+- `pnpm test`: exit 0, 72 files passed, 1192 tests passed. Baseline was 1233 tests; the difference is the removed German cases.
+- `pnpm test:privacy`: exit 0, 9 files passed, 241 tests passed.
+- `pnpm --filter @surveybeat/web build`: exit 0. The app and landing page are English only. The budget test passes on the English answer page (HTML 7.70 KB raw, 5.60 KB gzip critical JS).
+
+## Notes
+
+- **Dependencies were not installed.** The brief said they were, but `node_modules` was missing. I ran `pnpm install --frozen-lockfile --ignore-scripts`. I skipped the `prepare` script because it runs `git config --local core.hooksPath`, a git write. As a result, `core.hooksPath` is not set in this worktree and the fence hooks are inactive. Run `node scripts/fence/install.mjs` if you want them. Node is v26.13.1; the repo pins 24.
+- **Git commands run.** Only read-only ones, plus one `git rm -n --help`, which prints help and changes nothing.
+- **Workdir.** The system context named a different worktree as primary. I worked only in `/home/ubuntu/english-only`, as your brief directed.
+- **Not run.** `Organization.test.ts` (step 7 now checks that `lang=de` renders English) is a workerd adapter test. Typecheck passes on it, but it has not run.
+- **Not touched.** `Redaction` and its German phone-number tests, the `docs/research/*` files, and the migrations.</result>
+<usage><subagent_tokens>304013</subagent_tokens><tool_uses>151</tool_uses><duration_ms>1271749</duration_ms></usage>
+</task-notification>
+
+---
+
+Update on pull request #236 (https://github.com/chrisdoc/surveybeat-next/pull/236), which T3 Code is watching for you:
+- 1 new comment:
+  - coderabbitai: "> [!WARNING] > ## Review limit reached > > You've used all free OSS reviews for now. Wait for the free limit to reset to keep reviewing this public repository. > > **Next included review available ..." https://github.com/chrisdoc/surveybeat-next/pull/236#issuecomment-6969489240
+
+Look into each item and act on it as your task requires. This PR stays linked and watched, so do not link, watch, or list it again. End your turn when you are done, and T3 Code wakes you on the next change. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.
+
+---
+
+<task-notification>
+<task-id>a1271a803375eb6a4</task-id>
+<tool-use-id>toolu_01RYJ4YGtTCeye1vCJS2jWGC</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-db64dfae-08a48960ffac2386/26b511c7-42b5-4775-b3e5-ad414ca2fb45/tasks/a1271a803375eb6a4.output</output-file>
+<status>completed</status>
+<summary>Agent "Policy module for shared constants" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>## Changes
+
+Nothing is committed, and no git write commands were run. All edits are in `/home/ubuntu/policy` (33 modified files, 1 new file, 0 deleted).
+
+**New:** `packages/domain/src/Policy.ts` exports `Policy` (a plain `as const` object), the helpers `minutes(n)` and `days(n)` (both return milliseconds), and `toSeconds(ms)`. It is re-exported from the domain index. The answer entry imports it through a new subpath, `@surveybeat/domain/policy`, so it doesn't pull in the whole domain index.
+
+**Domain:** `people/SignIn.ts` (`SIGN_IN_CODE_MINUTES` deleted), `notes/Note.ts` (`NOTE_MAX_LENGTH` deleted), `pulses/Question.ts` (`LONG_TEXT_MAX_LENGTH` deleted; it had no users), `privacy/Redaction.ts`, `pulses/Pulse.ts`, `pulses/Editor.ts`, `people/Team.ts`, `rounds/Themes.ts`, `package.json` (subpath export).
+
+**Auth:** `packages/auth/package.json` and `tsconfig.json` (dependency and reference on domain), `src/options.ts` (TTLs, OTP length and attempts derive from Policy), `pnpm-lock.yaml` (3 lines, via `pnpm install --offline`).
+
+**Cloudflare:** `auth/AuthResource.ts` and its test (email numbers from Policy), `auth/AuthHandlers.ts` (cookie max-age is `Duration.days(sessionDays)`), `Organization.ts` (trend window).
+
+**Web app:** `app/App.ts`, `app/results.ts`, `app/pulses.ts` (test-send constants, copy params), `app/api.ts`, `app/directory.ts`, `app/components.ts` (privacy list now carries params), `site/render.ts` (landing copy takes params), `answer/main.ts` (textarea limit and disclosure), `messages/locale.ts` (new `formatNumber`, so "2,000" and "2.000" follow the locale).
+
+**Catalogs:** `messages/catalog.ts`, `de.ts`, `answer.ts`, `answer.de.ts`. Placeholders added: `{digits}`, `{earliest}`, `{latest}`, `{max}`, `{minimum}`, `{perHour}`, `{days}`, `{groupSize}`, `{recommended}`, `{rounds}`, `{themes}`. Each substitution was count-checked, and the German placeholder names match the English ones.
+
+**Guard tests:** `apps/web/src/messages/messages.test.ts` and `packages/emails/src/messages/messages.test.ts`. I planted `"Loading… 15 minutes"` in the English catalog and confirmed the guard failed on `app.loading`, then removed the plant and confirmed it passes.
+
+## Constants moved vs left
+
+**Moved into Policy:** `signIn` (code 10 min, 6 digits, 5 attempts, magic link 5 min, session 30 days), `text` (note 2000, long text 1000), `backupRetentionDays` 30, `testSend` (perHour 5, lifetime 7 days, poll 3 s, stalled 5 min, give-up 15 min), `groupSize` (default 4, minimum 3, maximum 100), `questions` (max 20, recommended 7), `sendWindow` (06:00 to 21:00), `themes.maximum` 5, `trendRounds` 12.
+
+- The brief's three names are deleted: `SIGN_IN_CODE_MINUTES`, `NOTE_MAX_LENGTH` and `LONG_TEXT_MAX_LENGTH`.
+- `testSendsPerHour`, `testInvitationLifetimeMs`, `DEFAULT_MINIMUM_GROUP_SIZE`, `MAX_QUESTIONS` and `MAX_THEMES` are kept as one-line aliases derived from Policy, to avoid touching many callers. The numbers live only in Policy.
+- `RECOMMENDED_MAX_QUESTIONS`, `EARLIEST_SEND_TIME` and `LATEST_SEND_TIME` are deleted.
+
+**Left in place, deliberately:**
+- `RETRY_WINDOW_MS`, `FIRST_RETRY_GAP_MS`, `MAX_RETRY_GAP_MS` (Retry.ts): one production user, no catalog literal.
+- `THEMES_LEASE_MS` (Organization.ts), `SendPolicy` lease and attempts (SendState.ts), `MIN_QUESTIONS`: single use.
+- `RECOMMENDED_MAX_SECONDS` (90): one production file, shown through a parameter.
+- `keptAnswersLifetimeMs` (365 days, answer/kept-answers.ts): one production file. This one is retention-related, so you may want a decision on it.
+- `MIN_SUPPORTING_COMMENTS` (2): the site copy says "two" in words, which the digit guard cannot see.
+- `ATTEMPT_TIMEOUT_MS`, the auth `updateAge` of 24 h, the infra canary durations, unit conversions such as `/ 60_000`.
+- Display scales ("Rating 1–5", "/ 5", "Label for 1/5"), the marketing mock data, and the singular "1-Round trend" label (allowlisted in the guard by key name).
+- Test literals that restate numbers, such as `sign-in.test.ts` (`toBe(600)`) and the rendered-copy assertions in `App.scene.test.ts`.
+
+## Deviations from the brief
+
+1. **Guard regex is wider than the brief's.** It also matches `person(s)`, `people`, `questions`, `themes`, `rounds`, `tests`, is case-insensitive, and allows an optional hyphen (so "30-day" is caught). The brief's list alone would not catch "at least 4 people", which is a policy number. The guard covers units and these nouns only. It does not catch bare numbers, so `two` and the scale labels are outside its reach.
+2. **The guard is in two files,** because neither the web app nor the emails package can import the other's catalog. The regex and the allowlist logic are duplicated.
+3. **Catalog scope is larger than the brief listed.** The "literal in a catalog" rule pulled in group-size copy, question limits, the themes maximum and the trend window, across the landing page as well as the app. Each of these is a placeholder.
+4. **Effect Durations for the poll interval and cookie.** `TEST_SEND_POLL_INTERVAL` is `Duration.seconds(...)`, and the cookie max-age is `Duration.days(...)`. Template-literal strings widen to `string`, and Effect rejects that under `Duration.Input`.
+5. **Merge risk with the English-only worktree.** It edits the same message files (`catalog.ts`, `de.ts`, `answer.ts`, `answer.de.ts`, `locale.ts`, `messages.test.ts`), so expect conflicts. Keep the placeholder names when you reconcile.
+6. **One blocked command.** A `git -c core.hooksPath=...` command was refused by the fence. I did not retry it, and it changed nothing.
+
+## Validation
+
+| Command | Result |
+|---|---|
+| `pnpm format` | exit 0, 361 files; only my files changed |
+| `pnpm format:check` | exit 0, all files correct |
+| `pnpm typecheck` | exit 0, 12 projects ok, 0 Effect errors, 0 TS diagnostics |
+| `pnpm lint` | exit 0, no errors. Two unused imports were fixed on the way |
+| `pnpm check:ledger` | exit 0, "96 overrides across 15 kinds, none added" |
+| `pnpm check:comments` | exit 0, "0 prose comments, none added" |
+| `pnpm test` | exit 0, 74 files and 1241 tests passed |
+| `pnpm test:privacy` | exit 0, 9 files and 241 tests passed |
+| `pnpm --filter @surveybeat/web build` | exit 0 |
+
+Targeted checks: `apps/web/src/answer/budget.test.ts` 4/4 passed. The two catalog test files passed 29/29 after the plant was removed. The landing pages render "at least 4 people" and "mindestens 4 Personen", with no leftover `{...}` placeholders. No lint disables or Effect diagnostic overrides were added. No workerd adapter tests were run separately; they ran only inside `pnpm test`.</result>
+<usage><subagent_tokens>225954</subagent_tokens><tool_uses>88</tool_uses><duration_ms>1134427</duration_ms></usage>
+</task-notification>
+
+---
+
+Update on pull request #237 (https://github.com/chrisdoc/surveybeat-next/pull/237), which T3 Code is watching for you:
+- 1 new comment:
+  - coderabbitai: "> [!WARNING] > ## Review limit reached > > You've used all free OSS reviews for now. Wait for the free limit to reset to keep reviewing this public repository. > > **Next included review available ..." https://github.com/chrisdoc/surveybeat-next/pull/237#issuecomment-6969718569
+
+Look into each item and act on it as your task requires. This PR stays linked and watched, so do not link, watch, or list it again. End your turn when you are done, and T3 Code wakes you on the next change. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.
