@@ -1,16 +1,13 @@
-import {
-  authorizeRoundAction,
-  findPulse,
-  invitationSummaryOf,
+import { authorizeRoundAction, findPulse, invitationSummaryOf, teamSummaryOf } from "@surveybeat/domain";
+import type {
   PersonId,
-  type PulseId,
-  type RoundDetail,
   RoundId,
-  type RoundList,
-  type RoundSummary,
   TeamId,
-  type RoundViewed,
-  teamSummaryOf,
+  PulseId,
+  RoundDetail,
+  RoundList,
+  RoundSummary,
+  RoundViewed,
 } from "@surveybeat/domain";
 import * as Effect from "effect/Effect";
 import type { makeSqlDirectory } from "../SqlDirectory.ts";
@@ -26,11 +23,7 @@ export const organizationRoundViews = ({
   directory: ReturnType<typeof makeSqlDirectory>;
   pulses: ReturnType<typeof makeSqlPulses>;
 }) => ({
-  viewRounds: (
-    actorId: PersonId,
-    teamId: TeamId,
-    pulseId: PulseId,
-  ): Effect.Effect<RoundViewed<RoundList>, never, never> =>
+  viewRounds: (actorId: PersonId, teamId: TeamId, pulseId: PulseId): Effect.Effect<RoundViewed<RoundList>> =>
     Effect.gen(function* () {
       const dirState = yield* directory.load;
       const auth = authorizeRoundAction(dirState, actorId, "team.viewRounds", teamId);
@@ -72,11 +65,7 @@ export const organizationRoundViews = ({
       return viewed;
     }).pipe(Effect.orDie),
 
-  viewRound: (
-    actorId: PersonId,
-    teamId: TeamId,
-    roundId: RoundId,
-  ): Effect.Effect<RoundViewed<RoundDetail>, never, never> =>
+  viewRound: (actorId: PersonId, teamId: TeamId, roundId: RoundId): Effect.Effect<RoundViewed<RoundDetail>> =>
     Effect.gen(function* () {
       const dirState = yield* directory.load;
       const auth = authorizeRoundAction(dirState, actorId, "team.viewRounds", teamId);

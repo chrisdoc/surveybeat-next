@@ -1,17 +1,13 @@
 import * as DateTime from "effect/DateTime";
 import * as Option from "effect/Option";
-import {
-  type ActionMarker,
-  type DimensionOverview,
-  type OverviewRound,
-  type RoundId,
-  TeamOverview,
-} from "@surveybeat/domain";
+import { TeamOverview } from "@surveybeat/domain";
+import type { ActionMarker, DimensionOverview, OverviewRound, RoundId } from "@surveybeat/domain";
 import type { Html, HtmlBuilder } from "foldkit/html";
 import { defineTaggedUnion } from "foldkit/schema";
 import { formatDate, formatRoundDate, formatScore, message } from "../messages/locale.ts";
 import { Failure } from "./api.ts";
-import { type ChartPoint, lineChart, plotPercent } from "./charts.ts";
+import { lineChart, plotPercent } from "./charts.ts";
+import type { ChartPoint } from "./charts.ts";
 import {
   dataTable,
   emptyState,
@@ -36,7 +32,7 @@ export type LoadedOverview = typeof LoadedOverview.Type;
 
 const OVERVIEW_WIDTH = 360;
 
-const plotBox = <Message>(children: ReadonlyArray<Html>, h: HtmlBuilder<Message>): Html =>
+const plotBox = <Message>(children: readonly Html[], h: HtmlBuilder<Message>): Html =>
   h.div([h.Class("flex flex-col gap-2 rounded-control bg-subtle p-4")], children);
 
 const eventGlyph = <Message>(kind: ActionMarker["kind"], h: HtmlBuilder<Message>): Html =>
@@ -127,8 +123,8 @@ const legend = <Message>(h: HtmlBuilder<Message>): Html =>
   );
 
 const markerOverlay = <Message>(
-  markers: ReadonlyArray<ActionMarker>,
-  xs: ReadonlyArray<number>,
+  markers: readonly ActionMarker[],
+  xs: readonly number[],
   interactive: boolean,
   h: HtmlBuilder<Message>,
 ): Html =>
@@ -160,21 +156,21 @@ const latestDimensionScore = (dimension: DimensionOverview): number | null => {
 
 const dimensionPanel = <Message>(
   dimension: DimensionOverview,
-  rounds: ReadonlyArray<OverviewRound>,
+  rounds: readonly OverviewRound[],
   xByRound: ReadonlyMap<RoundId, number>,
-  markers: ReadonlyArray<ActionMarker>,
-  markerXs: ReadonlyArray<number>,
+  markers: readonly ActionMarker[],
+  markerXs: readonly number[],
   interactive: boolean,
   h: HtmlBuilder<Message>,
 ): Html => {
   const name = dimensionName(dimension.dimension);
-  const points: Array<ChartPoint> = [];
+  const points: ChartPoint[] = [];
   for (const point of dimension.points) {
     const x = xByRound.get(point.roundId);
     if (x !== undefined) points.push({ x, score: point.score, joinsPrevious: true });
   }
   const first = rounds[0];
-  const newest = rounds[rounds.length - 1];
+  const newest = rounds.at(-1);
   const latest = latestDimensionScore(dimension);
   return panel(
     [
@@ -237,7 +233,7 @@ const roundsTable = <Message>(overview: TeamOverview, h: HtmlBuilder<Message>): 
   );
 };
 
-const markersTable = <Message>(markers: ReadonlyArray<ActionMarker>, h: HtmlBuilder<Message>): Html =>
+const markersTable = <Message>(markers: readonly ActionMarker[], h: HtmlBuilder<Message>): Html =>
   dataTable(
     [message("overview.tableDate"), message("overview.tableAction"), message("overview.tableEvent")],
     markers.map((marker) => [
@@ -257,7 +253,7 @@ const roundName = (round: OverviewRound): string =>
       });
 
 const latestResults = <Message>(overview: TeamOverview, h: HtmlBuilder<Message>): Html | null => {
-  const latest = overview.rounds[overview.rounds.length - 1];
+  const latest = overview.rounds.at(-1);
   if (latest === undefined) return null;
   return panel(
     [
@@ -332,7 +328,7 @@ export const teamOverviewView = <Message>(
   const markerXs = overview.markers.map((marker) => markerX(marker.at));
 
   const latest = latestResults(overview, h);
-  const children: Array<Html> = [
+  const children: Html[] = [
     sectionTitle(message("overview.title"), h),
     h.p([h.Class("text-muted")], [message("overview.intro")]),
     ...(latest === null ? [recentRounds(overview, h)] : [latest, recentRounds(overview, h)]),

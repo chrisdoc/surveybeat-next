@@ -25,7 +25,7 @@ Each is an `overrides` entry that names the rule and the files it cannot apply t
 
 Adopting the reference's surface verbatim would have meant rewriting this tree: Ultracite core alone produced 6,713 findings here and the plugin set another 6,431. #205's rule is "`error` when clean, otherwise a counted baseline". Rather than carry a 14k baseline, the rules that need a repo-wide restyle are off by name in `restyleExceptionsOff`, with the count each one produced on 2026-11-14. The follow-up restyle is issue #216; as it lands, delete the rule's line from `restyleExceptionsOff` so it runs again at its reference severity.
 
-14557 findings across 129 rules are excepted, by namespace: `anti-slop` 11, `anti-slop-effect` 4, `eslint` 27, `foldkit` 9, `import` 3, `jsdoc` 2, `landmines-types` 1, `oxc` 2, `promise` 3, `typescript` 31, `unicorn` 36.
+13035 findings across 94 rules are excepted, by namespace: `anti-slop` 11, `anti-slop-effect` 4, `eslint` 22, `foldkit` 8, `import` 1, `jsdoc` 2, `landmines-types` 1, `oxc` 2, `promise` 3, `typescript` 21, `unicorn` 19.
 
 | Rule | Findings on adoption |
 | --- | ---: |
@@ -53,22 +53,17 @@ Adopting the reference's surface verbatim would have meant rewriting this tree: 
 | `eslint/max-classes-per-file` | 16 |
 | `eslint/no-await-in-loop` | 14 |
 | `eslint/no-bitwise` | 13 |
-| `eslint/no-duplicate-imports` | 2 |
-| `eslint/no-else-return` | 2 |
 | `eslint/no-empty` | 2 |
 | `eslint/no-inline-comments` | 22 |
 | `eslint/no-negated-condition` | 49 |
 | `eslint/no-nested-ternary` | 35 |
 | `eslint/no-plusplus` | 71 |
-| `eslint/no-promise-executor-return` | 2 |
 | `eslint/no-redeclare` | 153 |
 | `eslint/no-shadow` | 35 |
 | `eslint/no-use-before-define` | 74 |
 | `eslint/no-void` | 7 |
-| `eslint/prefer-const` | 2 |
 | `eslint/prefer-destructuring` | 79 |
 | `eslint/prefer-named-capture-group` | 24 |
-| `eslint/prefer-template` | 6 |
 | `eslint/require-unicode-regexp` | 136 |
 | `eslint/sort-keys` | 2570 |
 | `foldkit/got-prefix-requires-submodel-payload` | 15 |
@@ -76,12 +71,9 @@ Adopting the reference's surface verbatim would have meant rewriting this tree: 
 | `foldkit/keyed-required-for-mapped-rows` | 5 |
 | `foldkit/no-child-message-construction-in-root` | 4 |
 | `foldkit/no-empty-children-array` | 1 |
-| `foldkit/no-impure-call-at-decision-time` | 1 |
 | `foldkit/no-module-level-mutable-state` | 9 |
 | `foldkit/no-switch-on-message-tag` | 13 |
 | `foldkit/prefer-option-over-nullable-in-model` | 1 |
-| `import/consistent-type-specifier-style` | 384 |
-| `import/no-duplicates` | 4 |
 | `import/no-mutable-exports` | 8 |
 | `jsdoc/require-param-description` | 45 |
 | `jsdoc/require-returns-description` | 16 |
@@ -91,71 +83,44 @@ Adopting the reference's surface verbatim would have meant rewriting this tree: 
 | `promise/avoid-new` | 3 |
 | `promise/param-names` | 2 |
 | `promise/prefer-await-to-callbacks` | 11 |
-| `typescript/array-type` | 467 |
-| `typescript/consistent-indexed-object-style` | 11 |
 | `typescript/consistent-return` | 50 |
 | `typescript/consistent-type-definitions` | 5 |
-| `typescript/consistent-type-imports` | 20 |
-| `typescript/dot-notation` | 32 |
 | `typescript/method-signature-style` | 2 |
 | `typescript/no-confusing-void-expression` | 17 |
 | `typescript/no-deprecated` | 2 |
-| `typescript/no-floating-promises` | 6 |
-| `typescript/no-import-type-side-effects` | 2 |
 | `typescript/no-non-null-assertion` | 43 |
-| `typescript/no-unnecessary-type-arguments` | 27 |
-| `typescript/no-unnecessary-type-assertion` | 12 |
 | `typescript/no-unnecessary-type-parameters` | 9 |
 | `typescript/no-unsafe-argument` | 16 |
 | `typescript/no-unsafe-assignment` | 49 |
 | `typescript/no-unsafe-call` | 26 |
-| `typescript/no-unsafe-enum-comparison` | 1 |
 | `typescript/no-unsafe-member-access` | 133 |
 | `typescript/no-unsafe-return` | 16 |
 | `typescript/no-unsafe-type-assertion` | 125 |
 | `typescript/parameter-properties` | 2 |
 | `typescript/prefer-nullish-coalescing` | 4 |
 | `typescript/prefer-promise-reject-errors` | 1 |
-| `typescript/prefer-regexp-exec` | 1 |
 | `typescript/promise-function-async` | 113 |
 | `typescript/return-await` | 1 |
 | `typescript/strict-boolean-expressions` | 40 |
 | `typescript/strict-void-return` | 15 |
 | `typescript/switch-exhaustiveness-check` | 4 |
-| `unicorn/catch-error-name` | 4 |
 | `unicorn/consistent-function-scoping` | 66 |
-| `unicorn/escape-case` | 8 |
 | `unicorn/filename-case` | 165 |
 | `unicorn/import-style` | 13 |
-| `unicorn/new-for-builtins` | 4 |
 | `unicorn/no-array-for-each` | 23 |
 | `unicorn/no-array-method-this-argument` | 48 |
 | `unicorn/no-array-reduce` | 3 |
 | `unicorn/no-array-reverse` | 8 |
 | `unicorn/no-array-sort` | 52 |
 | `unicorn/no-await-expression-member` | 140 |
-| `unicorn/no-hex-escape` | 2 |
-| `unicorn/no-lonely-if` | 3 |
 | `unicorn/no-negated-condition` | 49 |
 | `unicorn/no-object-as-default-parameter` | 3 |
-| `unicorn/no-useless-fallback-in-spread` | 2 |
-| `unicorn/no-useless-spread` | 3 |
 | `unicorn/no-useless-undefined` | 9 |
-| `unicorn/no-zero-fractions` | 12 |
-| `unicorn/numeric-separators-style` | 129 |
-| `unicorn/prefer-at` | 6 |
-| `unicorn/prefer-dom-node-append` | 18 |
-| `unicorn/prefer-import-meta-properties` | 4 |
-| `unicorn/prefer-logical-operator-over-ternary` | 2 |
 | `unicorn/prefer-number-coercion` | 29 |
-| `unicorn/prefer-number-properties` | 30 |
 | `unicorn/prefer-query-selector` | 20 |
 | `unicorn/prefer-single-call` | 9 |
-| `unicorn/prefer-spread` | 3 |
-| `unicorn/prefer-string-replace-all` | 21 |
 | `unicorn/prefer-structured-clone` | 2 |
 | `unicorn/prefer-ternary` | 4 |
-| `unicorn/switch-case-braces` | 289 |
 | `unicorn/text-encoding-identifier-case` | 45 |
 | `unicorn/throw-new-error` | 33 |
 

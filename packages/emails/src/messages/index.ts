@@ -14,7 +14,7 @@ type KeysWithoutParams = {
 }[MessageKey];
 type KeysWithParams = Exclude<MessageKey, KeysWithoutParams>;
 
-export type Translation = { readonly [K in MessageKey]: string };
+export type Translation = Readonly<Record<MessageKey, string>>;
 
 type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
 
@@ -25,7 +25,7 @@ export type Mismatched<T extends Translation> = {
 const tables = { en: catalog } satisfies Record<Locale, Translation>;
 
 function fill(template: string, params: Readonly<Record<string, Value>>): string {
-  return template.replace(/\{(\w+)\}/g, (_, name: string) => String(params[name] ?? ""));
+  return template.replaceAll(/\{(\w+)\}/g, (_, name: string) => String(params[name] ?? ""));
 }
 
 export interface Messages {

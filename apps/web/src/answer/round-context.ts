@@ -9,7 +9,7 @@ export interface QuestionTypeRating {
 
 export interface QuestionTypeSingleChoice {
   readonly _tag: "SingleChoice";
-  readonly options: ReadonlyArray<string>;
+  readonly options: readonly string[];
 }
 
 export interface QuestionTypeLongText {
@@ -34,8 +34,8 @@ export interface RoundContextData {
   readonly roundId: string;
   readonly pulseName: string;
   readonly minimumGroupSize: number;
-  readonly questions: ReadonlyArray<QuestionData>;
-  readonly actions: ReadonlyArray<ActionData>;
+  readonly questions: readonly QuestionData[];
+  readonly actions: readonly ActionData[];
   readonly closeTime: number;
   readonly state: string;
   readonly hasAnswered: boolean;
@@ -63,7 +63,7 @@ export function parseRoundContext(data: unknown): RoundContextData | null {
   const test = "test" in data && data.test === true;
   if (!("questions" in data) || !Array.isArray(data.questions)) return null;
 
-  const questions: Array<QuestionData> = [];
+  const questions: QuestionData[] = [];
   for (const item of data.questions) {
     if (
       typeof item === "object" &&
@@ -96,7 +96,7 @@ export function parseRoundContext(data: unknown): RoundContextData | null {
           "options" in item.type &&
           Array.isArray(item.type.options)
         ) {
-          const opts: Array<string> = [];
+          const opts: string[] = [];
           for (const opt of item.type.options) {
             if (typeof opt === "string") opts.push(opt);
           }
@@ -109,7 +109,7 @@ export function parseRoundContext(data: unknown): RoundContextData | null {
     }
   }
 
-  const actions: Array<ActionData> = [];
+  const actions: ActionData[] = [];
   if ("actions" in data && Array.isArray(data.actions)) {
     for (const act of data.actions) {
       if (

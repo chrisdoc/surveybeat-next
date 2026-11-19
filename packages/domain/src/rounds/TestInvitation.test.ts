@@ -1,7 +1,8 @@
 import { assert, describe, it } from "@effect/vitest";
 import * as Schema from "effect/Schema";
 import { PulseId } from "../pulses/Pulse.ts";
-import { QuestionType, QuestionVersionId } from "../pulses/Question.ts";
+import type { QuestionType } from "../pulses/Question.ts";
+import { QuestionVersionId } from "../pulses/Question.ts";
 import { previewAnswers, testSubmissionContext } from "./TestInvitation.ts";
 import { SubmissionRoundContext } from "./Submission.ts";
 
@@ -17,7 +18,7 @@ const questions = [1, 2, 3, 4].map((n) => ({
 
 const actions = [1, 2, 3, 4, 5].map((n) => ({ id: `action-${n}`, title: `Action ${n}` }));
 
-const context = (overrides: { readonly actions?: ReadonlyArray<{ id: string; title: string }> } = {}) =>
+const context = (overrides: { readonly actions?: readonly { id: string; title: string }[] } = {}) =>
   testSubmissionContext({
     pulseName: "Weekly team health",
     minimumGroupSize: 4,

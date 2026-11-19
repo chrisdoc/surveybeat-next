@@ -1,6 +1,7 @@
 import { describe, expect, it } from "@effect/vitest";
 import { catalog } from "./catalog.ts";
-import { type Mismatched, messagesFor } from "./index.ts";
+import { messagesFor } from "./index.ts";
+import type { Mismatched } from "./index.ts";
 
 describe("English catalog", () => {
   it("has every plural category of English for each plural base", () => {

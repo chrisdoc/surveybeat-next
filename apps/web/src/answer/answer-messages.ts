@@ -14,7 +14,7 @@ export interface AnswerMessage {
 }
 
 function fill(template: string, params: Readonly<Record<string, Value>>): string {
-  return template.replace(/\{(\w+)\}/g, (_, name: string) => String(params[name] ?? ""));
+  return template.replaceAll(/\{(\w+)\}/g, (_, name: string) => String(params[name] ?? ""));
 }
 
 export function answerMessages(table: AnswerTranslation): AnswerMessage {

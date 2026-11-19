@@ -1,4 +1,5 @@
-import { Context, Data, type Effect } from "effect";
+import { Context, Data } from "effect";
+import type { Effect } from "effect";
 import type { OutgoingEmail } from "./Email.ts";
 
 export class EmailRejected extends Data.TaggedError("EmailRejected")<{

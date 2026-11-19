@@ -13,7 +13,7 @@ import { DatabaseSync } from "node:sqlite";
 import { makeSqlRounds, secureRandomBytes } from "./SqlRounds.ts";
 
 const migrationsDir = new URL("../migrations/", import.meta.url);
-const weekMs = 7 * 24 * 3600_000;
+const weekMs = 7 * 24 * 3_600_000;
 const start = DateTime.toEpochMillis(DateTime.makeUnsafe({ year: 2026, month: 1, day: 5 }));
 const qv = QuestionVersionId.make("qv-1");
 
@@ -31,7 +31,7 @@ const seed = (db: DatabaseSync): void => {
     db.prepare(
       `INSERT INTO round (id, pulse_id, team_id, status, planned_open_date, planned_open_at, planned_close_at, effective_minimum_group_size, pulse_name, answer_window_days, reminders, anonymity_mode, distribution, created_at, updated_at)
        VALUES (?, 'pulse-1', 'team-1', 'shared', ?, ?, ?, 4, 'Pulse 1', 3, 1, 'anonymous', 'invitation', 1000, 1000)`,
-    ).run(`round-${i}`, date, openAt, openAt + 3 * 24 * 3600_000);
+    ).run(`round-${i}`, date, openAt, openAt + 3 * 24 * 3_600_000);
     const result = calculateRoundResult({
       roundId: RoundId.make(`round-${i}`),
       pulseId: PulseId.make("pulse-1"),
@@ -70,7 +70,7 @@ const seed = (db: DatabaseSync): void => {
   db.prepare(
     `INSERT INTO round (id, pulse_id, team_id, status, planned_open_date, planned_open_at, planned_close_at, pulse_name, answer_window_days, reminders, anonymity_mode, distribution, created_at, updated_at)
      VALUES ('other-round', 'pulse-2', 'team-1', 'open', '2026-01-05', ?, ?, 'Pulse 2', 3, 1, 'anonymous', 'invitation', 1000, 1000)`,
-  ).run(start, start + 3 * 24 * 3600_000);
+  ).run(start, start + 3 * 24 * 3_600_000);
   for (const person of ["p-1", "p-2", "p-3"]) {
     db.prepare("INSERT INTO person (id, email) VALUES (?, ?)").run(person, `${person}@example.com`);
   }

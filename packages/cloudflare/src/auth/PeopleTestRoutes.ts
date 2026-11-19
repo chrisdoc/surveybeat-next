@@ -1,6 +1,5 @@
 import type * as Cloudflare from "@alchemy.run/cloudflare";
 import {
-  type CheckedSession,
   EmailAddress,
   identityOf,
   MembershipId,
@@ -14,14 +13,13 @@ import {
   SendId,
   SessionId,
   SessionIdentityProvider,
-  type SignedInSession,
   sessionState,
   TeamId,
   TimeZone,
   AuthUserId,
-  type Member,
   Unauthenticated,
 } from "@surveybeat/domain";
+import type { CheckedSession, SignedInSession, Member } from "@surveybeat/domain";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";

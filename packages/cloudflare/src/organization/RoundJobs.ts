@@ -7,27 +7,29 @@ import {
   calculateRoundInstants,
   calculateRoundResult,
   delayedRoundResult,
-  type DirectoryState,
   emailLocaleOf,
   enforceEffectiveNOnResult,
-  type FrozenRoundMember,
   hashToken,
-  type InvitationTokenRef,
   JobId,
   nextRetryAt,
   PersonId,
-  type PulseId,
-  type PulseState,
-  type QuestionVersionId,
   RoundId,
-  type RoundRecord,
   runThemesAttempt,
   SendId,
   shouldRequestThemes,
-  type makeSendStore,
-  type StoredEmail,
-  type TeamId,
-  type TransactionalEmail,
+} from "@surveybeat/domain";
+import type {
+  DirectoryState,
+  FrozenRoundMember,
+  InvitationTokenRef,
+  PulseId,
+  PulseState,
+  QuestionVersionId,
+  RoundRecord,
+  makeSendStore,
+  StoredEmail,
+  TeamId,
+  TransactionalEmail,
 } from "@surveybeat/domain";
 import * as Clock from "effect/Clock";
 import * as Effect from "effect/Effect";
@@ -63,7 +65,7 @@ export const reviewEndsAtOf = (pulseState: PulseState, pulseId: PulseId, now: nu
 };
 
 export const firstRatingQuestionOf = (
-  questionVersionIds: ReadonlyArray<QuestionVersionId>,
+  questionVersionIds: readonly QuestionVersionId[],
   pulseState: PulseState,
 ) => {
   const firstVersionId = questionVersionIds[0];
@@ -196,7 +198,7 @@ export const makeRoundJobs = ({
         round.answerWindowDays,
       );
 
-      const frozenMembers: ReadonlyArray<FrozenRoundMember> = activeMembers.map((m, idx) => {
+      const frozenMembers: readonly FrozenRoundMember[] = activeMembers.map((m, idx) => {
         const tz = memberTimeZones[idx] ?? team.timeZone;
         const sendAt = instants.sends.find((s) => s.timeZone === tz)?.sendAt ?? instants.openInstant;
         return {
@@ -414,7 +416,7 @@ export const makeRoundJobs = ({
         return;
       }
 
-      if (now >= round.plannedCloseAt - 2 * 3600_000) {
+      if (now >= round.plannedCloseAt - 2 * 3_600_000) {
         yield* rounds.markJobCompleted(jobId, now);
         return;
       }
@@ -533,7 +535,7 @@ export const makeRoundJobs = ({
       yield* executeComputeJob(computeJobId, roundId, now);
     });
 
-  const scheduleResultsReady = (round: RoundRecord, personIds: ReadonlyArray<PersonId>, now: number) =>
+  const scheduleResultsReady = (round: RoundRecord, personIds: readonly PersonId[], now: number) =>
     Effect.gen(function* () {
       const dirState = yield* directory.load;
       const team = dirState.teams.find((t) => t.id === round.teamId);
@@ -796,17 +798,20 @@ export const makeRoundJobs = ({
             return;
           }
           switch (decision._tag) {
-            case "Store":
+            case "Store": {
               yield* rounds.storeThemes(roundId, decision.themes, now);
               yield* rounds.markJobCompleted(jobId, now);
               return;
-            case "RetryAt":
+            }
+            case "RetryAt": {
               yield* rounds.recordThemesAttemptFailed(roundId, decision.attempts);
               yield* rounds.updateJobDueAtById(jobId, decision.dueAt);
               return;
-            case "GiveUp":
+            }
+            case "GiveUp": {
               yield* rounds.giveUpThemes(roundId, now);
               yield* rounds.markJobCompleted(jobId, now);
+            }
           }
         }),
       );

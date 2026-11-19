@@ -1,17 +1,7 @@
 import { Context, Effect, Layer, Option, Ref, Semaphore } from "effect";
 import type { EmailAddress, SendId, StoredEmail } from "./Email.ts";
-import {
-  abandon,
-  claim,
-  type DeliveryEventKind,
-  pending,
-  recordDeliveryEvent,
-  requeue,
-  type SendOutcome,
-  type SendPolicy,
-  type SendState,
-  settle,
-} from "./SendState.ts";
+import { abandon, claim, pending, recordDeliveryEvent, requeue, settle } from "./SendState.ts";
+import type { DeliveryEventKind, SendOutcome, SendPolicy, SendState } from "./SendState.ts";
 
 export interface SendRecord {
   readonly id: SendId;
@@ -101,7 +91,7 @@ export const makeSendStore = (repository: SendRepository, policy: SendPolicy): S
           if (Option.isNone(record)) return { _tag: "Missing" } as const;
           const decision = claim(record.value.state, now, policy);
           switch (decision._tag) {
-            case "Send":
+            case "Send": {
               yield* repository.setState(id, decision.state);
               return {
                 _tag: "Send",
@@ -109,11 +99,14 @@ export const makeSendStore = (repository: SendRepository, policy: SendPolicy): S
                 recipient: record.value.recipient,
                 email: record.value.email,
               } as const;
-            case "Wait":
+            }
+            case "Wait": {
               return decision;
-            case "Finished":
+            }
+            case "Finished": {
               if (decision.changed) yield* repository.setState(id, decision.state);
               return { _tag: "Finished", state: decision.state } as const;
+            }
           }
         }),
       ),

@@ -29,12 +29,12 @@ interface AuditResult {
   fcp: number;
   lcp: number;
   tbt: number;
-  failures: Array<string>;
+  failures: string[];
 }
 
 async function main() {
   const argUrls = process.argv.slice(2);
-  let targetUrls: Array<string> = argUrls;
+  let targetUrls: string[] = argUrls;
   let server: ReturnType<typeof createServer> | null = null;
 
   if (targetUrls.length === 0) {
@@ -65,7 +65,7 @@ async function main() {
               },
             ],
             actions: [],
-            closeTime: 9999999,
+            closeTime: 9_999_999,
             state: "open",
             hasAnswered: false,
           }),
@@ -91,7 +91,9 @@ async function main() {
       res.end(enHtml);
     });
 
-    await new Promise<void>((res) => server?.listen(port, res));
+    await new Promise<void>((res) => {
+      server?.listen(port, res);
+    });
     targetUrls = [`http://127.0.0.1:${port}/a#t=test-token-123&v=4`];
     console.log(`Local test server running at http://127.0.0.1:${port}`);
   }
@@ -99,8 +101,8 @@ async function main() {
   const lighthouseBin = resolve(import.meta.dirname, "../node_modules/.bin/lighthouse");
 
   const findChrome = (): string | undefined => {
-    if (process.env["CHROME_PATH"]) return process.env["CHROME_PATH"];
-    const base = resolve(process.env["HOME"] ?? "/home/ubuntu", ".cache/ms-playwright");
+    if (process.env.CHROME_PATH) return process.env.CHROME_PATH;
+    const base = resolve(process.env.HOME ?? "/home/ubuntu", ".cache/ms-playwright");
     if (!existsSync(base)) return undefined;
     for (const entry of ["chromium_headless_shell-1248", "chromium-1248"]) {
       const dir = resolve(base, entry);
@@ -131,7 +133,7 @@ async function main() {
       ];
       const env = { ...process.env };
       if (chromePath) {
-        env["CHROME_PATH"] = chromePath;
+        env.CHROME_PATH = chromePath;
       }
       const useLocalBin = existsSync(lighthouseBin);
       const cmd = useLocalBin ? lighthouseBin : "pnpm";
@@ -149,13 +151,13 @@ async function main() {
         try {
           const parsed: LighthouseResult = JSON.parse(stdout);
           resolvePromise(parsed);
-        } catch (e) {
-          reject(e);
+        } catch (error) {
+          reject(error);
         }
       });
     });
 
-  const median = (values: ReadonlyArray<number>): number => {
+  const median = (values: readonly number[]): number => {
     const sorted = [...values].sort((a, b) => a - b);
     return sorted[Math.floor(sorted.length / 2)] ?? 0;
   };
@@ -164,7 +166,7 @@ async function main() {
   const auditUrl = async (targetUrl: string): Promise<AuditResult> => {
     console.log(`\nRunning Lighthouse audit on ${targetUrl} (1 warm-up, ${RUNS} measured runs)...`);
     await runLighthouse(targetUrl);
-    const runs: Array<{ fcp: number; lcp: number; tbt: number }> = [];
+    const runs: { fcp: number; lcp: number; tbt: number }[] = [];
     for (let run = 1; run <= RUNS; run++) {
       const report = await runLighthouse(targetUrl);
       const measured = {
@@ -181,7 +183,7 @@ async function main() {
     const lcp = median(runs.map((run) => run.lcp));
     const tbt = median(runs.map((run) => run.tbt));
 
-    const failures: Array<string> = [];
+    const failures: string[] = [];
     if (fcp > FCP_BUDGET)
       failures.push(`median FCP ${Math.round(fcp)} ms exceeds budget of ${FCP_BUDGET} ms`);
     if (lcp > LCP_BUDGET)
@@ -192,7 +194,7 @@ async function main() {
   };
 
   try {
-    const results: Array<AuditResult> = [];
+    const results: AuditResult[] = [];
     for (const targetUrl of targetUrls) {
       results.push(await auditUrl(targetUrl));
     }
@@ -222,7 +224,7 @@ async function main() {
   }
 }
 
-main().catch((err: unknown) => {
-  console.error("Error running Lighthouse gate:", err);
+main().catch((error: unknown) => {
+  console.error("Error running Lighthouse gate:", error);
   process.exit(1);
 });

@@ -1,5 +1,6 @@
 import type { SqliteClient } from "@effect/sql-sqlite-do";
-import { type RoundNote, RoundId, TeamId } from "@surveybeat/domain";
+import { RoundId } from "@surveybeat/domain";
+import type { TeamId, RoundNote } from "@surveybeat/domain";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 

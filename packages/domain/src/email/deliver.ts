@@ -2,8 +2,10 @@ import { Clock, Duration, Effect, Option } from "effect";
 import type { SendId } from "./Email.ts";
 import { EmailSender } from "./EmailSender.ts";
 import { EmailTemplates } from "./EmailTemplates.ts";
-import { type SendOutcome, type SendState, retryDelaySeconds } from "./SendState.ts";
-import { type ClaimResult, SendStore } from "./SendStore.ts";
+import { retryDelaySeconds } from "./SendState.ts";
+import type { SendOutcome, SendState } from "./SendState.ts";
+import { SendStore } from "./SendStore.ts";
+import type { ClaimResult } from "./SendStore.ts";
 
 export const sendTimeout = Duration.seconds(30);
 
@@ -15,10 +17,12 @@ export const deliver = Effect.fn("deliver")(function* (id: SendId) {
   const store = yield* SendStore;
   const claimed = yield* store.claim(id, yield* Clock.currentTimeMillis);
   switch (claimed._tag) {
-    case "Missing":
+    case "Missing": {
       return done(null);
-    case "Finished":
+    }
+    case "Finished": {
       return done(claimed.state);
+    }
     case "Wait": {
       const now = yield* Clock.currentTimeMillis;
       return retryAfter(Math.max(1, Math.ceil((claimed.until - now) / 1000)));

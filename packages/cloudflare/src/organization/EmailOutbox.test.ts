@@ -1,13 +1,8 @@
 import type * as Cloudflare from "@alchemy.run/cloudflare";
 import { SqliteClient } from "@effect/sql-sqlite-do";
 import { assert, describe, it } from "@effect/vitest";
-import {
-  EmailAddress,
-  SendId,
-  type RequeueResult,
-  type SendState,
-  type SendStoreShape,
-} from "@surveybeat/domain";
+import { EmailAddress, SendId } from "@surveybeat/domain";
+import type { RequeueResult, SendState, SendStoreShape } from "@surveybeat/domain";
 import { migratedDatabase, SqliteStorage } from "@surveybeat/testing";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
@@ -40,9 +35,9 @@ const setUp = (options: { readonly onBatch?: () => void; readonly failSend?: boo
       >,
     }).pipe(Effect.provideService(Scope.Scope, yield* Scope.make()), Effect.provide(Reactivity.layer));
 
-    const batches: Array<ReadonlyArray<unknown>> = [];
+    const batches: (readonly unknown[])[] = [];
     const queue = {
-      sendBatch: (messages: ReadonlyArray<{ readonly body: unknown }>) =>
+      sendBatch: (messages: readonly { readonly body: unknown }[]) =>
         options.failSend === true
           ? Effect.die("queue unavailable")
           : Effect.sync(() => {

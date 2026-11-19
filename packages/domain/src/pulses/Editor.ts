@@ -1,40 +1,34 @@
 import { Option } from "effect";
 import type { SendState } from "../email/SendState.ts";
 import { Policy } from "../Policy.ts";
-import {
-  actorOf,
-  type DirectoryState,
-  emailLocaleOf,
-  type PersonRecord,
-  teamSummaryOf,
-} from "../people/Directory.ts";
+import { actorOf, emailLocaleOf, teamSummaryOf } from "../people/Directory.ts";
+import type { DirectoryState, PersonRecord } from "../people/Directory.ts";
 import type { PersonId } from "../people/Identity.ts";
 import type { Locale } from "../people/Locale.ts";
-import { type Actor, can, type TeamAction } from "../people/Permissions.ts";
+import { can } from "../people/Permissions.ts";
+import type { Actor, TeamAction } from "../people/Permissions.ts";
 import type { TeamId } from "../people/Team.ts";
 import {
   MAX_QUESTIONS,
   MIN_QUESTIONS,
-  type PulseDetail,
-  type PulseId,
-  type PulseList,
-  type PulseQuestion,
-  type PulseSettings,
-  type PulseWarning,
   RECOMMENDED_MAX_SECONDS,
   SendTime,
-  type NewPulseQuestion,
   testInvitationLifetimeMs,
-  type TestSendStatus,
 } from "./Pulse.ts";
-import {
-  firstVersionId,
-  type QuestionContent,
-  QuestionId,
-  type QuestionType,
-  type QuestionVersionId,
-} from "./Question.ts";
-import { templateQuestion, type TemplateQuestionKey, weeklyTeamHealth } from "./Template.ts";
+import type {
+  PulseDetail,
+  PulseId,
+  PulseList,
+  PulseQuestion,
+  PulseSettings,
+  PulseWarning,
+  NewPulseQuestion,
+  TestSendStatus,
+} from "./Pulse.ts";
+import { firstVersionId, QuestionId } from "./Question.ts";
+import type { QuestionContent, QuestionType, QuestionVersionId } from "./Question.ts";
+import { templateQuestion, weeklyTeamHealth } from "./Template.ts";
+import type { TemplateQuestionKey } from "./Template.ts";
 
 export interface QuestionRecord {
   readonly id: QuestionId;
@@ -56,15 +50,15 @@ export interface PulseRecord {
   readonly settings: PulseSettings;
   readonly createdAt: number;
 
-  readonly questions: ReadonlyArray<QuestionVersionId>;
+  readonly questions: readonly QuestionVersionId[];
 }
 
 export interface PulseState {
-  readonly questions: ReadonlyArray<QuestionRecord>;
-  readonly versions: ReadonlyArray<QuestionVersionRecord>;
-  readonly pulses: ReadonlyArray<PulseRecord>;
+  readonly questions: readonly QuestionRecord[];
+  readonly versions: readonly QuestionVersionRecord[];
+  readonly pulses: readonly PulseRecord[];
 
-  readonly answered: ReadonlyArray<QuestionVersionId>;
+  readonly answered: readonly QuestionVersionId[];
 }
 
 export const EMPTY_PULSE_STATE: PulseState = { questions: [], versions: [], pulses: [], answered: [] };
@@ -101,7 +95,7 @@ export type PulseCommand =
       readonly _tag: "ReorderQuestions";
       readonly teamId: TeamId;
       readonly pulseId: PulseId;
-      readonly order: ReadonlyArray<QuestionId>;
+      readonly order: readonly QuestionId[];
     };
 
 export type PulseChange =
@@ -121,7 +115,7 @@ export type PulseChange =
   | {
       readonly _tag: "PulseQuestionsSet";
       readonly pulseId: PulseId;
-      readonly questions: ReadonlyArray<QuestionVersionId>;
+      readonly questions: readonly QuestionVersionId[];
     };
 
 export type PulseRejection =
@@ -139,14 +133,14 @@ export type PulseRejection =
 
 export type PulseDecision =
   | { readonly _tag: "Rejected"; readonly rejection: PulseRejection }
-  | { readonly _tag: "Accepted"; readonly changes: ReadonlyArray<PulseChange> };
+  | { readonly _tag: "Accepted"; readonly changes: readonly PulseChange[] };
 
 export type PulseViewed<A> =
   | { readonly _tag: "Viewed"; readonly value: A }
   | { readonly _tag: "Rejected"; readonly rejection: PulseRejection };
 
 const reject = (rejection: PulseRejection) => ({ _tag: "Rejected", rejection }) as const;
-const accept = (changes: ReadonlyArray<PulseChange>): PulseDecision => ({ _tag: "Accepted", changes });
+const accept = (changes: readonly PulseChange[]): PulseDecision => ({ _tag: "Accepted", changes });
 
 export const defaultPulseSettings = (locale: Locale): PulseSettings => ({
   name: weeklyTeamHealth(locale).name,
@@ -158,7 +152,7 @@ export const defaultPulseSettings = (locale: Locale): PulseSettings => ({
   distribution: "invitation",
 });
 
-const SECONDS_BY_TYPE: { readonly [T in QuestionType["_tag"]]: number } = {
+const SECONDS_BY_TYPE: Readonly<Record<QuestionType["_tag"], number>> = {
   Rating: 6,
   SingleChoice: 10,
   LongText: 30,
@@ -166,15 +160,15 @@ const SECONDS_BY_TYPE: { readonly [T in QuestionType["_tag"]]: number } = {
 
 export const estimatedSeconds = (type: QuestionType): number => SECONDS_BY_TYPE[type._tag];
 
-export const estimateSeconds = (contents: ReadonlyArray<QuestionContent>): number =>
+export const estimateSeconds = (contents: readonly QuestionContent[]): number =>
   contents.reduce((total, content) => total + estimatedSeconds(content.type), 0);
 
 export const pulseWarnings = (
-  contents: ReadonlyArray<QuestionContent>,
+  contents: readonly QuestionContent[],
   members: number,
   minimumGroupSize: number,
-): ReadonlyArray<PulseWarning> => {
-  const warnings: Array<PulseWarning> = [];
+): readonly PulseWarning[] => {
+  const warnings: PulseWarning[] = [];
   if (contents.length > Policy.questions.recommended) {
     warnings.push({
       _tag: "TooManyQuestions",
@@ -311,11 +305,13 @@ export const decidePulse = (
   if (pulse === undefined) return reject({ _tag: "PulseNotFound" });
 
   switch (command._tag) {
-    case "UpdatePulseSettings":
+    case "UpdatePulseSettings": {
       return accept([{ _tag: "PulseSettingsUpdated", pulseId: pulse.id, settings: command.settings }]);
+    }
 
-    case "AddQuestion":
+    case "AddQuestion": {
       return addQuestion(state, pulse, command.question, command.questionId, locale, now);
+    }
 
     case "EditQuestion": {
       const version = versionInPulse(state, pulse, command.questionId);
@@ -393,24 +389,27 @@ export const decideTestSend = (
   return { _tag: "Allowed", person, pulse };
 };
 
-export const applyPulseChanges = (state: PulseState, changes: ReadonlyArray<PulseChange>): PulseState =>
+export const applyPulseChanges = (state: PulseState, changes: readonly PulseChange[]): PulseState =>
   changes.reduce<PulseState>((current, change) => {
     const updatePulse = (pulseId: PulseId, update: (pulse: PulseRecord) => PulseRecord) => ({
       ...current,
       pulses: current.pulses.map((pulse) => (pulse.id === pulseId ? update(pulse) : pulse)),
     });
     switch (change._tag) {
-      case "PulseAdded":
+      case "PulseAdded": {
         return { ...current, pulses: [...current.pulses, change.pulse] };
-      case "PulseSettingsUpdated":
+      }
+      case "PulseSettingsUpdated": {
         return updatePulse(change.pulseId, (pulse) => ({ ...pulse, settings: change.settings }));
-      case "QuestionAdded":
+      }
+      case "QuestionAdded": {
         return {
           ...current,
           questions: [...current.questions, change.question],
           versions: [...current.versions, change.version],
         };
-      case "QuestionRewritten":
+      }
+      case "QuestionRewritten": {
         return {
           ...current,
           questions: current.questions.map((question) =>
@@ -420,12 +419,14 @@ export const applyPulseChanges = (state: PulseState, changes: ReadonlyArray<Puls
             version.id === change.versionId ? { ...version, content: change.content } : version,
           ),
         };
-      case "PulseQuestionsSet":
+      }
+      case "PulseQuestionsSet": {
         return updatePulse(change.pulseId, (pulse) => ({ ...pulse, questions: change.questions }));
+      }
     }
   }, state);
 
-const questionsOf = (state: PulseState, pulse: PulseRecord): ReadonlyArray<PulseQuestion> =>
+const questionsOf = (state: PulseState, pulse: PulseRecord): readonly PulseQuestion[] =>
   pulse.questions.flatMap((versionId) => {
     const version = versionOf(state, versionId);
     const question = state.questions.find((each) => each.id === version?.questionId);
@@ -520,22 +521,26 @@ export interface TestSendFound {
 
 export const testSendStatusOf = (state: SendState, queuedAt: number, checkedAt: number): TestSendStatus => {
   switch (state._tag) {
-    case "Pending":
+    case "Pending": {
       return {
         queuedAt,
         checkedAt,
         state: { _tag: "Queued", attempts: state.attempts, lastCode: state.lastCode },
       };
-    case "Sending":
+    }
+    case "Sending": {
       return { queuedAt, checkedAt, state: { _tag: "Sending", attempt: state.attempt } };
-    case "Sent":
+    }
+    case "Sent": {
       return { queuedAt, checkedAt, state: { _tag: "Sent", sentAt: state.sentAt } };
-    case "Failed":
+    }
+    case "Failed": {
       return {
         queuedAt,
         checkedAt,
         state: { _tag: "Failed", reason: state.reason, code: state.code, failedAt: state.failedAt },
       };
+    }
   }
 };
 

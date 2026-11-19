@@ -1,9 +1,8 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 
-const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+const root = join(import.meta.dirname, "..", "..");
 const workspacePath = join(root, "pnpm-workspace.yaml");
 const revisionPath = join(root, "scripts", "typecheck", "tsrs-revision.json");
 

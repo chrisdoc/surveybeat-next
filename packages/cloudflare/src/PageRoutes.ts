@@ -1,5 +1,6 @@
 import type * as Cloudflare from "@alchemy.run/cloudflare";
-import { DELIVERY_PAGE_PATH, decodePageBody, type PageBody, UNSUBSCRIBE_PAGE_PATH } from "@surveybeat/api";
+import { DELIVERY_PAGE_PATH, decodePageBody, UNSUBSCRIBE_PAGE_PATH } from "@surveybeat/api";
+import type { PageBody } from "@surveybeat/api";
 import { hashToken } from "@surveybeat/domain";
 import { messagesFor } from "@surveybeat/emails";
 import * as Effect from "effect/Effect";
@@ -110,7 +111,7 @@ export const pageRoutes = (organizations: Organizations, database: Cloudflare.D1
           .setPersonTimeZone(row.person_id, timeZone)
           .pipe(Effect.orDie);
 
-        const acceptHeader = request.headers["accept"] ?? "";
+        const acceptHeader = request.headers.accept ?? "";
         if (acceptHeader.includes("application/json")) {
           return yield* HttpServerResponse.json({ ok: true, timeZone }).pipe(Effect.orDie);
         }

@@ -4,16 +4,13 @@ import { EmailAddress } from "../email/Email.ts";
 import {
   actorOf,
   applyChanges,
-  type Decision,
   decide,
-  type DirectoryCommand,
-  type DirectoryState,
   emailLocaleOf,
-  type NewMember,
   settingsView,
   teamsView,
   teamView,
 } from "./Directory.ts";
+import type { Decision, DirectoryCommand, DirectoryState, NewMember } from "./Directory.ts";
 import { PersonId, AuthUserId } from "./Identity.ts";
 import { MembershipId, MinimumGroupSize, TeamId, TimeZone } from "./Team.ts";
 
@@ -44,7 +41,7 @@ const initial: DirectoryState = {
 class World {
   state = initial;
   private ids = 0;
-  now = 1_000 * DAY;
+  now = 1000 * DAY;
 
   newMember(email: string): NewMember {
     const n = ++this.ids;
@@ -193,8 +190,8 @@ describe("Leads", () => {
     const ada = world.personWith("ada@example.com");
     const history = world.state.memberships.filter((membership) => membership.personId === ada);
     expect(history.map(({ role, startedAt, endedAt }) => ({ role, startedAt, endedAt }))).toEqual([
-      { role: "member", startedAt: 1_000 * DAY, endedAt: 1_001 * DAY },
-      { role: "lead", startedAt: 1_001 * DAY, endedAt: null },
+      { role: "member", startedAt: 1000 * DAY, endedAt: 1001 * DAY },
+      { role: "lead", startedAt: 1001 * DAY, endedAt: null },
     ]);
   });
 
@@ -255,8 +252,8 @@ describe("removing", () => {
     expect(world.roster(platform)).toEqual(["lead grace@example.com"]);
     expect(world.state.people.find((person) => person.id === ada)?.removedAt).toBeNull();
     expect(world.state.memberships.find((membership) => membership.personId === ada)).toMatchObject({
-      startedAt: 1_000 * DAY,
-      endedAt: 1_003 * DAY,
+      startedAt: 1000 * DAY,
+      endedAt: 1003 * DAY,
     });
     expect(rejection(world.run(ADMIN, { _tag: "RemoveMember", teamId: platform, personId: ada }))).toBe(
       "PersonNotFound",
@@ -273,9 +270,9 @@ describe("removing", () => {
     world.now += DAY;
     const removed = world.ok(ADMIN, { _tag: "RemovePerson", personId: ada });
 
-    expect(world.state.people.find((person) => person.id === ada)?.removedAt).toBe(1_001 * DAY);
+    expect(world.state.people.find((person) => person.id === ada)?.removedAt).toBe(1001 * DAY);
     const history = world.state.memberships.filter((membership) => membership.personId === ada);
-    expect(history.map((membership) => membership.endedAt)).toEqual([1_001 * DAY, 1_001 * DAY]);
+    expect(history.map((membership) => membership.endedAt)).toEqual([1001 * DAY, 1001 * DAY]);
     expect(Option.isNone(actorOf(world.state, ada))).toBe(true);
     // The index forgets them; the Organization owns everything else.
     expect(removed.followUps).toEqual([{ _tag: "UnindexPerson", personId: ada }]);
@@ -418,7 +415,7 @@ describe("Organization admins", () => {
         personId: ADMIN,
         email: "admin@example.com",
         role: "member",
-        since: 1_001 * DAY,
+        since: 1001 * DAY,
       });
     }
   });

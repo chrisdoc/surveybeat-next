@@ -1,6 +1,7 @@
 // @effect-diagnostics asyncFunction:off -- one POST against a fetch handle the caller supplies; the async function is the adapter's edge, and the Effect starts at its caller.
 
-import { AiClient, AiNotConfigured, AiRejected, AiUnavailable, type AiRequest } from "@surveybeat/domain";
+import { AiClient, AiNotConfigured, AiRejected, AiUnavailable } from "@surveybeat/domain";
+import type { AiRequest } from "@surveybeat/domain";
 import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -20,12 +21,12 @@ export interface OpenRouterBody {
   readonly model: typeof MODEL;
   readonly provider: {
     readonly zdr: true;
-    readonly only: ReadonlyArray<string>;
-    readonly order: ReadonlyArray<string>;
+    readonly only: readonly string[];
+    readonly order: readonly string[];
     readonly allow_fallbacks: false;
     readonly data_collection: "deny";
   };
-  readonly messages: ReadonlyArray<{ readonly role: "system" | "user"; readonly content: string }>;
+  readonly messages: readonly { readonly role: "system" | "user"; readonly content: string }[];
   readonly response_format: {
     readonly type: "json_schema";
     readonly json_schema: {
@@ -122,7 +123,7 @@ const parseReply = (response: Response) =>
   });
 
 export const makeOpenRouterAiClient = (
-  apiKey: Redacted.Redacted<string> | undefined,
+  apiKey: Redacted.Redacted | undefined,
   options: {
     readonly fetch?: typeof fetch;
     readonly sleep?: (ms: number) => Effect.Effect<void>;

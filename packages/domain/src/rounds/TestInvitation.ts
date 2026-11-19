@@ -1,4 +1,5 @@
-import { redact, type Roster } from "../privacy/Redaction.ts";
+import { redact } from "../privacy/Redaction.ts";
+import type { Roster } from "../privacy/Redaction.ts";
 import type { PulseId } from "../pulses/Pulse.ts";
 import type { QuestionType, QuestionVersionId } from "../pulses/Question.ts";
 import { RoundId } from "./Round.ts";
@@ -8,12 +9,12 @@ export const testSubmissionContext = (input: {
   readonly pulseName: string;
   readonly minimumGroupSize: number;
   readonly pulseId: PulseId;
-  readonly questions: ReadonlyArray<{
+  readonly questions: readonly {
     readonly id: QuestionVersionId;
     readonly text: string;
     readonly type: QuestionType;
-  }>;
-  readonly actions: ReadonlyArray<{ readonly id: string; readonly title: string }>;
+  }[];
+  readonly actions: readonly { readonly id: string; readonly title: string }[];
   readonly expiresAt: number;
   readonly aiProcessing: boolean;
 }): SubmissionRoundContext => ({
@@ -35,7 +36,7 @@ export const testSubmissionContext = (input: {
 });
 
 export const previewAnswers = (
-  answers: ReadonlyArray<SubmissionAnswer>,
+  answers: readonly SubmissionAnswer[],
   roster: Roster,
 ): { readonly shownToLead: string | null } => {
   let shownToLead: string | null = null;

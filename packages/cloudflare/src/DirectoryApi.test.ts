@@ -1,7 +1,8 @@
 // @effect-diagnostics asyncFunction:off -- the vitest runner awaits a plain Promise here; the test never enters an Effect.
 
 import { describe, expect, it } from "@effect/vitest";
-import { type OrganizationId, type PersonId, SendId, type SendState } from "@surveybeat/domain";
+import { SendId } from "@surveybeat/domain";
+import type { OrganizationId, PersonId, SendState } from "@surveybeat/domain";
 import { Browser, ORIGIN, SignInWorld } from "./testing.ts";
 
 /**
@@ -385,7 +386,7 @@ describe("a member", () => {
 describe("every directory endpoint", () => {
   const team = { name: "X", timeZone: "UTC", leadEmail: "x@example.com" };
   const email = { email: "x@example.com" };
-  const ENDPOINTS: ReadonlyArray<readonly [string, string, unknown]> = [
+  const ENDPOINTS: readonly (readonly [string, string, unknown])[] = [
     ["GET", "/api/teams", undefined],
     ["POST", "/api/teams", team],
     ["GET", "/api/teams/t", undefined],

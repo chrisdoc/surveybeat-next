@@ -1,12 +1,6 @@
 import type { CodeDelivery } from "@surveybeat/auth";
-import {
-  type EmailAccepted,
-  EmailAddress,
-  type EmailOutcomeUnknown,
-  type EmailRejected,
-  type OutgoingEmail,
-  Policy,
-} from "@surveybeat/domain";
+import { EmailAddress, Policy } from "@surveybeat/domain";
+import type { EmailAccepted, EmailOutcomeUnknown, EmailRejected, OutgoingEmail } from "@surveybeat/domain";
 import * as Effect from "effect/Effect";
 
 const CODE_MINUTES = Policy.signIn.codeMinutes;

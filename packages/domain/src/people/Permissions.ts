@@ -46,7 +46,7 @@ export type ResourceOf<A extends Action> = A extends TeamAction
 
 type Grantee = "admin" | MembershipRole;
 
-export const PERMISSIONS: { readonly [A in Action]: ReadonlyArray<Grantee> } = {
+export const PERMISSIONS: Readonly<Record<Action, readonly Grantee[]>> = {
   "organization.viewSettings": ["admin"],
   "organization.updateSettings": ["admin"],
   "organization.setAdmin": ["admin"],

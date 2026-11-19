@@ -1,23 +1,14 @@
-import { Clock, Effect, Option, type Redacted } from "effect";
+import { Clock, Effect, Option } from "effect";
+import type { Redacted } from "effect";
 import type { OrganizationCreationAllowlist, PersonId } from "./Identity.ts";
 import type { Locale } from "./Locale.ts";
 import type { OrganizationId } from "./Organization.ts";
-import {
-  candidatesFor,
-  decideSignIn,
-  Forbidden,
-  type OrganizationSummary,
-  type PersonCandidate,
-  type SessionState,
-} from "./SignIn.ts";
-import {
-  type ClaimStatus,
-  type OrganizationClaim,
-  NewIds,
-  OrganizationPeople,
-  PeopleIndex,
-} from "./SignInPorts.ts";
-import { type SignedInSession, SessionIdentityProvider } from "./SessionIdentity.ts";
+import { candidatesFor, decideSignIn, Forbidden } from "./SignIn.ts";
+import type { OrganizationSummary, PersonCandidate, SessionState } from "./SignIn.ts";
+import { NewIds, OrganizationPeople, PeopleIndex } from "./SignInPorts.ts";
+import type { ClaimStatus, OrganizationClaim } from "./SignInPorts.ts";
+import { SessionIdentityProvider } from "./SessionIdentity.ts";
+import type { SignedInSession } from "./SessionIdentity.ts";
 
 export interface Member {
   readonly organization: OrganizationSummary;
@@ -46,7 +37,7 @@ const memberOf = Effect.fnUntraced(function* (session: SignedInSession, organiza
   return Option.map(person, (active) => ({ organization, ...active }));
 });
 
-export const checkSession = Effect.fnUntraced(function* (cookie: Redacted.Redacted<string>) {
+export const checkSession = Effect.fnUntraced(function* (cookie: Redacted.Redacted) {
   const sessions = yield* SessionIdentityProvider;
   const index = yield* PeopleIndex;
 
@@ -176,9 +167,10 @@ export const sessionState = Effect.fnUntraced(function* (
 
   const decision = decideSignIn(session.identity, yield* candidatesOf(session), allowlist);
   switch (decision._tag) {
-    case "Enter":
+    case "Enter": {
       return yield* enter(session, decision.candidate);
-    case "ChooseOrganization":
+    }
+    case "ChooseOrganization": {
       return {
         session,
         state: {
@@ -186,13 +178,16 @@ export const sessionState = Effect.fnUntraced(function* (
           organizations: decision.candidates.map((candidate) => candidate.organization),
         },
       } satisfies SessionOutcome;
-    case "CreateOrganization":
+    }
+    case "CreateOrganization": {
       return {
         session,
         state: { _tag: Option.isSome(claim) ? "NotInOrganization" : "CreateOrganization" },
       } satisfies SessionOutcome;
-    case "NotInOrganization":
+    }
+    case "NotInOrganization": {
       return { session, state: { _tag: decision._tag } } satisfies SessionOutcome;
+    }
   }
 });
 
@@ -238,7 +233,7 @@ export const chooseOrganization = Effect.fnUntraced(function* (
   return yield* enter(checked.session, candidate);
 });
 
-export const signOut = Effect.fnUntraced(function* (cookie: Redacted.Redacted<string>) {
+export const signOut = Effect.fnUntraced(function* (cookie: Redacted.Redacted) {
   const sessions = yield* SessionIdentityProvider;
   const session = yield* sessions.authenticate(cookie).pipe(Effect.option);
   if (Option.isNone(session)) return yield* Effect.void;

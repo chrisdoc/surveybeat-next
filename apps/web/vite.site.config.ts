@@ -3,7 +3,8 @@
 import tailwindcss from "@tailwindcss/vite";
 import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { defineConfig, type Plugin } from "vite";
+import { defineConfig } from "vite";
+import type { Plugin } from "vite";
 import { renderSitePage } from "./src/site/render.ts";
 
 const outDir = resolve(import.meta.dirname, "dist-site");

@@ -1,25 +1,13 @@
-import {
-  EmailAddress,
-  MembershipId,
-  type RoundCommandResult,
-  type RoundResult,
-  TeamId,
-  TimeZone,
-} from "@surveybeat/domain";
+import { EmailAddress, MembershipId, TeamId, TimeZone } from "@surveybeat/domain";
+import type { RoundCommandResult, RoundResult } from "@surveybeat/domain";
 import * as Clock from "effect/Clock";
 import * as Effect from "effect/Effect";
 import { HttpServerRequest } from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as Schema from "effect/Schema";
 import type { Organizations } from "./EmailDelivery.ts";
-import {
-  type Cast,
-  commandOutcome,
-  jobsOfType,
-  openedRound,
-  statusOf,
-  viewOf,
-} from "./ReviewWindowTestRoutes.ts";
+import { commandOutcome, jobsOfType, openedRound, statusOf, viewOf } from "./ReviewWindowTestRoutes.ts";
+import type { Cast } from "./ReviewWindowTestRoutes.ts";
 
 export const RESULT_RECOVERY_TEST_ROUTE = "/__test/result-recovery";
 
@@ -62,7 +50,7 @@ const closeAndGiveUp = (cast: Cast) =>
   Effect.gen(function* () {
     yield* cast.organization.injectComputeFailures(cast.roundId, 1000);
     yield* cast.organization.runScheduleJob(cast.closeJobId, cast.closeDue);
-    const offsets: Array<number> = [0];
+    const offsets: number[] = [0];
     let job = yield* firstComputeJob(cast);
     while (job.status === "pending") {
       if (offsets.length > 50) return yield* Effect.die(new Error("compute job never gave up"));
@@ -73,8 +61,8 @@ const closeAndGiveUp = (cast: Cast) =>
     return offsets;
   });
 
-const afterGiveUp = (cast: Cast, offsets: ReadonlyArray<number>) =>
-  cast.closeDue + (offsets[offsets.length - 1] ?? 0) * MINUTE_MS + HOUR_MS;
+const afterGiveUp = (cast: Cast, offsets: readonly number[]) =>
+  cast.closeDue + (offsets.at(-1) ?? 0) * MINUTE_MS + HOUR_MS;
 
 export const resultRecoveryTestRoutes = (organizations: Organizations) =>
   Effect.gen(function* () {

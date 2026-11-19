@@ -11,7 +11,7 @@ const AllowlistFile = Schema.Record(Schema.String, Schema.NonEmptyArray(EmailAdd
 
 export const allowlistForStage = (yamlText: string, stage: string): string => {
   const lists = Schema.decodeUnknownSync(AllowlistFile)(parse(yamlText));
-  const emails = lists[stage] ?? lists["default"];
+  const emails = lists[stage] ?? lists.default;
   if (emails === undefined) {
     throw new Error(`org-creation-allowlist.yaml has no entry for stage "${stage}" and no "default" entry`);
   }

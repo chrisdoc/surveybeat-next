@@ -4,7 +4,7 @@ import * as Random from "effect/Random";
 
 export const K = 200;
 
-export const SEEDS: ReadonlyArray<string> = ["a4-alpha", "a4-bravo", "a4-charlie"];
+export const SEEDS: readonly string[] = ["a4-alpha", "a4-bravo", "a4-charlie"];
 
 export const MAX_MATCHES = 2;
 
@@ -13,9 +13,9 @@ export type Row = Readonly<Record<string, unknown>>;
 export interface Table {
   readonly name: string;
 
-  readonly key: ReadonlyArray<string>;
+  readonly key: readonly string[];
 
-  readonly rows: ReadonlyArray<Row>;
+  readonly rows: readonly Row[];
 }
 
 export interface Dump {
@@ -47,11 +47,11 @@ export interface AttackResult {
 export interface SeedReport {
   readonly seed: string;
   readonly k: number;
-  readonly attacks: ReadonlyArray<AttackResult>;
+  readonly attacks: readonly AttackResult[];
 }
 
 export class LinkableDump extends Data.TaggedError("LinkableDump")<{
-  readonly violations: ReadonlyArray<{ readonly seed: string } & AttackResult>;
+  readonly violations: readonly ({ readonly seed: string } & AttackResult)[];
 }> {
   override get message() {
     return this.violations
@@ -76,13 +76,13 @@ export const seededRandomBytes: Effect.Effect<(size: number) => Uint8Array> = Ef
 
 export const measure = <E, R>(
   makeSubject: Effect.Effect<Subject<E, R>, E, R>,
-  options: { readonly k?: number; readonly seeds?: ReadonlyArray<string> } = {},
-): Effect.Effect<ReadonlyArray<SeedReport>, E, R> => {
+  options: { readonly k?: number; readonly seeds?: readonly string[] } = {},
+): Effect.Effect<readonly SeedReport[], E, R> => {
   const k = options.k ?? K;
   return Effect.forEach(options.seeds ?? SEEDS, (seed) =>
     Effect.gen(function* () {
       const subject = yield* makeSubject;
-      const participants: Array<Participant> = [];
+      const participants: Participant[] = [];
       for (let i = 0; i < k; i++) {
         participants.push({ person: `person-${yield* randomHex()}`, answer: `answer-${yield* randomHex()}` });
       }
@@ -95,8 +95,8 @@ export const measure = <E, R>(
 
 export const assertUnlinkable = <E, R>(
   makeSubject: Effect.Effect<Subject<E, R>, E, R>,
-  options: { readonly k?: number; readonly seeds?: ReadonlyArray<string> } = {},
-): Effect.Effect<ReadonlyArray<SeedReport>, E | LinkableDump, R> =>
+  options: { readonly k?: number; readonly seeds?: readonly string[] } = {},
+): Effect.Effect<readonly SeedReport[], E | LinkableDump, R> =>
   measure(makeSubject, options).pipe(
     Effect.flatMap((reports) => {
       const violations = reports.flatMap((report) =>
@@ -108,12 +108,9 @@ export const assertUnlinkable = <E, R>(
     }),
   );
 
-type Guess = ReadonlyArray<ReadonlyArray<number>>;
+type Guess = readonly (readonly number[])[];
 
-export const runAttacks = (
-  dump: Dump,
-  participants: ReadonlyArray<Participant>,
-): ReadonlyArray<AttackResult> => {
+export const runAttacks = (dump: Dump, participants: readonly Participant[]): readonly AttackResult[] => {
   const truth = trueSubmissionOf(dump, participants);
   const score = (guess: Guess) =>
     guess.reduce(
@@ -121,8 +118,8 @@ export const runAttacks = (
       0,
     );
   const { participation, submission } = dump;
-  const byRank = (pOrder: ReadonlyArray<number>, sOrder: ReadonlyArray<number>): Guess => {
-    const guess: Array<Array<number>> = participation.rows.map(() => []);
+  const byRank = (pOrder: readonly number[], sOrder: readonly number[]): Guess => {
+    const guess: number[][] = participation.rows.map(() => []);
     pOrder.forEach((p, rank) => {
       const s = sOrder[rank];
       if (s !== undefined) guess[p] = [s];
@@ -130,7 +127,7 @@ export const runAttacks = (
     return guess;
   };
 
-  const results: Array<AttackResult> = [
+  const results: AttackResult[] = [
     {
       attack: "rank",
       matches: score(byRank(indices(participation.rows), indices(submission.rows))),
@@ -156,7 +153,7 @@ export const runAttacks = (
   let best: AttackResult = { attack: "sharedColumns", matches: 0, detail: "no column pairs" };
   for (const pColumn of columns(participation)) {
     for (const sColumn of columns(submission)) {
-      const bySValue = new Map<string, Array<number>>();
+      const bySValue = new Map<string, number[]>();
       submission.rows.forEach((row, s) => {
         const value = valueKey(row[sColumn]);
         bySValue.set(value, [...(bySValue.get(value) ?? []), s]);
@@ -176,8 +173,8 @@ export const runAttacks = (
   return results;
 };
 
-const trueSubmissionOf = (dump: Dump, participants: ReadonlyArray<Participant>): ReadonlyArray<number> => {
-  const locate = (table: Table, values: ReadonlyArray<string>): ReadonlyArray<number> => {
+const trueSubmissionOf = (dump: Dump, participants: readonly Participant[]): readonly number[] => {
+  const locate = (table: Table, values: readonly string[]): readonly number[] => {
     if (table.rows.length !== values.length) {
       throw new Error(`${table.name} has ${table.rows.length} rows, expected ${values.length}`);
     }
@@ -204,13 +201,13 @@ const trueSubmissionOf = (dump: Dump, participants: ReadonlyArray<Participant>):
   return participantOfP.map((participant) => submissionOfParticipant.get(participant) ?? -1);
 };
 
-const indices = (rows: ReadonlyArray<Row>): ReadonlyArray<number> => rows.map((_, i) => i);
+const indices = (rows: readonly Row[]): readonly number[] => rows.map((_, i) => i);
 
-const columns = (table: Table): ReadonlyArray<string> => [
+const columns = (table: Table): readonly string[] => [
   ...new Set(table.rows.flatMap((row) => Object.keys(row))),
 ];
 
-const sortBy = (table: Table, key: ReadonlyArray<string>): ReadonlyArray<number> =>
+const sortBy = (table: Table, key: readonly string[]): readonly number[] =>
   indices(table.rows).toSorted((a, b) => {
     for (const column of key) {
       const order = compareValues(table.rows[a]?.[column], table.rows[b]?.[column]);

@@ -1,9 +1,11 @@
 import { Schema } from "effect";
-import { ActionId, type ActionStatus } from "../actions/Action.ts";
+import { ActionId } from "../actions/Action.ts";
+import type { ActionStatus } from "../actions/Action.ts";
 import { TeamId } from "../people/Team.ts";
 import { Dimension } from "../pulses/Question.ts";
 import { RoundId } from "./Round.ts";
-import { enforceEffectiveNOnResult, type RoundResult } from "./Results.ts";
+import { enforceEffectiveNOnResult } from "./Results.ts";
+import type { RoundResult } from "./Results.ts";
 
 export const OverviewRound = Schema.Struct({
   roundId: RoundId,
@@ -53,9 +55,9 @@ const pointScore = (result: RoundResult, dimension: Dimension): number | null =>
 
 export const buildTeamOverview = (params: {
   readonly teamId: TeamId;
-  readonly results: ReadonlyArray<RoundResult>;
+  readonly results: readonly RoundResult[];
   readonly minimumGroupSize: number;
-  readonly actions: ReadonlyArray<OverviewActionInput>;
+  readonly actions: readonly OverviewActionInput[];
 }): TeamOverview => {
   const shared = params.results
     .filter((result) => result.status === "shared")
@@ -64,7 +66,7 @@ export const buildTeamOverview = (params: {
       (a, b) => compareStrings(a.plannedOpenDate, b.plannedOpenDate) || compareStrings(a.roundId, b.roundId),
     );
 
-  const dimensions: Array<DimensionOverview> = [];
+  const dimensions: DimensionOverview[] = [];
   for (const dimension of Dimension.literals) {
     const asked = shared.some((result) =>
       result.questions.some(
@@ -78,7 +80,7 @@ export const buildTeamOverview = (params: {
     });
   }
 
-  const markers: Array<ActionMarker> = [];
+  const markers: ActionMarker[] = [];
   for (const action of params.actions) {
     if (action.status !== "committed" && action.status !== "done") continue;
     markers.push({ actionId: action.id, title: action.title, kind: "committed", at: action.createdAt });

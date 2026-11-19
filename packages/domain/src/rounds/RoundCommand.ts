@@ -1,16 +1,11 @@
 import type { DirectoryState, PersonRecord } from "../people/Directory.ts";
 import type { PersonId } from "../people/Identity.ts";
 import type { TeamId } from "../people/Team.ts";
-import { findPulse, type PulseRecord, type PulseState } from "../pulses/Editor.ts";
+import { findPulse } from "../pulses/Editor.ts";
+import type { PulseRecord, PulseState } from "../pulses/Editor.ts";
 import type { PulseId } from "../pulses/Pulse.ts";
-import {
-  authorizeRoundAction,
-  nextEightWeeksCadenceDates,
-  roundCommandRejection,
-  type RoundCommand,
-  type RoundRecord,
-  type RoundRejection,
-} from "./Lifecycle.ts";
+import { authorizeRoundAction, nextEightWeeksCadenceDates, roundCommandRejection } from "./Lifecycle.ts";
+import type { RoundCommand, RoundRecord, RoundRejection } from "./Lifecycle.ts";
 import type { RoundId } from "./Round.ts";
 
 export type RoundFacts = Pick<

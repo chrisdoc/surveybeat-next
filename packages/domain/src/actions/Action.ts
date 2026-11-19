@@ -93,9 +93,9 @@ export interface PreviousRoundInfo {
 }
 
 export const selectActionsForRound = <A extends ActionSelectionInput>(
-  actions: ReadonlyArray<A>,
+  actions: readonly A[],
   previousRound: PreviousRoundInfo | null,
-): ReadonlyArray<A> => {
+): readonly A[] => {
   const previousCutoff = previousRound ? (previousRound.openedAt ?? previousRound.plannedOpenAt) : 0;
   return actions
     .filter((action) => {

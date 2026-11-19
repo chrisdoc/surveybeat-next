@@ -1,8 +1,10 @@
 import { Schema } from "effect";
 import { TeamId } from "../people/Team.ts";
 import { QuestionType, QuestionVersionId } from "../pulses/Question.ts";
-import { enforceEffectiveNOnResult, type QuestionInput, type RoundResult } from "./Results.ts";
-import { RoundId, type RoundStatus } from "./Round.ts";
+import { enforceEffectiveNOnResult } from "./Results.ts";
+import type { QuestionInput, RoundResult } from "./Results.ts";
+import { RoundId } from "./Round.ts";
+import type { RoundStatus } from "./Round.ts";
 
 export const HistoryQuestion = Schema.Struct({
   questionVersionId: QuestionVersionId,
@@ -39,7 +41,7 @@ export interface MemberHistoryRoundInput {
   readonly pulseName: string;
   readonly plannedOpenDate: string;
   readonly status: RoundStatus;
-  readonly questions: ReadonlyArray<QuestionInput>;
+  readonly questions: readonly QuestionInput[];
   readonly result: RoundResult | null;
   readonly canViewResults: boolean;
 }
@@ -91,7 +93,7 @@ const toHistoryQuestion = (question: QuestionInput, teamScore: number | null): H
 });
 
 export const buildMemberHistory = (params: {
-  readonly rounds: ReadonlyArray<MemberHistoryRoundInput>;
+  readonly rounds: readonly MemberHistoryRoundInput[];
   readonly minimumGroupSize: number;
 }): MemberHistory => {
   const rounds = params.rounds

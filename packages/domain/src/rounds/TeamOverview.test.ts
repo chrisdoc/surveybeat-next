@@ -3,11 +3,14 @@ import * as DateTime from "effect/DateTime";
 import { ActionId } from "../actions/Action.ts";
 import { TeamId } from "../people/Team.ts";
 import { PulseId } from "../pulses/Pulse.ts";
-import { type Dimension, QuestionType, QuestionVersionId } from "../pulses/Question.ts";
-import { calculateRoundResult, type QuestionInput, type RoundResult } from "./Results.ts";
+import { QuestionVersionId } from "../pulses/Question.ts";
+import type { QuestionType, Dimension } from "../pulses/Question.ts";
+import { calculateRoundResult } from "./Results.ts";
+import type { QuestionInput, RoundResult } from "./Results.ts";
 import { RoundId } from "./Round.ts";
 import type { SubmissionAnswer } from "./Submission.ts";
-import { buildTeamOverview, type OverviewActionInput, type TeamOverview } from "./TeamOverview.ts";
+import { buildTeamOverview } from "./TeamOverview.ts";
+import type { OverviewActionInput, TeamOverview } from "./TeamOverview.ts";
 
 const TEAM = TeamId.make("team-1");
 const PULSE = PulseId.make("pulse-1");
@@ -32,14 +35,14 @@ const CLARITY_QUESTION: QuestionInput = {
   dimension: "clarity",
 };
 
-const BOTH_QUESTIONS: ReadonlyArray<QuestionInput> = [WORKLOAD_QUESTION, CLARITY_QUESTION];
+const BOTH_QUESTIONS: readonly QuestionInput[] = [WORKLOAD_QUESTION, CLARITY_QUESTION];
 
 /** Submissions that answer every given Question with the same value. */
 const submissions = (
   count: number,
-  questionIds: ReadonlyArray<QuestionVersionId>,
+  questionIds: readonly QuestionVersionId[],
   value = 4,
-): Array<{ id: string; answers: Array<SubmissionAnswer> }> =>
+): { id: string; answers: SubmissionAnswer[] }[] =>
   Array.from({ length: count }, (_, i) => ({
     id: `sub-${i}`,
     answers: questionIds.map((questionVersionId) => ({ questionVersionId, value, comment: null })),
@@ -49,8 +52,8 @@ interface RoundSpec {
   readonly roundId: string;
   readonly plannedOpenDate: string;
   readonly storedN: number;
-  readonly submissions: ReadonlyArray<{ id: string; answers: ReadonlyArray<SubmissionAnswer> }>;
-  readonly questions?: ReadonlyArray<QuestionInput>;
+  readonly submissions: readonly { id: string; answers: readonly SubmissionAnswer[] }[];
+  readonly questions?: readonly QuestionInput[];
   readonly status?: "closed" | "shared";
 }
 
@@ -74,13 +77,13 @@ const ROUND_EARLY = RoundId.make("round-early");
 const ROUND_MIDDLE = RoundId.make("round-middle");
 const ROUND_LATE = RoundId.make("round-late");
 
-const scoresOf = (overview: TeamOverview, dimension: Dimension): ReadonlyArray<number | null> | undefined =>
+const scoresOf = (overview: TeamOverview, dimension: Dimension): readonly (number | null)[] | undefined =>
   overview.dimensions.find((line) => line.dimension === dimension)?.points.map((point) => point.score);
 
 const overviewOf = (
-  results: ReadonlyArray<RoundResult>,
+  results: readonly RoundResult[],
   minimumGroupSize: number,
-  actions: ReadonlyArray<OverviewActionInput> = [],
+  actions: readonly OverviewActionInput[] = [],
 ) => buildTeamOverview({ teamId: TEAM, results, minimumGroupSize, actions });
 
 describe("buildTeamOverview rounds", () => {
@@ -261,7 +264,7 @@ describe("buildTeamOverview dimensions", () => {
 
 describe("buildTeamOverview markers", () => {
   it("places committed and done markers in time order, ignoring proposed and dropped Actions", () => {
-    const actions: ReadonlyArray<OverviewActionInput> = [
+    const actions: readonly OverviewActionInput[] = [
       {
         id: ActionId.make("action-1"),
         title: "Committed early",
@@ -304,7 +307,7 @@ describe("buildTeamOverview markers", () => {
   });
 
   it("does not place a done marker for a done Action without a doneAt", () => {
-    const actions: ReadonlyArray<OverviewActionInput> = [
+    const actions: readonly OverviewActionInput[] = [
       {
         id: ActionId.make("action-1"),
         title: "Done without time",

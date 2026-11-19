@@ -1,4 +1,5 @@
-import { Context, type Effect, type Option } from "effect";
+import { Context } from "effect";
+import type { Effect, Option } from "effect";
 import type { EmailAddress } from "../email/Email.ts";
 import type { AuthUserId, PersonId } from "./Identity.ts";
 import type { Locale } from "./Locale.ts";
@@ -18,8 +19,8 @@ export interface ClaimStatus extends OrganizationClaim {
 }
 
 export interface PeopleIndexShape {
-  readonly linkedPersons: (userId: AuthUserId) => Effect.Effect<ReadonlyArray<PersonCandidate>>;
-  readonly unlinkedPersons: (email: EmailAddress) => Effect.Effect<ReadonlyArray<PersonCandidate>>;
+  readonly linkedPersons: (userId: AuthUserId) => Effect.Effect<readonly PersonCandidate[]>;
+  readonly unlinkedPersons: (email: EmailAddress) => Effect.Effect<readonly PersonCandidate[]>;
 
   readonly putOrganization: (organization: OrganizationSummary) => Effect.Effect<void>;
 

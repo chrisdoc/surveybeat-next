@@ -4,7 +4,8 @@ import answerHtml from "../../answer.html?raw";
 import indexHtml from "../../index.html?raw";
 import siteHtml from "../../site.html?raw";
 import { catalog } from "./catalog.ts";
-import { formatDate, type Mismatched, message, pluralMessage } from "./index.ts";
+import { formatDate, message, pluralMessage } from "./index.ts";
+import type { Mismatched } from "./index.ts";
 import { message as activeMessage, messagesFor, setLocale } from "./locale.ts";
 
 describe("message catalog", () => {
@@ -113,9 +114,9 @@ describe("policy numbers in English copy", () => {
 describe("HTML entries", () => {
   const visibleText = (html: string) =>
     html
-      .replace(/<!--[\s\S]*?-->/g, "")
-      .replace(/<(script|style|title)\b[\s\S]*?<\/\1>/g, "")
-      .replace(/<[^>]*>/g, "")
+      .replaceAll(/<!--[\s\S]*?-->/g, "")
+      .replaceAll(/<(script|style|title)\b[\s\S]*?<\/\1>/g, "")
+      .replaceAll(/<[^>]*>/g, "")
       .trim();
 
   it.each([

@@ -2,7 +2,8 @@
 
 import { SqliteClient } from "@effect/sql-sqlite-do";
 import { assert, describe, it } from "@effect/vitest";
-import { EmailAddress, PersonId, type SendStoreShape } from "@surveybeat/domain";
+import { EmailAddress, PersonId } from "@surveybeat/domain";
+import type { SendStoreShape } from "@surveybeat/domain";
 import { SqliteStorage } from "@surveybeat/testing";
 import * as Effect from "effect/Effect";
 import * as Reactivity from "effect/reactivity/Reactivity";

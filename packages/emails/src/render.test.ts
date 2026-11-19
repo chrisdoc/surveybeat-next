@@ -1,7 +1,8 @@
 // @effect-diagnostics asyncFunction:off -- the vitest runner awaits a plain Promise here; the test never enters an Effect.
 
 import { describe, expect, it } from "@effect/vitest";
-import { type RenderableEmail, StoredEmail } from "@surveybeat/domain";
+import { StoredEmail } from "@surveybeat/domain";
+import type { RenderableEmail } from "@surveybeat/domain";
 import { Schema } from "effect";
 import { renderEmail } from "./render.tsx";
 import { colors } from "./theme.ts";

@@ -1,12 +1,7 @@
 import * as DateTime from "effect/DateTime";
 import {
   ActionId,
-  type ActionItem,
   EmailAddress,
-  type EmailSendProgress,
-  type FailedEmailStatus,
-  type HistoryRound,
-  type Locale,
   MinimumGroupSize,
   OrganizationId,
   PersonId,
@@ -14,16 +9,23 @@ import {
   QuestionId,
   QuestionVersionId,
   RoundId,
-  type RoundDetail,
-  type RoundResult,
-  type RoundSummary,
   SendId,
   SendTime,
   TeamId,
-  type TeamOverview,
-  type TestSendStatus,
   TemplateQuestionKey,
   TimeZone,
+} from "@surveybeat/domain";
+import type {
+  ActionItem,
+  EmailSendProgress,
+  FailedEmailStatus,
+  HistoryRound,
+  Locale,
+  RoundDetail,
+  RoundResult,
+  RoundSummary,
+  TeamOverview,
+  TestSendStatus,
 } from "@surveybeat/domain";
 import { Popover } from "@foldkit/ui";
 import { Option, Schema } from "effect";
@@ -32,7 +34,6 @@ import { setup } from "foldkit/test/vitest";
 import { fromString } from "foldkit/url";
 import { afterEach, describe, expect, it } from "vitest";
 import {
-  type Model,
   AddMember,
   AddQuestionCmd,
   AssignLead,
@@ -77,6 +78,7 @@ import {
   UpdateTeam,
   view,
 } from "./App.ts";
+import type { Model } from "./App.ts";
 import { formatDate, formatRoundDate, message, setLocale } from "../messages/locale.ts";
 import type { FailedEmailResend } from "./directory.ts";
 import type { KeptAnswers } from "./keptAnswers.ts";
@@ -481,7 +483,7 @@ describe("App Scenes", () => {
             personId,
             email: decodeEmail("alice@acme.com"),
             role: "member" as const,
-            since: 1700000000000,
+            since: 1_700_000_000_000,
           },
         ],
         may: {
@@ -581,7 +583,7 @@ describe("App Scenes", () => {
             personId,
             email: decodeEmail("alice@acme.com"),
             role: "member" as const,
-            since: 1700000000000,
+            since: 1_700_000_000_000,
           },
         ],
         may: {
@@ -629,7 +631,7 @@ describe("App Scenes", () => {
             personId,
             email: decodeEmail("alice@acme.com"),
             role: "member" as const,
-            since: 1700000000000,
+            since: 1_700_000_000_000,
           },
         ],
         may: {
@@ -670,7 +672,7 @@ describe("App Scenes", () => {
             personId: decodePersonId("person-1"),
             email: decodeEmail("alice@acme.com"),
             role: "member" as const,
-            since: 1700000000000,
+            since: 1_700_000_000_000,
           },
         ],
         may: {
@@ -1057,7 +1059,7 @@ describe("App Scenes", () => {
       },
     };
 
-    const loaded = (rounds: ReadonlyArray<HistoryRound>, keptAnswers: KeptAnswers, cleared = false) => ({
+    const loaded = (rounds: readonly HistoryRound[], keptAnswers: KeptAnswers, cleared = false) => ({
       ...initialModel(historyUrl, []),
       session: signedInAdmin,
       history: {
@@ -1110,7 +1112,7 @@ describe("App Scenes", () => {
     });
 
     it("shows the Question's own labels at 1 and 5 and a plain number from 2 to 4", () => {
-      const expectations: ReadonlyArray<readonly [number, string]> = [
+      const expectations: readonly (readonly [number, string])[] = [
         [1, "1 · Unclear"],
         [3, "3"],
         [5, "5 · Clear"],
@@ -2032,7 +2034,7 @@ describe("App Scenes", () => {
         status: "closed",
         plannedOpenDate: "2026-11-09",
         anonymityMode: "anonymous",
-        closedAt: 1731140000000,
+        closedAt: 1_731_140_000_000,
         effectiveMinimumGroupSize: 4,
         meetsMinimumGroupSize: true,
         eligibleMembersCount: 8,
@@ -2178,7 +2180,7 @@ describe("App Scenes", () => {
         status: "shared",
         plannedOpenDate: "2026-11-09",
         anonymityMode: "anonymous",
-        closedAt: 1731140000000,
+        closedAt: 1_731_140_000_000,
         effectiveMinimumGroupSize: 4,
         meetsMinimumGroupSize: false,
         eligibleMembersCount: 8,
@@ -2251,7 +2253,7 @@ describe("App Scenes", () => {
         status: "closed",
         plannedOpenDate: "2026-11-09",
         anonymityMode: "anonymous",
-        closedAt: 1731140000000,
+        closedAt: 1_731_140_000_000,
         effectiveMinimumGroupSize: 4,
         meetsMinimumGroupSize: true,
         eligibleMembersCount: 8,
@@ -2275,7 +2277,7 @@ describe("App Scenes", () => {
             personId,
             email: decodeEmail("grace@example.com"),
             role: "lead" as const,
-            since: 1700000000000,
+            since: 1_700_000_000_000,
           },
         ],
         abilities: {
@@ -2297,8 +2299,8 @@ describe("App Scenes", () => {
         dueDate: "2026-11-20",
         dimension: "workload",
         status: "committed",
-        createdAt: 1731145000000,
-        updatedAt: 1731145000000,
+        createdAt: 1_731_145_000_000,
+        updatedAt: 1_731_145_000_000,
         doneAt: null,
       };
 
@@ -2340,7 +2342,7 @@ describe("App Scenes", () => {
           Message.UpdatedAction({
             outcome: {
               _tag: "Success",
-              action: { ...committedAction, status: "done", doneAt: 1731150000000 },
+              action: { ...committedAction, status: "done", doneAt: 1_731_150_000_000 },
             },
           }),
         ),
@@ -2379,7 +2381,7 @@ describe("App Scenes", () => {
         status: "shared",
         plannedOpenDate: "2026-11-09",
         anonymityMode: "anonymous",
-        closedAt: 1731140000000,
+        closedAt: 1_731_140_000_000,
         effectiveMinimumGroupSize: 4,
         meetsMinimumGroupSize: false,
         eligibleMembersCount: 8,
@@ -2422,7 +2424,7 @@ describe("App Scenes", () => {
         status: "closed",
         plannedOpenDate: "2026-11-09",
         anonymityMode: "anonymous",
-        closedAt: 1731140000000,
+        closedAt: 1_731_140_000_000,
         effectiveMinimumGroupSize: 4,
         meetsMinimumGroupSize: true,
         eligibleMembersCount: 8,
@@ -2483,7 +2485,7 @@ describe("App Scenes", () => {
       status: "closed",
       plannedOpenDate: "2026-11-09",
       anonymityMode: "anonymous",
-      closedAt: 1731140000000,
+      closedAt: 1_731_140_000_000,
       effectiveMinimumGroupSize: 4,
       meetsMinimumGroupSize: true,
       eligibleMembersCount: 8,
@@ -2620,7 +2622,7 @@ describe("App Scenes", () => {
         status: "closed",
         plannedOpenDate: "2026-11-09",
         anonymityMode: "anonymous",
-        closedAt: 1731140000000,
+        closedAt: 1_731_140_000_000,
         effectiveMinimumGroupSize: 4,
         meetsMinimumGroupSize: true,
         eligibleMembersCount: 8,
@@ -2742,7 +2744,7 @@ describe("App Scenes", () => {
         status: "shared",
         plannedOpenDate: "2026-11-09",
         anonymityMode: "anonymous",
-        closedAt: 1731140000000,
+        closedAt: 1_731_140_000_000,
         effectiveMinimumGroupSize: 4,
         meetsMinimumGroupSize: true,
         eligibleMembersCount: 8,
@@ -2950,7 +2952,7 @@ describe("App Scenes", () => {
       status: "shared",
       plannedOpenDate: "2026-11-09",
       anonymityMode: "anonymous",
-      closedAt: 1731140000000,
+      closedAt: 1_731_140_000_000,
       effectiveMinimumGroupSize: 4,
       meetsMinimumGroupSize: true,
       eligibleMembersCount: 8,
@@ -2974,7 +2976,7 @@ describe("App Scenes", () => {
           personId,
           email: decodeEmail("grace@example.com"),
           role: "lead" as const,
-          since: 1700000000000,
+          since: 1_700_000_000_000,
         },
       ],
       abilities: {
@@ -2987,7 +2989,7 @@ describe("App Scenes", () => {
     });
 
     const noteText = "We agreed to shorten pairing sessions.";
-    const updatedAt = 1731150000000;
+    const updatedAt = 1_731_150_000_000;
     const savedNote = {
       roundId,
       text: noteText,
@@ -3148,7 +3150,7 @@ describe("App Scenes", () => {
       const teamId = decodeTeamId("team-1");
       const roundId = Schema.decodeSync(RoundId)("round-ready");
       const pulseId = decodePulseId("pulse-1");
-      const reviewEndsAt = 1731400000000;
+      const reviewEndsAt = 1_731_400_000_000;
       const reviewDate = formatDate(DateTime.makeUnsafe(reviewEndsAt));
 
       const readyResult: RoundResult = {
@@ -3158,7 +3160,7 @@ describe("App Scenes", () => {
         status: "ready",
         plannedOpenDate: "2026-11-09",
         anonymityMode: "anonymous",
-        closedAt: 1731140000000,
+        closedAt: 1_731_140_000_000,
         reviewEndsAt,
         effectiveMinimumGroupSize: 4,
         meetsMinimumGroupSize: true,
@@ -3252,7 +3254,7 @@ describe("App Scenes", () => {
         status: "closed",
         plannedOpenDate: "2026-11-09",
         anonymityMode: "anonymous",
-        closedAt: 1731140000000,
+        closedAt: 1_731_140_000_000,
         effectiveMinimumGroupSize: 4,
         meetsMinimumGroupSize: true,
         eligibleMembersCount: 8,
@@ -3383,9 +3385,9 @@ describe("App Scenes", () => {
       team: teamAs("lead").team,
       status: "open",
       plannedOpenDate: "2026-11-09",
-      plannedOpenAt: 1731140000000,
-      openedAt: 1731140000000,
-      plannedCloseAt: 1731400000000,
+      plannedOpenAt: 1_731_140_000_000,
+      openedAt: 1_731_140_000_000,
+      plannedCloseAt: 1_731_400_000_000,
       closedAt: null,
       effectiveMinimumGroupSize: 4,
       pulseName: "Weekly check-in",
@@ -3397,7 +3399,7 @@ describe("App Scenes", () => {
       failedInvitations: [
         { personId, email: decodeEmail("ada@example.com"), reason: "Mailbox full", resendCount: 0 },
       ],
-      createdAt: 1731100000000,
+      createdAt: 1_731_100_000_000,
     };
     const given = (yourRole: "lead" | "member" | null) => ({
       ...initialModel(url, []),

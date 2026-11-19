@@ -1,11 +1,6 @@
 import { SurveyBeatApi } from "@surveybeat/api";
 import {
-  type DirectoryCommand,
-  type EmailAddress,
-  type Member,
   NewIds,
-  type NewMember,
-  type OrganizationDirectory,
   resendFailedEmail,
   runDirectoryCommand,
   viewEmailStatus,
@@ -14,10 +9,18 @@ import {
   viewTeam,
   viewTeams,
 } from "@surveybeat/domain";
+import type {
+  DirectoryCommand,
+  EmailAddress,
+  Member,
+  NewMember,
+  OrganizationDirectory,
+} from "@surveybeat/domain";
 import type * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
-import { type AuthServices, currentMember, requestOrigin, requireSameOrigin } from "./auth/AuthHandlers.ts";
+import { currentMember, requestOrigin, requireSameOrigin } from "./auth/AuthHandlers.ts";
+import type { AuthServices } from "./auth/AuthHandlers.ts";
 
 export type DirectoryServices = AuthServices | OrganizationDirectory;
 

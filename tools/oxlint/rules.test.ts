@@ -8,13 +8,13 @@ interface Diagnostic {
   readonly code: string;
 }
 
-const lint = (file: string): ReadonlyArray<Diagnostic> => {
+const lint = (file: string): readonly Diagnostic[] => {
   const result = spawnSync(
     "pnpm",
     ["exec", "oxlint", "--config", "oxlint.fixtures.json", "--format", "json", file],
     { cwd: fixtures, encoding: "utf8" },
   );
-  const report: { diagnostics: ReadonlyArray<Diagnostic> } = JSON.parse(result.stdout);
+  const report: { diagnostics: readonly Diagnostic[] } = JSON.parse(result.stdout);
   return report.diagnostics;
 };
 

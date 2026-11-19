@@ -15,7 +15,7 @@ interface Fixture {
   /** Extra columns written to both tables, simulating a clock or a batch id. */
   readonly sharedClock?: boolean;
   readonly dumpSubmission: string;
-  readonly submissionKey: ReadonlyArray<string>;
+  readonly submissionKey: readonly string[];
 }
 
 const randomId = () => Unlinkability.randomHex();
@@ -70,11 +70,11 @@ const safe: Fixture = {
 const rowidTable =
   "CREATE TABLE submission (id TEXT NOT NULL UNIQUE, round_id TEXT NOT NULL, answer TEXT NOT NULL);";
 
-const leaky: ReadonlyArray<{
+const leaky: readonly {
   readonly name: string;
   readonly caughtBy: Unlinkability.AttackName;
   readonly fixture: Fixture;
-}> = [
+}[] = [
   {
     name: "a rowid table dumped in default order",
     caughtBy: "rank",

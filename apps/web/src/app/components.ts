@@ -3,7 +3,8 @@ import { Policy } from "@surveybeat/domain";
 import { Option } from "effect";
 import type { Attribute, Html, HtmlBuilder } from "foldkit/html";
 import { message } from "../messages/locale.ts";
-import { type Failure, failureMessage } from "./api.ts";
+import { failureMessage } from "./api.ts";
+import type { Failure } from "./api.ts";
 import { privacyHref, teamsHref } from "./routes.ts";
 
 export type Child = Html | string;
@@ -47,11 +48,11 @@ export const brandMark = <Message>(h: HtmlBuilder<Message>): Html =>
 
 export const pageShell = <Message>(
   config: {
-    readonly header?: ReadonlyArray<Child> | undefined;
+    readonly header?: readonly Child[] | undefined;
     readonly wide?: boolean | undefined;
     readonly privacyCurrent?: boolean | undefined;
   },
-  children: ReadonlyArray<Child>,
+  children: readonly Child[],
   h: HtmlBuilder<Message>,
 ): Html => {
   const width = config.wide === true ? "max-w-[1120px]" : "max-w-[720px]";
@@ -106,7 +107,7 @@ export const pageShell = <Message>(
 
 export const screenView = <Message>(
   title: string,
-  children: ReadonlyArray<Child>,
+  children: readonly Child[],
   h: HtmlBuilder<Message>,
 ): Html => pageShell({}, [pageTitle(title, h), ...children], h);
 
@@ -121,7 +122,7 @@ export interface Crumb {
   readonly href?: string | undefined;
 }
 
-export const breadcrumbs = <Message>(crumbs: ReadonlyArray<Crumb>, h: HtmlBuilder<Message>): Html =>
+export const breadcrumbs = <Message>(crumbs: readonly Crumb[], h: HtmlBuilder<Message>): Html =>
   h.div(
     [h.Role("navigation"), h.AriaLabel(message("breadcrumb.label"))],
     [
@@ -131,10 +132,9 @@ export const breadcrumbs = <Message>(crumbs: ReadonlyArray<Crumb>, h: HtmlBuilde
           const isLast = index === crumbs.length - 1;
           const label =
             isLast || crumb.href === undefined
-              ? h.span(
-                  [...(isLast ? [h.AriaCurrent("page"), h.Class("font-semibold text-ink")] : [])],
-                  [crumb.label],
-                )
+              ? h.span(isLast ? [h.AriaCurrent("page"), h.Class("font-semibold text-ink")] : [], [
+                  crumb.label,
+                ])
               : h.a([h.Href(crumb.href), h.Class(linkClass)], [crumb.label]);
           return h.li(
             [h.Class("flex items-center gap-x-2")],
@@ -173,15 +173,11 @@ export const subSectionTitle = <Message>(
   return level === 2 ? h.h2(attrs, [text]) : level === 3 ? h.h3(attrs, [text]) : h.h4(attrs, [text]);
 };
 
-export const panel = <Message>(
-  children: ReadonlyArray<Child>,
-  h: HtmlBuilder<Message>,
-  className = "",
-): Html =>
+export const panel = <Message>(children: readonly Child[], h: HtmlBuilder<Message>, className = ""): Html =>
   h.div([h.Class(`rounded-panel border border-line bg-surface p-6 sm:p-8 ${className}`.trim())], children);
 
 export const darkPanel = <Message>(
-  children: ReadonlyArray<Child>,
+  children: readonly Child[],
   h: HtmlBuilder<Message>,
   className = "",
 ): Html =>
@@ -243,7 +239,7 @@ const badgeClasses: Record<BadgeVariant, string> = {
 
 export const badge = <Message>(
   variant: BadgeVariant,
-  children: ReadonlyArray<Child>,
+  children: readonly Child[],
   h: HtmlBuilder<Message>,
 ): Html =>
   h.span(
@@ -269,7 +265,7 @@ export const emailAddress = <Message>(
 };
 
 export const rowActionsMenu = <Message>(
-  config: { readonly label: string; readonly items: ReadonlyArray<Html | null> },
+  config: { readonly label: string; readonly items: readonly (Html | null)[] },
   h: HtmlBuilder<Message>,
 ): Html =>
   h.details(
@@ -281,7 +277,7 @@ export const rowActionsMenu = <Message>(
             "inline-flex min-h-11 cursor-pointer list-none items-center gap-1 rounded-control border border-line bg-surface px-3 text-sm font-semibold text-ink hover:bg-subtle",
           ),
         ],
-        [config.label, h.span([h.AriaHidden(true)], [" \u203a"])],
+        [config.label, h.span([h.AriaHidden(true)], [" \u203A"])],
       ),
       h.div(
         [
@@ -295,13 +291,13 @@ export const rowActionsMenu = <Message>(
   );
 
 export const dataTable = <Message>(
-  headers: ReadonlyArray<string>,
-  rows: ReadonlyArray<ReadonlyArray<Child>>,
+  headers: readonly string[],
+  rows: readonly (readonly Child[])[],
   h: HtmlBuilder<Message>,
   options: { readonly stackOnPhone?: boolean | undefined } = {},
 ): Html => {
   const stacked = options.stackOnPhone === true;
-  const role = (name: string): ReadonlyArray<Attribute<Message>> => (stacked ? [h.Role(name)] : []);
+  const role = (name: string): readonly Attribute<Message>[] => (stacked ? [h.Role(name)] : []);
   return h.table(
     [
       h.Class(stacked ? "mt-2 block w-full text-left text-sm sm:table" : "mt-2 w-full text-left text-sm"),
@@ -348,7 +344,7 @@ export const dataTable = <Message>(
 };
 
 export const statList = <Message>(
-  items: ReadonlyArray<readonly [label: string, value: string]>,
+  items: readonly (readonly [label: string, value: string])[],
   h: HtmlBuilder<Message>,
 ): Html =>
   h.dl(
@@ -443,7 +439,7 @@ export const confirmDialog = <Message>(
     ],
   );
 
-export const timeZoneOptions = (current: string): ReadonlyArray<readonly [string, string]> => {
+export const timeZoneOptions = (current: string): readonly (readonly [string, string])[] => {
   const known = Intl.supportedValuesOf("timeZone");
   const all = known.includes(current) ? known : [current, ...known];
   return all.map((zone): readonly [string, string] => [zone, zone]);
@@ -489,7 +485,7 @@ export const selectField = <Message, V extends string | number>(
     readonly id: string;
     readonly label: string;
     readonly value: V;
-    readonly options: ReadonlyArray<readonly [V, string]>;
+    readonly options: readonly (readonly [V, string])[];
     readonly onChange: (value: string) => Message;
     readonly isDisabled?: boolean | undefined;
   },
@@ -597,7 +593,7 @@ export const signOutView = <Message>(h: HtmlBuilder<Message>, inMenu = false): H
     ],
   );
 
-export const privacyContent = <Message>(h: HtmlBuilder<Message>): ReadonlyArray<Child> => [
+export const privacyContent = <Message>(h: HtmlBuilder<Message>): readonly Child[] => [
   pageTitle(message("privacy.title"), h),
   h.p([h.Class("mt-4")], [h.a([h.Href(teamsHref()), h.Class(linkClass)], [message("privacy.back")])]),
   panel(

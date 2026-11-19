@@ -27,12 +27,12 @@ const stack = beforeAll(deploy(Stack), { timeout: 240_000 });
 
 interface Probe {
   readonly state: ({ readonly _tag: string } & Readonly<Record<string, unknown>>) | null;
-  readonly captured: ReadonlyArray<{
+  readonly captured: readonly {
     readonly recipient: string;
     readonly subject: string;
     readonly text: string;
-  }>;
-  readonly indexed: ReadonlyArray<{ readonly organization_id: string; readonly send_id: string }>;
+  }[];
+  readonly indexed: readonly { readonly organization_id: string; readonly send_id: string }[];
 }
 
 const call = (method: "GET" | "POST", query: string) =>

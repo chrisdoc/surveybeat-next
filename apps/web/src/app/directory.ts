@@ -1,14 +1,13 @@
 import * as DateTime from "effect/DateTime";
+import type { FailedEmail, SendId } from "@surveybeat/domain";
 import {
   EmailAddress,
   EmailSendProgress,
-  FailedEmail,
   FailedEmails,
   MinimumGroupSize,
   OrganizationSettings,
   PersonId,
   Policy,
-  SendId,
   TeamDetail,
   TeamName,
   TeamSummary,
@@ -21,7 +20,6 @@ import { defineTaggedUnion } from "foldkit/schema";
 import { formatDate, formatRoundDate, message, pluralMessage } from "../messages/locale.ts";
 import { Failure, failureMessage } from "./api.ts";
 import {
-  type Child,
   appButton,
   badge,
   confirmDialog,
@@ -43,6 +41,7 @@ import {
   subSectionTitle,
   textField,
 } from "./components.ts";
+import type { Child } from "./components.ts";
 import { historyHref, pulsesHref, settingsHref, teamHref, teamsHref } from "./routes.ts";
 import { failureReasonText } from "./pulses.ts";
 
@@ -118,18 +117,21 @@ export interface ShellHeader<Message> {
 
 const sectionHref = (section: NavSection): string => {
   switch (section) {
-    case "teams":
+    case "teams": {
       return teamsHref();
-    case "history":
+    }
+    case "history": {
       return historyHref();
-    case "settings":
+    }
+    case "settings": {
       return settingsHref();
+    }
   }
 };
 
 const sectionNav = <Message>(
   config: {
-    readonly sections: ReadonlyArray<NavSection>;
+    readonly sections: readonly NavSection[];
     readonly current: NavSection | null;
     readonly className: string;
     readonly linkClass: (isCurrent: boolean) => string;
@@ -198,8 +200,8 @@ const headerMenu = <Message>(
   model: Popover.Model,
   toParentMessage: (message: Popover.Message) => Message,
   parts: {
-    readonly button: (attributes: ReadonlyArray<ChildAttribute>) => Html;
-    readonly panel: (attributes: ReadonlyArray<ChildAttribute>) => Html;
+    readonly button: (attributes: readonly ChildAttribute[]) => Html;
+    readonly panel: (attributes: readonly ChildAttribute[]) => Html;
   },
   h: HtmlBuilder<Message>,
 ): Html =>
@@ -220,15 +222,15 @@ const headerMenu = <Message>(
 
 export const shellView = <Message>(
   header: ShellHeader<Message>,
-  children: ReadonlyArray<Child>,
+  children: readonly Child[],
   h: HtmlBuilder<Message>,
   wide = false,
 ): Html => {
-  const sections: ReadonlyArray<NavSection> = header.organizationAdmin
+  const sections: readonly NavSection[] = header.organizationAdmin
     ? ["teams", "history", "settings"]
     : ["teams", "history"];
 
-  const accountButton = (attributes: ReadonlyArray<ChildAttribute>): Html =>
+  const accountButton = (attributes: readonly ChildAttribute[]): Html =>
     h.button(
       [
         ...attributes,
@@ -245,13 +247,13 @@ export const shellView = <Message>(
       ],
     );
 
-  const accountPanel = (attributes: ReadonlyArray<ChildAttribute>): Html =>
+  const accountPanel = (attributes: readonly ChildAttribute[]): Html =>
     h.div(
       [...attributes, h.Class(menuPanelClass)],
       [h.div([h.Class("flex flex-col gap-3")], [signOutView(h, true)])],
     );
 
-  const menuButton = (attributes: ReadonlyArray<ChildAttribute>): Html =>
+  const menuButton = (attributes: readonly ChildAttribute[]): Html =>
     h.button(
       [
         ...attributes,
@@ -262,7 +264,7 @@ export const shellView = <Message>(
       [hamburgerIcon(h), message("nav.menu")],
     );
 
-  const navPanel = (attributes: ReadonlyArray<ChildAttribute>): Html =>
+  const navPanel = (attributes: readonly ChildAttribute[]): Html =>
     h.div(
       [...attributes, h.Class(`${menuPanelClass} max-h-[calc(100vh-6rem)] overflow-y-auto`)],
       [
@@ -323,7 +325,7 @@ export interface AttentionItem {
   readonly href: string;
 }
 
-const attentionView = <Message>(items: ReadonlyArray<AttentionItem>, h: HtmlBuilder<Message>): Html =>
+const attentionView = <Message>(items: readonly AttentionItem[], h: HtmlBuilder<Message>): Html =>
   items.length === 0
     ? emptyState(
         {
@@ -350,7 +352,7 @@ const attentionView = <Message>(items: ReadonlyArray<AttentionItem>, h: HtmlBuil
 export const teamsScreenView = <Message>(
   state: {
     readonly teams: LoadedTeams;
-    readonly attention: ReadonlyArray<AttentionItem>;
+    readonly attention: readonly AttentionItem[];
     readonly organizationAdmin: boolean;
     readonly createName: string;
     readonly createTimeZone: string;
@@ -368,7 +370,7 @@ export const teamsScreenView = <Message>(
   },
   h: HtmlBuilder<Message>,
 ): Html => {
-  const children: Array<Child> = [
+  const children: Child[] = [
     pageTitle(message("home.attention.title"), h),
     attentionView(state.attention, h),
   ];
@@ -378,7 +380,7 @@ export const teamsScreenView = <Message>(
   }
 
   if (state.teams._tag === "Failed") {
-    children.push(problemView(state.teams.failure, h)!);
+    children.push(problemView(state.teams.failure, h));
   } else if (state.teams._tag === "Loaded") {
     if (state.teams.teams.length === 0) {
       children.push(emptyState({ title: message("teams.empty.title"), body: message("teams.empty") }, h));
@@ -537,7 +539,7 @@ export interface ChecklistStep {
   readonly done: boolean;
 }
 
-const firstRunChecklistView = <Message>(steps: ReadonlyArray<ChecklistStep>, h: HtmlBuilder<Message>): Html =>
+const firstRunChecklistView = <Message>(steps: readonly ChecklistStep[], h: HtmlBuilder<Message>): Html =>
   h.section(
     [h.Class("mt-8 rounded-panel border border-line bg-surface p-6")],
     [
@@ -566,7 +568,7 @@ const firstRunChecklistView = <Message>(steps: ReadonlyArray<ChecklistStep>, h: 
 export const teamScreenView = <Message>(
   state: {
     readonly team: LoadedTeam;
-    readonly checklist: ReadonlyArray<ChecklistStep> | null;
+    readonly checklist: readonly ChecklistStep[] | null;
     readonly renameName: string;
     readonly renameTimeZone: string;
     readonly renameBusy: boolean;
@@ -607,10 +609,10 @@ export const teamScreenView = <Message>(
   overview: Html,
   h: HtmlBuilder<Message>,
 ): Html => {
-  const children: Array<Child> = [h.a([h.Href(teamsHref()), h.Class(linkClass)], [message("team.back")])];
+  const children: Child[] = [h.a([h.Href(teamsHref()), h.Class(linkClass)], [message("team.back")])];
 
   if (state.team._tag === "Failed") {
-    children.push(problemView(state.team.failure, h)!);
+    children.push(problemView(state.team.failure, h));
     return h.section([], children);
   }
 
@@ -786,7 +788,7 @@ export const teamScreenView = <Message>(
     ),
   );
   if (state.rosterFailure) {
-    children.push(problemView(state.rosterFailure, h)!);
+    children.push(problemView(state.rosterFailure, h));
   }
 
   if (detail.may.manageMembers && !state.addMemberOpen) {
@@ -927,16 +929,20 @@ const failedEmailReasonText = (reason: FailedEmail["reason"], code: string | nul
 
 const failedEmailStatusText = (state: EmailSendProgress): string => {
   switch (state._tag) {
-    case "Queued":
+    case "Queued": {
       return message("settings.failedEmails.status.queued");
-    case "Sending":
+    }
+    case "Sending": {
       return message("settings.failedEmails.status.sending");
-    case "Sent":
+    }
+    case "Sent": {
       return message("settings.failedEmails.status.sent");
-    case "Failed":
+    }
+    case "Failed": {
       return message("settings.failedEmails.status.failed", {
         reason: failedEmailReasonText(state.reason, state.code),
       });
+    }
   }
 };
 
@@ -948,15 +954,16 @@ const failedEmailActionView = <Message>(
 ): Child => {
   const resendButton = (isDisabled: boolean, text: string): Child =>
     appButton({ text, isDisabled, className: linkButton, onClick: onResend(email.sendId) }, h);
-  const children: Array<Child> = [];
+  const children: Child[] = [];
   if (resend === undefined) {
     if (email.resendable) children.push(resendButton(false, message("settings.failedEmails.resend")));
   } else {
     switch (resend._tag) {
-      case "Resending":
+      case "Resending": {
         children.push(resendButton(true, message("settings.failedEmails.resending")));
         break;
-      case "Resent":
+      }
+      case "Resent": {
         children.push(h.p([h.Role("status")], [failedEmailStatusText(resend.state)]));
         if (resend.statusUnavailable) {
           children.push(h.p([], [message("settings.failedEmails.statusUnavailable")]));
@@ -965,7 +972,8 @@ const failedEmailActionView = <Message>(
           children.push(resendButton(false, message("settings.failedEmails.resend")));
         }
         break;
-      case "Failed":
+      }
+      case "Failed": {
         if (resend.failure === "EmailNotResendable") {
           children.push(h.p([h.Role("status")], [failureMessage(resend.failure)]));
         } else {
@@ -973,6 +981,7 @@ const failedEmailActionView = <Message>(
           children.push(resendButton(false, message("settings.failedEmails.resend")));
         }
         break;
+      }
     }
   }
   return children.length === 0 ? "" : h.div([h.Class("flex flex-col items-start gap-1 text-sm")], children);
@@ -987,9 +996,9 @@ const failedEmailsView = <Message>(
   h: HtmlBuilder<Message>,
 ): Html => {
   const { failedEmails } = state;
-  const children: Array<Child> = [subSectionTitle(message("settings.failedEmails.title"), h, 2)];
+  const children: Child[] = [subSectionTitle(message("settings.failedEmails.title"), h, 2)];
   if (failedEmails._tag === "Failed") {
-    children.push(problemView(failedEmails.failure, h)!);
+    children.push(problemView(failedEmails.failure, h));
   } else if (failedEmails._tag === "Loaded") {
     const { emails } = failedEmails.list;
     if (emails.length === 0) {
@@ -1062,10 +1071,10 @@ export const settingsScreenView = <Message>(
   },
   h: HtmlBuilder<Message>,
 ): Html => {
-  const children: Array<Child> = [pageTitle(message("settings.title"), h)];
+  const children: Child[] = [pageTitle(message("settings.title"), h)];
 
   if (state.settings._tag === "Failed") {
-    children.push(problemView(state.settings.failure, h)!);
+    children.push(problemView(state.settings.failure, h));
     return h.section([], children);
   }
 
@@ -1239,7 +1248,7 @@ export const settingsScreenView = <Message>(
   );
 
   if (state.peopleFailure) {
-    children.push(problemView(state.peopleFailure, h)!);
+    children.push(problemView(state.peopleFailure, h));
   }
 
   children.push(failedEmailsView(state, actions.onResendFailedEmail, h));

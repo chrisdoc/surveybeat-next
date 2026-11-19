@@ -1,6 +1,6 @@
 import { assert, describe, it, prop } from "@effect/vitest";
 import { Schema } from "effect";
-import { type MembershipRecord } from "../people/Directory.ts";
+import type { MembershipRecord } from "../people/Directory.ts";
 import { PersonId } from "../people/Identity.ts";
 import { MembershipId, TeamId } from "../people/Team.ts";
 import { PulseId } from "../pulses/Pulse.ts";
@@ -8,16 +8,16 @@ import { InvitationSummary, invitationSummaryOf } from "./InvitationSummary.ts";
 import { RoundId, RoundList } from "./Round.ts";
 
 const TEAM = TeamId.make("team-privacy");
-const OPENED_AT = 1_000;
-const PLANNED_CLOSE_AT = 9_000;
+const OPENED_AT = 1000;
+const PLANNED_CLOSE_AT = 9000;
 
-const memberships = (people: ReadonlyArray<PersonId>): ReadonlyArray<MembershipRecord> =>
+const memberships = (people: readonly PersonId[]): readonly MembershipRecord[] =>
   people.map((personId, index) => ({
     id: MembershipId.make(`membership-privacy-${index}`),
     teamId: TEAM,
     personId,
     role: "member",
-    startedAt: index % 2 === 0 ? 2_000 : 500,
+    startedAt: index % 2 === 0 ? 2000 : 500,
     endedAt: null,
   }));
 

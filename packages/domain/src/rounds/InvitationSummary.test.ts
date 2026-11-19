@@ -1,9 +1,10 @@
 import { assert, describe, expect, it, prop } from "@effect/vitest";
 import { Schema } from "effect";
-import { type MembershipRecord } from "../people/Directory.ts";
+import type { MembershipRecord } from "../people/Directory.ts";
 import { PersonId } from "../people/Identity.ts";
 import { MembershipId, TeamId } from "../people/Team.ts";
-import { invitationSummaryOf, type InvitationSummaryRound } from "./InvitationSummary.ts";
+import { invitationSummaryOf } from "./InvitationSummary.ts";
+import type { InvitationSummaryRound } from "./InvitationSummary.ts";
 
 const TEAM = TeamId.make("team-a");
 const OTHER_TEAM = TeamId.make("team-b");
@@ -13,9 +14,9 @@ const CARA = PersonId.make("cara");
 
 const round = (overrides: Partial<InvitationSummaryRound> = {}): InvitationSummaryRound => ({
   teamId: TEAM,
-  openedAt: 1_000,
+  openedAt: 1000,
   closedAt: null,
-  plannedCloseAt: 5_000,
+  plannedCloseAt: 5000,
   ...overrides,
 });
 
@@ -36,7 +37,7 @@ const membership = (
   };
 };
 
-const invited = (...personIds: ReadonlyArray<PersonId>): ReadonlySet<PersonId> => new Set(personIds);
+const invited = (...personIds: readonly PersonId[]): ReadonlySet<PersonId> => new Set(personIds);
 
 describe("invitationSummaryOf", () => {
   it("does not count a Person who joined after open and left before the window ended", () => {
@@ -46,8 +47,8 @@ describe("invitationSummaryOf", () => {
         invitedPersonIds: invited(ALICE),
         memberships: [
           membership(ALICE, 500),
-          membership(BOB, 2_000, { endedAt: 3_000 }),
-          membership(CARA, 2_000, { endedAt: 6_000 }),
+          membership(BOB, 2000, { endedAt: 3000 }),
+          membership(CARA, 2000, { endedAt: 6000 }),
         ],
       }),
     ).toStrictEqual({ invited: 1, joinedAfterOpen: 1 });
@@ -58,7 +59,7 @@ describe("invitationSummaryOf", () => {
       invitationSummaryOf({
         round: round({ openedAt: null }),
         invitedPersonIds: invited(),
-        memberships: [membership(ALICE, 2_000)],
+        memberships: [membership(ALICE, 2000)],
       }),
     ).toBeNull();
   });
@@ -84,7 +85,7 @@ describe("invitationSummaryOf", () => {
       invitationSummaryOf({
         round: round(),
         invitedPersonIds: invited(ALICE),
-        memberships: [membership(ALICE, 500), membership(BOB, 2_000)],
+        memberships: [membership(ALICE, 500), membership(BOB, 2000)],
       }),
     ).toStrictEqual({ invited: 1, joinedAfterOpen: 1 });
   });
@@ -94,7 +95,7 @@ describe("invitationSummaryOf", () => {
       invitationSummaryOf({
         round: round(),
         invitedPersonIds: invited(),
-        memberships: [membership(ALICE, 500), membership(BOB, 1_000)],
+        memberships: [membership(ALICE, 500), membership(BOB, 1000)],
       }),
     ).toStrictEqual({ invited: 0, joinedAfterOpen: 0 });
   });
@@ -102,9 +103,9 @@ describe("invitationSummaryOf", () => {
   it("does not count a Person who joined after the Round closed", () => {
     expect(
       invitationSummaryOf({
-        round: round({ closedAt: 3_000 }),
+        round: round({ closedAt: 3000 }),
         invitedPersonIds: invited(),
-        memberships: [membership(ALICE, 3_001), membership(BOB, 3_000)],
+        memberships: [membership(ALICE, 3001), membership(BOB, 3000)],
       }),
     ).toStrictEqual({ invited: 0, joinedAfterOpen: 1 });
   });
@@ -112,9 +113,9 @@ describe("invitationSummaryOf", () => {
   it("uses the planned close while the Round is still open", () => {
     expect(
       invitationSummaryOf({
-        round: round({ plannedCloseAt: 5_000 }),
+        round: round({ plannedCloseAt: 5000 }),
         invitedPersonIds: invited(),
-        memberships: [membership(ALICE, 5_000), membership(BOB, 5_001)],
+        memberships: [membership(ALICE, 5000), membership(BOB, 5001)],
       }),
     ).toStrictEqual({ invited: 0, joinedAfterOpen: 1 });
   });
@@ -124,7 +125,7 @@ describe("invitationSummaryOf", () => {
       invitationSummaryOf({
         round: round(),
         invitedPersonIds: invited(ALICE),
-        memberships: [membership(ALICE, 2_000)],
+        memberships: [membership(ALICE, 2000)],
       }),
     ).toStrictEqual({ invited: 1, joinedAfterOpen: 0 });
   });
@@ -135,8 +136,8 @@ describe("invitationSummaryOf", () => {
         round: round(),
         invitedPersonIds: invited(),
         memberships: [
-          membership(ALICE, 2_000, { role: "viewer" }),
-          membership(BOB, 2_000, { teamId: OTHER_TEAM }),
+          membership(ALICE, 2000, { role: "viewer" }),
+          membership(BOB, 2000, { teamId: OTHER_TEAM }),
         ],
       }),
     ).toStrictEqual({ invited: 0, joinedAfterOpen: 0 });
@@ -147,7 +148,7 @@ describe("invitationSummaryOf", () => {
       invitationSummaryOf({
         round: round(),
         invitedPersonIds: invited(),
-        memberships: [membership(ALICE, 2_000, { role: "lead" })],
+        memberships: [membership(ALICE, 2000, { role: "lead" })],
       }),
     ).toStrictEqual({ invited: 0, joinedAfterOpen: 1 });
   });
@@ -157,7 +158,7 @@ describe("invitationSummaryOf", () => {
       invitationSummaryOf({
         round: round(),
         invitedPersonIds: invited(),
-        memberships: [membership(CARA, 2_000), membership(CARA, 3_000, { role: "lead" })],
+        memberships: [membership(CARA, 2000), membership(CARA, 3000, { role: "lead" })],
       }),
     ).toStrictEqual({ invited: 0, joinedAfterOpen: 1 });
   });

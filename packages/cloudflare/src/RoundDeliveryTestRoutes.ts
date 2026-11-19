@@ -6,8 +6,8 @@ import {
   PulseId,
   TeamId,
   TimeZone,
-  type Weekday,
 } from "@surveybeat/domain";
+import type { Weekday } from "@surveybeat/domain";
 import * as Clock from "effect/Clock";
 import * as Effect from "effect/Effect";
 import { HttpServerRequest } from "effect/http/HttpServerRequest";

@@ -1,14 +1,13 @@
 import type { SqliteClient } from "@effect/sql-sqlite-do";
-import {
-  ActionId,
-  type ActionItem,
-  type ActionList,
-  type ActionViewed,
-  authorizeRoundAction,
-  type CreateAction,
+import { ActionId, authorizeRoundAction } from "@surveybeat/domain";
+import type {
   PersonId,
   TeamId,
-  type UpdateAction,
+  ActionItem,
+  ActionList,
+  ActionViewed,
+  CreateAction,
+  UpdateAction,
 } from "@surveybeat/domain";
 import * as Effect from "effect/Effect";
 import type { makeSqlActions } from "../SqlActions.ts";
@@ -28,7 +27,7 @@ export const organizationActions = ({
   sql: SqliteClient.SqliteClient;
   randomId: () => string;
 }) => ({
-  listActions: (actorId: PersonId, teamId: TeamId): Effect.Effect<ActionViewed<ActionList>, never, never> =>
+  listActions: (actorId: PersonId, teamId: TeamId): Effect.Effect<ActionViewed<ActionList>> =>
     Effect.gen(function* () {
       const dirState = yield* directory.load;
       const auth = authorizeRoundAction(dirState, actorId, "team.viewActions", teamId);
@@ -63,7 +62,7 @@ export const organizationActions = ({
     teamId: TeamId,
     payload: CreateAction,
     now: number,
-  ): Effect.Effect<ActionViewed<ActionItem>, never, never> =>
+  ): Effect.Effect<ActionViewed<ActionItem>> =>
     sql
       .withTransaction(
         Effect.gen(function* () {
@@ -136,7 +135,7 @@ export const organizationActions = ({
     actionId: ActionId,
     payload: UpdateAction,
     now: number,
-  ): Effect.Effect<ActionViewed<ActionItem>, never, never> =>
+  ): Effect.Effect<ActionViewed<ActionItem>> =>
     sql
       .withTransaction(
         Effect.gen(function* () {

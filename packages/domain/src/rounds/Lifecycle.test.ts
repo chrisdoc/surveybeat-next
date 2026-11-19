@@ -14,11 +14,10 @@ import {
   roundCommandRejection,
   roundMachine,
   roundStatusAfter,
-  type RoundCommand,
-  type RoundCommandTag,
-  type RoundRecord,
 } from "./Lifecycle.ts";
-import { RoundId, RoundStatus as RoundStatusSchema, type RoundStatus } from "./Round.ts";
+import type { RoundCommand, RoundCommandTag, RoundRecord } from "./Lifecycle.ts";
+import { RoundId, RoundStatus as RoundStatusSchema } from "./Round.ts";
+import type { RoundStatus } from "./Round.ts";
 import { PersonId } from "../people/Identity.ts";
 import { PulseId, SendTime, Weekday } from "../pulses/Pulse.ts";
 import { TeamId } from "../people/Team.ts";
@@ -81,27 +80,27 @@ describe("Lifecycle scheduling and time engine", () => {
     assert.strictEqual(instants.latestSendInstant, expectedLaSend);
 
     // Round has ONE close instant: latest member's send time plus window (3 days = 72 hours).
-    const expectedCloseInstant = expectedLaSend + 3 * 24 * 3600_000;
+    const expectedCloseInstant = expectedLaSend + 3 * 24 * 3_600_000;
     assert.strictEqual(instants.closeInstant, expectedCloseInstant);
 
     // Reminders check:
     // Tokyo member (window 3, reminders 1): one reminder at day W-1 = day 2 (Wednesday 00:00 UTC)
     const tokyoReminders = calculateReminders(expectedTokyoSend, 3, 1, instants.closeInstant);
-    assert.deepStrictEqual(tokyoReminders, [expectedTokyoSend + 2 * 24 * 3600_000]);
+    assert.deepStrictEqual(tokyoReminders, [expectedTokyoSend + 2 * 24 * 3_600_000]);
 
     // LA member (window 3, reminders 2): reminders at day 1 and day W-1 = day 2
     const laReminders = calculateReminders(expectedLaSend, 3, 2, instants.closeInstant);
     assert.deepStrictEqual(laReminders, [
-      expectedLaSend + 1 * 24 * 3600_000,
-      expectedLaSend + 2 * 24 * 3600_000,
+      expectedLaSend + 1 * 24 * 3_600_000,
+      expectedLaSend + 2 * 24 * 3_600_000,
     ]);
 
     // Single-day window (W=1): one reminder 6 hours after send
-    const w1Reminders = calculateReminders(expectedTokyoSend, 1, 1, expectedTokyoSend + 24 * 3600_000);
-    assert.deepStrictEqual(w1Reminders, [expectedTokyoSend + 6 * 3600_000]);
+    const w1Reminders = calculateReminders(expectedTokyoSend, 1, 1, expectedTokyoSend + 24 * 3_600_000);
+    assert.deepStrictEqual(w1Reminders, [expectedTokyoSend + 6 * 3_600_000]);
 
     // Reminder within 2 hours of close is skipped:
-    const closeVerySoon = expectedTokyoSend + 7 * 3600_000;
+    const closeVerySoon = expectedTokyoSend + 7 * 3_600_000;
     const remindersDropped = calculateReminders(expectedTokyoSend, 1, 1, closeVerySoon);
     assert.deepStrictEqual(remindersDropped, []);
   });
@@ -199,7 +198,7 @@ describe("Lifecycle scheduling and time engine", () => {
       const round1Id = RoundId.make("round-1");
 
       // 1. Initial Scheduled Round
-      let scheduledRound: RoundRecord = {
+      const scheduledRound: RoundRecord = {
         id: round1Id,
         pulseId,
         teamId,
@@ -207,7 +206,7 @@ describe("Lifecycle scheduling and time engine", () => {
         plannedOpenDate: "2026-11-09",
         plannedOpenAt: startMs,
         openedAt: null,
-        plannedCloseAt: startMs + 3 * 24 * 3600_000,
+        plannedCloseAt: startMs + 3 * 24 * 3_600_000,
         closedAt: null,
         reviewEndsAt: null,
         effectiveMinimumGroupSize: null,
@@ -221,7 +220,7 @@ describe("Lifecycle scheduling and time engine", () => {
       };
 
       // 2. Open Round: Scheduled -> Open
-      let openRound: RoundRecord = {
+      const openRound: RoundRecord = {
         ...scheduledRound,
         status: "open",
         openedAt: startMs,
@@ -231,7 +230,7 @@ describe("Lifecycle scheduling and time engine", () => {
       assert.strictEqual(openRound.openedAt, startMs);
 
       // Advance clock by 1 day
-      yield* TestClock.adjust(Duration.millis(24 * 3600_000));
+      yield* TestClock.adjust(Duration.millis(24 * 3_600_000));
 
       // 3. Close early control: Open -> Closed -> Shared
       const closeEarlyTime = yield* Clock.currentTimeMillis;
@@ -430,14 +429,14 @@ describe("Lifecycle scheduling and time engine", () => {
   );
 
   it("skips reminders when close is less than 2 hours away or conditions match", () => {
-    const send = 1000000;
+    const send = 1_000_000;
     // W=1: 6 hours after send
-    const closeFar = send + 24 * 3600_000;
+    const closeFar = send + 24 * 3_600_000;
     const r1 = calculateReminders(send, 1, 1, closeFar);
-    assert.deepStrictEqual(r1, [send + 6 * 3600_000]);
+    assert.deepStrictEqual(r1, [send + 6 * 3_600_000]);
 
     // Close in 7 hours: reminder at +6h is only 1h before close (< 2 hours cutoff), so it is skipped
-    const closeSoon = send + 7 * 3600_000;
+    const closeSoon = send + 7 * 3_600_000;
     const rDropped = calculateReminders(send, 1, 1, closeSoon);
     assert.deepStrictEqual(rDropped, []);
 
@@ -523,24 +522,33 @@ const commandOf = (tag: RoundCommandTag): RoundCommand => {
   const roundId = RoundId.make("round-1");
   const personId = PersonId.make("person-1");
   switch (tag) {
-    case "SkipWeek":
+    case "SkipWeek": {
       return { _tag: "SkipWeek", teamId, pulseId, plannedOpenDate: "2026-11-09" };
-    case "UnskipWeek":
+    }
+    case "UnskipWeek": {
       return { _tag: "UnskipWeek", teamId, pulseId, plannedOpenDate: "2026-11-09" };
-    case "PausePulse":
+    }
+    case "PausePulse": {
       return { _tag: "PausePulse", teamId, pulseId };
-    case "ResumePulse":
+    }
+    case "ResumePulse": {
       return { _tag: "ResumePulse", teamId, pulseId };
-    case "CloseRoundEarly":
+    }
+    case "CloseRoundEarly": {
       return { _tag: "CloseRoundEarly", teamId, roundId };
-    case "ShareResults":
+    }
+    case "ShareResults": {
       return { _tag: "ShareResults", teamId, roundId };
-    case "RetryResult":
+    }
+    case "RetryResult": {
       return { _tag: "RetryResult", teamId, roundId };
-    case "CancelRound":
+    }
+    case "CancelRound": {
       return { _tag: "CancelRound", teamId, roundId };
-    case "ResendInvitation":
+    }
+    case "ResendInvitation": {
       return { _tag: "ResendInvitation", teamId, roundId, personId };
+    }
   }
 };
 

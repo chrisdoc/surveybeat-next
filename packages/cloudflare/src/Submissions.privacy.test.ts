@@ -57,7 +57,7 @@ describe("Submissions privacy invariants (SPEC §7, ADR 0005)", () => {
       .prepare(
         "SELECT name, sql FROM sqlite_master WHERE type = 'table' AND name IN ('submission', 'answer', 'participation')",
       )
-      .all() as Array<{ name: string; sql: string }>;
+      .all() as { name: string; sql: string }[];
 
     const tableMap = new Map(masterRows.map((r) => [r.name, r.sql.toUpperCase()]));
 
@@ -83,9 +83,9 @@ describe("Submissions privacy invariants (SPEC §7, ADR 0005)", () => {
     const db = initDatabase();
 
     const getColumns = (tableName: string) => {
-      const rows = db.prepare(`PRAGMA table_info(${tableName})`).all() as Array<{
+      const rows = db.prepare(`PRAGMA table_info(${tableName})`).all() as {
         name: string;
-      }>;
+      }[];
       return rows.map((r) => r.name.toLowerCase());
     };
 
@@ -123,14 +123,14 @@ describe("Submissions privacy invariants (SPEC §7, ADR 0005)", () => {
   it("A10: No Submission, Answer, or Participation table stores a language (ADR 0018)", () => {
     const db = initDatabase();
     const tables = (
-      db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as Array<{ name: string }>
+      db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as { name: string }[]
     )
       .map((t) => t.name)
       .filter((name) => /submission|answer|participation/i.test(name));
     assert.includeMembers(tables, ["submission", "answer", "participation"]);
 
     for (const table of tables) {
-      const columns = (db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>).map((c) =>
+      const columns = (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((c) =>
         c.name.toLowerCase(),
       );
       for (const column of columns) {

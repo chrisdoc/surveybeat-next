@@ -4,16 +4,18 @@ import {
   chooseOrganization,
   createOrganization,
   Forbidden,
-  type NewIds,
-  type OrganizationCreationAllowlist,
-  type OrganizationPeople,
-  type PeopleIndex,
   Policy,
-  type SessionOutcome,
   sessionState,
   SessionIdentityProvider,
   signOut,
   Unauthenticated,
+} from "@surveybeat/domain";
+import type {
+  NewIds,
+  OrganizationCreationAllowlist,
+  OrganizationPeople,
+  PeopleIndex,
+  SessionOutcome,
 } from "@surveybeat/domain";
 import type * as Context from "effect/Context";
 import * as Duration from "effect/Duration";
@@ -57,7 +59,7 @@ export const requireSameOrigin = Effect.gen(function* () {
   if (origin !== undefined && origin !== (yield* requestOrigin)) return yield* new Forbidden();
 });
 
-const setSessionCookie = (token: Redacted.Redacted<string>) =>
+const setSessionCookie = (token: Redacted.Redacted) =>
   HttpEffect.appendPreResponseHandler((_request, response) =>
     HttpServerResponse.setCookie(response, SESSION_COOKIE, Redacted.value(token), {
       ...cookieOptions,

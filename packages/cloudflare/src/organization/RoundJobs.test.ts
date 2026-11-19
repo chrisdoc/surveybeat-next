@@ -1,16 +1,12 @@
 import { SqliteClient } from "@effect/sql-sqlite-do";
 import { assert, describe, it } from "@effect/vitest";
-import {
-  defaultSendPolicy,
+import { defaultSendPolicy, makeSendStore, PersonId, RoundId, TeamId } from "@surveybeat/domain";
+import type {
   EmailAddress,
-  makeSendStore,
-  PersonId,
-  RoundId,
-  type SendId,
-  type InvitationTokenRef,
-  type SendStoreShape,
-  type StoredEmail,
-  TeamId,
+  SendId,
+  InvitationTokenRef,
+  SendStoreShape,
+  StoredEmail,
 } from "@surveybeat/domain";
 import { migratedDatabase, SqliteStorage } from "@surveybeat/testing";
 import * as Effect from "effect/Effect";
@@ -26,7 +22,7 @@ import { makeRoundJobs } from "./RoundJobs.ts";
 import { makeScheduling } from "./Scheduling.ts";
 
 const migrationsDir = new URL("../../migrations/", import.meta.url);
-const HOUR = 3600_000;
+const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
 const T0 = Date.UTC(2026, 10, 23, 9);
 
@@ -89,7 +85,7 @@ const insertRound = (
 const freezeQuestions = (
   db: ReturnType<typeof migratedDatabase>,
   roundId: string,
-  versionIds: ReadonlyArray<string>,
+  versionIds: readonly string[],
 ) => {
   versionIds.forEach((versionId, position) => {
     db.prepare("INSERT INTO round_question (round_id, position, question_version_id) VALUES (?, ?, ?)").run(
@@ -150,7 +146,7 @@ const build = (options: { readonly failNotifications?: boolean } = {}) =>
     const realSends = makeSendStore(makeSqlSendRepository(sql), defaultSendPolicy);
     const directory = makeSqlDirectory(sql, realSends);
     const actions = makeSqlActions(sql);
-    const recorded: Array<RecordedSend> = [];
+    const recorded: RecordedSend[] = [];
     const sends = {
       create: (sendId: SendId, recipient: EmailAddress, email: StoredEmail) =>
         Effect.sync(() => {

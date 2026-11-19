@@ -162,7 +162,7 @@ export function ActionRow({ href, messages }: { href: string; messages: Messages
   );
 }
 
-export function ActionsCard({ actions, messages }: { actions: ReadonlyArray<string>; messages: Messages }) {
+export function ActionsCard({ actions, messages }: { actions: readonly string[]; messages: Messages }) {
   if (actions.length === 0) return null;
   return (
     <Section

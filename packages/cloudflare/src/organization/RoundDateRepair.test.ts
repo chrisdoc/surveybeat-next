@@ -20,7 +20,7 @@ import {
 import { makeScheduling } from "./Scheduling.ts";
 
 const migrationsDir = new URL("../../migrations/", import.meta.url);
-const DAY = 24 * 3600_000;
+const DAY = 24 * 3_600_000;
 const NOW = Date.UTC(2026, 10, 19);
 const utc = (year: number, month: number, day: number, hour = 0, minute = 0): number =>
   Date.UTC(year, month - 1, day, hour, minute);

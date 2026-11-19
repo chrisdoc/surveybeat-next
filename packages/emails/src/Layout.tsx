@@ -90,5 +90,5 @@ export function Layout({
   );
 }
 
-export const textLayout = (messages: Messages, body: ReadonlyArray<string>, reason: string): string =>
+export const textLayout = (messages: Messages, body: readonly string[], reason: string): string =>
   [...body, "", "--", reason, messages.message("layout.signature"), ""].join("\n");

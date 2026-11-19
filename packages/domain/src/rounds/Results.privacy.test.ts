@@ -1,14 +1,17 @@
 // @effect-diagnostics globalRandom:off -- the test measures the production shuffle, whose order is non-deterministic by design.
 
 import { assert, describe, it } from "@effect/vitest";
-import { type DirectoryState, type MembershipRecord, type PersonRecord } from "../people/Directory.ts";
+import type { DirectoryState, MembershipRecord, PersonRecord } from "../people/Directory.ts";
 import { EmailAddress } from "../email/Email.ts";
 import { PersonId } from "../people/Identity.ts";
-import { MembershipId, type MembershipRole, TeamId, TimeZone } from "../people/Team.ts";
+import { MembershipId, TeamId, TimeZone } from "../people/Team.ts";
+import type { MembershipRole } from "../people/Team.ts";
 import { PulseId } from "../pulses/Pulse.ts";
-import { QuestionType, QuestionVersionId } from "../pulses/Question.ts";
+import type { QuestionType } from "../pulses/Question.ts";
+import { QuestionVersionId } from "../pulses/Question.ts";
 import { authorizeRoundAction } from "./Lifecycle.ts";
-import { calculateRoundResult, enforceEffectiveNOnResult, type QuestionInput } from "./Results.ts";
+import { calculateRoundResult, enforceEffectiveNOnResult } from "./Results.ts";
+import type { QuestionInput } from "./Results.ts";
 import { RoundId } from "./Round.ts";
 import type { SubmissionAnswer } from "./Submission.ts";
 
@@ -35,12 +38,12 @@ describe("Results Privacy & Minimum Group Size Invariants (ADR 0004, Issue #3)",
     const QA = QuestionVersionId.make("q-a.1");
     const QB = QuestionVersionId.make("q-b.1");
 
-    const questions: ReadonlyArray<QuestionInput> = [
+    const questions: readonly QuestionInput[] = [
       { id: QA, position: 0, text: "Question A", type: ratingType, dimension: "clarity" },
       { id: QB, position: 1, text: "Question B", type: ratingType, dimension: "clarity" },
     ];
 
-    const submissions: Array<{ id: string; answers: Array<SubmissionAnswer> }> = [
+    const submissions: { id: string; answers: SubmissionAnswer[] }[] = [
       { id: "s1", answers: [{ questionVersionId: QA, value: 3, comment: null }] },
       { id: "s2", answers: [{ questionVersionId: QA, value: 3, comment: null }] },
       { id: "s3", answers: [{ questionVersionId: QA, value: 3, comment: null }] },
@@ -61,7 +64,7 @@ describe("Results Privacy & Minimum Group Size Invariants (ADR 0004, Issue #3)",
       status: "closed",
       plannedOpenDate: "2026-11-09",
       anonymityMode: "anonymous",
-      closedAt: 1731140000000,
+      closedAt: 1_731_140_000_000,
       effectiveMinimumGroupSize: 4,
       eligibleMembersCount: 8,
       questions,
@@ -78,13 +81,13 @@ describe("Results Privacy & Minimum Group Size Invariants (ADR 0004, Issue #3)",
     // If QB were included: (3.0 + 5.0) / 2 = 4.0, which would allow deriving QB = 2 * 4.0 - 3.0 = 5.0!
     // But under Rule R3, dimension score is strictly 3.0:
     const dim = result.dimensions.find((d) => d.dimension === "clarity");
-    assert.strictEqual(dim?.score, 3.0);
+    assert.strictEqual(dim?.score, 3);
     assert.strictEqual(dim?.usableQuestionCount, 1);
   });
 
   it("Invariant P2: Comments are unlinked from ratings and submission identity", () => {
     const QA = QuestionVersionId.make("q-a.1");
-    const questions: ReadonlyArray<QuestionInput> = [
+    const questions: readonly QuestionInput[] = [
       { id: QA, position: 0, text: "Question A", type: ratingType, dimension: null },
     ];
 
@@ -102,7 +105,7 @@ describe("Results Privacy & Minimum Group Size Invariants (ADR 0004, Issue #3)",
       status: "closed",
       plannedOpenDate: "2026-11-09",
       anonymityMode: "anonymous",
-      closedAt: 1731140000000,
+      closedAt: 1_731_140_000_000,
       effectiveMinimumGroupSize: 4,
       eligibleMembersCount: 4,
       questions,
@@ -128,7 +131,7 @@ describe("Results Privacy & Minimum Group Size Invariants (ADR 0004, Issue #3)",
     const QB = QuestionVersionId.make("q-prop-b.1");
     const QC = QuestionVersionId.make("q-prop-c.1");
 
-    const questions: ReadonlyArray<QuestionInput> = [
+    const questions: readonly QuestionInput[] = [
       { id: QA, position: 0, text: "Prop A", type: ratingType, dimension: "workload" },
       { id: QB, position: 1, text: "Prop B", type: ratingType, dimension: "workload" },
       { id: QC, position: 2, text: "Prop C", type: choiceType, dimension: null },
@@ -138,9 +141,9 @@ describe("Results Privacy & Minimum Group Size Invariants (ADR 0004, Issue #3)",
       const N = 3 + Math.floor(Math.random() * 5); // N between 3 and 7
       const totalSubmissions = Math.floor(Math.random() * 12); // 0 to 11 submissions
 
-      const submissions: Array<{ id: string; answers: Array<SubmissionAnswer> }> = [];
+      const submissions: { id: string; answers: SubmissionAnswer[] }[] = [];
       for (let s = 0; s < totalSubmissions; s++) {
-        const answers: Array<SubmissionAnswer> = [];
+        const answers: SubmissionAnswer[] = [];
         // Randomly choose whether respondent answers QA, QB, QC
         if (Math.random() > 0.3) {
           answers.push({
@@ -173,7 +176,7 @@ describe("Results Privacy & Minimum Group Size Invariants (ADR 0004, Issue #3)",
         status: "closed",
         plannedOpenDate: "2026-11-09",
         anonymityMode: "anonymous",
-        closedAt: 1731140000000,
+        closedAt: 1_731_140_000_000,
         effectiveMinimumGroupSize: N,
         eligibleMembersCount: 15,
         questions,
@@ -226,7 +229,7 @@ describe("Results Privacy & Minimum Group Size Invariants (ADR 0004, Issue #3)",
 
   it("Invariant P4: Role access - only a Team's own Members, Leads, and Viewers get the Result; an Organization admin and outsiders get none (ADR 0003)", () => {
     const QA = QuestionVersionId.make("q-a.1");
-    const questions: ReadonlyArray<QuestionInput> = [
+    const questions: readonly QuestionInput[] = [
       { id: QA, position: 0, text: "Question A", type: ratingType, dimension: "clarity" },
     ];
     // 3 Submissions on a Team whose Organization requires N = 4: below N for everyone who may ask.
@@ -316,7 +319,7 @@ describe("Results Privacy & Minimum Group Size Invariants (ADR 0004, Issue #3)",
         status: "closed",
         plannedOpenDate: "2026-11-09",
         anonymityMode: "anonymous",
-        closedAt: 1731140000000,
+        closedAt: 1_731_140_000_000,
         effectiveMinimumGroupSize: storedN,
         eligibleMembersCount: 6,
         questions,
@@ -344,7 +347,7 @@ describe("Results Privacy & Minimum Group Size Invariants (ADR 0004, Issue #3)",
 
   it("Invariant P5: Open round hides all scores, distributions, and comments", () => {
     const QA = QuestionVersionId.make("q-a.1");
-    const questions: ReadonlyArray<QuestionInput> = [
+    const questions: readonly QuestionInput[] = [
       { id: QA, position: 0, text: "Question A", type: ratingType, dimension: "clarity" },
     ];
 

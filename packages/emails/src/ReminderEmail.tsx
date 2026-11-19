@@ -74,7 +74,7 @@ export const text = (email: ReminderEmailData): string => {
   const openUrl = `${email.baseUrl}${answerPath(email.locale)}#t=${email.token}`;
   const deliveryUrl = `${email.baseUrl}/delivery?token=${email.token}${langQuery(email.locale)}`;
 
-  const ratingLines: Array<string> = [];
+  const ratingLines: string[] = [];
   if (email.ratingQuestion) {
     ratingLines.push(email.ratingQuestion.text, "");
     for (let val = 1; val <= 5; val++) {
@@ -89,7 +89,7 @@ export const text = (email: ReminderEmailData): string => {
     ratingLines.push("");
   }
 
-  const actionLines: Array<string> = [];
+  const actionLines: string[] = [];
   if (email.actions.length > 0) {
     actionLines.push(m.message("invitation.actionsHeading"));
     for (const act of email.actions.slice(0, 3)) {

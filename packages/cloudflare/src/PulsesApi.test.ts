@@ -1,7 +1,8 @@
 // @effect-diagnostics asyncFunction:off -- the vitest runner awaits a plain Promise here; the test never enters an Effect.
 
 import { describe, expect, it } from "@effect/vitest";
-import { SendId, type SendState, weeklyTeamHealth } from "@surveybeat/domain";
+import { SendId, weeklyTeamHealth } from "@surveybeat/domain";
+import type { SendState } from "@surveybeat/domain";
 import { Browser, SignInWorld } from "./testing.ts";
 
 /**
@@ -43,14 +44,14 @@ const teamIdOf = (body: unknown): string => (body as { readonly team: { readonly
 
 interface Detail {
   readonly id: string;
-  readonly questions: ReadonlyArray<{
+  readonly questions: readonly {
     readonly questionId: string;
     readonly templateKey: string | null;
     readonly text: string;
-  }>;
+  }[];
   readonly estimatedSeconds: number;
-  readonly warnings: ReadonlyArray<{ readonly _tag: string }>;
-  readonly templateQuestions: ReadonlyArray<{ readonly key: string }>;
+  readonly warnings: readonly { readonly _tag: string }[];
+  readonly templateQuestions: readonly { readonly key: string }[];
 }
 
 const createPulse = async (browser: Browser, teamId: string): Promise<Detail> => {
@@ -285,7 +286,7 @@ describe("a member", () => {
 });
 
 describe("every Pulse endpoint", () => {
-  const ENDPOINTS: ReadonlyArray<readonly [string, string, unknown]> = [
+  const ENDPOINTS: readonly (readonly [string, string, unknown])[] = [
     ["GET", "/api/teams/t/pulses", undefined],
     ["POST", "/api/teams/t/pulses", undefined],
     ["GET", "/api/teams/t/pulses/p", undefined],

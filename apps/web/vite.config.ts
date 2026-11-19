@@ -4,7 +4,8 @@ import { foldkit } from "@foldkit/vite-plugin";
 import tailwindcss from "@tailwindcss/vite";
 import { copyFileSync, mkdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { defineConfig, type Plugin } from "vite";
+import { defineConfig } from "vite";
+import type { Plugin } from "vite";
 import { answerCatalog } from "./src/messages/answer.ts";
 import { answerMessages } from "./src/answer/answer-messages.ts";
 
@@ -21,9 +22,9 @@ const prerenderAnswer = (): Plugin => {
       }
       const rawCss = readFileSync(resolve(import.meta.dirname, "src/answer/style.css"), "utf8");
       const minCss = rawCss
-        .replace(/\/\*[\s\S]*?\*\//g, "")
-        .replace(/\s*([{};:,])\s*/g, "$1")
-        .replace(/\n\s*/g, "");
+        .replaceAll(/\/\*[\s\S]*?\*\//g, "")
+        .replaceAll(/\s*([{};:,])\s*/g, "$1")
+        .replaceAll(/\n\s*/g, "");
 
       const bootstrapScript = `<script>
 (function() {

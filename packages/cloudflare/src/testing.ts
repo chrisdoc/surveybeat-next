@@ -7,77 +7,79 @@ import {
   applyPulseChanges,
   emailStatusView,
   failedEmailsView,
-  type FailedEmail,
-  type FailureReason,
   isEmailAdmin,
   isResendable,
   pending,
   progressOf,
-  type ResendFacts,
-  type ResendResult,
-  type SendState,
   testSendView,
-  type TestSendFound,
   decidePulse,
   decideTestSend,
   EMPTY_PULSE_STATE,
   emailLocaleOf,
   testSendsPerHour,
-  type TestSendResult,
   OrganizationPulses,
   OrganizationRounds,
   PulseId,
-  type PulseCommandResult,
-  type PulseState,
   pulsesView,
   pulseView,
   QuestionId,
   AuthUnavailable,
-  type ClaimStatus,
-  type CommandResult,
   decide,
   DEFAULT_MINIMUM_GROUP_SIZE,
-  type DirectoryState,
   EmailAddress,
   MembershipId,
   OrganizationDirectory,
-  type PersonRecord,
   SendId,
   settingsView,
   TeamId,
   teamsView,
   teamView,
-  type TransactionalEmail,
   identityOf,
   NewIds,
   normaliseEmail,
   OrganizationCreationAllowlist,
   OrganizationId,
   OrganizationPeople,
-  type OrganizationSummary,
   PeopleIndex,
-  type PersonCandidate,
   PersonId,
   SessionId,
   SessionIdentityProvider,
-  type SignedInSession,
   Unauthenticated,
   AuthUserId,
   ActionId,
-  type ActionItem,
-  type ActionList,
-  type ActionRecord,
-  type ActionViewed,
   OrganizationActions,
   authorizeRoundAction,
-  type RoundViewed,
-  type TeamOverview,
-  type NoteViewed,
-  type RoundNote,
-  type RoundNoteView,
   OrganizationNotes,
   noteChange,
   RoundId,
+} from "@surveybeat/domain";
+import type {
+  FailedEmail,
+  FailureReason,
+  ResendFacts,
+  ResendResult,
+  SendState,
+  TestSendFound,
+  TestSendResult,
+  PulseCommandResult,
+  PulseState,
+  ClaimStatus,
+  CommandResult,
+  DirectoryState,
+  PersonRecord,
+  TransactionalEmail,
+  OrganizationSummary,
+  PersonCandidate,
+  SignedInSession,
+  ActionItem,
+  ActionList,
+  ActionRecord,
+  ActionViewed,
+  RoundViewed,
+  TeamOverview,
+  NoteViewed,
+  RoundNote,
+  RoundNoteView,
 } from "@surveybeat/domain";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -110,7 +112,7 @@ export class FakeSessions {
   readonly sessions = new Map<string, FakeSession>();
   readonly chosen = new Map<SessionId, OrganizationId>();
   readonly codes = new Map<string, string>();
-  readonly revocations: Array<SessionId> = [];
+  readonly revocations: SessionId[] = [];
   readonly revoked = new Set<string>();
   failRevoke = false;
   private counter = 0;
@@ -270,7 +272,7 @@ interface MemoryOrganization {
     SendId,
     { readonly personId: PersonId; readonly pulseId: PulseId; readonly sentAt: number }
   >;
-  readonly testSendTimes: Map<PersonId, ReadonlyArray<number>>;
+  readonly testSendTimes: Map<PersonId, readonly number[]>;
 }
 
 export class MemoryOrganizations {
@@ -397,7 +399,7 @@ export class MemoryOrganizations {
       Effect.sync(() => {
         const organization = this.organization(organizationId);
         const failed = [...organization.sends]
-          .flatMap(([sendId, send]): ReadonlyArray<FailedEmail> => {
+          .flatMap(([sendId, send]): readonly FailedEmail[] => {
             if (send.state._tag !== "Failed") return [];
             return [
               {
@@ -597,7 +599,7 @@ export class MemoryOrganizations {
         }
         const team = organization.state.teams.find((t) => t.id === teamId);
         if (team === undefined) return { _tag: "Rejected", rejection: { _tag: "TeamNotFound" } };
-        const all: Array<ActionItem> = [];
+        const all: ActionItem[] = [];
         for (const act of organization.actions.values()) {
           if (act.teamId === teamId) {
             const owner = organization.state.people.find((p) => p.id === act.ownerId);

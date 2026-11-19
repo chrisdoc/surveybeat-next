@@ -1,5 +1,7 @@
-import { browserLocale, DEFAULT_LOCALE, type Locale, matchLocale } from "@surveybeat/domain";
-import { type Messages, messagesFor } from "@surveybeat/emails";
+import { browserLocale, DEFAULT_LOCALE, matchLocale } from "@surveybeat/domain";
+import type { Locale } from "@surveybeat/domain";
+import { messagesFor } from "@surveybeat/emails";
+import type { Messages } from "@surveybeat/emails";
 
 const HTML_ESCAPES = new Map([
   ["&", "&amp;"],
@@ -10,7 +12,7 @@ const HTML_ESCAPES = new Map([
 ]);
 
 const escapeHtml = (text: string): string =>
-  text.replace(/[&<>"']/g, (char) => HTML_ESCAPES.get(char) ?? char);
+  text.replaceAll(/[&<>"']/g, (char) => HTML_ESCAPES.get(char) ?? char);
 
 export const pageLocale = (lang: string | null | undefined, acceptLanguage: string | undefined): Locale => {
   const explicit = lang === null || lang === undefined ? undefined : matchLocale(lang);

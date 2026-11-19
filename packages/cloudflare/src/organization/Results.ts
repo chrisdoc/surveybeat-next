@@ -4,14 +4,16 @@ import {
   buildTeamOverview,
   calculateRoundResult,
   delayedRoundResult,
-  type MemberHistory,
+  viewRoundResult,
+} from "@surveybeat/domain";
+import type {
   PersonId,
   RoundId,
-  type RoundResult,
-  type RoundViewed,
   TeamId,
-  type TeamOverview,
-  viewRoundResult,
+  MemberHistory,
+  RoundResult,
+  RoundViewed,
+  TeamOverview,
 } from "@surveybeat/domain";
 import * as Effect from "effect/Effect";
 import type { makeSqlActions } from "../SqlActions.ts";
@@ -31,7 +33,7 @@ export const organizationResults = ({
     actorId: PersonId,
     teamId: TeamId,
     roundId: RoundId,
-  ): Effect.Effect<RoundViewed<RoundResult>, never, never> =>
+  ): Effect.Effect<RoundViewed<RoundResult>> =>
     Effect.gen(function* () {
       const dirState = yield* directory.load;
       const auth = authorizeRoundAction(dirState, actorId, "team.viewResults", teamId);
@@ -121,10 +123,7 @@ export const organizationResults = ({
       return viewed;
     }).pipe(Effect.orDie),
 
-  viewTeamOverview: (
-    actorId: PersonId,
-    teamId: TeamId,
-  ): Effect.Effect<RoundViewed<TeamOverview>, never, never> =>
+  viewTeamOverview: (actorId: PersonId, teamId: TeamId): Effect.Effect<RoundViewed<TeamOverview>> =>
     Effect.gen(function* () {
       const dirState = yield* directory.load;
       const auth = authorizeRoundAction(dirState, actorId, "team.viewResults", teamId);
@@ -156,7 +155,7 @@ export const organizationResults = ({
       return viewed;
     }).pipe(Effect.orDie),
 
-  viewMemberHistory: (actorId: PersonId): Effect.Effect<MemberHistory, never, never> =>
+  viewMemberHistory: (actorId: PersonId): Effect.Effect<MemberHistory> =>
     Effect.gen(function* () {
       const dirState = yield* directory.load;
       const participated = yield* rounds.getParticipatedRounds(actorId);

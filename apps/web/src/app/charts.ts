@@ -12,7 +12,7 @@ export interface ChartTick {
 }
 
 export interface LineChartOptions {
-  readonly points: ReadonlyArray<ChartPoint>;
+  readonly points: readonly ChartPoint[];
   readonly ariaLabel: string;
 
   readonly width?: number;
@@ -20,9 +20,9 @@ export interface LineChartOptions {
 
   readonly highlightLast?: boolean;
 
-  readonly guides?: ReadonlyArray<number>;
+  readonly guides?: readonly number[];
 
-  readonly xTicks?: ReadonlyArray<ChartTick>;
+  readonly xTicks?: readonly ChartTick[];
 
   readonly latestLabel?: string;
   readonly className?: string;
@@ -62,8 +62,8 @@ export const lineChart = <Message>(options: LineChartOptions, h: HtmlBuilder<Mes
   const getY = scoreY;
   const strokeEffect = fillWidth ? " [vector-effect:non-scaling-stroke]" : "";
 
-  const svgChildren: Array<Html> = [];
-  const overlayChildren: Array<Html> = [];
+  const svgChildren: Html[] = [];
+  const overlayChildren: Html[] = [];
 
   for (const s of [1, 3, 5]) {
     const y = getY(s);

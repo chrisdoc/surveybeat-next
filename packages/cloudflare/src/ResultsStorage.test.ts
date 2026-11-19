@@ -6,12 +6,12 @@ import {
   calculateRoundResult,
   enforceEffectiveNOnResult,
   PulseId,
-  type QuestionInput,
   QuestionVersionId,
   RoundId,
   RoundResult,
   TeamId,
 } from "@surveybeat/domain";
+import type { QuestionInput } from "@surveybeat/domain";
 import { Schema } from "effect";
 import * as Option from "effect/Option";
 import { readdirSync, readFileSync } from "node:fs";
@@ -30,11 +30,11 @@ const initDatabase = (): DatabaseSync => {
   return db;
 };
 
-const perfBaseInstant = 1700000000000;
-const perfWeekMs = 7 * 24 * 3600_000;
+const perfBaseInstant = 1_700_000_000_000;
+const perfWeekMs = 7 * 24 * 3_600_000;
 const perfQv1 = QuestionVersionId.make("qv-1.1");
 const perfQv2 = QuestionVersionId.make("qv-2.1");
-const perfQuestions: ReadonlyArray<QuestionInput> = [
+const perfQuestions: readonly QuestionInput[] = [
   {
     id: perfQv1,
     position: 0,
@@ -126,7 +126,7 @@ const seedPerfTeam = (db: DatabaseSync): void => {
       status: "shared",
       plannedOpenDate: dateStr,
       openAt,
-      closeAt: openAt + 3 * 24 * 3600_000,
+      closeAt: openAt + 3 * 24 * 3_600_000,
     });
   }
 };
@@ -137,7 +137,7 @@ describe("RoundResult storage and performance (Issue #45, ADR 0004)", () => {
 
     const masterRows = db
       .prepare("SELECT name, sql FROM sqlite_master WHERE type = 'table' AND name = 'round_result'")
-      .all() as Array<{ name: string; sql: string }>;
+      .all() as { name: string; sql: string }[];
 
     assert.strictEqual(masterRows.length, 1, "round_result table must exist");
     const sql = masterRows[0]?.sql.toUpperCase() ?? "";
@@ -236,7 +236,7 @@ describe("RoundResult storage and performance (Issue #45, ADR 0004)", () => {
       status: "closed",
       plannedOpenDate: "2026-11-02",
       anonymityMode: "anonymous",
-      closedAt: 1730592000000,
+      closedAt: 1_730_592_000_000,
       effectiveMinimumGroupSize: 4,
       eligibleMembersCount: 8,
       questions: perfQuestions,
@@ -251,7 +251,7 @@ describe("RoundResult storage and performance (Issue #45, ADR 0004)", () => {
     });
 
     const legacy: unknown = JSON.parse(JSON.stringify(result));
-    const dimensions = (legacy as { dimensions: Array<Record<string, unknown>> }).dimensions;
+    const dimensions = (legacy as { dimensions: Record<string, unknown>[] }).dimensions;
     const first = dimensions[0];
     if (first === undefined) throw new Error("the Result has no Dimension to strip");
     delete first.contributors;
@@ -300,7 +300,7 @@ describe("RoundResult storage and performance (Issue #45, ADR 0004)", () => {
       status: "closed",
       plannedOpenDate: "2025-06-02",
       openAt: perfBaseInstant + 104 * perfWeekMs,
-      closeAt: perfBaseInstant + 104 * perfWeekMs + 3 * 24 * 3600_000,
+      closeAt: perfBaseInstant + 104 * perfWeekMs + 3 * 24 * 3_600_000,
     });
 
     // Excluded by the query: shared, but another Team's Round
@@ -316,7 +316,7 @@ describe("RoundResult storage and performance (Issue #45, ADR 0004)", () => {
       status: "shared",
       plannedOpenDate: "2025-06-09",
       openAt: perfBaseInstant + 105 * perfWeekMs,
-      closeAt: perfBaseInstant + 105 * perfWeekMs + 3 * 24 * 3600_000,
+      closeAt: perfBaseInstant + 105 * perfWeekMs + 3 * 24 * 3_600_000,
     });
 
     // A copy of `getSharedRoundResultsForTeam`'s SQL: this measures query, decode and build time.
@@ -325,7 +325,7 @@ describe("RoundResult storage and performance (Issue #45, ADR 0004)", () => {
 
     const startTime = performance.now();
 
-    const rows = db.prepare(overviewSql).all("team-perf") as Array<{ payload: string }>;
+    const rows = db.prepare(overviewSql).all("team-perf") as { payload: string }[];
     const results = rows.map((row) => {
       const parsed: unknown = JSON.parse(row.payload);
       return Schema.decodeUnknownSync(RoundResult)(parsed);

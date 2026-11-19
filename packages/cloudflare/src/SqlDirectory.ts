@@ -4,19 +4,17 @@ import type { SqliteClient } from "@effect/sql-sqlite-do";
 import {
   DEFAULT_LOCALE,
   DEFAULT_MINIMUM_GROUP_SIZE,
-  type DirectoryChange,
-  type DirectoryState,
   EmailAddress,
   localeOr,
   localeOrNull,
   MembershipId,
   MembershipRole,
   PersonId,
-  type SendStoreShape,
   TeamId,
   TimeZone,
   AuthUserId,
 } from "@surveybeat/domain";
+import type { DirectoryChange, DirectoryState, SendStoreShape } from "@surveybeat/domain";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 
@@ -96,39 +94,48 @@ export const makeSqlDirectory = (sql: SqliteClient.SqliteClient, sends: SendStor
           VALUES (${person.id}, ${person.email}, ${person.authUserId}, ${person.organizationAdmin ? 1 : 0},
                   ${person.removedAt})`;
       }
-      case "PersonRestored":
+      case "PersonRestored": {
         return sql`UPDATE person SET removed_at = NULL WHERE id = ${change.personId}`;
-      case "PersonRemoved":
+      }
+      case "PersonRemoved": {
         return sql`UPDATE person SET removed_at = ${change.at} WHERE id = ${change.personId}`;
-      case "AdminSet":
+      }
+      case "AdminSet": {
         return sql`UPDATE person SET organization_admin = ${change.organizationAdmin ? 1 : 0}
           WHERE id = ${change.personId}`;
-      case "TeamAdded":
+      }
+      case "TeamAdded": {
         return sql`INSERT INTO team (id, name, time_zone)
           VALUES (${change.team.id}, ${change.team.name}, ${change.team.timeZone})`;
-      case "TeamUpdated":
+      }
+      case "TeamUpdated": {
         return sql`UPDATE team SET name = ${change.team.name}, time_zone = ${change.team.timeZone}
           WHERE id = ${change.team.id}`;
+      }
       case "MembershipStarted": {
         const { membership } = change;
         return sql`INSERT INTO membership (id, team_id, person_id, role, started_at, ended_at)
           VALUES (${membership.id}, ${membership.teamId}, ${membership.personId}, ${membership.role},
                   ${membership.startedAt}, ${membership.endedAt})`;
       }
-      case "MembershipEnded":
+      case "MembershipEnded": {
         return sql`UPDATE membership SET ended_at = ${change.at} WHERE id = ${change.membershipId}`;
-      case "SettingsUpdated":
+      }
+      case "SettingsUpdated": {
         return sql`UPDATE organization SET minimum_group_size = ${change.minimumGroupSize},
           ai_processing = ${change.aiProcessing ? 1 : 0}, default_locale = ${change.defaultLocale}`;
-      case "PersonLanguageSet":
+      }
+      case "PersonLanguageSet": {
         return sql`UPDATE person SET locale = ${change.locale}, detected_locale = ${change.detectedLocale}
           WHERE id = ${change.personId}`;
-      case "EmailRequested":
+      }
+      case "EmailRequested": {
         return sends.create(change.sendId, change.recipient, change.email);
+      }
     }
   };
 
-  const apply = (changes: ReadonlyArray<DirectoryChange>): Effect.Effect<void> =>
+  const apply = (changes: readonly DirectoryChange[]): Effect.Effect<void> =>
     Effect.forEach(changes, applyOne, { discard: true }).pipe(Effect.orDie);
 
   return { load, apply };

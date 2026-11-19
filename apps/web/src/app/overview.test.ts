@@ -1,15 +1,9 @@
 import * as DateTime from "effect/DateTime";
-import {
-  ActionId,
-  OrganizationId,
-  RoundId,
-  type TeamDetail,
-  TeamId,
-  type TeamOverview,
-  TimeZone,
-} from "@surveybeat/domain";
+import { ActionId, OrganizationId, RoundId, TeamId, TimeZone } from "@surveybeat/domain";
+import type { TeamDetail, TeamOverview } from "@surveybeat/domain";
 import { Option, Schema } from "effect";
-import { type HtmlBuilder, inertHtml } from "foldkit/html";
+import { inertHtml } from "foldkit/html";
+import type { HtmlBuilder } from "foldkit/html";
 import * as Scene from "foldkit/scene";
 import { setup } from "foldkit/test/vitest";
 import { fromString } from "foldkit/url";
@@ -17,7 +11,8 @@ import { describe, expect, it } from "vitest";
 import { initialModel, update, view } from "./App.ts";
 import { formatDate } from "../messages/locale.ts";
 import { plotPercent } from "./charts.ts";
-import { overviewXs, type LoadedOverview, teamOverviewView } from "./overview.ts";
+import { overviewXs, teamOverviewView } from "./overview.ts";
+import type { LoadedOverview } from "./overview.ts";
 import type { SessionModel } from "./session.ts";
 
 const instant = (iso: string): number => DateTime.toEpochMillis(DateTime.makeUnsafe(iso));

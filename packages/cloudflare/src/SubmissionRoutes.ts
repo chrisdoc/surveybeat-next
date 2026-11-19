@@ -1,5 +1,6 @@
 import type * as Cloudflare from "@alchemy.run/cloudflare";
-import { QuestionVersionId, type SubmissionAnswer, hashToken } from "@surveybeat/domain";
+import { QuestionVersionId, hashToken } from "@surveybeat/domain";
+import type { SubmissionAnswer } from "@surveybeat/domain";
 import * as Clock from "effect/Clock";
 import * as Effect from "effect/Effect";
 import { HttpServerRequest } from "effect/http/HttpServerRequest";
@@ -37,7 +38,7 @@ const parseBody = (req: HttpServerRequest): Effect.Effect<RawBody> =>
     return Option.getOrElse(decodeBody(parsed), (): RawBody => ({}));
   });
 
-const extractAnswers = (body: RawBody): ReadonlyArray<SubmissionAnswer> => {
+const extractAnswers = (body: RawBody): readonly SubmissionAnswer[] => {
   if (body.answers !== undefined && body.answers.length > 0) {
     return body.answers.map((item) => ({
       questionVersionId: QuestionVersionId.make(item.questionVersionId),

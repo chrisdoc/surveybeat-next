@@ -23,7 +23,7 @@ const detailTeam = (loaded: LoadedTeam): TeamSummary | undefined =>
 
 const teamContext = (
   teamId: TeamId,
-  candidates: ReadonlyArray<TeamSummary | undefined>,
+  candidates: readonly (TeamSummary | undefined)[],
   organization: string,
 ): string =>
   candidates.map((team) => teamNamed(teamId, team)).find((name) => name !== undefined) ?? organization;
@@ -33,8 +33,9 @@ export const screenTitle = (source: TitleSource): string => {
   const route = source.route;
   switch (route._tag) {
     case "Teams":
-    case "NotFound":
+    case "NotFound": {
       return documentTitle(message("teams.title"), organization);
+    }
     case "Team": {
       const name = teamNamed(route.teamId, detailTeam(source.teamDetail));
       return documentTitle(name ?? message("title.team"), organization);
@@ -54,23 +55,28 @@ export const screenTitle = (source: TitleSource): string => {
       const context = teamContext(route.teamId, [detail?.team, detailTeam(source.teamDetail)], organization);
       return documentTitle(screen, context);
     }
-    case "Rounds":
+    case "Rounds": {
       return documentTitle(
         message("rounds.title"),
         teamContext(route.teamId, [detailTeam(source.teamDetail)], organization),
       );
-    case "RoundResults":
+    }
+    case "RoundResults": {
       return documentTitle(
         message("results.title"),
         teamContext(route.teamId, [detailTeam(source.teamDetail)], organization),
       );
-    case "History":
+    }
+    case "History": {
       return documentTitle(message("history.title"), organization);
-    case "Settings":
+    }
+    case "Settings": {
       return source.organizationAdmin
         ? documentTitle(message("settings.title"), organization)
         : documentTitle(message("teams.title"), organization);
-    case "Privacy":
+    }
+    case "Privacy": {
       return message("privacy.title");
+    }
   }
 };

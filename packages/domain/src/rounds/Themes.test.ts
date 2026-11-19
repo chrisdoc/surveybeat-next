@@ -3,12 +3,15 @@ import { createEffectActor } from "@xstate/effect";
 import { sendAndAwait } from "@xstate/effect/test";
 import * as Effect from "effect/Effect";
 import { isUnhandled, transition } from "xstate";
-import { AiNotConfigured, AiUnavailable, type AiInput } from "../ai/AiClient.ts";
+import { AiNotConfigured, AiUnavailable } from "../ai/AiClient.ts";
+import type { AiInput } from "../ai/AiClient.ts";
 import { fakeAiClient } from "../ai/testing.ts";
 import { PulseId } from "../pulses/Pulse.ts";
-import { type QuestionType, QuestionVersionId } from "../pulses/Question.ts";
+import { QuestionVersionId } from "../pulses/Question.ts";
+import type { QuestionType } from "../pulses/Question.ts";
 import { TeamId } from "../people/Team.ts";
-import { delayedRoundResult, type Highlight, type RoundResult } from "./Results.ts";
+import { delayedRoundResult } from "./Results.ts";
+import type { Highlight, RoundResult } from "./Results.ts";
 import { RoundId } from "./Round.ts";
 import { RETRY_WINDOW_MS } from "./Retry.ts";
 import {
@@ -16,16 +19,15 @@ import {
   checkThemesReply,
   repeatsCommentWords,
   runThemesAttempt,
-  type RoundThemesRecord,
   shouldRequestThemes,
   ThemesReplyInvalid,
   themesRetryMachine,
-  type ThemesJobDecision,
   viewRoundResult,
 } from "./Themes.ts";
+import type { RoundThemesRecord, ThemesJobDecision } from "./Themes.ts";
 
 const MINUTE = 60_000;
-const HOUR = 3600_000;
+const HOUR = 3_600_000;
 const REQUESTED_AT = 1_731_140_000_000;
 
 const COMMENTS = [
@@ -141,7 +143,7 @@ const guide = {
   questions: ["What would give you protected time?"],
 };
 
-const theme = (label: string, sentence: string, supportingCommentIndexes: ReadonlyArray<number>) => ({
+const theme = (label: string, sentence: string, supportingCommentIndexes: readonly number[]) => ({
   label,
   sentence,
   supportingCommentIndexes,
@@ -334,7 +336,7 @@ describe("checkThemesReply (ADR 0016, 0019)", () => {
 
   it.effect("fails when the top level is not an object with a themes array", () =>
     Effect.gen(function* () {
-      const replies: ReadonlyArray<unknown> = ["oops", null, [], { themes: "x", guide }, { guide }];
+      const replies: readonly unknown[] = ["oops", null, [], { themes: "x", guide }, { guide }];
       for (const reply of replies) {
         const error = yield* checkThemesReply(reply, COMMENTS).pipe(Effect.flip);
         expect(error).toBeInstanceOf(ThemesReplyInvalid);
@@ -419,7 +421,7 @@ describe("shouldRequestThemes (ADR 0015, 0016)", () => {
 /** Runs the job loop: one attempt, then the next at the RetryAt time, until Store or GiveUp. */
 const driveThemesJob = (themesInput: AiInput, requestedAt: number) =>
   Effect.gen(function* () {
-    const decisions: Array<ThemesJobDecision> = [];
+    const decisions: ThemesJobDecision[] = [];
     let attempts = 0;
     let now = requestedAt;
     for (let step = 0; step < 50; step++) {
@@ -478,7 +480,7 @@ describe("themes job lifecycle (ADR 0016)", () => {
       // Expected schedule, computed from the backoff rule: attempt k fails at time t_k, the next try
       // is at t_k + min(5 min * 2^(k-1), 4 h), and the job stops once that would pass 24 h.
       const gap = (k: number) => Math.min(5 * MINUTE * 2 ** (k - 1), 4 * HOUR);
-      const attemptTimes: Array<number> = [REQUESTED_AT];
+      const attemptTimes: number[] = [REQUESTED_AT];
       while (attemptTimes.length <= 100) {
         const failures = attemptTimes.length;
         const next = (attemptTimes[failures - 1] ?? 0) + gap(failures);

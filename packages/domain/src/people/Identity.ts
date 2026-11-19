@@ -12,7 +12,7 @@ export type PersonId = typeof PersonId.Type;
 
 export const normaliseEmail = (email: string): string => email.normalize("NFKC").trim().toLowerCase();
 
-const isPrintableAscii = (text: string): boolean => /^[\x20-\x7e]*$/.test(text);
+const isPrintableAscii = (text: string): boolean => /^[\u0020-\u007E]*$/.test(text);
 
 export interface Identity {
   readonly userId: AuthUserId;

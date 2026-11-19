@@ -72,10 +72,10 @@ export type EndpointPrivacy =
   | {
       readonly _tag: "ResultData";
       readonly inputs: Arbitrary.Arbitrary<unknown>;
-      readonly leadOnly: ReadonlyArray<LeadOnlyField>;
+      readonly leadOnly: readonly LeadOnlyField[];
     };
 
-export const privacyRegistry: { readonly [K in EndpointKey<typeof SurveyBeatApi>]: EndpointPrivacy } = {
+export const privacyRegistry: Readonly<Record<EndpointKey<typeof SurveyBeatApi>, EndpointPrivacy>> = {
   "auth.login": { _tag: "NoResultData", why: "redirects to the app's own email-code form" },
   "auth.sendSignInCode": { _tag: "NoResultData", why: "hands the email to Better Auth, which mails a code" },
   "auth.verifySignInCode": {
@@ -264,7 +264,7 @@ export const privacyRegistry: { readonly [K in EndpointKey<typeof SurveyBeatApi>
   },
 };
 
-export const pageRoutePrivacy: { readonly [K in PageRouteKey]: EndpointPrivacy } = {
+export const pageRoutePrivacy: Readonly<Record<PageRouteKey, EndpointPrivacy>> = {
   "pages.delivery": {
     _tag: "NoResultData",
     why: "server-rendered page that sets one Person's delivery time zone from an invitation token; returns no survey content",

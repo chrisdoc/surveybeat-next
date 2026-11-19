@@ -6,7 +6,8 @@
 import { Policy } from "@surveybeat/domain/policy";
 import type { AnswerMessage } from "./answer-messages.ts";
 import { keepAnswer } from "./kept-answers.ts";
-import { anonymityStatement, type QuestionData, parseRoundContext } from "./round-context.ts";
+import { anonymityStatement, parseRoundContext } from "./round-context.ts";
+import type { QuestionData } from "./round-context.ts";
 import { scaleText } from "./scale.ts";
 import { isWellFormedToken } from "./token.ts";
 
@@ -150,7 +151,7 @@ async function run(message: AnswerMessage): Promise<void> {
     const params = new URLSearchParams(window.location.hash.slice(1));
     const vParam = params.get("v");
     if (typeof vParam === "string") {
-      const parsed = parseInt(vParam, 10);
+      const parsed = Number.parseInt(vParam, 10);
       if (parsed >= 1 && parsed <= 5) {
         preselectedV = parsed;
       }
@@ -223,11 +224,9 @@ async function run(message: AnswerMessage): Promise<void> {
 
   let editKey = context.test ? "" : (window.localStorage.getItem(roundStorageKey) ?? "");
 
-  if (context.hasAnswered) {
-    if (editKey.length === 0) {
-      showStateMessage(message("answer.state.otherBrowser"));
-      return;
-    }
+  if (context.hasAnswered && editKey.length === 0) {
+    showStateMessage(message("answer.state.otherBrowser"));
+    return;
   }
 
   const pulseEl = document.getElementById("pulse");
@@ -292,8 +291,8 @@ async function run(message: AnswerMessage): Promise<void> {
       mark("first-save-end");
       mark("screen2");
       goToRemainingScreens();
-    } catch (err: unknown) {
-      if (typeof err === "object" && err !== null && "status" in err && err.status === 409) {
+    } catch (error: unknown) {
+      if (typeof error === "object" && error !== null && "status" in error && error.status === 409) {
         showStateMessage(message("answer.state.alreadyAnswered"));
         return;
       }
@@ -385,7 +384,7 @@ async function run(message: AnswerMessage): Promise<void> {
     }
   };
 
-  const renderRemainingQuestions = (questions: ReadonlyArray<QuestionData>) => {
+  const renderRemainingQuestions = (questions: readonly QuestionData[]) => {
     const container = document.getElementById("remaining-screens");
     if (!(container instanceof HTMLElement)) return;
 
@@ -395,7 +394,7 @@ async function run(message: AnswerMessage): Promise<void> {
     const isDesktop = window.matchMedia("(min-width: 640px)").matches;
     document.body.classList.toggle("is-desktop", isDesktop);
 
-    const questionSections: Array<HTMLElement> = [];
+    const questionSections: HTMLElement[] = [];
 
     questions.forEach((q, idx) => {
       const section = document.createElement("section");
@@ -410,7 +409,7 @@ async function run(message: AnswerMessage): Promise<void> {
       const legend = document.createElement("legend");
       legend.tabIndex = -1;
       legend.textContent = q.text;
-      fieldset.appendChild(legend);
+      fieldset.append(legend);
 
       if (q.type._tag === "Rating") {
         const scaleDiv = document.createElement("div");
@@ -428,11 +427,11 @@ async function run(message: AnswerMessage): Promise<void> {
 
           const span = document.createElement("span");
           span.textContent = scaleText(i, q.type.lowLabel, q.type.highLabel);
-          lbl.appendChild(radio);
-          lbl.appendChild(span);
-          scaleDiv.appendChild(lbl);
+          lbl.append(radio);
+          lbl.append(span);
+          scaleDiv.append(lbl);
         }
-        fieldset.appendChild(scaleDiv);
+        fieldset.append(scaleDiv);
       } else if (q.type._tag === "SingleChoice") {
         const scaleDiv = document.createElement("div");
         scaleDiv.className = "scale";
@@ -449,14 +448,14 @@ async function run(message: AnswerMessage): Promise<void> {
 
           const span = document.createElement("span");
           span.textContent = opt;
-          lbl.appendChild(radio);
-          lbl.appendChild(span);
-          scaleDiv.appendChild(lbl);
+          lbl.append(radio);
+          lbl.append(span);
+          scaleDiv.append(lbl);
         });
-        fieldset.appendChild(scaleDiv);
+        fieldset.append(scaleDiv);
       }
 
-      section.appendChild(fieldset);
+      section.append(fieldset);
 
       const hasComment = (q.type._tag === "Rating" && q.type.comment === true) || q.type._tag === "LongText";
 
@@ -468,7 +467,7 @@ async function run(message: AnswerMessage): Promise<void> {
         lbl.htmlFor = `comment_${q.id}`;
         lbl.className = "comment-label";
         lbl.textContent = message("answer.comment.label");
-        commentDiv.appendChild(lbl);
+        commentDiv.append(lbl);
 
         const disclosure = document.createElement("p");
         disclosure.className = "comment-disclosure";
@@ -476,7 +475,7 @@ async function run(message: AnswerMessage): Promise<void> {
         disclosure.textContent = message("answer.comment.disclosure", {
           groupSize: Policy.groupSize.defaultValue,
         });
-        commentDiv.appendChild(disclosure);
+        commentDiv.append(disclosure);
 
         const textarea = document.createElement("textarea");
         textarea.id = `comment_${q.id}`;
@@ -508,9 +507,9 @@ async function run(message: AnswerMessage): Promise<void> {
           void saveComment();
         });
 
-        commentDiv.appendChild(textarea);
-        commentDiv.appendChild(leadP);
-        section.appendChild(commentDiv);
+        commentDiv.append(textarea);
+        commentDiv.append(leadP);
+        section.append(commentDiv);
       }
 
       const isLast = idx === questions.length - 1;
@@ -533,10 +532,10 @@ async function run(message: AnswerMessage): Promise<void> {
           }
         }
       });
-      section.appendChild(nextBtn);
+      section.append(nextBtn);
 
       questionSections.push(section);
-      container.appendChild(section);
+      container.append(section);
     });
 
     const finishBtn = document.createElement("button");
@@ -546,7 +545,7 @@ async function run(message: AnswerMessage): Promise<void> {
     finishBtn.addEventListener("click", () => {
       goToThanksScreen();
     });
-    container.appendChild(finishBtn);
+    container.append(finishBtn);
 
     const firstLegend = questionSections[0]?.querySelector("legend");
     if (firstLegend instanceof HTMLElement) {

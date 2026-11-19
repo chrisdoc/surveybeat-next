@@ -115,10 +115,10 @@ test(
     assert.strictEqual(response.status, 200);
     const body = (yield* Effect.promise(() => response.json())) as {
       results: unknown;
-      view: { _tag: string; value: Record<string, unknown> & { questions: Array<Record<string, unknown>> } };
+      view: { _tag: string; value: Record<string, unknown> & { questions: Record<string, unknown>[] } };
       list: unknown;
       first: string;
-      rest: Array<string>;
+      rest: string[];
     };
     assert.deepStrictEqual(body.results, {
       created: "Accepted",
@@ -134,7 +134,7 @@ test(
     const pulseId = `pulse-${run}`;
     const { view } = body;
     assert.strictEqual(view._tag, "Viewed");
-    assert.deepStrictEqual(view.value["settings"], {
+    assert.deepStrictEqual(view.value.settings, {
       name: "Friday check-in",
       cadence: { _tag: "Weekly", day: "friday", time: "15:30" },
       answerWindowDays: 6,
@@ -145,11 +145,11 @@ test(
     });
     const written = `written-${run}`;
     assert.deepStrictEqual(
-      view.value.questions.map((question) => question["questionId"]),
+      view.value.questions.map((question) => question.questionId),
       [...[...body.rest].reverse(), `again-${run}`, written],
     );
     assert.strictEqual(body.first, `${pulseId}.workload-manageable`);
-    assert.deepStrictEqual(view.value.questions.at(-2)?.["templateKey"], "workload-manageable");
+    assert.deepStrictEqual(view.value.questions.at(-2)?.templateKey, "workload-manageable");
     // The edit rewrote the written Question's first and only version.
     assert.deepStrictEqual(view.value.questions.at(-1), {
       questionId: written,
@@ -161,7 +161,7 @@ test(
       hasAnswers: false,
       estimatedSeconds: 6,
     });
-    assert.deepStrictEqual(view.value["warnings"], [
+    assert.deepStrictEqual(view.value.warnings, [
       { _tag: "NoOneTap" },
       { _tag: "TeamBelowMinimumGroupSize", members: 1, minimumGroupSize: 4 },
     ]);
@@ -169,7 +169,7 @@ test(
       _tag: string;
       value: {
         team: Record<string, unknown>;
-        pulses: ReadonlyArray<Record<string, unknown> & { nextRoundDate?: string | null }>;
+        pulses: readonly (Record<string, unknown> & { nextRoundDate?: string | null })[];
       };
     };
     assert.strictEqual(list._tag, "Viewed");
@@ -204,15 +204,15 @@ test(
     const response = yield* Effect.promise(() => fetch(`${url}/__test/test-invitations?run=${run}`));
     assert.strictEqual(response.status, 200);
     const body = (yield* Effect.promise(() => response.json())) as {
-      burst: Array<string>;
+      burst: string[];
       afterAnHour: string;
       member: string;
       sentAt: number;
       record: { tokenHash: string; pulseId: string; sentAt: number } | null;
       invitation: unknown;
-      indexed: Array<{ organization_id: string; pulse_id: string; expires_at: number }>;
-      asInvitation: Array<unknown>;
-      captured: Array<{ recipient: string; subject: string }>;
+      indexed: { organization_id: string; pulse_id: string; expires_at: number }[];
+      asInvitation: unknown[];
+      captured: { recipient: string; subject: string }[];
     };
     // Six sends in the same hour: the sixth is refused. An hour later the window has moved on.
     assert.deepStrictEqual(body.burst, [
@@ -259,14 +259,14 @@ test(
         roundId: string;
         pulseName: string;
         minimumGroupSize: number;
-        questions: Array<{ id: string; position: number; text: string; type: unknown }>;
-        actions: Array<unknown>;
+        questions: { id: string; position: number; text: string; type: unknown }[];
+        actions: unknown[];
         closeTime: number;
         state: string;
         hasAnswered: boolean;
         test?: boolean;
       } | null;
-      view: { _tag: string; value: { questions: Array<{ versionId: string; text: string; type: unknown }> } };
+      view: { _tag: string; value: { questions: { versionId: string; text: string; type: unknown }[] } };
       preview: { shownToLead: string | null };
       noComment: { shownToLead: string | null };
     };
@@ -351,7 +351,7 @@ test(
       },
     });
     // Fifty-one later failures: the list holds the newest fifty, newest first; the older test send drops out.
-    const after = body.failedAfter as { _tag: string; value: { emails: Array<unknown> } };
+    const after = body.failedAfter as { _tag: string; value: { emails: unknown[] } };
     assert.strictEqual(after._tag, "Viewed");
     assert.strictEqual(after.value.emails.length, 50);
     assert.deepStrictEqual(after.value.emails[0], {
@@ -383,7 +383,7 @@ test(
     const response = yield* Effect.promise(() => fetch(`${url}/__test/resend-email?run=${run}`));
     assert.strictEqual(response.status, 200);
     const body = (yield* Effect.promise(() => response.json())) as {
-      failedBefore: { _tag: string; value: { emails: Array<{ recipient: string; resendable: boolean }> } };
+      failedBefore: { _tag: string; value: { emails: { recipient: string; resendable: boolean }[] } };
       revokedResend: unknown;
       staleResend: unknown;
       leadResend: unknown;
@@ -393,10 +393,10 @@ test(
       first: { _tag: string; status: { sendId: string; state: { _tag: string } } };
       second: { _tag: string; status: { sendId: string; state: { _tag: string } } };
       adaResend: { _tag: string; status: { sendId: string; state: { _tag: string } } };
-      failedInvitationsAfter: Array<string>;
+      failedInvitationsAfter: string[];
       sent: { _tag: string } | null;
-      captured: Array<{ recipient: string; subject: string }>;
-      listedAfter: { _tag: string; value: { emails: Array<{ recipient: string }> } };
+      captured: { recipient: string; subject: string }[];
+      listedAfter: { _tag: string; value: { emails: { recipient: string }[] } };
       statusAfter: { _tag: string; value: { state: { _tag: string } } };
     };
     const added = `added-${run}`;
@@ -517,7 +517,7 @@ test(
       leadEmail: string;
       plannedOpenAt: number;
       openAtFromPlannedDate: number;
-      invitationSendIds: ReadonlyArray<string>;
+      invitationSendIds: readonly string[];
     };
     assert.strictEqual(body.plannedOpenAt, body.openAtFromPlannedDate);
     assert.strictEqual(body.invitationSendIds.length, 1);
@@ -731,7 +731,7 @@ test(
     const body = (yield* Effect.promise(() => response.json())) as Record<string, Record<string, unknown>>;
     // AI on: the stage has no OpenRouter key, so the call gives up and the themes are stored as failed.
     // The Lead sees the failure and a null guide; a member sees no discussionGuide key at all.
-    assert.deepStrictEqual(body["withAi"], {
+    assert.deepStrictEqual(body.withAi, {
       themesJobExisted: true,
       themesJobCompleted: true,
       storedStatus: "failed",
@@ -745,7 +745,7 @@ test(
       memberHasComments: false,
     });
     // AI off: nothing is requested, so no job and no record; the Lead sees "notRequested".
-    assert.deepStrictEqual(body["withoutAi"], {
+    assert.deepStrictEqual(body.withoutAi, {
       themesJobExisted: false,
       themesJobCompleted: false,
       storedStatus: null,
@@ -886,7 +886,7 @@ test(
     const context = (yield* Effect.promise(() => exchanged.json())) as {
       test?: boolean;
       pulseName: string;
-      questions: Array<unknown>;
+      questions: unknown[];
     };
     assert.strictEqual(context.test, true);
     assert.strictEqual(context.pulseName, "Weekly team health");

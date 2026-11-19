@@ -6,11 +6,8 @@ import {
   AnswerWindowDays,
   Dimension,
   Distribution,
-  type PulseChange,
   PulseId,
-  type PulseRecord,
   PulseName,
-  type PulseState,
   QuestionId,
   QuestionText,
   QuestionType,
@@ -22,6 +19,7 @@ import {
   TemplateQuestionKey,
   Weekday,
 } from "@surveybeat/domain";
+import type { PulseChange, PulseRecord, PulseState } from "@surveybeat/domain";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 
@@ -108,7 +106,7 @@ export const makeSqlPulses = (sql: SqliteClient.SqliteClient) => {
     } satisfies PulseState;
   }).pipe(Effect.orDie);
 
-  const setQuestions = (pulseId: PulseId, questions: ReadonlyArray<QuestionVersionId>) =>
+  const setQuestions = (pulseId: PulseId, questions: readonly QuestionVersionId[]) =>
     Effect.andThen(
       sql`DELETE FROM pulse_question WHERE pulse_id = ${pulseId}`,
       Effect.forEach(
@@ -154,7 +152,7 @@ export const makeSqlPulses = (sql: SqliteClient.SqliteClient) => {
                     ${version.content.dimension}, ${type})`;
         });
       }
-      case "QuestionRewritten":
+      case "QuestionRewritten": {
         return Effect.gen(function* () {
           const type = yield* encodeType(change.content.type);
           yield* sql`UPDATE question SET template_key = NULL WHERE id = ${change.questionId}`;
@@ -162,12 +160,14 @@ export const makeSqlPulses = (sql: SqliteClient.SqliteClient) => {
             SET text = ${change.content.text}, dimension = ${change.content.dimension}, type = ${type}
             WHERE id = ${change.versionId}`;
         });
-      case "PulseQuestionsSet":
+      }
+      case "PulseQuestionsSet": {
         return setQuestions(change.pulseId, change.questions);
+      }
     }
   };
 
-  const apply = (changes: ReadonlyArray<PulseChange>): Effect.Effect<void> =>
+  const apply = (changes: readonly PulseChange[]): Effect.Effect<void> =>
     Effect.forEach(changes, applyOne, { discard: true }).pipe(Effect.orDie);
 
   return { load, apply };

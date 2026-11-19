@@ -3,7 +3,8 @@
 import { describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
-import { AiClient, AiInput, AiUnavailable, RedactedText, type AiRequest } from "./AiClient.ts";
+import { AiClient, AiInput, AiUnavailable, RedactedText } from "./AiClient.ts";
+import type { AiRequest } from "./AiClient.ts";
 import { fakeAiClient } from "./testing.ts";
 
 const text = RedactedText.make("Too many meetings");

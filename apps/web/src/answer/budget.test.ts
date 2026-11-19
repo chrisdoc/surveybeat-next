@@ -49,7 +49,7 @@ describe.each(pages)("answer page performance budget ($name)", (page) => {
     );
 
     // Budget: CSS ≤ 2 KB inline (measured as gzip in prototype RESULTS.md, raw also kept minimal)
-    const styleMatch = html.match(/<style>([\s\S]*?)<\/style>/);
+    const styleMatch = /<style>([\s\S]*?)<\/style>/.exec(html);
     expect(styleMatch, `${page.html} should have inline <style>`).not.toBeNull();
     const inlineCss = styleMatch ? (styleMatch[1] ?? "") : "";
     const inlineCssGz = gzipSync(Buffer.from(inlineCss), { level: 9 }).length;
@@ -59,9 +59,7 @@ describe.each(pages)("answer page performance budget ($name)", (page) => {
     ).toBeLessThanOrEqual(2 * 1024);
 
     // Budget: JS ≤ 10 KB gzip on critical path
-    const scriptSrcMatches = Array.from(html.matchAll(/<script\b[^>]*src="([^"]+)"[^>]*>/g)).map(
-      (m) => m[1] ?? "",
-    );
+    const scriptSrcMatches = [...html.matchAll(/<script\b[^>]*src="([^"]+)"[^>]*>/g)].map((m) => m[1] ?? "");
     expect(scriptSrcMatches.length).toBeGreaterThan(0);
 
     // Count each entry script and every chunk it imports statically; dynamic import() is off the critical path.
@@ -88,9 +86,9 @@ describe.each(pages)("answer page performance budget ($name)", (page) => {
     }
     expect(counted.size).toBeGreaterThanOrEqual(scriptSrcMatches.length);
     // Every imported chunk is preloaded, so the browser fetches the whole graph in one round trip.
-    const preloaded = Array.from(
-      html.matchAll(/<link rel="modulepreload"[^>]*href="\/assets\/([^"]+)"/g),
-    ).map((m) => m[1] ?? "");
+    const preloaded = [...html.matchAll(/<link rel="modulepreload"[^>]*href="\/assets\/([^"]+)"/g)].map(
+      (m) => m[1] ?? "",
+    );
     const entries = new Set(scriptSrcMatches.map((src) => src.split("/").pop() ?? ""));
     expect(preloaded.sort()).toEqual([...counted].filter((name) => !entries.has(name)).sort());
     // The app's full catalog must stay off the answer page's critical path.

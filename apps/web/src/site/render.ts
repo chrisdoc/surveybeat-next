@@ -1,4 +1,5 @@
-import { type Locale, Policy } from "@surveybeat/domain";
+import { Policy } from "@surveybeat/domain";
+import type { Locale } from "@surveybeat/domain";
 import type { KeysWithoutParams, KeysWithParams, Params } from "../messages/index.ts";
 import { messagesFor } from "../messages/locale.ts";
 
@@ -7,7 +8,7 @@ const OG_LOCALES = { en: "en_GB" } satisfies Record<Locale, string>;
 const APP_PATH = "/app";
 
 const escape = (text: string): string =>
-  text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 
 const wrap = "mx-auto w-full max-w-[1120px] px-6 sm:px-8";
 const primaryButton =

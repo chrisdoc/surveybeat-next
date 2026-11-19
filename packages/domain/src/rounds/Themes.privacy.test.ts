@@ -2,11 +2,13 @@ import { describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import { TeamId } from "../people/Team.ts";
 import { PulseId } from "../pulses/Pulse.ts";
-import { type QuestionType, QuestionVersionId } from "../pulses/Question.ts";
+import { QuestionVersionId } from "../pulses/Question.ts";
+import type { QuestionType } from "../pulses/Question.ts";
 import type { Roster } from "../privacy/Redaction.ts";
 import type { DiscussionGuide, RoundResult } from "./Results.ts";
 import { RoundId } from "./Round.ts";
-import { buildThemesInput, checkThemesReply, type RoundThemesRecord, viewRoundResult } from "./Themes.ts";
+import { buildThemesInput, checkThemesReply, viewRoundResult } from "./Themes.ts";
+import type { RoundThemesRecord } from "./Themes.ts";
 
 const ratingType: QuestionType = { _tag: "Rating", lowLabel: "Low", highLabel: "High", comment: true };
 
@@ -14,7 +16,7 @@ const ROUND_ID = RoundId.make("round-distinct-9f3a");
 const TEAM_ID = TeamId.make("team-distinct-7c1e");
 const PULSE_ID = PulseId.make("pulse-distinct-2b8d");
 const QV = QuestionVersionId.make("qv-distinct-5e6f.1");
-const CLOSED_AT = 1731140123456;
+const CLOSED_AT = 1_731_140_123_456;
 
 const COMMENTS = [
   "Calendars fill up before anyone can plan deep work",
@@ -24,7 +26,7 @@ const COMMENTS = [
 ];
 
 /** A Result with n submissions at the Organization's N = 4, every comment on one Question. */
-const resultFor = (submissionsCount: number, comments: ReadonlyArray<string>): RoundResult => ({
+const resultFor = (submissionsCount: number, comments: readonly string[]): RoundResult => ({
   roundId: ROUND_ID,
   pulseId: PULSE_ID,
   teamId: TEAM_ID,
@@ -95,21 +97,21 @@ const readyRecord: RoundThemesRecord = {
 };
 
 /** Lowercased words without diacritics, computed without the code under test. */
-const wordsOf = (text: string): ReadonlyArray<string> =>
+const wordsOf = (text: string): readonly string[] =>
   text
     .normalize("NFKD")
-    .replace(/[̀-ͯ]/g, "")
+    .replaceAll(/[̀-ͯ]/g, "")
     .toLowerCase()
     .match(/[\p{L}\p{N}]+/gu) ?? [];
 
-const sixWordRuns = (text: string): ReadonlyArray<string> => {
+const sixWordRuns = (text: string): readonly string[] => {
   const words = wordsOf(text);
-  const runs: Array<string> = [];
+  const runs: string[] = [];
   for (let i = 0; i + 6 <= words.length; i++) runs.push(words.slice(i, i + 6).join(" "));
   return runs;
 };
 
-const hasCommentRun = (text: string, comments: ReadonlyArray<string>): boolean => {
+const hasCommentRun = (text: string, comments: readonly string[]): boolean => {
   const commentRuns = new Set(comments.flatMap(sixWordRuns));
   return sixWordRuns(text).some((run) => commentRuns.has(run));
 };
@@ -118,12 +120,12 @@ const hasCommentRun = (text: string, comments: ReadonlyArray<string>): boolean =
 const seededRandom = (seed: number) => {
   let state = seed;
   return () => {
-    state = (state * 1664525 + 1013904223) % 4294967296;
-    return state / 4294967296;
+    state = (state * 1_664_525 + 1_013_904_223) % 4_294_967_296;
+    return state / 4_294_967_296;
   };
 };
 
-const pick = <A>(random: () => number, items: ReadonlyArray<A>): A => {
+const pick = <A>(random: () => number, items: readonly A[]): A => {
   const item = items[Math.floor(random() * items.length)];
   if (item === undefined) throw new Error("pick from an empty list");
   return item;
@@ -166,7 +168,7 @@ describe("Themes Privacy & Rule Table Invariants (ADR 0004, 0016, 0019)", () => 
 
   it.effect("Invariant T2: no stored theme has fewer than 2 supporting comments", () =>
     Effect.gen(function* () {
-      const random = seededRandom(20260518);
+      const random = seededRandom(20_260_518);
       for (let trial = 0; trial < 300; trial++) {
         const reply = generatedReply(random, COMMENTS.length);
         const result = yield* checkThemesReply(reply, COMMENTS);
@@ -232,7 +234,7 @@ describe("Themes Privacy & Rule Table Invariants (ADR 0004, 0016, 0019)", () => 
   });
 
   it("Invariant G2: members never get a discussionGuide key, whatever the themes status", () => {
-    const records: ReadonlyArray<RoundThemesRecord | null> = [
+    const records: readonly (RoundThemesRecord | null)[] = [
       readyRecord,
       { status: "pending", requestedAt: CLOSED_AT, attempts: 0 },
       { status: "failed" },

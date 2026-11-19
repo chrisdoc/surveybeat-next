@@ -2,7 +2,7 @@ import { describe, expect, it } from "@effect/vitest";
 import { nextRetryAt, RETRY_WINDOW_MS } from "./Retry.ts";
 
 const MINUTE = 60_000;
-const HOUR = 3600_000;
+const HOUR = 3_600_000;
 const REQUESTED_AT = 1_731_140_000_000;
 
 describe("nextRetryAt (ADR 0016)", () => {
