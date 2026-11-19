@@ -158,10 +158,13 @@ export const runApi = <A, M>(
   f: (api: ApiClient) => Effect.Effect<A, unknown>,
   onSuccess: (value: A) => M,
   onFailure: (failure: Failure) => M,
-): Effect.Effect<M> =>
-  clientEffect.pipe(
+): Effect.Effect<M> => {
+  const recover = (failure: unknown): Effect.Effect<M> => Effect.succeed(onFailure(failureOf(failure)));
+
+  return clientEffect.pipe(
     Effect.flatMap(f),
     Effect.map(onSuccess),
-    Effect.catch((error: unknown) => Effect.succeed(onFailure(failureOf(error)))),
+    Effect.catch(recover),
     Effect.provide(FetchHttpClient.layer),
   );
+};

@@ -273,7 +273,8 @@ export const pulsesScreenView = <Message>(
       h.ul(
         [h.Class("mt-6 flex flex-col gap-3")],
         pulses.pulses.map((pulse) =>
-          h.li(
+          h.keyed("li")(
+            pulse.id,
             [],
             [
               h.a(
@@ -577,8 +578,10 @@ export const pulseEditorView = <Message>(
   }
 
   const { detail } = state.pulse;
-  children.push(h.div([h.Class("mt-4")], [pageTitle(detail.settings.name, h)]));
-  children.push(h.p([h.Class("mt-2 text-muted")], [detail.team.name]));
+  children.push(
+    h.div([h.Class("mt-4")], [pageTitle(detail.settings.name, h)]),
+    h.p([h.Class("mt-2 text-muted")], [detail.team.name]),
+  );
 
   if (detail.team.yourRole === "lead") {
     const tabClass = "inline-flex min-h-11 items-center border-b-2 px-3 text-sm font-semibold";
@@ -745,8 +748,8 @@ export const pulseEditorView = <Message>(
   );
 
   if (detail.templateQuestions.length > 0) {
-    children.push(h.div([h.Class("mt-8")], [subSectionTitle(message("pulse.template.title"), h, 2)]));
     children.push(
+      h.div([h.Class("mt-8")], [subSectionTitle(message("pulse.template.title"), h, 2)]),
       h.ul(
         [h.Class("mt-3 flex flex-col gap-3")],
         detail.templateQuestions.map((templateQ) =>
@@ -846,9 +849,6 @@ export const pulseEditorView = <Message>(
         state.testSendResult?._tag === "Failed" ? problemView(state.testSendResult.failure, h) : null,
       ].filter(Predicate.isNotNull),
     ),
-  );
-
-  children.push(
     h.form(
       [
         h.Class("mt-8 flex flex-col gap-4 rounded-panel border border-line bg-surface p-6 sm:p-8"),

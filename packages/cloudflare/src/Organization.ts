@@ -4,6 +4,7 @@ import { organizationActions } from "./organization/Actions.ts";
 import { organizationDirectory } from "./organization/Directory.ts";
 import { makeEmailOutbox } from "./organization/EmailOutbox.ts";
 import { organizationEmailVisibility } from "./organization/EmailVisibility.ts";
+import { failureSummary } from "./organization/JobFailure.ts";
 import { organizationNotes } from "./organization/Notes.ts";
 import { organizationResults } from "./organization/Results.ts";
 import { organizationRoundCommands } from "./organization/RoundCommands.ts";
@@ -44,6 +45,7 @@ import type {
 import * as Clock from "effect/Clock";
 import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
 import * as Layer from "effect/Layer";
 import * as Redacted from "effect/Redacted";
 import * as Reactivity from "effect/reactivity/Reactivity";
@@ -228,9 +230,23 @@ const organizationObject = Effect.gen(function* () {
       alarm: () =>
         Effect.gen(function* () {
           const now = yield* Clock.currentTimeMillis;
-          yield* jobs.runDueJobs(now);
-          yield* outbox.dispatch;
+          const jobsExit = yield* Effect.exit(jobs.runDueJobs(now));
+          const dispatchExit = yield* Effect.exit(outbox.dispatch);
           yield* repairAlarm();
+
+          const exits = [jobsExit, dispatchExit];
+
+          for (const exit of exits) {
+            if (Exit.isFailure(exit)) {
+              yield* Effect.logError(`[OPERATOR_ALERT] ALARM_FAILED ${failureSummary(exit.cause)}`);
+            }
+          }
+
+          const failure = exits.find(Exit.isFailure);
+
+          if (failure !== undefined) {
+            return yield* Effect.failCause(failure.cause);
+          }
         }).pipe(Effect.orDie),
 
       runPulseCommand: (actorId: PersonId, command: PulseCommand, now: number) =>

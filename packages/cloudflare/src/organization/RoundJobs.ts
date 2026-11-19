@@ -11,6 +11,7 @@ import {
   enforceEffectiveNOnResult,
   hashToken,
   JobId,
+  nextJobAttemptAt,
   nextRetryAt,
   PersonId,
   RoundId,
@@ -27,14 +28,17 @@ import type {
   QuestionVersionId,
   RoundRecord,
   makeSendStore,
+  ScheduleJobRecord,
   StoredEmail,
   TeamId,
   TransactionalEmail,
 } from "@surveybeat/domain";
+import * as Cause from "effect/Cause";
 import * as Clock from "effect/Clock";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
+import { failureSummary } from "./JobFailure.ts";
 import type { makeOpenRouterAiClient } from "../ai/OpenRouterAiClient.ts";
 import type { makeSqlActions } from "../SqlActions.ts";
 import type { makeSqlDirectory } from "../SqlDirectory.ts";
@@ -295,20 +299,19 @@ export const makeRoundJobs = ({
           aiProcessing: dirState.aiProcessing,
         };
 
-        if (m.sendAt <= now) {
-          yield* sends.create(sendId, person.email, invitationEmail);
-        } else {
-          yield* rounds.insertJob({
-            id: JobId.make(randomId()),
-            roundId,
-            type: "send",
-            dueAt: m.sendAt,
-            status: "pending",
-            payload: JSON.stringify({ personId: m.personId }),
-            createdAt: now,
-            completedAt: null,
-          });
-        }
+        yield* m.sendAt <= now
+          ? sends.create(sendId, person.email, invitationEmail)
+          : rounds.insertJob({
+              id: JobId.make(randomId()),
+              roundId,
+              type: "send",
+              dueAt: m.sendAt,
+              status: "pending",
+              payload: JSON.stringify({ personId: m.personId }),
+              createdAt: now,
+              completedAt: null,
+              failures: 0,
+            });
 
         const reminderInstants = calculateReminders(
           m.sendAt,
@@ -327,6 +330,7 @@ export const makeRoundJobs = ({
             payload: JSON.stringify({ personId: m.personId }),
             createdAt: now,
             completedAt: null,
+            failures: 0,
           });
         }
       }
@@ -340,6 +344,7 @@ export const makeRoundJobs = ({
         payload: null,
         createdAt: now,
         completedAt: null,
+        failures: 0,
       });
 
       yield* rounds.markJobCompleted(jobId, now);
@@ -616,6 +621,7 @@ export const makeRoundJobs = ({
         payload: null,
         createdAt: now,
         completedAt: null,
+        failures: 0,
       });
 
       yield* executeComputeJob(computeJobId, roundId, now);
@@ -646,6 +652,7 @@ export const makeRoundJobs = ({
           }),
           createdAt: now,
           completedAt: null,
+          failures: 0,
         });
 
         if (deliveryTime <= now) {
@@ -784,6 +791,7 @@ export const makeRoundJobs = ({
               payload: null,
               createdAt: now,
               completedAt: null,
+              failures: 0,
             });
           }
         }
@@ -803,6 +811,7 @@ export const makeRoundJobs = ({
             payload: null,
             createdAt: now,
             completedAt: null,
+            failures: 0,
           });
           yield* scheduleResultsReady(round, activePersonsWithRole(dirState, round.teamId, "lead"), now);
         }
@@ -961,6 +970,52 @@ export const makeRoundJobs = ({
       yield* repairAlarm();
     });
 
+  const runJob = (job: ScheduleJobRecord, now: number) =>
+    Effect.gen(function* () {
+      if (job.type === "themes") {
+        yield* executeThemesJob(job.id, job.roundId, now);
+
+        return;
+      }
+
+      yield* sql.withTransaction(
+        Effect.gen(function* () {
+          if (job.type === "open") {
+            yield* executeOpenJob(job.id, job.roundId, now);
+          } else if (job.type === "close") {
+            yield* executeCloseJob(job.id, job.roundId, now);
+          } else if (job.type === "compute") {
+            yield* executeComputeJob(job.id, job.roundId, now);
+          } else if (job.type === "send") {
+            yield* executeSendJob(job.id, job.roundId, now);
+          } else if (job.type === "remind") {
+            yield* executeRemindJob(job.id, job.roundId, now);
+          } else if (job.type === "share") {
+            yield* executeShareJob(job.id, job.roundId, now);
+          }
+        }),
+      );
+    });
+
+  const recordJobFailure = (job: ScheduleJobRecord, cause: Cause.Cause<unknown>, now: number) =>
+    Effect.gen(function* () {
+      const failures = job.failures + 1;
+      const dueAt = nextJobAttemptAt(failures, now);
+
+      yield* Effect.logError(
+        `[OPERATOR_ALERT] ROUND_JOB_FAILED job=${job.id} type=${job.type} round=${job.roundId} failures=${failures} next_attempt_at=${dueAt} cause=${failureSummary(cause)}`,
+      );
+      yield* rounds.recordJobFailure(job.id, failures, dueAt);
+    });
+
+  const runDueJob = (job: ScheduleJobRecord, now: number) =>
+    runJob(job, now).pipe(
+      Effect.catchCauseIf(
+        (cause) => !Cause.hasInterruptsOnly(cause),
+        (cause) => recordJobFailure(job, cause, now),
+      ),
+    );
+
   const runDueJobs = (nowMs?: number) =>
     Effect.gen(function* () {
       const now = nowMs ?? (yield* Clock.currentTimeMillis);
@@ -973,28 +1028,7 @@ export const makeRoundJobs = ({
         }
 
         for (const job of dueJobs) {
-          if (job.type === "themes") {
-            yield* executeThemesJob(job.id, job.roundId, now);
-            continue;
-          }
-
-          yield* sql.withTransaction(
-            Effect.gen(function* () {
-              if (job.type === "open") {
-                yield* executeOpenJob(job.id, job.roundId, now);
-              } else if (job.type === "close") {
-                yield* executeCloseJob(job.id, job.roundId, now);
-              } else if (job.type === "compute") {
-                yield* executeComputeJob(job.id, job.roundId, now);
-              } else if (job.type === "send") {
-                yield* executeSendJob(job.id, job.roundId, now);
-              } else if (job.type === "remind") {
-                yield* executeRemindJob(job.id, job.roundId, now);
-              } else if (job.type === "share") {
-                yield* executeShareJob(job.id, job.roundId, now);
-              }
-            }),
-          );
+          yield* runDueJob(job, now);
         }
       }
 

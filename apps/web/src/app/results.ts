@@ -438,11 +438,11 @@ export const toggleButton = <Message>(isTable: boolean, onClick: Message, h: Htm
     h,
   );
 
-type GuideSection = {
+interface GuideSection {
   readonly heading: string;
   readonly items: readonly string[];
   readonly ordered: boolean;
-};
+}
 
 const guideSections = (guide: DiscussionGuide): readonly GuideSection[] =>
   [
@@ -952,7 +952,8 @@ export const resultsScreenView = <Message>(
               }
             }
 
-            return h.li(
+            return h.keyed("li")(
+              action.id,
               [h.Class("flex flex-col gap-2 rounded-control bg-evergreen-raised p-4")],
               [
                 h.div(

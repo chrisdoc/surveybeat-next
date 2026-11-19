@@ -4,6 +4,7 @@ import { AiClient, AiNotConfigured, AiRejected, AiUnavailable } from "@surveybea
 import type { AiRequest } from "@surveybeat/domain";
 import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
+import { constVoid } from "effect/Function";
 import * as Layer from "effect/Layer";
 import * as Redacted from "effect/Redacted";
 import * as Schema from "effect/Schema";
@@ -111,7 +112,7 @@ const backoffMs = (attempt: number, retryAfter: string | null): number => {
 };
 
 const discardBody = (response: Response): Effect.Effect<void> =>
-  Effect.promise(() => response.body?.cancel().catch(() => undefined) ?? Promise.resolve(undefined)).pipe(
+  Effect.promise(() => response.body?.cancel().catch(constVoid) ?? Promise.resolve(undefined)).pipe(
     Effect.asVoid,
   );
 

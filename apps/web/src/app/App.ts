@@ -110,7 +110,7 @@ export const Model = Schema.Struct({
   route: AppRoute,
   session: SessionModel,
 
-  browserLocale: Schema.NullOr(Locale),
+  browserLocale: Schema.Option(Locale),
 
   navMenu: Popover.Model,
   accountMenu: Popover.Model,
@@ -1138,7 +1138,7 @@ export const initialModel = (url: Url, languages: readonly string[]): Model => {
     url,
     route,
     session: { _tag: "Loading" },
-    browserLocale: browserLocale(languages) ?? null,
+    browserLocale: Option.fromNullishOr(browserLocale(languages)),
     navMenu: Popover.init({ id: "nav-menu" }),
     accountMenu: Popover.init({ id: "account-menu" }),
     teams: { _tag: "Loading" },
@@ -3686,12 +3686,12 @@ export const localeOf = (model: Model): Locale => {
   if (model.session._tag === "SignedIn") {
     return resolveLocale({
       person: model.session.locale,
-      browser: model.browserLocale,
+      browser: Option.getOrNull(model.browserLocale),
       organization: model.session.organizationLocale,
     });
   }
 
-  return model.browserLocale ?? "en";
+  return Option.getOrElse(model.browserLocale, () => "en");
 };
 
 export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
@@ -3875,60 +3875,58 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
     }
 
     case "Settings": {
-      if (!organizationAdmin) {
-        screenContent = teamsScreenView(
-          {
-            teams: model.teams,
-            attention: attentionItems(model),
-            organizationAdmin: false,
-            createName: model.createTeamName,
-            createTimeZone: model.createTeamTimeZone,
-            createLeadEmail: model.createTeamLeadEmail,
-            createBusy: model.createTeamBusy,
-            createFailure: Option.getOrUndefined(model.createTeamFailure),
-            createOpen: model.createTeamOpen,
-          },
-          {
-            onNameChange: (name) => Message.CreateTeamNameChanged({ name }),
-            onTimeZoneChange: (tz) => Message.CreateTeamTimeZoneChanged({ tz }),
-            onLeadEmailChange: (email) => Message.CreateTeamLeadEmailChanged({ email }),
-            onSubmitCreate: Message.SubmitCreateTeam(),
-            onToggleCreate: Message.ToggleForm({ form: "createTeam" }),
-          },
-          h,
-        );
-      } else {
-        screenContent = settingsScreenView(
-          {
-            settings: model.settings,
-            size: model.size,
-            sizeSaved: model.sizeSaved,
-            sizeBusy: model.sizeBusy,
-            sizeFailure: Option.getOrUndefined(model.sizeFailure),
-            sizeOpen: model.sizeOpen,
-            aiBusy: model.aiBusy,
-            aiFailure: Option.getOrUndefined(model.aiFailure),
-            peopleBusy: model.peopleBusy,
-            peopleFailure: Option.getOrUndefined(model.peopleFailure),
-            pendingRemovePerson: Option.getOrUndefined(model.pendingRemovePerson),
-            failedEmails: model.failedEmails,
-            failedEmailResends: model.failedEmailResends,
-          },
-          {
-            onSizeChange: (size) => Message.SizeChanged({ size }),
-            onToggleSize: Message.ToggleForm({ form: "minimumSize" }),
-            onSubmitSize: Message.SubmitSize(),
-            onAiProcessingToggle: (isOn) => Message.AiProcessingToggled({ isOn }),
-            onGrantAdmin: (personId) => Message.GrantAdminClicked({ personId }),
-            onRevokeAdmin: (personId) => Message.RevokeAdminClicked({ personId }),
-            onRemovePerson: (personId) => Message.RemovePersonClicked({ personId }),
-            onConfirmRemovePerson: Message.ConfirmRemove(),
-            onCancelRemovePerson: Message.DismissRemove(),
-            onResendFailedEmail: (sendId) => Message.ResendFailedEmailClicked({ sendId }),
-          },
-          h,
-        );
-      }
+      screenContent = !organizationAdmin
+        ? teamsScreenView(
+            {
+              teams: model.teams,
+              attention: attentionItems(model),
+              organizationAdmin: false,
+              createName: model.createTeamName,
+              createTimeZone: model.createTeamTimeZone,
+              createLeadEmail: model.createTeamLeadEmail,
+              createBusy: model.createTeamBusy,
+              createFailure: Option.getOrUndefined(model.createTeamFailure),
+              createOpen: model.createTeamOpen,
+            },
+            {
+              onNameChange: (name) => Message.CreateTeamNameChanged({ name }),
+              onTimeZoneChange: (tz) => Message.CreateTeamTimeZoneChanged({ tz }),
+              onLeadEmailChange: (email) => Message.CreateTeamLeadEmailChanged({ email }),
+              onSubmitCreate: Message.SubmitCreateTeam(),
+              onToggleCreate: Message.ToggleForm({ form: "createTeam" }),
+            },
+            h,
+          )
+        : settingsScreenView(
+            {
+              settings: model.settings,
+              size: model.size,
+              sizeSaved: model.sizeSaved,
+              sizeBusy: model.sizeBusy,
+              sizeFailure: Option.getOrUndefined(model.sizeFailure),
+              sizeOpen: model.sizeOpen,
+              aiBusy: model.aiBusy,
+              aiFailure: Option.getOrUndefined(model.aiFailure),
+              peopleBusy: model.peopleBusy,
+              peopleFailure: Option.getOrUndefined(model.peopleFailure),
+              pendingRemovePerson: Option.getOrUndefined(model.pendingRemovePerson),
+              failedEmails: model.failedEmails,
+              failedEmailResends: model.failedEmailResends,
+            },
+            {
+              onSizeChange: (size) => Message.SizeChanged({ size }),
+              onToggleSize: Message.ToggleForm({ form: "minimumSize" }),
+              onSubmitSize: Message.SubmitSize(),
+              onAiProcessingToggle: (isOn) => Message.AiProcessingToggled({ isOn }),
+              onGrantAdmin: (personId) => Message.GrantAdminClicked({ personId }),
+              onRevokeAdmin: (personId) => Message.RevokeAdminClicked({ personId }),
+              onRemovePerson: (personId) => Message.RemovePersonClicked({ personId }),
+              onConfirmRemovePerson: Message.ConfirmRemove(),
+              onCancelRemovePerson: Message.DismissRemove(),
+              onResendFailedEmail: (sendId) => Message.ResendFailedEmailClicked({ sendId }),
+            },
+            h,
+          );
 
       break;
     }

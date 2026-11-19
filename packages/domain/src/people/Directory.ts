@@ -299,8 +299,10 @@ const putInTeam = (
   };
 
   if (current !== undefined) {
-    changes.push({ _tag: "MembershipEnded", membershipId: current.id, at: now });
-    changes.push({ _tag: "MembershipStarted", membership });
+    changes.push(
+      { _tag: "MembershipEnded", membershipId: current.id, at: now },
+      { _tag: "MembershipStarted", membership },
+    );
 
     return accept(changes, [index]);
   }

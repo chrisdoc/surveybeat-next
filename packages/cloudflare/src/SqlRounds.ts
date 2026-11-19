@@ -74,6 +74,7 @@ const ScheduleJobRow = Schema.Struct({
   payload: Schema.NullOr(Schema.String),
   created_at: Schema.Int,
   completed_at: Schema.NullOr(Schema.Int),
+  failures: Schema.Int,
 });
 
 const ThemesRow = Schema.Struct({
@@ -218,6 +219,7 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
     payload: row.payload,
     createdAt: row.created_at,
     completedAt: row.completed_at,
+    failures: row.failures,
   });
 
   const toInvitationRecord = (row: typeof InvitationRow.Type): InvitationRecord => ({
@@ -498,8 +500,8 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
     );
 
   const insertJob = (job: ScheduleJobRecord): Effect.Effect<void> =>
-    sql`INSERT INTO schedule_job (id, round_id, type, due_at, status, payload, created_at, completed_at)
-        VALUES (${job.id}, ${job.roundId}, ${job.type}, ${job.dueAt}, ${job.status}, ${job.payload}, ${job.createdAt}, ${job.completedAt})
+    sql`INSERT INTO schedule_job (id, round_id, type, due_at, status, payload, created_at, completed_at, failures)
+        VALUES (${job.id}, ${job.roundId}, ${job.type}, ${job.dueAt}, ${job.status}, ${job.payload}, ${job.createdAt}, ${job.completedAt}, ${job.failures})
         ON CONFLICT (id) DO NOTHING`.pipe(Effect.asVoid, Effect.orDie);
 
   const updateJobDueAt = (roundId: RoundId, type: ScheduleJobType, dueAt: number): Effect.Effect<void> =>
@@ -797,7 +799,7 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
           return { submissionId, shownToLead: lastRedactedComment };
         }),
       )
-      .pipe(Effect.catchTag("SqlError", (error) => Effect.die(error)));
+      .pipe(Effect.catchTag("SqlError", (sqlError) => Effect.die(sqlError)));
 
   const saveAnswer = (
     editKeyHash: string,
@@ -840,7 +842,7 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
           return { saved: true, shownToLead: lastRedactedComment };
         }),
       )
-      .pipe(Effect.catchTag("SqlError", (error) => Effect.die(error)));
+      .pipe(Effect.catchTag("SqlError", (sqlError) => Effect.die(sqlError)));
 
   const getSubmissionRoundContext = (
     roundId: RoundId,
@@ -1227,6 +1229,12 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
       Effect.orDie,
     );
 
+  const recordJobFailure = (jobId: JobId, failures: number, dueAt: number): Effect.Effect<void> =>
+    sql`UPDATE schedule_job SET failures = ${failures}, due_at = ${dueAt} WHERE id = ${jobId} AND status = 'pending'`.pipe(
+      Effect.asVoid,
+      Effect.orDie,
+    );
+
   const getRoundsWithFrozenMembers = (): Effect.Effect<readonly RoundWithFrozenZones[]> =>
     sql`SELECT r.id, r.pulse_id, r.planned_open_date, r.planned_open_at, rm.time_zone
         FROM round r JOIN round_member rm ON rm.round_id = r.id
@@ -1341,6 +1349,7 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
     storeThemes,
     giveUpThemes,
     updateJobDueAtById,
+    recordJobFailure,
   };
 };
 

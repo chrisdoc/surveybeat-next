@@ -25,7 +25,7 @@ Each is an `overrides` entry that names the rule and the files it cannot apply t
 
 Adopting the reference's surface verbatim would have meant rewriting this tree: Ultracite core alone produced 6,713 findings here and the plugin set another 6,431. #205's rule is "`error` when clean, otherwise a counted baseline". Rather than carry a 14k baseline, the rules that need a repo-wide restyle are off by name in `restyleExceptionsOff`, with the count each one produced on 2026-11-14. The follow-up restyle is issue #216; as it lands, delete the rule's line from `restyleExceptionsOff` so it runs again at its reference severity.
 
-5680 findings across 79 rules are excepted, by namespace: `anti-slop` 9, `anti-slop-effect` 4, `eslint` 18, `foldkit` 7, `import` 1, `jsdoc` 2, `landmines-types` 1, `oxc` 2, `promise` 3, `typescript` 15, `unicorn` 17.
+5617 findings across 69 rules are excepted, by namespace: `anti-slop` 9, `anti-slop-effect` 4, `eslint` 18, `foldkit` 5, `jsdoc` 2, `landmines-types` 1, `oxc` 2, `promise` 1, `typescript` 13, `unicorn` 14.
 
 | Rule | Findings on adoption |
 | --- | ---: |
@@ -62,25 +62,18 @@ Adopting the reference's surface verbatim would have meant rewriting this tree: 
 | `eslint/require-unicode-regexp` | 136 |
 | `foldkit/got-prefix-requires-submodel-payload` | 15 |
 | `foldkit/got-wrapper-carries-only-routing` | 15 |
-| `foldkit/keyed-required-for-mapped-rows` | 5 |
 | `foldkit/no-child-message-construction-in-root` | 4 |
 | `foldkit/no-module-level-mutable-state` | 9 |
 | `foldkit/no-switch-on-message-tag` | 13 |
-| `foldkit/prefer-option-over-nullable-in-model` | 1 |
-| `import/no-mutable-exports` | 8 |
 | `jsdoc/require-param-description` | 45 |
 | `jsdoc/require-returns-description` | 16 |
 | `landmines-types/no-explicit-return-types` (adopted 2026-11-18) | 748 |
 | `oxc/no-accumulating-spread` | 9 |
 | `oxc/no-barrel-file` | 8 |
 | `promise/avoid-new` | 3 |
-| `promise/param-names` | 2 |
-| `promise/prefer-await-to-callbacks` | 11 |
 | `typescript/consistent-return` | 50 |
-| `typescript/consistent-type-definitions` | 5 |
 | `typescript/no-confusing-void-expression` | 17 |
 | `typescript/no-non-null-assertion` | 43 |
-| `typescript/no-unnecessary-type-parameters` | 9 |
 | `typescript/no-unsafe-argument` | 16 |
 | `typescript/no-unsafe-assignment` | 49 |
 | `typescript/no-unsafe-call` | 26 |
@@ -100,12 +93,9 @@ Adopting the reference's surface verbatim would have meant rewriting this tree: 
 | `unicorn/no-array-sort` | 52 |
 | `unicorn/no-await-expression-member` | 140 |
 | `unicorn/no-negated-condition` | 49 |
-| `unicorn/no-useless-undefined` | 9 |
 | `unicorn/prefer-number-coercion` | 29 |
 | `unicorn/prefer-query-selector` | 20 |
-| `unicorn/prefer-single-call` | 9 |
 | `unicorn/prefer-structured-clone` | 2 |
-| `unicorn/prefer-ternary` | 4 |
 | `unicorn/text-encoding-identifier-case` | 45 |
 | `unicorn/throw-new-error` | 33 |
 

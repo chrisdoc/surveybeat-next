@@ -166,8 +166,8 @@ async function main() {
       void sleep(SUBRESOURCE_BODY_DELAY_MS).then(() => res.end(body));
     });
 
-    await new Promise<void>((res) => {
-      server?.listen(port, res);
+    await new Promise<void>((resolve) => {
+      server?.listen(port, resolve);
     });
     targetUrls = [`http://127.0.0.1:${port}/a#t=test-token-123&v=4`];
     console.log(
@@ -210,10 +210,10 @@ async function main() {
 
   const chromePath = findChrome();
 
-  const runLighthouse = (targetUrl: string, name: string): Promise<LighthouseResult> =>
-    new Promise((resolvePromise, reject) => {
-      const outputPath = resolve(reportDir, `${name}.json`);
+  const runLighthouse = (targetUrl: string, name: string): Promise<LighthouseResult> => {
+    const outputPath = resolve(reportDir, `${name}.json`);
 
+    return new Promise((resolve, reject) => {
       const args = [
         targetUrl,
         "--output=json",
@@ -245,12 +245,13 @@ async function main() {
 
         try {
           const parsed: LighthouseResult = JSON.parse(readFileSync(outputPath, "utf8"));
-          resolvePromise(parsed);
+          resolve(parsed);
         } catch (error) {
           reject(error instanceof Error ? error : new Error(String(error)));
         }
       });
     });
+  };
 
   const median = (values: readonly number[]): number => {
     const sorted = [...values].sort((a, b) => a - b);
@@ -362,7 +363,9 @@ async function main() {
   }
 }
 
-main().catch((error: unknown) => {
-  console.error("Error running Lighthouse gate:", error);
+const reportFailure = (failure: unknown): void => {
+  console.error("Error running Lighthouse gate:", failure);
   process.exit(1);
-});
+};
+
+main().catch(reportFailure);

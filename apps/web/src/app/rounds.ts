@@ -252,7 +252,8 @@ export const roundsScreenView = <Message>(
         const confirming = state.confirm?.roundId === round.id ? state.confirm.kind : undefined;
         const failed = lead ? (detail?.failedInvitations ?? []) : [];
 
-        return h.li(
+        return h.keyed("li")(
+          round.id,
           [h.Class("flex flex-col gap-2 rounded-panel border border-line bg-surface px-6 py-4")],
           [
             h.div(
