@@ -33,11 +33,11 @@ const QUESTION_A = { text: "How clear is the plan?", lowLabel: "Unclear", highLa
 
 const QUESTION_B = { text: "How heard do you feel?", lowLabel: "Unheard", highLabel: "Heard" };
 
-type RecordedSend = {
+interface RecordedSend {
   readonly sendId: SendId;
   readonly recipient: EmailAddress;
   readonly email: StoredEmail;
-};
+}
 
 const seed = (db: ReturnType<typeof migratedDatabase>) => {
   const rating = (text: string, lowLabel: string, highLabel: string) =>

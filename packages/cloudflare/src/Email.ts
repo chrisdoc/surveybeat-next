@@ -27,7 +27,7 @@ export const ProductionEmail = Effect.gen(function* () {
   const { stage } = yield* Stack;
 
   if (!sendsRealEmail(stage)) {
-    return undefined;
+    return;
   }
 
   const subdomain = yield* Cloudflare.Email.SendingSubdomain("Notify", {

@@ -19,12 +19,12 @@ const APP_ORIGIN = "https://app.surveybeat.app";
 
 const PLAIN_TEXT = "text/plain; charset=utf-8";
 
-type InvitationRow = {
+interface InvitationRow {
   readonly organization_id: string;
   readonly round_id: string;
   readonly person_id: string;
   readonly pulse_id: string;
-};
+}
 
 type PageBodyOutcome = { readonly _tag: "Decoded"; readonly body: PageBody } | { readonly _tag: "Malformed" };
 

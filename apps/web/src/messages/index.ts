@@ -51,7 +51,7 @@ export function fill(template: string, params: Readonly<Record<string, Value>>):
   return template.replaceAll(/\{(\w+)\}/g, (_, name: string) => String(params[name] ?? ""));
 }
 
-export function message<K extends KeysWithoutParams>(key: K): string;
+export function message(key: KeysWithoutParams): string;
 export function message<K extends KeysWithParams>(key: K, params: Params<K>): string;
 export function message(key: MessageKey, params: Readonly<Record<string, Value>> = {}): string {
   return fill(catalog[key], params);

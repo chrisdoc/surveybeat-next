@@ -3931,7 +3931,7 @@ describe("App Scenes", () => {
     describe("localeOf", () => {
       const modelWith = (browser: Locale | null, session: SessionModel) => ({
         ...initialModel(teamsUrl, []),
-        browserLocale: browser,
+        browserLocale: Option.fromNullishOr(browser),
         session,
       });
 

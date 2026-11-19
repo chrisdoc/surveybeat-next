@@ -17,7 +17,7 @@ import type {
 const tables = { en: catalog } satisfies Record<Locale, Translation>;
 
 interface MessageFn {
-  <K extends KeysWithoutParams>(key: K): string;
+  (key: KeysWithoutParams): string;
   <K extends KeysWithParams>(key: K, params: Params<K>): string;
 }
 
@@ -54,7 +54,7 @@ const build = (locale: Locale): Messages => {
 
   const percentFormat = new Intl.NumberFormat(locale, { style: "percent", maximumFractionDigits: 0 });
 
-  function message<K extends KeysWithoutParams>(key: K): string;
+  function message(key: KeysWithoutParams): string;
   function message<K extends KeysWithParams>(key: K, params: Params<K>): string;
   function message(key: MessageKey, params: Readonly<Record<string, Value>> = {}): string {
     return fill(table[key], params);
@@ -122,40 +122,35 @@ export const messagesFor = (locale: Locale): Messages => {
   return messages;
 };
 
-export let currentLocale: Locale = "en";
+let active: Messages = messagesFor("en");
 
-export let message: Messages["message"] = messagesFor("en").message;
+export const currentLocale = (): Locale => active.locale;
 
-export let pluralMessage: Messages["pluralMessage"] = messagesFor("en").pluralMessage;
+export const message: Messages["message"] = (key: MessageKey, params: Readonly<Record<string, Value>> = {}) =>
+  fill(tables[active.locale][key], params);
+
+export const pluralMessage: Messages["pluralMessage"] = (base, count, params) =>
+  active.pluralMessage(base, count, params);
 
 export const formatDuration = (seconds: number): string =>
   seconds >= 60
     ? message("duration.minutes", { minutes: Math.round(seconds / 60) })
     : message("duration.seconds", { seconds });
 
-export let formatDate: Messages["formatDate"] = messagesFor("en").formatDate;
+export const formatDate: Messages["formatDate"] = (date, options) => active.formatDate(date, options);
 
-export let formatNumber: Messages["formatNumber"] = messagesFor("en").formatNumber;
+export const formatNumber: Messages["formatNumber"] = (value) => active.formatNumber(value);
 
-export let formatScore: Messages["formatScore"] = messagesFor("en").formatScore;
+export const formatScore: Messages["formatScore"] = (score) => active.formatScore(score);
 
-export let formatChange: Messages["formatChange"] = messagesFor("en").formatChange;
+export const formatChange: Messages["formatChange"] = (change) => active.formatChange(change);
 
-export let formatPercent: Messages["formatPercent"] = messagesFor("en").formatPercent;
+export const formatPercent: Messages["formatPercent"] = (ratio) => active.formatPercent(ratio);
 
-export let formatRoundDate: Messages["formatRoundDate"] = messagesFor("en").formatRoundDate;
+export const formatRoundDate: Messages["formatRoundDate"] = (isoDate) => active.formatRoundDate(isoDate);
 
 export const setLocale = (locale: Locale): void => {
-  const messages = messagesFor(locale);
-  currentLocale = locale;
-  message = messages.message;
-  pluralMessage = messages.pluralMessage;
-  formatDate = messages.formatDate;
-  formatNumber = messages.formatNumber;
-  formatScore = messages.formatScore;
-  formatChange = messages.formatChange;
-  formatPercent = messages.formatPercent;
-  formatRoundDate = messages.formatRoundDate;
+  active = messagesFor(locale);
 
   if (typeof document !== "undefined") {
     document.documentElement.lang = locale;

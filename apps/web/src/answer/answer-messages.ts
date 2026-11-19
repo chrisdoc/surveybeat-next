@@ -13,7 +13,7 @@ type KeysWithParams = Exclude<AnswerKey, KeysWithoutParams>;
 type Params<K extends AnswerKey> = Readonly<Record<Placeholders<AnswerCatalog[K]>, Value>>;
 
 export interface AnswerMessage {
-  <K extends KeysWithoutParams>(key: K): string;
+  (key: KeysWithoutParams): string;
   <K extends KeysWithParams>(key: K, params: Params<K>): string;
 }
 
@@ -22,7 +22,7 @@ function fill(template: string, params: Readonly<Record<string, Value>>): string
 }
 
 export function answerMessages(table: AnswerTranslation): AnswerMessage {
-  function message<K extends KeysWithoutParams>(key: K): string;
+  function message(key: KeysWithoutParams): string;
   function message<K extends KeysWithParams>(key: K, params: Params<K>): string;
   function message(key: AnswerKey, params: Readonly<Record<string, Value>> = {}): string {
     return fill(table[key], params);

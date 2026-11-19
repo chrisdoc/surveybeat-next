@@ -41,9 +41,9 @@ const setupD1 = (): { readonly d1: DatabaseSync; readonly queryDb: Cloudflare.D1
     bind: (...values: readonly unknown[]) => statement(sql, values),
     first: <T>() =>
       Effect.sync(() => (d1.prepare(sql).get(...(binds as (null | string | number)[])) ?? null) as T | null),
-    all: <T>() =>
+    all: () =>
       Effect.sync(() => ({
-        results: d1.prepare(sql).all(...(binds as (null | string | number)[])) as T[],
+        results: d1.prepare(sql).all(...(binds as (null | string | number)[])) as unknown[],
       })),
     run: () =>
       Effect.sync(() => {
@@ -96,7 +96,7 @@ const recordingOrganizations = (failing = false) => {
       {
         get: (_target, method) => {
           if (typeof method !== "string") {
-            return undefined;
+            return;
           }
 
           calls.push(method);
@@ -114,7 +114,7 @@ const recordingOrganizations = (failing = false) => {
     {
       get: (_target, method) => {
         if (typeof method !== "string") {
-          return undefined;
+          return;
         }
 
         calls.push(method);
@@ -170,10 +170,16 @@ const bodyText = (response: HttpServerResponse.HttpServerResponse): string => {
   }
 };
 
-type Hashes = { readonly editKeyHash: string; readonly freshHash: string };
+interface Hashes {
+  readonly editKeyHash: string;
+  readonly freshHash: string;
+}
 
 /** Test rows to seed on top of the real ones: an unexpired (or expired) test token and test Edit key. */
-type TestSeed = { readonly testInvitationExpiresAt?: number; readonly testSubmissionExpiresAt?: number };
+interface TestSeed {
+  readonly testInvitationExpiresAt?: number;
+  readonly testSubmissionExpiresAt?: number;
+}
 
 /**
  * Seeds D1 with a Submission for EDIT_KEY and an Invitation for TOKEN, runs the request built from

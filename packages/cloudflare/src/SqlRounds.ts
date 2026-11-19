@@ -797,7 +797,7 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
           return { submissionId, shownToLead: lastRedactedComment };
         }),
       )
-      .pipe(Effect.catchTag("SqlError", (error) => Effect.die(error)));
+      .pipe(Effect.catchTag("SqlError", (sqlError) => Effect.die(sqlError)));
 
   const saveAnswer = (
     editKeyHash: string,
@@ -840,7 +840,7 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
           return { saved: true, shownToLead: lastRedactedComment };
         }),
       )
-      .pipe(Effect.catchTag("SqlError", (error) => Effect.die(error)));
+      .pipe(Effect.catchTag("SqlError", (sqlError) => Effect.die(sqlError)));
 
   const getSubmissionRoundContext = (
     roundId: RoundId,

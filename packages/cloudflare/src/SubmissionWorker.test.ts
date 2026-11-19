@@ -42,9 +42,9 @@ const setupMocks = (): MockContext => {
     bind: (...values: readonly unknown[]) => statement(sql, values),
     first: <T>() =>
       Effect.sync(() => (d1.prepare(sql).get(...(binds as (null | string | number)[])) ?? null) as T | null),
-    all: <T>() =>
+    all: () =>
       Effect.sync(() => ({
-        results: d1.prepare(sql).all(...(binds as (null | string | number)[])) as T[],
+        results: d1.prepare(sql).all(...(binds as (null | string | number)[])) as unknown[],
       })),
     run: () =>
       Effect.sync(() => {

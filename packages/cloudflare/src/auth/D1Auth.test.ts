@@ -188,7 +188,7 @@ interface D1Result<T> {
 
 interface AuthorizedStatement {
   readonly bind: (...values: readonly unknown[]) => AuthorizedStatement;
-  readonly all: <T>() => Promise<D1Result<T>>;
+  readonly all: () => Promise<D1Result<unknown>>;
   readonly run: () => Promise<unknown>;
 }
 
@@ -210,20 +210,20 @@ const betterAuthDatabase = () => {
 
       return Promise.resolve();
     },
-    all: <T>() => {
+    all: () => {
       const prepared = sqlite.prepare(sql);
 
       if (prepared.columns().length === 0) {
         const applied = prepared.run(...bounded(binds));
 
         return Promise.resolve({
-          results: [] as T[],
+          results: [] as unknown[],
           meta: { changes: Number(applied.changes), last_row_id: Number(applied.lastInsertRowid) },
         });
       }
 
       return Promise.resolve({
-        results: prepared.all(...bounded(binds)) as unknown as T[],
+        results: prepared.all(...bounded(binds)),
         meta: { changes: 0, last_row_id: 0 },
       });
     },
@@ -340,11 +340,12 @@ describe("Better Auth identity provider over D1", () => {
             database
               .prepare("SELECT organization_id FROM auth_session_organization WHERE session_id = ?")
               .bind(sessionId)
-              .all<{ organization_id: string }>(),
+              .all(),
           ).pipe(
             Effect.map((result) =>
-              Option.map(Option.fromNullishOr(result.results[0]), (row) =>
-                OrganizationId.make(row.organization_id),
+              Option.map(
+                Option.fromNullishOr(result.results[0] as { organization_id: string } | undefined),
+                (row) => OrganizationId.make(row.organization_id),
               ),
             ),
           ),
