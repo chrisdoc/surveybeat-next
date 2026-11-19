@@ -2467,6 +2467,83 @@ describe("App Scenes", () => {
       );
     });
 
+    describe("Trend panel is only for Rating Questions", () => {
+      const roundId = Schema.decodeSync(RoundId)("round-bare");
+      const choiceQuestion = (
+        trend: RoundResult["questions"][number]["trend"],
+      ): RoundResult["questions"][number] => ({
+        questionVersionId: decodeVersionId("qv-choice"),
+        position: 0,
+        text: "Which option fits best?",
+        type: { _tag: "SingleChoice", options: ["Yes", "No"] },
+        dimension: null,
+        contributors: 6,
+        meetsMinimumGroupSize: true,
+        score: null,
+        distribution: [
+          { option: "Yes", count: 0 },
+          { option: "No", count: 6 },
+        ],
+        change: null,
+        typicalChange: null,
+        trend,
+      });
+
+      it("shows a distribution for a Single choice Question and answers for a Long text Question", () => {
+        Scene.scene(
+          { update, view },
+          bareScene(
+            bareResult({
+              questions: [
+                choiceQuestion([]),
+                {
+                  questionVersionId: decodeVersionId("qv-long"),
+                  position: 1,
+                  text: "Anything else?",
+                  type: { _tag: "LongText" },
+                  dimension: null,
+                  contributors: 6,
+                  meetsMinimumGroupSize: true,
+                  score: null,
+                  distribution: null,
+                  change: null,
+                  typicalChange: null,
+                  trend: [],
+                },
+              ],
+              comments: [{ questionVersionId: decodeVersionId("qv-long"), text: "Keep the standups short." }],
+            }),
+          ),
+          Scene.expect(Scene.role("heading", { name: "Distribution" })).toExist(),
+          Scene.expect(Scene.role("heading", { name: "Answers" })).toExist(),
+          Scene.expect(Scene.text("Keep the standups short.")).toExist(),
+        );
+      });
+
+      it("hides a stored trend on a Single choice Question instead of drawing an empty 1–5 panel", () => {
+        Scene.scene(
+          { update, view },
+          bareScene(
+            bareResult({
+              questions: [
+                choiceQuestion([
+                  {
+                    roundId,
+                    plannedOpenDate: "2026-11-09",
+                    score: null,
+                    contributors: 6,
+                    hasGap: true,
+                  },
+                ]),
+              ],
+            }),
+          ),
+          Scene.expect(Scene.role("heading", { name: "Distribution" })).toExist(),
+          Scene.expect(Scene.role("heading", { name: "1-Round trend" })).toBeAbsent(),
+        );
+      });
+    });
+
     describe("Highlights, number and date formats, and the Actions panel", () => {
       /** A closed Round with one flagged Question and one Dimension, so the badge and formats are on screen. */
       const flaggedResult = (direction: "rise" | "drop", questionScore: number): RoundResult => ({
