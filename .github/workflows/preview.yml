@@ -11,6 +11,7 @@ on:
 permissions:
   contents: read
   deployments: write
+  pull-requests: read
 
 # One run per pull request at a time, and never cancel a running deploy or destroy.
 concurrency:
@@ -23,12 +24,66 @@ env:
   CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
 jobs:
-  deploy:
+  # Decides what this revision needs before any stage work starts (docs/adr/0026-preview-stage-gates.md).
+  # The path rules live in scripts/ci/select.mjs and are locked by scripts/ci/select.test.ts.
+  select:
     # Fork and Dependabot pull requests get no secrets, so they get no stage (CI's check and privacy still run).
     if: >-
       github.event.action != 'closed'
       && github.event.pull_request.head.repo.full_name == github.repository
       && github.event.pull_request.user.login != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      head: ${{ steps.head.outputs.head }}
+      stage: ${{ steps.classify.outputs.stage }}
+      canary: ${{ steps.classify.outputs.canary }}
+      lighthouse: ${{ steps.classify.outputs.lighthouse }}
+    steps:
+      # Runs before any checkout. A failed read keeps the stage: being unsure is a reason to run.
+      - name: Stop a superseded revision
+        id: head
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if current=$(gh api "repos/$REPO/pulls/$PR" --jq .head.sha) && [ "$current" != "$HEAD_SHA" ]; then
+            echo "Revision $HEAD_SHA is no longer the head of #$PR ($current): a newer revision owns the stage."
+            echo "head=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "head=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Check out the classifier
+        if: steps.head.outputs.head == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: scripts/ci
+      - name: Classify the changed paths
+        id: classify
+        if: steps.head.outputs.head == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        # The compare endpoint is addressed by commit, so the list cannot be stale after a push. It matches the
+        # old `git diff BASE...HEAD` and includes the old name of a rename. It caps at 3000 files, so a list that
+        # long may be cut short and keeps every gate.
+        run: |
+          if gh api --paginate "repos/$REPO/compare/$BASE_SHA...$HEAD_SHA" \
+              --jq '.files[] | .filename, (.previous_filename // empty)' > "$RUNNER_TEMP/changed.txt" \
+            && [ "$(wc -l < "$RUNNER_TEMP/changed.txt")" -lt 3000 ]; then
+            node scripts/ci/select.mjs < "$RUNNER_TEMP/changed.txt"
+          else
+            echo "The changed files could not be read in full: every stage gate is required."
+            printf 'stage=true\ncanary=true\nlighthouse=true\n' >> "$GITHUB_OUTPUT"
+          fi
+
+  deploy:
+    needs: select
+    if: needs.select.outputs.head == 'true' && needs.select.outputs.stage == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment:
@@ -53,16 +108,14 @@ jobs:
         run: node infra/scripts/smoke.ts "https://$STAGE.dashboard.surveybeat.app" "https://$STAGE.submit.surveybeat.app"
 
   # Preview-stage privacy checks (privacy suite design, issue #25): A7 on the deployed stage.
-  # The read-back runs on every PR. The canary sweep is required only when a PR touches what the
-  # Submission path is built from; on any other PR the step passes without running.
+  # The read-back runs on every stage. The canary sweep is required only when select.mjs finds a PR touching
+  # what the Submission path is built from; otherwise the step passes without running.
   preview-privacy:
-    needs: deploy
+    needs: [select, deploy]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -71,59 +124,32 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Read back the Submission Worker's deployed settings
         run: pnpm check:observability --stage "$STAGE"
-      - name: Does this PR touch the Submission path?
-        id: paths
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          changed=$(git diff --name-only "$BASE_SHA...$HEAD_SHA")
-          echo "$changed"
-          if echo "$changed" | grep -qE '^(packages/cloudflare/|infra/|apps/web/(answer\.html|vite\.config\.ts|src/answer/|src/messages/)|pnpm-workspace\.yaml|pnpm-lock\.yaml|\.github/workflows/preview\.yml)'; then
-            echo "required=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "required=false" >> "$GITHUB_OUTPUT"
-            echo "No Submission path changes: the canary sweep is not required for this PR."
-          fi
       - name: Canary sweep with a positive control
-        if: steps.paths.outputs.required == 'true'
+        if: needs.select.outputs.canary == 'true'
         run: pnpm test:preview-privacy --stage "$STAGE" "https://$STAGE.dashboard.surveybeat.app" "https://$STAGE.submit.surveybeat.app"
 
   # End-to-end tests: the suite on the PR stage, then the SPEC §7 flow on the runner's local stage.
+  # The Lighthouse gate runs only when select.mjs finds an answer entry change, and it reads the built app.
   e2e:
-    needs: deploy
+    needs: [select, deploy]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # The stage tests run against the deployed stage, and the flow's Playwright web server builds the app itself.
       - name: Build the web app
+        if: needs.select.outputs.lighthouse == 'true'
         run: pnpm --filter @surveybeat/web build
       - name: Install Chromium
         run: pnpm --filter @surveybeat/infra exec playwright install --with-deps chromium
-      - name: Does this PR touch the answer entry?
-        id: paths
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          changed=$(git diff --name-only "$BASE_SHA...$HEAD_SHA" || true)
-          echo "$changed"
-          if echo "$changed" | grep -qE '^(apps/web/(answer\.html|vite\.config\.ts|src/answer/|src/messages/)|infra/scripts/lighthouse|infra/package\.json)'; then
-            echo "required=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "required=false" >> "$GITHUB_OUTPUT"
-            echo "No answer entry changes: the Lighthouse CI gate is not required for this PR."
-          fi
       - name: Lighthouse CI gate (performance budgets)
-        if: steps.paths.outputs.required == 'true'
+        if: needs.select.outputs.lighthouse == 'true'
         run: pnpm test:lighthouse
       - name: End-to-end tests
         run: pnpm test:e2e
