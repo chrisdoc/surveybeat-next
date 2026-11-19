@@ -189,7 +189,7 @@ const organizationObject = Effect.gen(function* () {
           minimumGroupSize: people.minimumGroupSize,
           test: ref,
           baseUrl: appOrigin,
-          ratingQuestion: firstRatingQuestionOf(pulse, library),
+          ratingQuestion: firstRatingQuestionOf(pulse.questions, library),
           actions: eligibleActions.slice(0, 3).map((action) => action.title),
           aiProcessing: people.aiProcessing,
         };
