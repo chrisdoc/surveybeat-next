@@ -17,8 +17,8 @@ import {
   nextRetryAt,
   PersonId,
   type PulseId,
-  type PulseRecord,
   type PulseState,
+  type QuestionVersionId,
   RoundId,
   type RoundRecord,
   runThemesAttempt,
@@ -62,8 +62,11 @@ export const reviewEndsAtOf = (pulseState: PulseState, pulseId: PulseId, now: nu
   return now + (pulse?.settings.reviewWindowDays ?? 0) * 86_400_000;
 };
 
-export const firstRatingQuestionOf = (pulse: PulseRecord, pulseState: PulseState) => {
-  const firstVersionId = pulse.questions[0];
+export const firstRatingQuestionOf = (
+  questionVersionIds: ReadonlyArray<QuestionVersionId>,
+  pulseState: PulseState,
+) => {
+  const firstVersionId = questionVersionIds[0];
   const firstVersion =
     firstVersionId !== undefined ? pulseState.versions.find((v) => v.id === firstVersionId) : undefined;
   return firstVersion && firstVersion.content.type._tag === "Rating"
@@ -156,6 +159,7 @@ export const makeRoundJobs = ({
     Effect.gen(function* () {
       const job = yield* rounds.getJob(jobId);
       if (job === null || job.status !== "pending") return;
+      if (job.dueAt > now) return;
 
       const round = yield* rounds.getRound(roundId);
       if (round === null || round.status !== "scheduled") {
@@ -205,7 +209,7 @@ export const makeRoundJobs = ({
 
       yield* rounds.openRound(roundId, now, instants.closeInstant, pulse.questions, frozenMembers);
 
-      const ratingQuestion = firstRatingQuestionOf(pulse, pulseState);
+      const ratingQuestion = firstRatingQuestionOf(yield* rounds.getRoundQuestions(roundId), pulseState);
       const eligibleActions = yield* actions.getEligibleActionsForRound(
         round.teamId,
         round.pulseId,
@@ -370,7 +374,7 @@ export const makeRoundJobs = ({
         return;
       }
 
-      const ratingQuestion = firstRatingQuestionOf(pulse, pulseState);
+      const ratingQuestion = firstRatingQuestionOf(yield* rounds.getRoundQuestions(roundId), pulseState);
       const eligibleActions = yield* actions.getEligibleActionsForRound(
         round.teamId,
         round.pulseId,
@@ -458,7 +462,7 @@ export const makeRoundJobs = ({
         return;
       }
 
-      const ratingQuestion = firstRatingQuestionOf(pulse, pulseState);
+      const ratingQuestion = firstRatingQuestionOf(yield* rounds.getRoundQuestions(roundId), pulseState);
       const eligibleActions = yield* actions.getEligibleActionsForRound(
         round.teamId,
         round.pulseId,
@@ -668,8 +672,6 @@ export const makeRoundJobs = ({
           }
         }
 
-        yield* scheduleResultsReady(round, activePersonsWithRole(dirState, round.teamId, "lead"), now);
-
         const readied = yield* rounds.getRound(roundId);
         const reviewEndsAt = readied?.reviewEndsAt ?? null;
         if (reviewEndsAt === null || reviewEndsAt <= now) {
@@ -685,6 +687,7 @@ export const makeRoundJobs = ({
             createdAt: now,
             completedAt: null,
           });
+          yield* scheduleResultsReady(round, activePersonsWithRole(dirState, round.teamId, "lead"), now);
         }
 
         yield* repairAlarm();

@@ -195,7 +195,10 @@ export const organizationRoundCommands = ({
                 const newSendId = SendId.make(randomId());
                 yield* rounds.resendInvitation(target.id, person.id, newSendId, newTokenHash, now);
 
-                const ratingQuestion = firstRatingQuestionOf(pulse, pulseState);
+                const ratingQuestion = firstRatingQuestionOf(
+                  yield* rounds.getRoundQuestions(target.id),
+                  pulseState,
+                );
                 const eligibleActions = yield* actions.getEligibleActionsForRound(
                   target.teamId,
                   target.pulseId,

@@ -26,13 +26,13 @@ export const flowTestRoutes = (organizations: Organizations) =>
     if (openJob === undefined) {
       return yield* HttpServerResponse.json({ error: "no pending open job" }, { status: 409 });
     }
-    yield* organization.runScheduleJob(openJob.id, now);
+    yield* organization.runScheduleJob(openJob.id, Math.max(now, openJob.due_at));
 
     const sendJobs = (yield* organization.getJobsForRound(scheduled.id)).filter(
       (job) => job.type === "send" && job.status === "pending",
     );
     for (const job of sendJobs) {
-      yield* organization.runScheduleJob(job.id, now);
+      yield* organization.runScheduleJob(job.id, Math.max(now, job.due_at));
     }
 
     return yield* HttpServerResponse.json({ roundId: scheduled.id });
