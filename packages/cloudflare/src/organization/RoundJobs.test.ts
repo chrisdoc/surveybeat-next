@@ -7,10 +7,13 @@ import type {
   InvitationTokenRef,
   SendStoreShape,
   StoredEmail,
+  JobId,
 } from "@surveybeat/domain";
 import { migratedDatabase, SqliteStorage } from "@surveybeat/testing";
 import * as Effect from "effect/Effect";
+import * as Logger from "effect/Logger";
 import * as Reactivity from "effect/reactivity/Reactivity";
+import * as Schema from "effect/Schema";
 import * as Scope from "effect/Scope";
 import { makeSqlActions } from "../SqlActions.ts";
 import { makeSqlDirectory } from "../SqlDirectory.ts";
@@ -22,6 +25,8 @@ import { makeRoundJobs } from "./RoundJobs.ts";
 import { makeScheduling } from "./Scheduling.ts";
 
 const migrationsDir = new URL("../../migrations/", import.meta.url);
+
+const MINUTE = 60_000;
 
 const HOUR = 3_600_000;
 
@@ -38,6 +43,11 @@ interface RecordedSend {
   readonly recipient: EmailAddress;
   readonly email: StoredEmail;
 }
+
+/** A typed failure of a Round job, standing in for a provider or send error that carries a recipient. */
+class SendFailed extends Schema.TaggedError<SendFailed, { readonly brand: unique symbol }>()("SendFailed", {
+  message: Schema.String,
+}) {}
 
 const seed = (db: ReturnType<typeof migratedDatabase>) => {
   const rating = (text: string, lowLabel: string, highLabel: string) =>
@@ -130,7 +140,23 @@ const jobStatus = (db: ReturnType<typeof migratedDatabase>, jobId: string) =>
 const roundStatus = (db: ReturnType<typeof migratedDatabase>, roundId: string) =>
   db.prepare("SELECT status FROM round WHERE id = ?").get(roundId)?.status;
 
+const jobState = (db: ReturnType<typeof migratedDatabase>, jobId: string) =>
+  db.prepare("SELECT status, failures, due_at FROM schedule_job WHERE id = ?").get(jobId);
+
 const ratingOf = (email: StoredEmail) => ("ratingQuestion" in email ? email.ratingQuestion : null);
+
+/** Captures the messages logged at the Error level while the effect runs, in place of the default logger. */
+const captureErrorLogs = () => {
+  const messages: string[] = [];
+
+  const logger = Logger.make(({ message, logLevel }) => {
+    if (logLevel === "Error") {
+      messages.push(String(message));
+    }
+  });
+
+  return { messages, layer: Logger.layer([logger], { mergeWithExisting: false }) };
+};
 
 /**
  * The Organization's Round machinery on the real migrations. Outgoing sends are recorded; the
@@ -172,17 +198,30 @@ const build = (options: { readonly failNotifications?: boolean } = {}) =>
       randomId,
     });
 
+    const uniqueViolation = sql`INSERT INTO organization (id, name) VALUES ('org-1', 'Duplicate')`.pipe(
+      Effect.orDie,
+    );
+
+    const faults = {
+      completionOf: new Map<string, Effect.Effect<void, SendFailed>>(),
+      uniqueViolation,
+    };
+
     const failingRounds = {
       ...rounds,
       insertJob: (job: Parameters<typeof rounds.insertJob>[0]) =>
-        job.type === "send" ? Effect.die(new Error("notification insert failed")) : rounds.insertJob(job),
+        job.type === "send" && options.failNotifications === true
+          ? Effect.die(new Error("notification insert failed"))
+          : rounds.insertJob(job),
+      markJobCompleted: (jobId: JobId, now: number) =>
+        rounds
+          .markJobCompleted(jobId, now)
+          .pipe(Effect.andThen(faults.completionOf.get(jobId) ?? Effect.void)),
     };
-
-    const wired = options.failNotifications === true ? failingRounds : rounds;
 
     const deps = {
       sql,
-      rounds: wired,
+      rounds: failingRounds as unknown as typeof rounds,
       directory,
       pulses,
       actions,
@@ -198,7 +237,7 @@ const build = (options: { readonly failNotifications?: boolean } = {}) =>
     const jobs = makeRoundJobs(deps);
     const commands = organizationRoundCommands({ ...deps, jobs });
 
-    return { db, jobs, commands, recorded };
+    return { db, jobs, commands, recorded, faults };
   });
 
 describe("the Invitations and reminders of a Round", () => {
@@ -409,6 +448,148 @@ describe("the open job", () => {
 
       assert.strictEqual(roundStatus(db, "round-1"), "open");
       assert.strictEqual(jobStatus(db, "job-open"), "completed");
+    }),
+  );
+});
+
+describe("a Round job that fails during the alarm", () => {
+  const FAILURE_AT = T0 + HOUR;
+
+  /** job-a is an open job on a closed Round, so it completes as a no-op; job-b opens a scheduled Round. */
+  const seedTwoDueJobs = (db: ReturnType<typeof migratedDatabase>) => {
+    insertRound(db, {
+      id: "round-1",
+      status: "closed",
+      openedAt: T0,
+      closedAt: T0 + DAY,
+      reviewEndsAt: null,
+    });
+    db.exec("UPDATE round SET planned_open_date = '2026-11-16' WHERE id = 'round-1'");
+    insertRound(db, {
+      id: "round-2",
+      status: "scheduled",
+      openedAt: null,
+      closedAt: null,
+      reviewEndsAt: null,
+    });
+    insertJob(db, { id: "job-a", roundId: "round-1", type: "open", dueAt: T0, payload: null });
+    insertJob(db, { id: "job-b", roundId: "round-2", type: "open", dueAt: T0 + 1, payload: null });
+  };
+
+  it.effect("runs the remaining due jobs, rolls the failed job back and backs it off", () =>
+    Effect.gen(function* () {
+      const logs = captureErrorLogs();
+      const { db, jobs, faults } = yield* build();
+      seedTwoDueJobs(db);
+      faults.completionOf.set("job-a", faults.uniqueViolation);
+
+      yield* jobs.runDueJobs(FAILURE_AT).pipe(Effect.provide(logs.layer));
+
+      assert.strictEqual(roundStatus(db, "round-2"), "open");
+      assert.strictEqual(jobStatus(db, "job-b"), "completed");
+      assert.deepStrictEqual(jobState(db, "job-a"), {
+        status: "pending",
+        failures: 1,
+        due_at: FAILURE_AT + 5 * MINUTE,
+      });
+    }),
+  );
+
+  it.effect(
+    "ends the alarm's loop when a job keeps failing, and does not run it again before its backoff",
+    () =>
+      Effect.gen(function* () {
+        const logs = captureErrorLogs();
+        const { db, jobs, faults } = yield* build();
+        seedTwoDueJobs(db);
+        faults.completionOf.set("job-a", faults.uniqueViolation);
+
+        yield* jobs.runDueJobs(FAILURE_AT).pipe(Effect.provide(logs.layer));
+        yield* jobs.runDueJobs(FAILURE_AT).pipe(Effect.provide(logs.layer));
+
+        assert.strictEqual(logs.messages.length, 1);
+        assert.strictEqual(jobState(db, "job-a")?.failures, 1);
+      }),
+  );
+
+  it.effect("doubles the backoff on each failure and completes the job once the failure clears", () =>
+    Effect.gen(function* () {
+      const logs = captureErrorLogs();
+      const { db, jobs, faults } = yield* build();
+      seedTwoDueJobs(db);
+      faults.completionOf.set("job-a", faults.uniqueViolation);
+
+      yield* jobs.runDueJobs(FAILURE_AT).pipe(Effect.provide(logs.layer));
+      yield* jobs.runDueJobs(FAILURE_AT + 5 * MINUTE).pipe(Effect.provide(logs.layer));
+
+      assert.deepStrictEqual(jobState(db, "job-a"), {
+        status: "pending",
+        failures: 2,
+        due_at: FAILURE_AT + 5 * MINUTE + 10 * MINUTE,
+      });
+
+      faults.completionOf.delete("job-a");
+      yield* jobs.runDueJobs(FAILURE_AT + 15 * MINUTE).pipe(Effect.provide(logs.layer));
+
+      assert.strictEqual(jobStatus(db, "job-a"), "completed");
+      assert.strictEqual(jobState(db, "job-a")?.failures, 2);
+    }),
+  );
+
+  it.effect("logs the job, its type and Round, and the underlying SQLite cause", () =>
+    Effect.gen(function* () {
+      const logs = captureErrorLogs();
+      const { db, jobs, faults } = yield* build();
+      seedTwoDueJobs(db);
+      faults.completionOf.set("job-a", faults.uniqueViolation);
+
+      yield* jobs.runDueJobs(FAILURE_AT).pipe(Effect.provide(logs.layer));
+
+      assert.strictEqual(logs.messages.length, 1);
+      const [message] = logs.messages;
+      assert.isTrue(message?.startsWith("[OPERATOR_ALERT] ROUND_JOB_FAILED"));
+      assert.include(message, "job=job-a");
+      assert.include(message, "type=open");
+      assert.include(message, "round=round-1");
+      assert.include(message, "failures=1");
+      assert.include(message, "SqlError: UNIQUE constraint failed: organization.id");
+    }),
+  );
+
+  it.effect("logs a dying job's error name and not the message, which can hold a recipient", () =>
+    Effect.gen(function* () {
+      const logs = captureErrorLogs();
+      const { db, jobs, faults } = yield* build();
+      seedTwoDueJobs(db);
+      faults.completionOf.set("job-a", Effect.die(new Error("could not send to alice@example.com")));
+
+      yield* jobs.runDueJobs(FAILURE_AT).pipe(Effect.provide(logs.layer));
+
+      assert.strictEqual(logs.messages.length, 1);
+      const [message] = logs.messages;
+      assert.isTrue(message?.startsWith("[OPERATOR_ALERT] ROUND_JOB_FAILED"));
+      assert.notInclude(message, "alice@example.com");
+      assert.include(message, "Die(Error)");
+    }),
+  );
+
+  it.effect("logs a failing job's error tag and not the message, which can hold a recipient", () =>
+    Effect.gen(function* () {
+      const logs = captureErrorLogs();
+      const { db, jobs, faults } = yield* build();
+      seedTwoDueJobs(db);
+      faults.completionOf.set(
+        "job-a",
+        Effect.fail(new SendFailed({ message: "could not send to alice@example.com" })),
+      );
+
+      yield* jobs.runDueJobs(FAILURE_AT).pipe(Effect.provide(logs.layer));
+
+      assert.strictEqual(logs.messages.length, 1);
+      const [message] = logs.messages;
+      assert.isTrue(message?.startsWith("[OPERATOR_ALERT] ROUND_JOB_FAILED"));
+      assert.notInclude(message, "alice@example.com");
+      assert.include(message, "cause=SendFailed");
     }),
   );
 });

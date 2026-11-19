@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@effect/vitest";
-import { nextRetryAt, RETRY_WINDOW_MS } from "./Retry.ts";
+import { nextJobAttemptAt, nextRetryAt, RETRY_WINDOW_MS } from "./Retry.ts";
 
 const MINUTE = 60_000;
 
@@ -25,5 +25,25 @@ describe("nextRetryAt (ADR 0016)", () => {
       REQUESTED_AT + RETRY_WINDOW_MS,
     );
     expect(nextRetryAt(REQUESTED_AT, 1, REQUESTED_AT + RETRY_WINDOW_MS - 4 * MINUTE)).toBeNull();
+  });
+});
+
+describe("nextJobAttemptAt", () => {
+  const NOW = 1_731_140_000_000;
+
+  it("backs a job off 5 minutes after its first failure, doubling per failure", () => {
+    expect(nextJobAttemptAt(1, NOW)).toBe(NOW + 5 * MINUTE);
+    expect(nextJobAttemptAt(2, NOW)).toBe(NOW + 10 * MINUTE);
+    expect(nextJobAttemptAt(3, NOW)).toBe(NOW + 20 * MINUTE);
+  });
+
+  it("caps the wait at 4 hours and never gives up", () => {
+    expect(nextJobAttemptAt(7, NOW)).toBe(NOW + 4 * HOUR);
+    expect(nextJobAttemptAt(50, NOW)).toBe(NOW + 4 * HOUR);
+    expect(nextJobAttemptAt(50, NOW + 10 * RETRY_WINDOW_MS)).toBe(NOW + 10 * RETRY_WINDOW_MS + 4 * HOUR);
+  });
+
+  it("treats a zero failure count as the first failure", () => {
+    expect(nextJobAttemptAt(0, NOW)).toBe(NOW + 5 * MINUTE);
   });
 });
