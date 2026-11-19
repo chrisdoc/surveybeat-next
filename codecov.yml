@@ -1,0 +1,9 @@
+# These files run only inside workerd: the Organization Durable Object class and the /__test routes
+# of test_* stages. Adapter tests exercise them through Test.make, in a separate workerd process
+# that Vitest's coverage cannot see, so they would read 0% on every patch (#247). Their logic lives
+# in packages/cloudflare/src/organization/*.ts, which stays measured through its node:sqlite tests.
+ignore:
+  - "packages/cloudflare/src/Organization.ts"
+  - "packages/cloudflare/src/*TestRoutes.ts"
+  - "packages/cloudflare/src/auth/PeopleTestRoutes.ts"
+  - "packages/cloudflare/src/organization/TestSupport.ts"
