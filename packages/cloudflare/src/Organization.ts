@@ -7,6 +7,7 @@ import { organizationEmailVisibility } from "./organization/EmailVisibility.ts";
 import { organizationNotes } from "./organization/Notes.ts";
 import { organizationResults } from "./organization/Results.ts";
 import { organizationRoundCommands } from "./organization/RoundCommands.ts";
+import { repairRoundPlannedOpenDates } from "./organization/RoundDateRepair.ts";
 import { firstRatingQuestionOf, makeRoundJobs } from "./organization/RoundJobs.ts";
 import { organizationRoundViews } from "./organization/RoundViews.ts";
 import { makeScheduling } from "./organization/Scheduling.ts";
@@ -144,6 +145,15 @@ const organizationObject = Effect.gen(function* () {
       appOrigin,
       ai,
     });
+
+    yield* repairRoundPlannedOpenDates({
+      sql,
+      rounds,
+      directory,
+      pulses,
+      scheduling,
+      now: yield* Clock.currentTimeMillis,
+    }).pipe(Effect.catchCause((cause) => Effect.logError("ROUND_PLANNED_OPEN_DATE_REPAIR_FAILED", cause)));
 
     const queueTestSend = (
       actorId: PersonId,

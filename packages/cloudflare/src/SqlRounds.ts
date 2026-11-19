@@ -36,6 +36,7 @@ import {
   StoredThemes,
   type RoundThemesRecord,
   TeamId,
+  TimeZone,
 } from "@surveybeat/domain";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
@@ -119,6 +120,22 @@ const InvitedPersonRow = Schema.Struct({
   round_id: RoundId,
   person_id: PersonId,
 });
+
+const FrozenZoneRow = Schema.Struct({
+  id: RoundId,
+  pulse_id: PulseId,
+  planned_open_date: Schema.String,
+  planned_open_at: Schema.Int,
+  time_zone: TimeZone,
+});
+
+export interface RoundWithFrozenZones {
+  readonly id: RoundId;
+  readonly pulseId: PulseId;
+  readonly plannedOpenDate: string;
+  readonly plannedOpenAt: number;
+  readonly timeZones: ReadonlyArray<string>;
+}
 
 export interface InvitationRecord {
   readonly roundId: RoundId;
@@ -1135,8 +1152,52 @@ export const makeSqlRounds = (sql: SqliteClient.SqliteClient, randomBytes: Rando
       Effect.orDie,
     );
 
+  const getRoundsWithFrozenMembers = (): Effect.Effect<ReadonlyArray<RoundWithFrozenZones>> =>
+    sql`SELECT r.id, r.pulse_id, r.planned_open_date, r.planned_open_at, rm.time_zone
+        FROM round r JOIN round_member rm ON rm.round_id = r.id
+        WHERE r.status != 'scheduled'
+        ORDER BY r.id, rm.time_zone`.pipe(
+      Effect.flatMap(rows(FrozenZoneRow)),
+      Effect.map((all) => {
+        const byRound = new Map<RoundId, RoundWithFrozenZones>();
+        for (const row of all) {
+          byRound.set(row.id, {
+            id: row.id,
+            pulseId: row.pulse_id,
+            plannedOpenDate: row.planned_open_date,
+            plannedOpenAt: row.planned_open_at,
+            timeZones: [...(byRound.get(row.id)?.timeZones ?? []), row.time_zone],
+          });
+        }
+        return [...byRound.values()];
+      }),
+      Effect.orDie,
+    );
+
+  const setPlannedOpenDate = (roundId: RoundId, plannedOpenDate: string, now: number): Effect.Effect<void> =>
+    sql`UPDATE round SET planned_open_date = ${plannedOpenDate}, updated_at = ${now} WHERE id = ${roundId}`.pipe(
+      Effect.asVoid,
+      Effect.orDie,
+    );
+
+  const getRoundResultPayloads = (): Effect.Effect<ReadonlyArray<{ roundId: RoundId; payload: string }>> =>
+    sql<{ round_id: RoundId; payload: string }>`SELECT round_id, payload FROM round_result`.pipe(
+      Effect.map((all) => all.map((row) => ({ roundId: row.round_id, payload: row.payload }))),
+      Effect.orDie,
+    );
+
+  const setRoundResultPayload = (roundId: RoundId, payload: string): Effect.Effect<void> =>
+    sql`UPDATE round_result SET payload = ${payload} WHERE round_id = ${roundId}`.pipe(
+      Effect.asVoid,
+      Effect.orDie,
+    );
+
   return {
     getRound,
+    getRoundsWithFrozenMembers,
+    setPlannedOpenDate,
+    getRoundResultPayloads,
+    setRoundResultPayload,
     getParticipatedRounds,
     getRoundsForPulse,
     nextRoundDates,
