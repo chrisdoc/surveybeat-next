@@ -1075,13 +1075,25 @@ describe("App Scenes", () => {
       }
     });
 
-    it("says so when no Round's answers are on this device", () => {
+    it("says once, above the Rounds, when no Round's answers are on this device", () => {
       Scene.scene(
         { update, view },
         Scene.given(loaded([soloRound(roundB, "Monthly pulse", "shown")], {})),
         Scene.expect(Scene.text(message("history.noAnswersHere"))).toExist(),
-        Scene.expect(Scene.text("Not on this device")).toExist(),
+        Scene.expect(Scene.text("Not on this device")).toBeAbsent(),
+        Scene.expect(Scene.role("columnheader", { name: "Your answer" })).toBeAbsent(),
+        Scene.expect(Scene.role("columnheader", { name: "Team score" })).toExist(),
         Scene.expect(Scene.role("button", { name: "Clear my answers on this device" })).toBeAbsent(),
+      );
+    });
+
+    it("marks only the Rounds whose answers are on another device when some are here", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given(loaded([shownRound, soloRound(roundB, "Monthly pulse", "shown")], kept)),
+        Scene.expect(Scene.text(message("history.noAnswersHere"))).toBeAbsent(),
+        Scene.expect(Scene.text("5 · Clear")).toExist(),
+        Scene.expect(Scene.text("Not on this device")).toExist(),
       );
     });
 

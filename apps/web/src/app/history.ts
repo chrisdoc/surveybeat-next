@@ -108,6 +108,7 @@ const teamResultNote = (teamResult: HistoryTeamResult): string | null => {
 const questionsTable = <Message>(
   round: HistoryRound,
   roundAnswers: KeptAnswers[string] | undefined,
+  showYours: boolean,
   h: HtmlBuilder<Message>,
 ): Html => {
   const header = (text: string): Html =>
@@ -122,7 +123,7 @@ const questionsTable = <Message>(
             [h.Class("border-b border-line-soft")],
             [
               header(message("history.column.question")),
-              header(message("history.column.yours")),
+              ...(showYours ? [header(message("history.column.yours"))] : []),
               header(message("history.column.team")),
             ],
           ),
@@ -135,8 +136,10 @@ const questionsTable = <Message>(
             [h.Class("border-b border-line-soft last:border-b-0")],
             [
               h.td([h.Class("py-2 pr-4")], [question.text]),
-              h.td([h.Class("py-2 pr-4")], [yourAnswerView(question, roundAnswers, h)]),
-              h.td([h.Class("py-2 pr-4 tabular-nums")], [teamScoreText(round, question)]),
+              ...(showYours
+                ? [h.td([h.Class("py-2 pr-4")], [yourAnswerView(question, roundAnswers, h)])]
+                : []),
+              h.td([h.Class("py-2 pr-4 whitespace-nowrap tabular-nums")], [teamScoreText(round, question)]),
             ],
           ),
         ),
@@ -145,7 +148,12 @@ const questionsTable = <Message>(
   );
 };
 
-const roundView = <Message>(round: HistoryRound, kept: KeptAnswers, h: HtmlBuilder<Message>): Html => {
+const roundView = <Message>(
+  round: HistoryRound,
+  kept: KeptAnswers,
+  showYours: boolean,
+  h: HtmlBuilder<Message>,
+): Html => {
   const date = formatRoundDate(round.plannedOpenDate);
   const note = teamResultNote(round.teamResult);
   return panel(
@@ -164,7 +172,7 @@ const roundView = <Message>(round: HistoryRound, kept: KeptAnswers, h: HtmlBuild
             ),
           ]
         : []),
-      questionsTable(round, kept[round.roundId], h),
+      questionsTable(round, kept[round.roundId], showYours, h),
     ],
     h,
     "flex flex-col gap-2",
@@ -217,7 +225,7 @@ export const historyView = <Message>(
     children.push(
       h.div(
         [h.Class("mt-6 flex flex-col gap-4")],
-        history.rounds.map((round) => roundView(round, kept, h)),
+        history.rounds.map((round) => roundView(round, kept, keptForListed, h)),
       ),
     );
   }
