@@ -1,0 +1,76 @@
+{
+  "cli_version": "0.13.4",
+  "checkpoint_id": "01M7TTE8ZS2ZG9Z5SBBXMB3BSE",
+  "strategy": "manual-commit",
+  "branch": "t3/issue-216-batch-4",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "apps/web/src/answer/answer-messages.ts",
+    "apps/web/src/app/App.scene.test.ts",
+    "apps/web/src/app/App.ts",
+    "apps/web/src/app/api.ts",
+    "apps/web/src/app/directory.ts",
+    "apps/web/src/app/pulses.ts",
+    "apps/web/src/app/results.ts",
+    "apps/web/src/app/rounds.ts",
+    "apps/web/src/app/session.ts",
+    "apps/web/src/messages/index.ts",
+    "apps/web/src/messages/locale.ts",
+    "docs/agents/lint-scope.md",
+    "infra/scripts/lighthouse-gate.ts",
+    "oxlint.config.ts",
+    "packages/cloudflare/src/CloudflareEmailSender.ts",
+    "packages/cloudflare/src/Email.ts",
+    "packages/cloudflare/src/PageRoutes.ts",
+    "packages/cloudflare/src/SqlRounds.ts",
+    "packages/cloudflare/src/SubmissionRoutes.privacy.test.ts",
+    "packages/cloudflare/src/SubmissionRoutes.ts",
+    "packages/cloudflare/src/SubmissionWorker.test.ts",
+    "packages/cloudflare/src/SubmissionWorker.ts",
+    "packages/cloudflare/src/ai/OpenRouterAiClient.ts",
+    "packages/cloudflare/src/auth/D1Auth.test.ts",
+    "packages/cloudflare/src/organization/Notes.ts",
+    "packages/cloudflare/src/organization/RoundJobs.test.ts",
+    "packages/cloudflare/src/organization/RoundJobs.ts",
+    "packages/domain/src/people/Directory.ts",
+    "packages/emails/src/messages/index.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 6,
+    "cache_creation_tokens": 5978,
+    "cache_read_tokens": 478570,
+    "output_tokens": 2453,
+    "api_call_count": 3,
+    "subagent_tokens": {
+      "input_tokens": 16,
+      "cache_creation_tokens": 43623,
+      "cache_read_tokens": 214774,
+      "output_tokens": 3282,
+      "api_call_count": 8
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 5,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 2,
+      "credentialed_uri": 0,
+      "entropy": 2,
+      "key_context": 1,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
