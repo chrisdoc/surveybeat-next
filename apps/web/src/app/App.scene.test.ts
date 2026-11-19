@@ -1222,7 +1222,9 @@ describe("App Scenes", () => {
           failedEmails: { _tag: "Loaded", list: { emails: [] } },
         }),
         Scene.expect(Scene.role("heading", { name: "Failed emails" })).toExist(),
-        Scene.expect(Scene.text("No failed emails.")).toExist(),
+        Scene.expect(
+          Scene.text("Emails that can't be delivered show up here, so you can send them again."),
+        ).toExist(),
       );
     });
 
@@ -1270,7 +1272,9 @@ describe("App Scenes", () => {
         Scene.expect(
           Scene.text(formatDate(DateTime.makeUnsafe(failedAt), { dateStyle: "medium", timeStyle: "short" })),
         ).toExist(),
-        Scene.expect(Scene.text("No failed emails.")).toBeAbsent(),
+        Scene.expect(
+          Scene.text("Emails that can't be delivered show up here, so you can send them again."),
+        ).toBeAbsent(),
       );
     });
 
