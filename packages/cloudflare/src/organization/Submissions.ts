@@ -24,6 +24,7 @@ export const organizationSubmissions = ({
     getSubmissionRoundContext: (roundId: string, personId: string | null) =>
       Effect.gen(function* () {
         const dirState = yield* directory.load;
+
         return yield* rounds.getSubmissionRoundContext(
           RoundId.make(roundId),
           personId === null ? null : PersonId.make(personId),
@@ -34,17 +35,22 @@ export const organizationSubmissions = ({
       Effect.gen(function* () {
         const [dirState, pulseState] = yield* both;
         const pulse = pulseState.pulses.find((p) => p.id === PulseId.make(pulseId));
+
         if (pulse === undefined || pulse.questions.length === 0) {
           return null;
         }
+
         const questions = pulse.questions.flatMap((versionId) => {
           const version = pulseState.versions.find((v) => v.id === versionId);
+
           return version === undefined
             ? []
             : [{ id: versionId, text: version.content.text, type: version.content.type }];
         });
+
         const now = yield* Clock.currentTimeMillis;
         const eligibleActions = yield* actions.getEligibleActionsForRound(pulse.teamId, pulse.id, now);
+
         return testSubmissionContext({
           pulseName: pulse.settings.name,
           minimumGroupSize: dirState.minimumGroupSize,
@@ -65,6 +71,7 @@ export const organizationSubmissions = ({
     ) =>
       Effect.gen(function* () {
         const dirState = yield* directory.load;
+
         return yield* rounds
           .recordFirstAnswer(
             RoundId.make(roundId),
@@ -84,6 +91,7 @@ export const organizationSubmissions = ({
     saveAnswer: (editKeyHash: string, answers: readonly SubmissionAnswer[]) =>
       Effect.gen(function* () {
         const dirState = yield* directory.load;
+
         return yield* rounds.saveAnswer(editKeyHash, answers, dirState.people).pipe(
           Effect.map((res) => ({ _tag: "Success" as const, ...res })),
           Effect.catchTags({

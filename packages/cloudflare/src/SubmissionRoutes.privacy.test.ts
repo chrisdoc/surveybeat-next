@@ -15,15 +15,22 @@ import { submissionRoutes } from "./SubmissionRoutes.ts";
 const d1MigrationsDir = new URL("../d1-migrations/", import.meta.url);
 
 const EDIT_KEY = "CANARY-EDIT-KEY-raw-value";
+
 const TOKEN = "CANARY-INVITATION-TOKEN-raw-value";
+
 const FRESH_EDIT_KEY = "fresh-edit-key-for-first-answer";
+
 const CANARY_ANSWER = "CANARY-ANSWER";
+
 const TEST_TOKEN = "CANARY-TEST-INVITATION-TOKEN-raw-value";
+
 const TEST_EDIT_KEY = "CANARY-TEST-EDIT-KEY-raw-value";
+
 const TEST_PREVIEW = "preview the Lead would see";
 
 const setupD1 = (): { readonly d1: DatabaseSync; readonly queryDb: Cloudflare.D1.QueryDatabaseClient } => {
   const d1 = new DatabaseSync(":memory:");
+
   for (const file of readdirSync(d1MigrationsDir)
     .filter((f) => f.endsWith(".sql"))
     .sort()) {
@@ -41,6 +48,7 @@ const setupD1 = (): { readonly d1: DatabaseSync; readonly queryDb: Cloudflare.D1
     run: () =>
       Effect.sync(() => {
         d1.prepare(sql).run(...(binds as (null | string | number)[]));
+
         return { results: [] };
       }),
   });
@@ -58,11 +66,13 @@ const setupD1 = (): { readonly d1: DatabaseSync; readonly queryDb: Cloudflare.D1
  */
 const recordingOrganizations = (failing = false) => {
   const calls: string[] = [];
+
   const result = {
     _tag: "Success",
     answers: [{ questionVersionId: "qv-1", value: 5, comment: CANARY_ANSWER }],
     shownToLead: false,
   };
+
   // What the test methods return: a test context, and the preview of a test answer.
   const testResults: Record<string, unknown> = {
     getTestSubmissionContext: {
@@ -79,6 +89,7 @@ const recordingOrganizations = (failing = false) => {
     },
     previewTestAnswers: { shownToLead: TEST_PREVIEW },
   };
+
   const organizationFor = (): unknown =>
     new Proxy(
       {},
@@ -87,7 +98,9 @@ const recordingOrganizations = (failing = false) => {
           if (typeof method !== "string") {
             return undefined;
           }
+
           calls.push(method);
+
           return () =>
             failing
               ? Effect.die(new Error("organization unavailable"))
@@ -95,6 +108,7 @@ const recordingOrganizations = (failing = false) => {
         },
       },
     );
+
   const organizations = new Proxy(
     {},
     {
@@ -102,11 +116,14 @@ const recordingOrganizations = (failing = false) => {
         if (typeof method !== "string") {
           return undefined;
         }
+
         calls.push(method);
+
         return () => organizationFor();
       },
     },
   ) as unknown as Organizations;
+
   return { organizations, calls };
 };
 
@@ -117,6 +134,7 @@ const makeRequest = (
   headers?: Record<string, string>,
 ): HttpServerRequest => {
   const bodyText = body ? JSON.stringify(body) : "";
+
   return {
     method,
     // HttpServerRequest.url is the path plus query, not an absolute URL.
@@ -132,16 +150,20 @@ const makeRequest = (
 
 const bodyText = (response: HttpServerResponse.HttpServerResponse): string => {
   const body = response.body;
+
   switch (body._tag) {
     case "Empty": {
       return "";
     }
+
     case "Uint8Array": {
       return new TextDecoder().decode(body.body);
     }
+
     case "Raw": {
       return JSON.stringify(body.body);
     }
+
     default: {
       throw new Error(`unexpected response body ${body._tag}`);
     }
@@ -173,24 +195,29 @@ const runWith = (
     d1.prepare(
       "INSERT INTO invitation_index (token_hash, organization_id, round_id, person_id, pulse_id) VALUES (?, ?, ?, ?, ?)",
     ).run(tokenHash, "org-1", "round-1", "person-1", "pulse-1");
+
     if (testSeed.testInvitationExpiresAt !== undefined) {
       const testTokenHash = yield* Effect.promise(() => hashToken(TEST_TOKEN));
       d1.prepare(
         "INSERT INTO test_invitation_index (token_hash, organization_id, pulse_id, expires_at) VALUES (?, ?, ?, ?)",
       ).run(testTokenHash, "org-1", "pulse-1", testSeed.testInvitationExpiresAt);
     }
+
     if (testSeed.testSubmissionExpiresAt !== undefined) {
       const testEditKeyHash = yield* Effect.promise(() => hashToken(TEST_EDIT_KEY));
       d1.prepare(
         "INSERT INTO test_submission_index (edit_key_hash, organization_id, pulse_id, expires_at) VALUES (?, ?, ?, ?)",
       ).run(testEditKeyHash, "org-1", "pulse-1", testSeed.testSubmissionExpiresAt);
     }
+
     const { organizations, calls } = recordingOrganizations(failingOrganization);
+
     const response = yield* submissionRoutes(organizations, queryDb).pipe(
       Effect.provideService(HttpServerRequest, build({ editKeyHash, freshHash })),
       // The Organization methods read the alchemy runtime; the fake needs only an empty one.
       Effect.provideService(RuntimeContext, {} as RuntimeContext["Service"]),
     );
+
     return { response, text: bodyText(response), calls, d1, freshHash };
   });
 
@@ -266,12 +293,15 @@ const validBody = (path: string, hashes: Hashes): Record<string, unknown> => {
     case "/exchange": {
       return { token: TOKEN };
     }
+
     case "/first-answer": {
       return { token: TOKEN, editKeyHash: hashes.freshHash, questionVersionId: "qv-1", value: 4 };
     }
+
     case "/answer": {
       return { editKey: EDIT_KEY, questionVersionId: "qv-1", value: 4 };
     }
+
     default: {
       throw new Error(`no valid body for ${path}`);
     }
@@ -383,6 +413,7 @@ describe("Submission Worker takes credentials only from the POST body (ADR 0005,
           const { response, calls } = yield* runWith((hashes) =>
             makeRequest("POST", `${path}?${refusal.query(hashes)}`, validBody(path, hashes)),
           );
+
           assert.strictEqual(response.status, 400);
           assert.deepStrictEqual(calls, [], "no Organization method may be called");
         }),
@@ -395,6 +426,7 @@ describe("Submission Worker takes credentials only from the POST body (ADR 0005,
           const { response, calls } = yield* runWith((hashes) =>
             makeRequest("POST", path, validBody(path, hashes), refusal.headers),
           );
+
           assert.strictEqual(response.status, 400);
           assert.deepStrictEqual(calls, [], "no Organization method may be called");
         }),
@@ -408,6 +440,7 @@ describe("Submission Worker takes credentials only from the POST body (ADR 0005,
         const { response, calls } = yield* runWith((hashes) =>
           makeRequest("POST", refusal.path, refusal.body(hashes)),
         );
+
         assert.strictEqual(response.status, 400);
         assert.deepStrictEqual(calls, [], "no Organization method may be called");
       }),
@@ -419,6 +452,7 @@ describe("Submission Worker takes credentials only from the POST body (ADR 0005,
       const { response, calls } = yield* runWith((hashes) =>
         makeRequest("POST", "/exchange", validBody("/exchange", hashes)),
       );
+
       assert.strictEqual(response.status, 200);
       assert.include(calls, "getSubmissionRoundContext");
     }),
@@ -431,11 +465,14 @@ describe("Submission Worker takes credentials only from the POST body (ADR 0005,
         const { response, calls, d1, freshHash } = yield* runWith((hashes) =>
           makeRequest("POST", "/first-answer", validBody("/first-answer", hashes)),
         );
+
         assert.strictEqual(response.status, 200);
         assert.include(calls, "recordFirstAnswer");
+
         const rows = d1
           .prepare("SELECT edit_key_hash FROM submission_index WHERE edit_key_hash = ?")
           .all(freshHash);
+
         assert.strictEqual(rows.length, 1);
       }),
   );
@@ -449,6 +486,7 @@ describe("Submission Worker takes credentials only from the POST body (ADR 0005,
           {},
           true,
         );
+
         assert.strictEqual(response.status, 500);
         assert.strictEqual(response.headers["access-control-allow-origin"], "*");
         assert.deepStrictEqual(JSON.parse(text), { error: "Something went wrong" });
@@ -460,6 +498,7 @@ describe("Submission Worker takes credentials only from the POST body (ADR 0005,
       const { response, calls } = yield* runWith((hashes) =>
         makeRequest("POST", "/answer", validBody("/answer", hashes)),
       );
+
       assert.strictEqual(response.status, 200);
       assert.include(calls, "saveAnswer");
     }),
@@ -472,6 +511,7 @@ const countRows = (d1: DatabaseSync, table: string, where = "1 = 1", ...binds: s
 // Fixed expiries hold under Effect's TestClock (which starts at 0), which `it.effect` runs under, and
 // under the real clock: the largest JavaScript time is always in the future, and 0 is always past.
 const NEVER_EXPIRES = 8_640_000_000_000_000;
+
 const ALREADY_EXPIRED = 0;
 
 describe("A test Invitation never saves an answer (ADR 0021, issue #136)", () => {
@@ -481,6 +521,7 @@ describe("A test Invitation never saves an answer (ADR 0021, issue #136)", () =>
         () => makeRequest("POST", "/exchange", { token: TEST_TOKEN }),
         { testInvitationExpiresAt: NEVER_EXPIRES },
       );
+
       assert.strictEqual(response.status, 200);
       assert.deepStrictEqual(calls, ["getByName", "getTestSubmissionContext"]);
       assert.include(text, '"test":true');
@@ -502,6 +543,7 @@ describe("A test Invitation never saves an answer (ADR 0021, issue #136)", () =>
             }),
           { testInvitationExpiresAt: NEVER_EXPIRES },
         );
+
         assert.strictEqual(response.status, 200);
         assert.deepStrictEqual(calls, ["getByName", "previewTestAnswers"]);
         assert.include(text, `"shownToLead":"${TEST_PREVIEW}"`);
@@ -525,6 +567,7 @@ describe("A test Invitation never saves an answer (ADR 0021, issue #136)", () =>
           }),
         { testSubmissionExpiresAt: NEVER_EXPIRES },
       );
+
       assert.strictEqual(response.status, 200);
       assert.deepStrictEqual(calls, ["getByName", "previewTestAnswers"]);
       assert.include(text, `"shownToLead":"${TEST_PREVIEW}"`);
@@ -539,6 +582,7 @@ describe("A test Invitation never saves an answer (ADR 0021, issue #136)", () =>
         const exchange = yield* runWith(() => makeRequest("POST", "/exchange", { token: TEST_TOKEN }), {
           testInvitationExpiresAt: ALREADY_EXPIRED,
         });
+
         assert.strictEqual(exchange.response.status, 404);
         assert.deepStrictEqual(exchange.calls, []);
 
@@ -552,6 +596,7 @@ describe("A test Invitation never saves an answer (ADR 0021, issue #136)", () =>
             }),
           { testInvitationExpiresAt: ALREADY_EXPIRED },
         );
+
         assert.strictEqual(firstAnswer.response.status, 404);
         assert.deepStrictEqual(firstAnswer.calls, []);
         assert.strictEqual(countRows(firstAnswer.d1, "test_submission_index"), 0);
@@ -564,6 +609,7 @@ describe("A test Invitation never saves an answer (ADR 0021, issue #136)", () =>
         () => makeRequest("POST", "/answer", { editKey: TEST_EDIT_KEY, questionVersionId: "qv-1", value: 4 }),
         { testSubmissionExpiresAt: ALREADY_EXPIRED },
       );
+
       assert.strictEqual(response.status, 404);
       assert.deepStrictEqual(calls, []);
     }),
@@ -583,6 +629,7 @@ describe("A test Invitation never saves an answer (ADR 0021, issue #136)", () =>
             }),
           { testInvitationExpiresAt: NEVER_EXPIRES, testSubmissionExpiresAt: NEVER_EXPIRES },
         );
+
         assert.strictEqual(response.status, 400);
         assert.deepStrictEqual(calls, [], "no Organization method may be called");
       }),
@@ -594,6 +641,7 @@ describe("A test Invitation never saves an answer (ADR 0021, issue #136)", () =>
       const { response, calls } = yield* runWith((hashes) =>
         makeRequest("POST", "/first-answer", validBody("/first-answer", hashes)),
       );
+
       assert.strictEqual(response.status, 200);
       assert.deepStrictEqual(calls, ["getByName", "recordFirstAnswer"]);
     }),
@@ -604,6 +652,7 @@ describe("A test Invitation never saves an answer (ADR 0021, issue #136)", () =>
       const { response, calls } = yield* runWith((hashes) =>
         makeRequest("POST", "/exchange", validBody("/exchange", hashes)),
       );
+
       assert.strictEqual(response.status, 200);
       assert.deepStrictEqual(calls, ["getByName", "getSubmissionRoundContext"]);
     }),

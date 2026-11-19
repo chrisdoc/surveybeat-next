@@ -24,6 +24,7 @@ const RawBody = Schema.Struct({
   comment: Schema.optional(Schema.NullOr(Schema.String)),
   answers: Schema.optional(Schema.Array(RawAnswer)),
 });
+
 type RawBody = typeof RawBody.Type;
 
 const decodeBody = Schema.decodeUnknownOption(RawBody);
@@ -31,12 +32,15 @@ const decodeBody = Schema.decodeUnknownOption(RawBody);
 const parseBody = (req: HttpServerRequest): Effect.Effect<RawBody> =>
   Effect.gen(function* () {
     const text = yield* req.text.pipe(Effect.orDie);
+
     if (!text || text.trim().length === 0) {
       return {};
     }
+
     const parsed = yield* Effect.try((): unknown => JSON.parse(text)).pipe(
       Effect.orElseSucceed((): unknown => null),
     );
+
     return Option.getOrElse(decodeBody(parsed), (): RawBody => ({}));
   });
 
@@ -48,6 +52,7 @@ const extractAnswers = (body: RawBody): readonly SubmissionAnswer[] => {
       comment: item.comment ?? null,
     }));
   }
+
   if (body.questionVersionId !== undefined && body.questionVersionId.length > 0) {
     return [
       {
@@ -57,6 +62,7 @@ const extractAnswers = (body: RawBody): readonly SubmissionAnswer[] => {
       },
     ];
   }
+
   return [];
 };
 
@@ -112,6 +118,7 @@ export const submissionRoutes = (organizations: Organizations, database: Cloudfl
     const url = new URL(request.url, "https://submit.surveybeat.app");
     const credentialInUrl = credentialQueryParams.some((name) => url.searchParams.has(name));
     const credentialInHeader = credentialHeaders.some((name) => request.headers[name] !== undefined);
+
     if (credentialInUrl || credentialInHeader) {
       return yield* HttpServerResponse.json(
         { error: "Credentials are accepted only in the request body" },
@@ -134,40 +141,51 @@ export const submissionRoutes = (organizations: Organizations, database: Cloudfl
       if (token === undefined) {
         return yield* HttpServerResponse.json({ error: "Missing invitation token" }, { status: 400 });
       }
+
       if (body.editKeyHash !== undefined) {
         return yield* HttpServerResponse.json(
           { error: "Edit key hash is not accepted here" },
           { status: 400 },
         );
       }
+
       const tokenHash = yield* Effect.promise(() => hashToken(token));
+
       const row = yield* database
         .prepare("SELECT organization_id, round_id, person_id FROM invitation_index WHERE token_hash = ?")
         .bind(tokenHash)
         .first<{ organization_id: string; round_id: string; person_id: string }>()
         .pipe(Effect.orDie);
+
       if (row === null) {
         const now = yield* Clock.currentTimeMillis;
         const testRow = yield* findTestInvitation(database, tokenHash, now);
+
         if (testRow === null) {
           return yield* HttpServerResponse.json({ error: "Invitation not found" }, { status: 404 });
         }
+
         const testContext = yield* organizations
           .getByName(testRow.organization_id)
           .getTestSubmissionContext(testRow.pulse_id, testRow.expires_at)
           .pipe(Effect.orDie);
+
         if (testContext === null) {
           return yield* HttpServerResponse.json({ error: "Round not found" }, { status: 404 });
         }
+
         return yield* HttpServerResponse.json(testContext);
       }
+
       const context = yield* organizations
         .getByName(row.organization_id)
         .getSubmissionRoundContext(row.round_id, row.person_id)
         .pipe(Effect.orDie);
+
       if (context === null) {
         return yield* HttpServerResponse.json({ error: "Round not found" }, { status: 404 });
       }
+
       return yield* HttpServerResponse.json(context);
     }
 
@@ -175,30 +193,38 @@ export const submissionRoutes = (organizations: Organizations, database: Cloudfl
       if (token === undefined) {
         return yield* HttpServerResponse.json({ error: "Missing invitation token" }, { status: 400 });
       }
+
       const editKeyHash = body.editKeyHash;
+
       if (editKeyHash === undefined) {
         return yield* HttpServerResponse.json({ error: "Missing edit key hash" }, { status: 400 });
       }
+
       if (!EDIT_KEY_HASH.test(editKeyHash)) {
         return yield* HttpServerResponse.json({ error: "Malformed edit key hash" }, { status: 400 });
       }
 
       const tokenHash = yield* Effect.promise(() => hashToken(token));
+
       const row = yield* database
         .prepare("SELECT organization_id, round_id, person_id FROM invitation_index WHERE token_hash = ?")
         .bind(tokenHash)
         .first<{ organization_id: string; round_id: string; person_id: string }>()
         .pipe(Effect.orDie);
+
       if (row === null) {
         const now = yield* Clock.currentTimeMillis;
         const testRow = yield* findTestInvitation(database, tokenHash, now);
+
         if (testRow === null) {
           return yield* HttpServerResponse.json({ error: "Invitation not found" }, { status: 404 });
         }
+
         const preview = yield* organizations
           .getByName(testRow.organization_id)
           .previewTestAnswers(extractAnswers(body))
           .pipe(Effect.orDie);
+
         yield* database
           .prepare(
             "INSERT INTO test_submission_index (edit_key_hash, organization_id, pulse_id, expires_at) VALUES (?, ?, ?, ?) ON CONFLICT (edit_key_hash) DO NOTHING",
@@ -206,10 +232,12 @@ export const submissionRoutes = (organizations: Organizations, database: Cloudfl
           .bind(editKeyHash, testRow.organization_id, testRow.pulse_id, testRow.expires_at)
           .run()
           .pipe(Effect.orDie);
+
         return yield* HttpServerResponse.json({ saved: true, shownToLead: preview.shownToLead });
       }
 
       const answers = extractAnswers(body);
+
       const result = yield* organizations
         .getByName(row.organization_id)
         .recordFirstAnswer(row.round_id, row.person_id, editKeyHash, answers)
@@ -218,6 +246,7 @@ export const submissionRoutes = (organizations: Organizations, database: Cloudfl
       if (result._tag === "AlreadyAnswered") {
         return yield* HttpServerResponse.json({ error: "already answered" }, { status: 409 });
       }
+
       if (result._tag === "RoundNotOpen") {
         return yield* HttpServerResponse.json({ error: "round not open" }, { status: 400 });
       }
@@ -240,15 +269,18 @@ export const submissionRoutes = (organizations: Organizations, database: Cloudfl
           { status: 400 },
         );
       }
+
       if (body.editKeyHash !== undefined) {
         return yield* HttpServerResponse.json(
           { error: "Edit key hash is not accepted here" },
           { status: 400 },
         );
       }
+
       if (editKey === undefined) {
         return yield* HttpServerResponse.json({ error: "Missing edit key" }, { status: 400 });
       }
+
       const editKeyHash = yield* Effect.promise(() => hashToken(editKey));
 
       const row = yield* database
@@ -256,20 +288,25 @@ export const submissionRoutes = (organizations: Organizations, database: Cloudfl
         .bind(editKeyHash)
         .first<{ organization_id: string; round_id: string }>()
         .pipe(Effect.orDie);
+
       if (row === null) {
         const now = yield* Clock.currentTimeMillis;
         const testRow = yield* findTestSubmission(database, editKeyHash, now);
+
         if (testRow === null) {
           return yield* HttpServerResponse.json({ error: "Submission not found" }, { status: 404 });
         }
+
         const preview = yield* organizations
           .getByName(testRow.organization_id)
           .previewTestAnswers(extractAnswers(body))
           .pipe(Effect.orDie);
+
         return yield* HttpServerResponse.json({ saved: true, shownToLead: preview.shownToLead });
       }
 
       const answers = extractAnswers(body);
+
       const result = yield* organizations
         .getByName(row.organization_id)
         .saveAnswer(editKeyHash, answers)
@@ -278,6 +315,7 @@ export const submissionRoutes = (organizations: Organizations, database: Cloudfl
       if (result._tag === "SubmissionNotFound") {
         return yield* HttpServerResponse.json({ error: "Submission not found" }, { status: 404 });
       }
+
       if (result._tag === "RoundNotOpen") {
         return yield* HttpServerResponse.json({ error: "round not open" }, { status: 400 });
       }

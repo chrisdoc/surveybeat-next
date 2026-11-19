@@ -79,6 +79,7 @@ const staticPropertyKeyName = (node: ESTree.ObjectProperty | ESTree.BindingPrope
 
 const stringValue = (node: ESTree.Expression): string | null => {
   const expression = unwrapExpression(node);
+
   if (expression.type === "Literal" && typeof expression.value === "string") {
     return expression.value;
   }

@@ -12,6 +12,7 @@ const setup = async () => {
     const browser = new Browser(world.handler());
     browser.signIn(world.sessions.login(email));
     await browser.session();
+
     return browser;
   };
 
@@ -22,6 +23,7 @@ const setup = async () => {
     timeZone: "Europe/Berlin",
     leadEmail: "grace@example.com",
   });
+
   const teamId = (created.body as { readonly team: { readonly id: string } }).team.id;
 
   const lead = await as("grace@example.com");

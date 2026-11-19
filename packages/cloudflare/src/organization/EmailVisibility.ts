@@ -44,6 +44,7 @@ export const organizationEmailVisibility = ({
       SELECT token_hash, pulse_id, sent_at FROM test_send WHERE send_id = ${sendId}`.pipe(
       Effect.map((rows) => {
         const row = rows[0];
+
         return row === undefined
           ? null
           : { tokenHash: row.token_hash, pulseId: row.pulse_id, sentAt: row.sent_at };
@@ -54,13 +55,16 @@ export const organizationEmailVisibility = ({
   viewTestSend: (actorId: PersonId, teamId: TeamId, pulseId: PulseId, sendId: SendId, now: number) =>
     Effect.gen(function* () {
       const dirState = yield* directory.load;
+
       const rows =
         yield* sql`SELECT person_id, pulse_id, sent_at FROM test_send WHERE send_id = ${sendId}`.pipe(
           Effect.flatMap(Schema.decodeUnknownEffect(Schema.Array(TestSendRow))),
           Effect.orDie,
         );
+
       const row = rows[0];
       const record = yield* sends.get(sendId);
+
       const found: TestSendFound | null =
         row === undefined
           ? null
@@ -73,20 +77,25 @@ export const organizationEmailVisibility = ({
                 onSome: (each) => each.state,
               }),
             };
+
       return testSendView(dirState, actorId, teamId, pulseId, found, now);
     }),
   listFailedEmails: (actorId: PersonId) =>
     Effect.gen(function* () {
       const dirState = yield* directory.load;
+
       const rows = yield* sql
         .unsafe<SendFactsRow>(
           `${SEND_FACTS_SQL} WHERE es.status = 'Failed' ORDER BY failed_at DESC, es.id DESC LIMIT 50`,
         )
         .pipe(Effect.orDie);
+
       const failed = rows.flatMap((row) => {
         const reason = decodeFailureReason(row.reason);
+
         const resendable =
           Option.isSome(reason) && isResendable(SendId.make(row.id), resendFactsOf(row, reason.value));
+
         const decoded = Schema.decodeUnknownOption(FailedEmail)({
           sendId: row.id,
           kind: row.kind,
@@ -96,8 +105,10 @@ export const organizationEmailVisibility = ({
           failedAt: row.failed_at,
           resendable,
         });
+
         return Option.isSome(decoded) ? [decoded.value] : [];
       });
+
       return failedEmailsView(dirState, actorId, failed);
     }),
 
@@ -106,34 +117,44 @@ export const organizationEmailVisibility = ({
       .withTransaction(
         Effect.gen(function* () {
           const dirState = yield* directory.load;
+
           if (!isEmailAdmin(dirState, actorId)) {
             return { _tag: "Rejected", rejection: { _tag: "Forbidden" } } satisfies ResendResult;
           }
+
           const record = yield* sends.get(sendId);
+
           if (Option.isNone(record)) {
             return {
               _tag: "Rejected",
               rejection: { _tag: "FailedEmailNotFound" },
             } satisfies ResendResult;
           }
+
           const { state } = record.value;
+
           if (state._tag !== "Failed") {
             return {
               _tag: "Accepted",
               status: { sendId, state: progressOf(state) },
             } satisfies ResendResult;
           }
+
           const rows = yield* sql
             .unsafe<SendFactsRow>(`${SEND_FACTS_SQL} WHERE es.id = ?`, [sendId])
             .pipe(Effect.orDie);
+
           const row = rows[0];
+
           if (row === undefined) {
             return {
               _tag: "Rejected",
               rejection: { _tag: "EmailNotResendable" },
             } satisfies ResendResult;
           }
+
           const facts = resendFactsOf(row, state.reason);
+
           if (!isResendable(sendId, facts)) {
             return {
               _tag: "Rejected",
@@ -143,6 +164,7 @@ export const organizationEmailVisibility = ({
 
           yield* sends.requeue(sendId);
           const invitation = invitationOf(row);
+
           if (
             facts.kind === "InvitationEmail" &&
             invitation !== null &&
@@ -157,6 +179,7 @@ export const organizationEmailVisibility = ({
               now,
             );
           }
+
           return {
             _tag: "Accepted",
             status: { sendId, state: progressOf(pending) },
@@ -169,10 +192,12 @@ export const organizationEmailVisibility = ({
     Effect.gen(function* () {
       const dirState = yield* directory.load;
       const record = yield* sends.get(sendId);
+
       const status = Option.match(record, {
         onNone: () => null,
         onSome: (each) => ({ sendId, state: progressOf(each.state) }),
       });
+
       return emailStatusView(dirState, actorId, status);
     }),
 });

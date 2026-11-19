@@ -38,6 +38,7 @@ const declaredEndpoints = (): readonly string[] => {
     onGroup: () => {},
     onEndpoint: ({ group, endpoint }) => keys.push(`${group.identifier}.${endpoint.identifier}`),
   });
+
   return keys;
 };
 
@@ -84,6 +85,7 @@ describe("privacy registry", () => {
       .filter(([, entry]) => entry._tag === "ResultData")
       .map(([key]) => key)
       .sort();
+
     assert.deepStrictEqual(resultEndpoints, Object.keys(resultResponders).sort());
     assert.include(resultEndpoints, "rounds.getResults");
   });
@@ -92,6 +94,7 @@ describe("privacy registry", () => {
     if (entry._tag !== "ResultData") {
       continue;
     }
+
     const respond = resultResponders[key];
 
     // Property test over the registry's own generator: whatever Round and viewer the generator produces,
@@ -100,17 +103,20 @@ describe("privacy registry", () => {
     it.effect(`${key}: no aggregate below the effective N for any generated Round (ADR 0004)`, () =>
       Effect.gen(function* () {
         assert.isDefined(respond, `no Result check registered for ${key}`);
+
         const check = yield* Arbitrary.checkEffect(
           entry.inputs,
           (input) =>
             Schema.decodeUnknownEffect(RoundResultScenario)(input).pipe(
               Effect.flatMap((scenario) => {
                 const failures = respond(scenario, entry.leadOnly);
+
                 return failures.length > 0 ? Effect.fail(failures.join("; ")) : Effect.succeed(true);
               }),
             ),
           { runs: 500, seed: 20_261_109 },
         );
+
         assert.strictEqual(Arbitrary.formatCheckFailure(check), undefined);
         assert.strictEqual(check._tag, "Passed");
       }),
@@ -138,6 +144,7 @@ describe("privacy registry", () => {
       viewer: "lead",
       themes: "ready",
     };
+
     const asLead = buildResult(readyScenario).result;
     assert.strictEqual(asLead.status, "ready");
     assert.strictEqual(asLead.reviewEndsAt, READY_REVIEW_ENDS_AT);
@@ -177,6 +184,7 @@ describe("privacy registry", () => {
       viewer: "lead",
       themes: "ready",
     };
+
     const asLead = buildResult(lead).result;
     assert.isNotEmpty(asLead.comments);
     assert.isNotEmpty(asLead.themes ?? []);
@@ -218,8 +226,10 @@ describe("privacy registry", () => {
         viewer: "member",
         themes,
       };
+
       const { result } = buildResult(member);
       const wire = JSON.stringify(Schema.encodeSync(RoundResult)(result));
+
       if (themes === "ready") {
         assert.isNotEmpty(result.themes ?? [], "the ready member view carries themes");
       }
@@ -248,9 +258,13 @@ interface Built {
 }
 
 const DIMENSIONS = ["workload", "psychologicalSafety", "clarity", "recognition"] as const;
+
 const ROUND = RoundId.make("round-now");
+
 const PULSE = PulseId.make("pulse-1");
+
 const TEAM = TeamId.make("team-1");
+
 const OPTIONS = ["Red", "Green", "Blue"];
 
 /** The stored themes and discussion guide of a `ready` Round, fixed: their wording is not under test. */
@@ -273,12 +287,15 @@ const themesRecordOf = (themes: RoundResultScenario["themes"]): RoundThemesRecor
     case "none": {
       return null;
     }
+
     case "pending": {
       return { status: "pending", requestedAt: 0, attempts: 0 };
     }
+
     case "failed": {
       return { status: "failed" };
     }
+
     case "ready": {
       return { status: "ready", themes: READY_THEMES };
     }
@@ -290,6 +307,7 @@ const READY_REVIEW_ENDS_AT = 1_731_400_000_000;
 
 const buildResult = (scenario: RoundResultScenario): Built => {
   const effectiveN = Math.max(scenario.storedN, scenario.organizationN);
+
   const questions: readonly QuestionInput[] = scenario.questions.map((question, index) => ({
     id: QuestionVersionId.make(`q${index}.1`),
     position: index,
@@ -302,14 +320,18 @@ const buildResult = (scenario: RoundResultScenario): Built => {
           ? { _tag: "SingleChoice", options: OPTIONS }
           : { _tag: "LongText" },
   }));
+
   const submissions = scenario.submissions.map((submission, s) => ({
     id: `s${s}`,
     answers: questions.flatMap((question, index): readonly SubmissionAnswer[] => {
       const answer = submission[index];
+
       if (answer === undefined || !answer.answered) {
         return [];
       }
+
       const kind = scenario.questions[index]?.kind;
+
       return [
         {
           questionVersionId: question.id,
@@ -320,6 +342,7 @@ const buildResult = (scenario: RoundResultScenario): Built => {
       ];
     }),
   }));
+
   const history: readonly HistoricalRoundData[] = scenario.history.map((past, i) => {
     const usable = (score: number | null, contributors: number) =>
       score !== null &&
@@ -327,6 +350,7 @@ const buildResult = (scenario: RoundResultScenario): Built => {
       past.submissionsCount >= contributors
         ? score
         : null;
+
     return {
       roundId: RoundId.make(`past-${i}`),
       plannedOpenDate: DateTime.formatIsoDateUtc(
@@ -338,6 +362,7 @@ const buildResult = (scenario: RoundResultScenario): Built => {
       questions: questions.map((question, index) => {
         const slot = past.questions[index];
         const score = usable(slot?.score ?? null, slot?.contributors ?? 0);
+
         return {
           questionVersionId: question.id,
           score,
@@ -348,6 +373,7 @@ const buildResult = (scenario: RoundResultScenario): Built => {
       dimensions: DIMENSIONS.map((dimension, index) => {
         const slot = past.dimensions[index];
         const score = usable(slot?.score ?? null, slot?.contributors ?? 0);
+
         return {
           dimension,
           score,
@@ -358,6 +384,7 @@ const buildResult = (scenario: RoundResultScenario): Built => {
       }),
     };
   });
+
   const compute = (effectiveMinimumGroupSize: number): RoundResult =>
     calculateRoundResult({
       roundId: ROUND,
@@ -373,7 +400,9 @@ const buildResult = (scenario: RoundResultScenario): Built => {
       submissions,
       pastRoundsHistory: history,
     });
+
   const stored = compute(scenario.storedN);
+
   return {
     effectiveN,
     questions,
@@ -409,9 +438,11 @@ const resultResponders: Record<
 /** Contributors to a Question counted from the raw Submissions, never from the Result under test. */
 const contributorsOf = (built: Built, index: number): number => {
   const question = built.questions[index];
+
   if (question === undefined) {
     return 0;
   }
+
   return built.submissions.filter((submission) =>
     submission.answers.some(
       (answer) =>
@@ -437,6 +468,7 @@ const dimensionContributors = (
   readonly contributors: number;
 } => {
   const roundMeetsN = built.result.status !== "open" && built.result.submissionsCount >= n;
+
   const usable = built.questions
     .map((question, index) => ({ question, index }))
     .filter(
@@ -446,10 +478,13 @@ const dimensionContributors = (
         roundMeetsN &&
         contributorsOf(built, index) >= n,
     );
+
   const ids = new Set(usable.map(({ question }) => question.id));
+
   const contributors = built.submissions.filter((submission) =>
     submission.answers.some((answer) => answer.value !== null && ids.has(answer.questionVersionId)),
   ).length;
+
   return { usable, contributors };
 };
 
@@ -459,33 +494,41 @@ const dimensionContributors = (
  */
 const overviewViolations = (scenario: RoundResultScenario): readonly string[] => {
   const built = buildResult({ ...scenario, status: "shared" });
+
   const overview = buildTeamOverview({
     teamId: TEAM,
     results: [built.stored],
     minimumGroupSize: scenario.organizationN,
     actions: [],
   });
+
   const n = built.effectiveN;
   const found: string[] = [];
+
   if (overview.rounds.length !== 1) {
     found.push(`overview has ${overview.rounds.length} rounds, expected 1`);
   }
+
   for (const line of overview.dimensions) {
     const label = `overview ${line.dimension}`;
     const fresh = built.direct.dimensions.find((each) => each.dimension === line.dimension);
     const { usable, contributors } = dimensionContributors(built, line.dimension, n);
+
     for (const point of line.points) {
       if (point.score === null) {
         continue;
       }
+
       if (fresh?.score !== point.score) {
         found.push(`${label} differs from the Result computed at N=${n}`);
       }
+
       if (usable.length === 0 || contributors < n) {
         found.push(`${label} shows a score from ${contributors} contributors (N=${n})`);
       }
     }
   }
+
   return found;
 };
 
@@ -510,6 +553,7 @@ const violations = (
   const found: string[] = [];
   const open = scenario.status === "open";
   const roundMeetsN = !open && result.submissionsCount >= n;
+
   if (result.submissionsCount !== scenario.submissions.length) {
     found.push("submissionsCount differs");
   }
@@ -517,10 +561,12 @@ const violations = (
   if (!roundMeetsN && result.comments.length > 0) {
     found.push("comments shown below N");
   }
+
   if (roundMeetsN) {
     const raw = built.submissions
       .flatMap((submission) => submission.answers)
       .filter((a) => a.comment?.trim());
+
     if (result.comments.length > raw.length) {
       found.push("more comments than the Submissions carry");
     }
@@ -530,9 +576,11 @@ const violations = (
   if (!roundMeetsN && (result.themes ?? []).length > 0) {
     found.push("Comment themes shown below N");
   }
+
   if (!roundMeetsN && result.discussionGuide !== null && result.discussionGuide !== undefined) {
     found.push("discussion guide shown below N");
   }
+
   if (
     (result.themes ?? []).some(
       (theme) => theme.supportingComments !== undefined && theme.supportingComments < 2,
@@ -540,6 +588,7 @@ const violations = (
   ) {
     found.push("theme with fewer than 2 supporting comments");
   }
+
   // The Review window (issue 106): a member sees no Result data until the Round is Shared.
   if (scenario.viewer === "member" && (scenario.status === "closed" || scenario.status === "ready")) {
     const shown =
@@ -548,10 +597,12 @@ const violations = (
       result.comments.length > 0 ||
       (result.themes ?? []).length > 0 ||
       Object.hasOwn(result, "discussionGuide");
+
     if (shown) {
       found.push("Result data shown to a member before Shared");
     }
   }
+
   if (scenario.viewer === "member") {
     for (const field of leadOnly) {
       if (leadOnlyLeaks[field](result)) {
@@ -565,27 +616,34 @@ const violations = (
     const label = `question ${index}`;
     const expected = contributorsOf(built, index);
     const shown = question.score !== null || question.distribution !== null;
+
     if (shown && !(roundMeetsN && expected >= n)) {
       found.push(`${label} shows an aggregate from ${expected} contributors (N=${n})`);
     }
+
     if (!shown && (question.change !== null || question.typicalChange !== null)) {
       found.push(`${label} shows a change or typical change without a visible score`);
     }
+
     if (question.score !== null) {
       visibleScore.set(question.questionVersionId, question.score);
     }
+
     for (const point of question.trend) {
       if (point.score !== null && point.contributors < n) {
         found.push(
           `${label} trend point ${point.roundId} shows a score from ${point.contributors} contributors`,
         );
       }
+
       if (point.roundId === ROUND && point.score !== null && !shown) {
         found.push(`${label} current trend point shows a score the Question hides`);
       }
     }
+
     // Never more than a fresh computation at the effective N would show, and never different.
     const fresh = direct.questions[index];
+
     if (
       shown &&
       (question.score !== fresh?.score ||
@@ -593,17 +651,21 @@ const violations = (
     ) {
       found.push(`${label} differs from the Result computed at N=${n}`);
     }
+
     if (question.change !== null && JSON.stringify(question.change) !== JSON.stringify(fresh?.change)) {
       found.push(`${label} change differs from the Result computed at N=${n}`);
     }
+
     if (
       question.typicalChange !== null &&
       JSON.stringify(question.typicalChange) !== JSON.stringify(fresh?.typicalChange)
     ) {
       found.push(`${label} typical change differs from the Result computed at N=${n}`);
     }
+
     question.trend.forEach((point, p) => {
       const freshPoint = fresh?.trend[p];
+
       if (point.score !== null && point.score !== freshPoint?.score) {
         found.push(`${label} trend point ${point.roundId} differs from the Result computed at N=${n}`);
       }
@@ -613,10 +675,12 @@ const violations = (
   result.dimensions.forEach((dimension) => {
     const label = `dimension ${dimension.dimension}`;
     const { usable, contributors } = dimensionContributors(built, dimension.dimension, n);
+
     if (dimension.score === null) {
       if (dimension.contributors !== undefined && dimension.contributors !== null) {
         found.push(`${label} shows contributors without a score`);
       }
+
       if (dimension.change !== null || dimension.typicalChange !== null) {
         found.push(`${label} shows a change or typical change without a score`);
       }
@@ -624,7 +688,9 @@ const violations = (
       if (usable.length === 0 || contributors < n) {
         found.push(`${label} shows a score from ${contributors} contributors (N=${n})`);
       }
+
       const scores = usable.map(({ question }) => visibleScore.get(question.id));
+
       if (scores.some((score) => score === undefined)) {
         found.push(`${label} is computed from a Question that is hidden`);
       } else {
@@ -632,10 +698,12 @@ const violations = (
           scores.reduce<number>((sum, score) => sum + (score ?? 0), 0) / scores.length,
           2,
         );
+
         if (mean !== dimension.score) {
           found.push(`${label} score ${dimension.score} is not the mean of the visible Questions ${mean}`);
         }
       }
+
       if (
         dimension.contributors !== undefined &&
         dimension.contributors !== null &&
@@ -644,6 +712,7 @@ const violations = (
         found.push(`${label} reports ${dimension.contributors} contributors (N=${n})`);
       }
     }
+
     for (const point of dimension.trend) {
       if (point.score !== null && (point.contributors === undefined || point.contributors < n)) {
         found.push(
@@ -651,20 +720,25 @@ const violations = (
         );
       }
     }
+
     const fresh = direct.dimensions.find((each) => each.dimension === dimension.dimension);
+
     if (dimension.score !== null && dimension.score !== fresh?.score) {
       found.push(`${label} differs from the Result computed at N=${n}`);
     }
+
     if (
       dimension.typicalChange !== null &&
       JSON.stringify(dimension.typicalChange) !== JSON.stringify(fresh?.typicalChange)
     ) {
       found.push(`${label} typical change differs from the Result computed at N=${n}`);
     }
+
     if (dimension.change !== null && JSON.stringify(dimension.change) !== JSON.stringify(fresh?.change)) {
       found.push(`${label} change differs from the Result computed at N=${n}`);
     }
   });
+
   return found;
 };
 
@@ -674,6 +748,7 @@ const violations = (
  */
 const historyViolations = (scenario: RoundResultScenario): readonly string[] => {
   const built = buildResult({ ...scenario, status: "shared" });
+
   const history = buildMemberHistory({
     rounds: [
       {
@@ -690,17 +765,22 @@ const historyViolations = (scenario: RoundResultScenario): readonly string[] => 
     ],
     minimumGroupSize: scenario.organizationN,
   });
+
   const n = built.effectiveN;
   const found: string[] = [];
+
   for (const round of history.rounds) {
     if (round.teamResult === "shown" && built.result.submissionsCount < n) {
       found.push(`history shows the Round with ${built.result.submissionsCount} Submissions (N=${n})`);
     }
+
     for (const question of round.questions) {
       if (question.teamScore === null) {
         continue;
       }
+
       const index = built.questions.findIndex((each) => each.id === question.questionVersionId);
+
       if (
         round.teamResult !== "shown" ||
         built.result.submissionsCount < n ||
@@ -708,11 +788,13 @@ const historyViolations = (scenario: RoundResultScenario): readonly string[] => 
       ) {
         found.push(`history shows a score for question ${index} from fewer than N=${n} contributors`);
       }
+
       if (question.teamScore !== built.direct.questions[index]?.score) {
         found.push(`history score for question ${index} differs from the Result computed at N=${n}`);
       }
     }
   }
+
   return found;
 };
 
@@ -740,12 +822,15 @@ describe("member history endpoint (ADR 0017)", () => {
 
   it("returns no Submission, answer, comment, contributor, distribution, or Person field", () => {
     const skipped = { answered: false, value: 0, comment: null } as const;
+
     const answered = (value: number, comment: "Ask Anna" | null) =>
       ({ answered: true, value, comment }) as const;
+
     const row = (
       first: typeof skipped | ReturnType<typeof answered>,
       second: typeof skipped | ReturnType<typeof answered>,
     ) => [first, second, skipped, skipped, skipped] as const;
+
     const scenario: RoundResultScenario = {
       status: "shared",
       storedN: 2,
@@ -765,7 +850,9 @@ describe("member history endpoint (ADR 0017)", () => {
       viewer: "member",
       themes: "ready",
     };
+
     const built = buildResult(scenario);
+
     const history = buildMemberHistory({
       rounds: [
         {
@@ -782,11 +869,14 @@ describe("member history endpoint (ADR 0017)", () => {
       ],
       minimumGroupSize: scenario.organizationN,
     });
+
     const json: unknown = Schema.encodeSync(MemberHistory)(history);
     const keys = keysOf(json);
+
     const forbidden = keys.filter((key) =>
       /submission|editkey|person|contributor|distribution|comments|answers|value|theme|guide/i.test(key),
     );
+
     assert.deepStrictEqual(forbidden, []);
     assert.include(keys, "teamScore");
     assert.isTrue(history.rounds[0]?.teamResult === "shown", "the shared Round with N answers is shown");
@@ -798,8 +888,10 @@ const keysOf = (value: unknown): readonly string[] => {
   if (Array.isArray(value)) {
     return value.flatMap((item: unknown) => keysOf(item));
   }
+
   if (typeof value === "object" && value !== null) {
     return Object.entries(value).flatMap(([key, child]: [string, unknown]) => [key, ...keysOf(child)]);
   }
+
   return [];
 };

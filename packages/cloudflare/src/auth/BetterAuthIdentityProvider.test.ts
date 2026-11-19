@@ -8,10 +8,12 @@ import * as Redacted from "effect/Redacted";
 import { betterAuthIdentityProvider } from "./BetterAuthIdentityProvider.ts";
 
 const origin = "http://localhost:5173";
+
 const address = "person@example.com";
 
 const sessionValue = (response: Response): string => {
   const pair = (response.headers.get("set-cookie") ?? "").split(";")[0] ?? "";
+
   return pair.slice(`${SESSION_COOKIE}=`.length);
 };
 
@@ -19,6 +21,7 @@ const signedIn = () =>
   Effect.gen(function* () {
     const codes: string[] = [];
     const sent: string[] = [];
+
     const auth = memoryAuth({
       sendSignInCode: ({ otp }) =>
         Effect.sync(() => {
@@ -26,6 +29,7 @@ const signedIn = () =>
         }),
       sendMagicLink: () => Effect.void,
     });
+
     yield* Effect.promise(() =>
       auth.handler(
         new Request(`${origin}/auth/email-otp/send-verification-otp`, {
@@ -35,6 +39,7 @@ const signedIn = () =>
         }),
       ),
     );
+
     const response = yield* Effect.promise(() =>
       auth.handler(
         new Request(`${origin}/auth/sign-in/email-otp`, {
@@ -44,7 +49,9 @@ const signedIn = () =>
         }),
       ),
     );
+
     const chosen = new Map<SessionId, OrganizationId>();
+
     const provider = betterAuthIdentityProvider({
       auth,
       chosenOrganization: (sessionId) => Effect.sync(() => Option.fromNullishOr(chosen.get(sessionId))),
@@ -57,6 +64,7 @@ const signedIn = () =>
           sent.push(sessionId);
         }),
     });
+
     return { provider, sent, chosen, value: sessionValue(response) };
   });
 
@@ -85,6 +93,7 @@ describe("Better Auth identity provider", () => {
   it.effect("mails a code and turns it into a session token", () =>
     Effect.gen(function* () {
       const codes: string[] = [];
+
       const auth = memoryAuth({
         sendSignInCode: ({ otp }) =>
           Effect.sync(() => {
@@ -92,12 +101,14 @@ describe("Better Auth identity provider", () => {
           }),
         sendMagicLink: () => Effect.void,
       });
+
       const provider = betterAuthIdentityProvider({
         auth,
         chosenOrganization: () => Effect.succeedNone,
         rememberOrganization: () => Effect.void,
         deleteSession: () => Effect.void,
       });
+
       yield* provider.sendSignInCode(address);
       expect(codes).toHaveLength(1);
 

@@ -22,23 +22,31 @@ export const withToken = (email: StoredEmail): Effect.Effect<RenderableEmail, ne
         if ("token" in email) {
           return email;
         }
+
         const { invitation, ...rest } = email;
         const token = yield* (yield* InvitationTokens).derive(invitation);
+
         return { ...rest, token };
       }
+
       case "TestInvitationEmail": {
         const { test, ...rest } = email;
         const token = yield* (yield* InvitationTokens).deriveTest(test);
+
         return { ...rest, _tag: "InvitationEmail", token, test: true };
       }
+
       case "ReminderEmail": {
         if ("token" in email) {
           return email;
         }
+
         const { invitation, ...rest } = email;
         const token = yield* (yield* InvitationTokens).derive(invitation);
+
         return { ...rest, token };
       }
+
       default: {
         return email;
       }

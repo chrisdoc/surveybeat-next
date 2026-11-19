@@ -79,6 +79,7 @@ export const parseDateIso = (dateStr: string): { year: number; month: number; da
   const year = Number.parseInt(parts[0] ?? "0", 10);
   const month = Number.parseInt(parts[1] ?? "0", 10);
   const day = Number.parseInt(parts[2] ?? "0", 10);
+
   return { year, month, day };
 };
 
@@ -86,6 +87,7 @@ export const parseSendTime = (sendTime: SendTime): { hour: number; minute: numbe
   const parts = sendTime.split(":");
   const hour = Number.parseInt(parts[0] ?? "0", 10);
   const minute = Number.parseInt(parts[1] ?? "0", 10);
+
   return { hour, minute };
 };
 
@@ -96,9 +98,11 @@ const nextWeekdayOn = (from: DateTime.Utc, targetWeekday: Weekday, includeToday:
   const targetDayNum = WEEKDAY_NUMBERS[targetWeekday];
 
   let daysAhead = targetDayNum - currentWeekday;
+
   if (daysAhead < 0 || (daysAhead === 0 && !includeToday)) {
     daysAhead += 7;
   }
+
   return DateTime.add(from, { days: daysAhead });
 };
 
@@ -122,9 +126,11 @@ export const nextEightWeeksCadenceDates = (
   const first = nextWeekdayOn(utcDate(year, month, day), weekday, true);
 
   const result: string[] = [];
+
   for (let i = 0; i < 8; i++) {
     result.push(DateTime.formatIsoDateUtc(DateTime.add(first, { days: i * 7 })));
   }
+
   return result;
 };
 
@@ -180,11 +186,13 @@ export interface RoundSlot {
 
 const addDays = (dateIso: string, days: number): string => {
   const { year, month, day } = parseDateIso(dateIso);
+
   return DateTime.formatIsoDateUtc(DateTime.add(utcDate(year, month, day), { days }));
 };
 
 const teamToday = (now: number, timeZone: string) => {
   const { year, month, day } = DateTime.toParts(DateTime.makeZonedUnsafe(now, { timeZone }));
+
   return { year, month, day };
 };
 
@@ -202,9 +210,11 @@ export const nextRoundSlot = (input: RoundSlotInput): RoundSlot => {
 
   const today = teamToday(input.now, input.teamTimeZone);
   let slot = slotOn(nextWeekdayDate(today.year, today.month, today.day, input.weekday, true));
+
   while (slot.instants.openInstant <= input.now || input.unavailableDates.has(slot.plannedOpenDate)) {
     slot = slotOn(addDays(slot.plannedOpenDate, 7));
   }
+
   return slot;
 };
 
@@ -219,6 +229,7 @@ export const calculateReminders = (
   }
 
   const candidates: number[] = [];
+
   if (answerWindowDays === 1) {
     candidates.push(sendInstant + 6 * 3_600_000);
   } else if (remindersCount === 1) {
@@ -226,12 +237,14 @@ export const calculateReminders = (
   } else if (remindersCount === 2) {
     candidates.push(sendInstant + 1 * 24 * 3_600_000);
     const dayWMinusOne = sendInstant + (answerWindowDays - 1) * 24 * 3_600_000;
+
     if (dayWMinusOne !== candidates[0]) {
       candidates.push(dayWMinusOne);
     }
   }
 
   const cutoff = closeInstant - 2 * 3_600_000;
+
   return candidates.filter((time) => time < cutoff);
 };
 
@@ -247,6 +260,7 @@ export const calculateResultsReadyDeliveryTime = (nowMs: number, timeZone: strin
   }
 
   const tomorrow = DateTime.toPartsUtc(DateTime.add(utcDate(year, month, day), { days: 1 }));
+
   return localToUtc(tomorrow.year, tomorrow.month, tomorrow.day, 8, 0, timeZone);
 };
 
@@ -337,6 +351,7 @@ const B64_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz012345678
 const base64url = (bytes: Uint8Array): string => {
   let result = "";
   const len = bytes.length;
+
   for (let i = 0; i < len; i += 3) {
     const b0 = bytes[i] ?? 0;
     const b1 = i + 1 < len ? (bytes[i + 1] ?? 0) : 0;
@@ -344,13 +359,16 @@ const base64url = (bytes: Uint8Array): string => {
 
     result += B64_CHARS[(b0 >> 2) & 0x3f];
     result += B64_CHARS[((b0 & 0x03) << 4) | ((b1 >> 4) & 0x0f)];
+
     if (i + 1 < len) {
       result += B64_CHARS[((b1 & 0x0f) << 2) | ((b2 >> 6) & 0x03)];
     }
+
     if (i + 2 < len) {
       result += B64_CHARS[b2 & 0x3f];
     }
   }
+
   return result;
 };
 
@@ -444,16 +462,19 @@ const roundEvent = (command: RoundCommand): RoundEvent => {
         plannedOpenDate: command.plannedOpenDate,
       };
     }
+
     case "PausePulse":
     case "ResumePulse": {
       return { type: command._tag, teamId: command.teamId, pulseId: command.pulseId };
     }
+
     case "CloseRoundEarly":
     case "ShareResults":
     case "RetryResult":
     case "CancelRound": {
       return { type: command._tag, teamId: command.teamId, roundId: command.roundId };
     }
+
     case "ResendInvitation": {
       return {
         type: command._tag,
@@ -582,9 +603,11 @@ const roundSnapshot = (status: RoundStatus) =>
 const roundStep = (status: RoundStatus, command: RoundCommand) => {
   const snapshot = roundSnapshot(status);
   const [next, effects] = transition(roundMachine, snapshot, roundEvent(command));
+
   if (isUnhandled(snapshot, [next, effects])) {
     throw new Error(`Round has no transition for ${command._tag} in ${status}`);
   }
+
   return next.context;
 };
 
@@ -603,11 +626,14 @@ export const authorizeRoundAction = (
   | { readonly _tag: "Rejected"; readonly rejection: RoundRejection }
   | { readonly _tag: "Allowed"; readonly actor: Actor } => {
   const actor = actorOf(directory, actorId);
+
   if (actor._tag === "None" || !can(actor.value, action, { _tag: "Team", teamId })) {
     return reject({ _tag: "Forbidden" });
   }
+
   if (!directory.teams.some((team) => team.id === teamId)) {
     return reject({ _tag: "TeamNotFound" });
   }
+
   return { _tag: "Allowed", actor: actor.value };
 };

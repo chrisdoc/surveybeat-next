@@ -1,11 +1,15 @@
 import type { AnswerKey, AnswerTranslation, Placeholders, answerCatalog } from "../messages/answer.ts";
 
 type AnswerCatalog = typeof answerCatalog;
+
 type Value = string | number;
+
 type KeysWithoutParams = {
   [K in AnswerKey]: [Placeholders<AnswerCatalog[K]>] extends [never] ? K : never;
 }[AnswerKey];
+
 type KeysWithParams = Exclude<AnswerKey, KeysWithoutParams>;
+
 type Params<K extends AnswerKey> = Readonly<Record<Placeholders<AnswerCatalog[K]>, Value>>;
 
 export interface AnswerMessage {
@@ -23,5 +27,6 @@ export function answerMessages(table: AnswerTranslation): AnswerMessage {
   function message(key: AnswerKey, params: Readonly<Record<string, Value>> = {}): string {
     return fill(table[key], params);
   }
+
   return message;
 }

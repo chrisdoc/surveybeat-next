@@ -43,6 +43,7 @@ export const SessionModel = defineTaggedUnion({
     organizationLocale: Locale,
   },
 });
+
 export type SessionModel = typeof SessionModel.Type;
 
 export const SessionResult = defineTaggedUnion({
@@ -59,6 +60,7 @@ export const SessionResult = defineTaggedUnion({
   SignedOut: {},
   Failed: {},
 });
+
 export type SessionResult = typeof SessionResult.Type;
 
 export const runSessionCall = <E>(
@@ -78,12 +80,15 @@ export const runSessionCall = <E>(
             organizationLocale: state.organizationLocale,
           };
         }
+
         case "CreateOrganization": {
           return { _tag: "CreateOrganization" };
         }
+
         case "NotInOrganization": {
           return { _tag: "NotInOrganization" };
         }
+
         case "ChooseOrganization": {
           return { _tag: "ChooseOrganization", organizations: state.organizations };
         }

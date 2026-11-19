@@ -5,25 +5,31 @@ export const KeptAnswer = Schema.Struct({
   value: Schema.optionalKey(Schema.Finite),
   comment: Schema.optionalKey(Schema.String),
 });
+
 export type KeptAnswer = typeof KeptAnswer.Type;
 
 export const KeptAnswers = Schema.Record(Schema.String, Schema.Record(Schema.String, KeptAnswer));
+
 export type KeptAnswers = typeof KeptAnswers.Type;
 
 const StoredRound = Schema.Struct({
   expiresAt: Schema.Finite,
   answers: Schema.Record(Schema.String, KeptAnswer),
 });
+
 const decodeStoredRound = Schema.decodeUnknownOption(Schema.fromJsonString(StoredRound));
 
 const keptAnswersKeys = (storage: Pick<Storage, "length" | "key">): string[] => {
   const keys: string[] = [];
+
   for (let index = 0; index < storage.length; index++) {
     const key = storage.key(index);
+
     if (key !== null && key.startsWith(keptAnswersPrefix)) {
       keys.push(key);
     }
   }
+
   return keys;
 };
 
@@ -33,14 +39,17 @@ export const readKeptAnswers = (
 ): KeptAnswers => {
   try {
     const kept: Record<string, Record<string, KeptAnswer>> = {};
+
     for (const key of keptAnswersKeys(storage)) {
       const stored = decodeStoredRound(storage.getItem(key) ?? "");
+
       if (Option.isSome(stored) && stored.value.expiresAt > now) {
         kept[key.slice(keptAnswersPrefix.length)] = stored.value.answers;
       } else {
         storage.removeItem(key);
       }
     }
+
     return kept;
   } catch {
     return {};

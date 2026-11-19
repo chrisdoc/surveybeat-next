@@ -31,21 +31,28 @@ export interface LineChartOptions {
 }
 
 const HEIGHT = 120;
+
 const MIN_SCORE = 1;
+
 const MAX_SCORE = 5;
+
 const LABEL_SIZE = "9";
+
 const LABEL_CLASS = "fill-muted";
+
 const OVERLAY_LABEL_CLASS = "absolute leading-none text-muted text-[9px] whitespace-nowrap";
 
 export const CHART_PAD = { left: 24, right: 16, top: 16, bottom: 24 } as const;
 
 const scoreY = (score: number): number => {
   const norm = (score - MIN_SCORE) / (MAX_SCORE - MIN_SCORE);
+
   return CHART_PAD.top + (1 - norm) * (HEIGHT - CHART_PAD.top - CHART_PAD.bottom);
 };
 
 export const plotPercent = (x: number, width = 360): string => {
   const chartWidth = width - CHART_PAD.left - CHART_PAD.right;
+
   return `${((CHART_PAD.left + x * chartWidth) / width) * 100}%`;
 };
 
@@ -95,6 +102,7 @@ export const lineChart = <Message>(options: LineChartOptions, h: HtmlBuilder<Mes
   for (let i = 1; i < points.length; i++) {
     const p1 = points[i - 1]!;
     const p2 = points[i]!;
+
     if (p1.score !== null && p2.score !== null && p2.joinsPrevious) {
       svgChildren.push(
         h.line([
@@ -111,8 +119,10 @@ export const lineChart = <Message>(options: LineChartOptions, h: HtmlBuilder<Mes
 
   for (let i = 0; i < points.length; i++) {
     const p = points[i]!;
+
     if (p.score !== null) {
       const isBrass = options.highlightLast === true && i === points.length - 1;
+
       if (fillWidth) {
         const size = `${dotRadius * 2}px`;
         overlayChildren.push(
@@ -192,13 +202,16 @@ export const lineChart = <Message>(options: LineChartOptions, h: HtmlBuilder<Mes
   }
 
   let lastPoint: ChartPoint | undefined;
+
   for (const p of points) {
     if (p.score !== null) {
       lastPoint = p;
     }
   }
+
   if (options.latestLabel !== undefined && lastPoint !== undefined && lastPoint.score !== null) {
     const nearEnd = lastPoint.x > 0.85;
+
     if (fillWidth) {
       const offset = nearEnd ? -6 : 6;
       overlayChildren.push(

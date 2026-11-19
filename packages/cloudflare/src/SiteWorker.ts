@@ -17,6 +17,7 @@ export default class SiteWorker extends Cloudflare.Worker<SiteWorker>()(
     const stack = yield* Stack;
     const domain = siteDomainFor(stack.stage);
     const appHostname = hostnameFor(stack.stage, "app");
+
     return {
       main: import.meta.url,
       assets: {
@@ -35,9 +36,11 @@ export default class SiteWorker extends Cloudflare.Worker<SiteWorker>()(
       fetch: Effect.gen(function* () {
         const request = yield* HttpServerRequest;
         const path = request.url.split("?")[0];
+
         if (isAppRedirect(request.method, path)) {
           return HttpServerResponse.redirect(appOrigin, { status: 302 });
         }
+
         return HttpServerResponse.empty({ status: 404 });
       }),
     };

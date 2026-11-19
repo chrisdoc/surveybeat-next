@@ -3,11 +3,13 @@ import { describe, expect, it } from "vitest";
 import { clearKeptAnswers, readKeptAnswers } from "./keptAnswers.ts";
 
 const now = DateTime.toEpochMillis(DateTime.makeUnsafe("2026-11-10T12:00:00Z"));
+
 const later = now + 60_000;
 
 /** A Map-backed Storage: enough of the Storage surface for the reader and the clearer. */
 const fakeStorage = (entries: Record<string, string>) => {
   const map = new Map(Object.entries(entries));
+
   const storage = {
     get length() {
       return map.size;
@@ -18,6 +20,7 @@ const fakeStorage = (entries: Record<string, string>) => {
       map.delete(key);
     },
   };
+
   return { storage, map };
 };
 

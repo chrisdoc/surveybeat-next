@@ -17,10 +17,15 @@ import { RoundId } from "./Round.ts";
 import type { SubmissionAnswer } from "./Submission.ts";
 
 const PULSE_ID = PulseId.make("pulse-1");
+
 const TEAM_ID = TeamId.make("team-1");
+
 const ROUND_1 = RoundId.make("round-1");
+
 const Q1 = QuestionVersionId.make("q-1.1");
+
 const Q2 = QuestionVersionId.make("q-2.1");
+
 const Q3_CHOICE = QuestionVersionId.make("q-3.1");
 
 const ratingType: QuestionType = {
@@ -106,11 +111,14 @@ describe("Minimum group size rules R1–R11 (Issue #3 / ADR 0004)", () => {
     // 6 Submissions total, but only 3 answer Question 2 (Q2).
     // All 6 answer Question 1 (Q1).
     const submissions: { id: string; answers: SubmissionAnswer[] }[] = [];
+
     for (let i = 1; i <= 6; i++) {
       const answers: SubmissionAnswer[] = [{ questionVersionId: Q1, value: 4, comment: null }];
+
       if (i <= 3) {
         answers.push({ questionVersionId: Q2, value: 2, comment: null });
       }
+
       submissions.push({ id: `sub-${i}`, answers });
     }
 
@@ -259,6 +267,7 @@ describe("Minimum group size rules R1–R11 (Issue #3 / ADR 0004)", () => {
     });
 
     assert.strictEqual(result.comments.length, 2);
+
     // Comments never contain rating value or submission ID
     for (const c of result.comments) {
       assert.isDefined(c.text);
@@ -311,16 +320,19 @@ describe("Minimum group size rules R1–R11 (Issue #3 / ADR 0004)", () => {
 
     // Response count is shown
     assert.strictEqual(openResult.submissionsCount, 5);
+
     // No scores, distributions, or comments while Open!
     for (const q of openResult.questions) {
       assert.isNull(q.score);
       assert.isNull(q.distribution);
       assert.isFalse(q.meetsMinimumGroupSize);
     }
+
     for (const d of openResult.dimensions) {
       assert.isNull(d.score);
       assert.isFalse(d.meetsMinimumGroupSize);
     }
+
     assert.strictEqual(openResult.comments.length, 0);
   });
 
@@ -356,9 +368,11 @@ describe("Minimum group size rules R1–R11 (Issue #3 / ADR 0004)", () => {
       assert.isNull(q.score);
       assert.isNull(q.distribution);
     }
+
     for (const d of result.dimensions) {
       assert.isNull(d.score);
     }
+
     assert.strictEqual(result.comments.length, 0);
   });
 
@@ -412,6 +426,7 @@ describe("Minimum group size rules R1–R11 (Issue #3 / ADR 0004)", () => {
       submissions, // only 4 submissions
       pastRoundsHistory: [],
     });
+
     assert.isFalse(closedUnder5.meetsMinimumGroupSize);
 
     // When org N is lowered to 4, effective N remains max(5, 4) = 5
@@ -475,17 +490,21 @@ describe("Raised Organization N masks derived values (ADR 0004)", () => {
     assert.strictEqual(before?.trend.at(-1)?.score, 4);
 
     const masked = enforceEffectiveNOnResult(result, 6);
+
     for (const d of masked.dimensions) {
       assert.isNull(d.score);
       assert.isNull(d.change);
       assert.isNull(d.typicalChange);
+
       for (const p of d.trend) {
         assert.isNull(p.score);
         assert.isTrue(p.hasGap);
       }
     }
+
     for (const q of masked.questions) {
       assert.isNull(q.typicalChange);
+
       for (const p of q.trend) {
         assert.isNull(p.score);
       }
@@ -517,6 +536,7 @@ describe("12-Round history, trends, warm-up, and gap handling (Issue #4)", () =>
   it("building baseline warm-up note when fewer than 6 usable rounds exist", () => {
     // 3 usable past rounds
     const history: HistoricalRoundData[] = [];
+
     for (let i = 1; i <= 3; i++) {
       history.push({
         roundId: RoundId.make(`past-${i}`),
@@ -728,11 +748,14 @@ describe("12-Round history, trends, warm-up, and gap handling (Issue #4)", () =>
 
     // Current round: 5 submissions, all 5 answer Q1, only 2 answer Q2
     const submissions: { id: string; answers: SubmissionAnswer[] }[] = [];
+
     for (let i = 1; i <= 5; i++) {
       const answers: SubmissionAnswer[] = [{ questionVersionId: Q1, value: 4, comment: null }];
+
       if (i <= 2) {
         answers.push({ questionVersionId: Q2, value: 3, comment: null });
       }
+
       submissions.push({ id: `sub-${i}`, answers });
     }
 
@@ -781,6 +804,7 @@ describe("RoundResult anonymity mode (issue #79)", () => {
       dimensions: [],
       comments: [],
     };
+
     const decoded = Schema.decodeUnknownSync(RoundResult)(stored);
     assert.strictEqual(decoded.anonymityMode, "anonymous");
   });

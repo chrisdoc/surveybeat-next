@@ -103,6 +103,7 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
     const stack = yield* Stack;
     const hostname = hostnameFor(stack.stage, "app");
     const domain = mainWorkerDomainFor(stack.stage);
+
     return {
       main: import.meta.url,
       assets: mainWorkerAssets(stack.stage),
@@ -134,10 +135,12 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
     const emailQueue = yield* EmailQueue;
     const emailDlq = yield* EmailQueueDlq;
     const sendClient = sendsRealEmail(stage) ? yield* Cloudflare.Email.Send(yield* SendEmail) : undefined;
+
     const signInEmail =
       sendClient === undefined
         ? yield* capturingEmailSender(database)
         : yield* cloudflareEmailSender(sendClient);
+
     const authInstance = yield* BetterAuth({
       ...authOptions(signInCodeDelivery(signInEmail.send)),
       id: "Auth",
@@ -153,6 +156,7 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
             sendClient === undefined
               ? yield* capturingEmailSender(database)
               : yield* cloudflareEmailSender(sendClient);
+
           yield* Stream.runForEach(stream, (message) =>
             handleSendMessage(organizations, database, message),
           ).pipe(
@@ -185,14 +189,18 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
     yield* Cloudflare.Workers.cron("0 0 * * *", () =>
       Effect.gen(function* () {
         const day = Math.floor((yield* Clock.currentTimeMillis) / 86_400_000);
+
         const counted = yield* database
           .prepare("SELECT COUNT(*) AS total FROM organization_index")
           .all<{ total: number }>();
+
         const window = repairWindow(counted.results[0]?.total ?? 0, day, REPAIR_PAGE_SIZE);
+
         const orgs = yield* database
           .prepare("SELECT organization_id FROM organization_index ORDER BY organization_id LIMIT ? OFFSET ?")
           .bind(window.limit, window.offset)
           .all<{ organization_id: string }>();
+
         for (const row of orgs.results) {
           yield* organizations.getByName(row.organization_id).repairAlarm().pipe(Effect.orDie);
         }
@@ -201,6 +209,7 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
 
     const services = Effect.gen(function* () {
       const runtime = yield* Effect.context<RuntimeContext>();
+
       const sessions = betterAuthIdentityProvider({
         auth: yield* authInstance.auth,
         chosenOrganization: (sessionId) =>
@@ -241,6 +250,7 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
               Effect.mapError(() => new AuthUnavailable()),
             ),
       });
+
       return Context.make(SessionIdentityProvider, sessions).pipe(
         Context.add(PeopleIndex, yield* d1PeopleIndex(database)),
         Context.add(OrganizationPeople, people),
@@ -262,6 +272,7 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
         ),
       );
     });
+
     const auth = authHandlers({ allowlist: Effect.map(settings, ({ allowlist }) => allowlist), services });
 
     const api = yield* HttpRouter.toHttpEffect(
@@ -298,33 +309,43 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
           if (path === TEST_ROUTES && testRoutes) {
             return yield* testRoutes;
           }
+
           if (path === PEOPLE_TEST_ROUTE) {
             return yield* peopleTestRoutes(organizations, database);
           }
+
           if (path === PULSES_TEST_ROUTE) {
             return yield* pulseTestRoutes(organizations);
           }
+
           if (path === ROUNDS_TEST_ROUTE) {
             return yield* roundTestRoutes(organizations, database);
           }
+
           if (path === ROUND_DELIVERY_TEST_ROUTE) {
             return yield* roundDeliveryTestRoutes(organizations);
           }
+
           if (path === THEMES_TEST_ROUTE) {
             return yield* themesTestRoutes(organizations);
           }
+
           if (path === REVIEW_TEST_ROUTE) {
             return yield* reviewTestRoutes(organizations);
           }
+
           if (path === RESULT_RECOVERY_TEST_ROUTE) {
             return yield* resultRecoveryTestRoutes(organizations);
           }
+
           if (path === TEST_INVITATION_TEST_ROUTE) {
             return yield* testInvitationTestRoutes(organizations, database);
           }
+
           if (path === RESEND_EMAIL_TEST_ROUTE) {
             return yield* resendEmailTestRoutes(organizations, database);
           }
+
           if (path === FLOW_TEST_ROUTE) {
             return yield* flowTestRoutes(organizations);
           }

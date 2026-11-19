@@ -9,11 +9,13 @@ export const fakeAiClient = (
 ) =>
   Effect.gen(function* () {
     const requests = yield* Ref.make<readonly AiRequest[]>([]);
+
     const layer = Layer.succeed(AiClient, {
       complete: (request) =>
         Ref.modify(requests, (all): [number, readonly AiRequest[]] => [all.length, [...all, request]]).pipe(
           Effect.flatMap((index) => responses[index] ?? Effect.die(`unexpected AI call #${index + 1}`)),
         ),
     });
+
     return { layer, requests: Ref.get(requests) };
   });

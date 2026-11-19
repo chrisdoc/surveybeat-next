@@ -180,6 +180,7 @@ const reject = (
   _tag: "Rejected",
   rejection,
 });
+
 const forbidden = reject({ _tag: "Forbidden" });
 
 const accept = (changes: readonly DirectoryChange[], followUps: readonly FollowUp[] = []): Decision => ({
@@ -213,23 +214,29 @@ const refOf = (person: PersonRecord): PersonRef => ({
 
 export const actorOf = (state: DirectoryState, personId: PersonId): Option.Option<Actor> => {
   const person = state.people.find((each) => each.id === personId && each.removedAt === null);
+
   if (person === undefined) {
     return Option.none();
   }
+
   const roles = new Map<TeamId, MembershipRole>();
+
   for (const membership of state.memberships) {
     if (membership.personId === personId && isActive(membership)) {
       roles.set(membership.teamId, membership.role);
     }
   }
+
   return Option.some({ personId, organizationAdmin: person.organizationAdmin, roles });
 };
 
 export const emailLocaleOf = (state: DirectoryState, personId: PersonId): Locale => {
   const person = state.people.find((each) => each.id === personId);
+
   if (person === undefined) {
     return state.defaultLocale;
   }
+
   return resolveLocale({
     person: person.locale,
     browser: person.detectedLocale,
@@ -252,9 +259,11 @@ const putInTeam = (
 ): Decision => {
   const email = EmailAddress.make(normaliseEmail(member.email));
   const existing = state.people.find((person) => person.email === email);
+
   if (existing !== undefined && existing.removedAt !== null && !adder.organizationAdmin) {
     return reject({ _tag: "PersonWasRemoved" });
   }
+
   const person: PersonRecord = existing ?? {
     id: member.personId,
     email,
@@ -264,7 +273,9 @@ const putInTeam = (
     locale: null,
     detectedLocale: null,
   };
+
   const changes: DirectoryChange[] = [];
+
   if (existing === undefined) {
     changes.push({ _tag: "PersonAdded", person });
   } else if (existing.removedAt !== null) {
@@ -273,6 +284,7 @@ const putInTeam = (
 
   const index: FollowUp = { _tag: "IndexPerson", person: refOf(person) };
   const current = existing === undefined ? undefined : activeMembershipOf(state, team.id, existing.id);
+
   if (current !== undefined && (current.role === role || current.role === "lead")) {
     return accept(changes, [index]);
   }
@@ -285,11 +297,14 @@ const putInTeam = (
     startedAt: now,
     endedAt: null,
   };
+
   if (current !== undefined) {
     changes.push({ _tag: "MembershipEnded", membershipId: current.id, at: now });
     changes.push({ _tag: "MembershipStarted", membership });
+
     return accept(changes, [index]);
   }
+
   const sendId = addedEmailSendId(membership.id);
   changes.push(
     { _tag: "MembershipStarted", membership },
@@ -306,6 +321,7 @@ const putInTeam = (
       },
     },
   );
+
   return accept(changes, [index]);
 };
 
@@ -317,9 +333,11 @@ export const decide = (
 ): Decision => {
   const actor = actorOf(state, actorId);
   const adder = state.people.find((person) => person.id === actorId);
+
   if (Option.isNone(actor) || adder === undefined) {
     return forbidden;
   }
+
   const allowed = actor.value;
   const organization = { _tag: "Organization" } as const;
 
@@ -328,18 +346,24 @@ export const decide = (
       if (!can(allowed, "organization.createTeam", organization)) {
         return forbidden;
       }
+
       if (nameTaken(state, command.name)) {
         return reject({ _tag: "TeamNameTaken" });
       }
+
       const team: TeamRecord = { id: command.teamId, name: command.name, timeZone: command.timeZone };
+
       if (findTeam(state, team.id) !== undefined) {
         return reject({ _tag: "TeamNameTaken" });
       }
+
       const withTeam: DirectoryState = { ...state, teams: [...state.teams, team] };
       const lead = putInTeam(withTeam, adder, team, "lead", command.lead, now);
+
       if (lead._tag === "Rejected") {
         return lead;
       }
+
       return accept([{ _tag: "TeamAdded", team }, ...lead.changes], lead.followUps);
     }
 
@@ -347,12 +371,15 @@ export const decide = (
       if (!can(allowed, "team.update", { _tag: "Team", teamId: command.teamId })) {
         return forbidden;
       }
+
       if (findTeam(state, command.teamId) === undefined) {
         return reject({ _tag: "TeamNotFound" });
       }
+
       if (nameTaken(state, command.name, command.teamId)) {
         return reject({ _tag: "TeamNameTaken" });
       }
+
       return accept([
         { _tag: "TeamUpdated", team: { id: command.teamId, name: command.name, timeZone: command.timeZone } },
       ]);
@@ -360,36 +387,47 @@ export const decide = (
 
     case "AddMember": {
       const action = command.role === "lead" ? "team.assignLead" : "team.addMember";
+
       if (!can(allowed, action, { _tag: "Team", teamId: command.teamId })) {
         return forbidden;
       }
+
       const team = findTeam(state, command.teamId);
+
       if (team === undefined) {
         return reject({ _tag: "TeamNotFound" });
       }
+
       return putInTeam(state, adder, team, command.role, command.member, now);
     }
 
     case "RemoveMember": {
       const resource = { _tag: "Team", teamId: command.teamId } as const;
+
       if (!can(allowed, "team.removeMember", resource)) {
         return forbidden;
       }
+
       if (findTeam(state, command.teamId) === undefined) {
         return reject({ _tag: "TeamNotFound" });
       }
+
       const membership = activeMembershipOf(state, command.teamId, command.personId);
+
       if (membership === undefined) {
         return reject({ _tag: "PersonNotFound" });
       }
+
       if (membership.role === "lead") {
         if (!can(allowed, "team.removeLead", resource)) {
           return forbidden;
         }
+
         if (leadsOf(state, command.teamId).length <= 1) {
           return reject({ _tag: "LastLead", teamId: command.teamId });
         }
       }
+
       return accept([{ _tag: "MembershipEnded", membershipId: membership.id, at: now }]);
     }
 
@@ -397,16 +435,21 @@ export const decide = (
       if (!can(allowed, "team.removeLead", { _tag: "Team", teamId: command.teamId })) {
         return forbidden;
       }
+
       if (findTeam(state, command.teamId) === undefined) {
         return reject({ _tag: "TeamNotFound" });
       }
+
       const membership = activeMembershipOf(state, command.teamId, command.personId);
+
       if (membership?.role !== "lead") {
         return reject({ _tag: "PersonNotFound" });
       }
+
       if (leadsOf(state, command.teamId).length <= 1) {
         return reject({ _tag: "LastLead", teamId: command.teamId });
       }
+
       return accept([
         { _tag: "MembershipEnded", membershipId: membership.id, at: now },
         {
@@ -427,13 +470,17 @@ export const decide = (
       if (!can(allowed, "organization.removePerson", organization)) {
         return forbidden;
       }
+
       if (command.personId === actorId) {
         return forbidden;
       }
+
       const person = state.people.find((each) => each.id === command.personId);
+
       if (person === undefined) {
         return reject({ _tag: "PersonNotFound" });
       }
+
       const followUps: FollowUp[] = [{ _tag: "UnindexPerson", personId: person.id }];
 
       if (person.removedAt !== null) {
@@ -443,17 +490,20 @@ export const decide = (
       const memberships = state.memberships.filter(
         (membership) => membership.personId === person.id && isActive(membership),
       );
+
       for (const membership of memberships) {
         if (membership.role === "lead" && leadsOf(state, membership.teamId).length <= 1) {
           return reject({ _tag: "LastLead", teamId: membership.teamId });
         }
       }
+
       if (
         person.organizationAdmin &&
         activePeople(state).filter((each) => each.organizationAdmin).length <= 1
       ) {
         return reject({ _tag: "LastAdmin" });
       }
+
       const changes: DirectoryChange[] = memberships.map((membership) => ({
         _tag: "MembershipEnded",
         membershipId: membership.id,
@@ -463,7 +513,9 @@ export const decide = (
       if (person.organizationAdmin) {
         changes.push({ _tag: "AdminSet", personId: person.id, organizationAdmin: false });
       }
+
       changes.push({ _tag: "PersonRemoved", personId: person.id, at: now });
+
       return accept(changes, followUps);
     }
 
@@ -471,10 +523,13 @@ export const decide = (
       if (!can(allowed, "organization.setAdmin", organization)) {
         return forbidden;
       }
+
       const person = activePeople(state).find((each) => each.id === command.personId);
+
       if (person === undefined) {
         return reject({ _tag: "PersonNotFound" });
       }
+
       if (
         person.organizationAdmin &&
         !command.organizationAdmin &&
@@ -482,9 +537,11 @@ export const decide = (
       ) {
         return reject({ _tag: "LastAdmin" });
       }
+
       if (person.organizationAdmin === command.organizationAdmin) {
         return accept([]);
       }
+
       return accept([
         { _tag: "AdminSet", personId: person.id, organizationAdmin: command.organizationAdmin },
       ]);
@@ -494,6 +551,7 @@ export const decide = (
       if (!can(allowed, "organization.updateSettings", organization)) {
         return forbidden;
       }
+
       return accept([
         {
           _tag: "SettingsUpdated",
@@ -523,34 +581,42 @@ export const applyChanges = (state: DirectoryState, changes: readonly DirectoryC
       ...current,
       people: current.people.map((person) => (person.id === personId ? update(person) : person)),
     });
+
     switch (change._tag) {
       case "PersonAdded": {
         return { ...current, people: [...current.people, change.person] };
       }
+
       case "PersonRestored": {
         return updatePerson(change.personId, (person) => ({ ...person, removedAt: null }));
       }
+
       case "PersonRemoved": {
         return updatePerson(change.personId, (person) => ({ ...person, removedAt: change.at }));
       }
+
       case "AdminSet": {
         return updatePerson(change.personId, (person) => ({
           ...person,
           organizationAdmin: change.organizationAdmin,
         }));
       }
+
       case "TeamAdded": {
         return { ...current, teams: [...current.teams, change.team] };
       }
+
       case "TeamUpdated": {
         return {
           ...current,
           teams: current.teams.map((team) => (team.id === change.team.id ? change.team : team)),
         };
       }
+
       case "MembershipStarted": {
         return { ...current, memberships: [...current.memberships, change.membership] };
       }
+
       case "MembershipEnded": {
         return {
           ...current,
@@ -559,6 +625,7 @@ export const applyChanges = (state: DirectoryState, changes: readonly DirectoryC
           ),
         };
       }
+
       case "SettingsUpdated": {
         return {
           ...current,
@@ -567,6 +634,7 @@ export const applyChanges = (state: DirectoryState, changes: readonly DirectoryC
           defaultLocale: change.defaultLocale,
         };
       }
+
       case "PersonLanguageSet": {
         return updatePerson(change.personId, (person) => ({
           ...person,
@@ -574,6 +642,7 @@ export const applyChanges = (state: DirectoryState, changes: readonly DirectoryC
           detectedLocale: change.detectedLocale,
         }));
       }
+
       case "EmailRequested": {
         return current;
       }
@@ -598,13 +667,17 @@ const byName = (a: { readonly name: string }, b: { readonly name: string }) =>
 
 export const teamsView = (state: DirectoryState, actorId: PersonId): Viewed<readonly TeamSummary[]> => {
   const actor = actorOf(state, actorId);
+
   if (Option.isNone(actor)) {
     return forbidden;
   }
+
   const listAll = can(actor.value, "organization.listTeams", { _tag: "Organization" });
+
   const teams = state.teams.filter(
     (team) => listAll || can(actor.value, "team.view", { _tag: "Team", teamId: team.id }),
   );
+
   return {
     _tag: "Viewed",
     value: [...teams]
@@ -617,26 +690,35 @@ const ROLE_ORDER: Readonly<Record<MembershipRole, number>> = { lead: 0, member: 
 
 export const teamView = (state: DirectoryState, actorId: PersonId, teamId: TeamId): Viewed<TeamDetail> => {
   const actor = actorOf(state, actorId);
+
   if (Option.isNone(actor)) {
     return forbidden;
   }
+
   const resource = { _tag: "Team", teamId } as const;
+
   if (!can(actor.value, "team.viewRoster", resource)) {
     return forbidden;
   }
+
   const team = findTeam(state, teamId);
+
   if (team === undefined) {
     return reject({ _tag: "TeamNotFound" });
   }
+
   const emails = new Map(state.people.map((person) => [person.id, person.email]));
+
   const roster = activeMemberships(state, teamId)
     .flatMap((membership) => {
       const email = emails.get(membership.personId);
+
       return email === undefined
         ? []
         : [{ personId: membership.personId, email, role: membership.role, since: membership.startedAt }];
     })
     .sort((a, b) => ROLE_ORDER[a.role] - ROLE_ORDER[b.role] || a.email.localeCompare(b.email, "en"));
+
   return {
     _tag: "Viewed",
     value: {
@@ -655,12 +737,15 @@ export const teamView = (state: DirectoryState, actorId: PersonId, teamId: TeamI
 
 export const settingsView = (state: DirectoryState, actorId: PersonId): Viewed<OrganizationSettings> => {
   const actor = actorOf(state, actorId);
+
   if (Option.isNone(actor)) {
     return forbidden;
   }
+
   if (!can(actor.value, "organization.viewSettings", { _tag: "Organization" })) {
     return forbidden;
   }
+
   return {
     _tag: "Viewed",
     value: {
@@ -682,6 +767,7 @@ export const settingsView = (state: DirectoryState, actorId: PersonId): Viewed<O
 
 export const isEmailAdmin = (state: DirectoryState, actorId: PersonId): boolean => {
   const actor = actorOf(state, actorId);
+
   return Option.isSome(actor) && can(actor.value, "organization.updateSettings", { _tag: "Organization" });
 };
 
@@ -693,9 +779,11 @@ export const emailStatusView = (
   if (!isEmailAdmin(state, actorId)) {
     return forbidden;
   }
+
   if (status === null) {
     return reject({ _tag: "FailedEmailNotFound" });
   }
+
   return { _tag: "Viewed", value: status };
 };
 
@@ -705,11 +793,14 @@ export const failedEmailsView = (
   failed: readonly FailedEmail[],
 ): Viewed<FailedEmails> => {
   const actor = actorOf(state, actorId);
+
   if (Option.isNone(actor)) {
     return forbidden;
   }
+
   if (!can(actor.value, "organization.viewSettings", { _tag: "Organization" })) {
     return forbidden;
   }
+
   return { _tag: "Viewed", value: { emails: failed } };
 };

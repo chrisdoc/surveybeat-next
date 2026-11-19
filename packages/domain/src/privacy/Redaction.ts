@@ -12,7 +12,9 @@ export type RosterItem =
 export type Roster = readonly RosterItem[];
 
 const URL_PATTERN = /(?:https?:\/\/|www\.)[^\s<>"'()[\]{},]+(?<![.,!?:;])/gi;
+
 const EMAIL_PATTERN = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/gi;
+
 const HANDLE_PATTERN = /(?:^|(?<=[^\w@]))@[A-Za-z0-9_]+(?=[^\w]|$)/g;
 
 const GERMAN_PHONE_PATTERN =
@@ -46,11 +48,13 @@ const redactGenericPhones = (text: string): string => {
   const pattern = new RegExp(PHONE_PATTERN.source, "g");
   let result = "";
   let kept = 0;
+
   for (let match = pattern.exec(text); match !== null; match = pattern.exec(text)) {
     const candidate = match[1] ?? "";
     const start = match.index + match[0].indexOf(candidate);
     const end = start + candidate.length;
     const date = DATE_OR_YEAR_RANGE_PREFIX.exec(candidate)?.[0];
+
     if (date !== undefined) {
       pattern.lastIndex = start + date.length;
     } else if (
@@ -64,6 +68,7 @@ const redactGenericPhones = (text: string): string => {
       kept = end;
     }
   }
+
   return result + text.slice(kept);
 };
 
@@ -73,6 +78,7 @@ const germanSignificantDigits = (match: string): number => {
   const international = INTERNATIONAL_GERMAN_PREFIX.test(match);
   const body = match.replace(INTERNATIONAL_GERMAN_PREFIX, "").replace("(0)", "");
   const digits = (body.match(/\d/g) ?? []).length;
+
   return international ? digits : digits - 1;
 };
 
@@ -84,40 +90,53 @@ const redactGermanPhones = (text: string): string => {
   const pattern = new RegExp(GERMAN_PHONE_PATTERN.source, "g");
   let result = "";
   let kept = 0;
+
   for (let match = pattern.exec(text); match !== null; match = pattern.exec(text)) {
     const start = match.index;
     const digits = germanSignificantDigits(match[0]);
+
     if (digits < 7) {
       continue;
     }
+
     let end = start + match[0].length;
+
     if (digits > 12) {
       let cut: number | undefined;
+
       for (let i = 1; i < match[0].length; i++) {
         if (!PHONE_SPLIT_CHARACTER.test(match[0].charAt(i))) {
           continue;
         }
+
         const prefixDigits = germanSignificantDigits(match[0].slice(0, i));
+
         if (prefixDigits > 12) {
           break;
         }
+
         if (prefixDigits < 7) {
           continue;
         }
+
         cut ??= i;
+
         if (GERMAN_NUMBER_START.test(match[0].slice(i))) {
           cut = i;
           break;
         }
       }
+
       if (cut !== undefined) {
         end = start + cut;
         pattern.lastIndex = end;
       }
     }
+
     result += `${text.slice(kept, start)}[phone]`;
     kept = end;
   }
+
   return result + text.slice(kept);
 };
 
@@ -139,10 +158,13 @@ const extractCandidateNames = (roster: Roster): readonly CandidateName[] => {
   for (const item of roster) {
     if (typeof item === "string") {
       const trimmed = item.trim();
+
       if (trimmed.includes("@")) {
         const localPart = trimmed.split("@")[0] ?? "";
+
         if (localPart) {
           rawNames.add(localPart);
+
           for (const sub of localPart.split(/[._-]/)) {
             if (sub) {
               rawNames.add(sub);
@@ -151,6 +173,7 @@ const extractCandidateNames = (roster: Roster): readonly CandidateName[] => {
         }
       } else {
         rawNames.add(trimmed);
+
         for (const sub of trimmed.split(/\s+/)) {
           if (sub) {
             rawNames.add(sub);
@@ -160,22 +183,28 @@ const extractCandidateNames = (roster: Roster): readonly CandidateName[] => {
     } else if (item && typeof item === "object") {
       if (item.name) {
         rawNames.add(item.name.trim());
+
         for (const sub of item.name.trim().split(/\s+/)) {
           if (sub) {
             rawNames.add(sub);
           }
         }
       }
+
       if (item.firstName) {
         rawNames.add(item.firstName.trim());
       }
+
       if (item.lastName) {
         rawNames.add(item.lastName.trim());
       }
+
       if (item.email) {
         const localPart = item.email.trim().split("@")[0] ?? "";
+
         if (localPart) {
           rawNames.add(localPart);
+
           for (const sub of localPart.split(/[._-]/)) {
             if (sub) {
               rawNames.add(sub);
@@ -191,12 +220,15 @@ const extractCandidateNames = (roster: Roster): readonly CandidateName[] => {
 
   for (const name of rawNames) {
     const norm = stripDiacritics(name.trim());
+
     if (norm.length < 2 || seen.has(norm)) {
       continue;
     }
+
     seen.add(norm);
 
     const words = norm.split(/\s+/).filter((w) => w.length > 0);
+
     if (words.length > 0) {
       candidates.push({
         norm,
@@ -222,6 +254,7 @@ const redactNames = (text: string, candidates: readonly CandidateName[]): string
 
   while (i < segments.length) {
     const seg = segments[i];
+
     if (seg === undefined) {
       break;
     }
@@ -244,11 +277,14 @@ const redactNames = (text: string, candidates: readonly CandidateName[]): string
 
         while (wordIdx < segments.length && matchedCount < candidate.wordCount) {
           const nextSeg = segments[wordIdx];
+
           if (nextSeg === undefined) {
             break;
           }
+
           if (nextSeg.isWordLike) {
             let segWord = nextSeg.segment;
+
             if (
               matchedCount === candidate.wordCount - 1 &&
               (segWord.endsWith("'s") || segWord.endsWith("’s"))
@@ -256,10 +292,12 @@ const redactNames = (text: string, candidates: readonly CandidateName[]): string
               possessiveSuffix = segWord.slice(-2);
               segWord = segWord.slice(0, -2);
             }
+
             collectedWords.push(stripDiacritics(segWord));
             matchedCount++;
             spanEnd = wordIdx;
           }
+
           wordIdx++;
         }
 
@@ -272,6 +310,7 @@ const redactNames = (text: string, candidates: readonly CandidateName[]): string
       } else {
         let word = seg.segment;
         let suffix = "";
+
         if (word.endsWith("'s") || word.endsWith("’s")) {
           suffix = word.slice(-2);
           word = word.slice(0, -2);
@@ -301,6 +340,7 @@ export const redact = (text: string, roster: Roster): string => {
   }
 
   const normalized = text.normalize("NFC");
+
   const bounded =
     normalized.length > Policy.text.longTextMaxLength
       ? normalized.slice(0, Policy.text.longTextMaxLength)

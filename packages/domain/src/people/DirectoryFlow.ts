@@ -83,27 +83,35 @@ const fail = (rejection: DirectoryRejection): Effect.Effect<never, DirectoryErro
     case "Forbidden": {
       return Effect.fail(new Forbidden());
     }
+
     case "TeamNotFound": {
       return Effect.fail(new TeamNotFound());
     }
+
     case "PersonNotFound": {
       return Effect.fail(new PersonNotFound());
     }
+
     case "PersonWasRemoved": {
       return Effect.fail(new PersonWasRemoved());
     }
+
     case "LastLead": {
       return Effect.fail(new LastLead({ teamId: rejection.teamId }));
     }
+
     case "LastAdmin": {
       return Effect.fail(new LastAdmin());
     }
+
     case "TeamNameTaken": {
       return Effect.fail(new TeamNameTaken());
     }
+
     case "FailedEmailNotFound": {
       return Effect.fail(new FailedEmailNotFound());
     }
+
     case "EmailNotResendable": {
       return Effect.fail(new EmailNotResendable());
     }
@@ -115,6 +123,7 @@ const viewed = <A>(view: Viewed<A>): Effect.Effect<A, DirectoryError> =>
 
 const followUp = Effect.fnUntraced(function* (organizationId: OrganizationId, step: FollowUp) {
   const index = yield* PeopleIndex;
+
   switch (step._tag) {
     case "IndexPerson": {
       return yield* index.putPerson({
@@ -124,6 +133,7 @@ const followUp = Effect.fnUntraced(function* (organizationId: OrganizationId, st
         userId: Option.fromNullishOr(step.person.authUserId),
       });
     }
+
     case "UnindexPerson": {
       return yield* index.removePerson(organizationId, step.personId);
     }
@@ -133,15 +143,18 @@ const followUp = Effect.fnUntraced(function* (organizationId: OrganizationId, st
 export const runDirectoryCommand = Effect.fnUntraced(function* (member: Member, command: DirectoryCommand) {
   const directory = yield* OrganizationDirectory;
   const organizationId = member.organization.id;
+
   const result = yield* directory.run(
     organizationId,
     member.personId,
     command,
     yield* Clock.currentTimeMillis,
   );
+
   if (result._tag === "Rejected") {
     return yield* fail(result.rejection);
   }
+
   for (const step of result.followUps) {
     yield* followUp(organizationId, step);
   }
@@ -170,15 +183,18 @@ export const viewFailedEmails = (member: Member) =>
 export const resendFailedEmail = (member: Member, sendId: SendId) =>
   Effect.gen(function* () {
     const directory = yield* OrganizationDirectory;
+
     const result = yield* directory.resendFailedEmail(
       member.organization.id,
       member.personId,
       sendId,
       yield* Clock.currentTimeMillis,
     );
+
     if (result._tag === "Rejected") {
       return yield* fail(result.rejection);
     }
+
     return result.status;
   });
 

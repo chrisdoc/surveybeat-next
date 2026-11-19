@@ -67,27 +67,34 @@ interface Call {
 /** A `fetch` that answers each call with the next step; an `Error` step rejects the call. */
 const scriptedFetch = (steps: readonly (Response | Error)[]) => {
   const calls: Call[] = [];
+
   const fetchFn = (input: string, init?: RequestInit): Promise<Response> => {
     calls.push({ url: input, init: init ?? {} });
     const step = steps[calls.length - 1];
+
     if (step === undefined) {
       throw new Error("unexpected fetch");
     }
+
     if (step instanceof Error) {
       throw step;
     }
+
     return Promise.resolve(step);
   };
+
   return { fetch: fetchFn as unknown as typeof fetch, calls };
 };
 
 /** Records each backoff wait instead of sleeping. */
 const recordingSleep = () => {
   const waits: number[] = [];
+
   const sleep = (ms: number) =>
     Effect.sync(() => {
       waits.push(ms);
     });
+
   return { sleep, waits };
 };
 
@@ -136,6 +143,7 @@ describe("makeOpenRouterAiClient", () => {
         new Response("", { status: 429, headers: { "Retry-After": "2" } }),
         reply({ themes: [] }),
       ]);
+
       const wait = recordingSleep();
       const client = makeOpenRouterAiClient(Redacted.make("k"), { fetch: fake.fetch, sleep: wait.sleep });
 
@@ -153,6 +161,7 @@ describe("makeOpenRouterAiClient", () => {
         new Response("", { status: 429, headers: { "Retry-After": "120" } }),
         reply({ themes: [] }),
       ]);
+
       const wait = recordingSleep();
       const client = makeOpenRouterAiClient(Redacted.make("k"), { fetch: fake.fetch, sleep: wait.sleep });
 
@@ -170,6 +179,7 @@ describe("makeOpenRouterAiClient", () => {
         new Response("", { status: 503 }),
         new Response("", { status: 503 }),
       ]);
+
       const wait = recordingSleep();
       const client = makeOpenRouterAiClient(Redacted.make("k"), { fetch: fake.fetch, sleep: wait.sleep });
 
@@ -186,13 +196,16 @@ describe("makeOpenRouterAiClient", () => {
     Effect.gen(function* () {
       const response = new Response("comment echoed back by the moderator", { status: 400 });
       let bodyRead = false;
+
       const refuseBodyRead = (): never => {
         bodyRead = true;
         throw new Error("body must not be read");
       };
+
       for (const method of ["text", "json", "arrayBuffer", "blob", "formData"] as const) {
         Object.defineProperty(response, method, { value: refuseBodyRead });
       }
+
       const fake = scriptedFetch([response]);
       const wait = recordingSleep();
       const client = makeOpenRouterAiClient(Redacted.make("k"), { fetch: fake.fetch, sleep: wait.sleep });

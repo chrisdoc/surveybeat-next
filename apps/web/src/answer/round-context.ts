@@ -46,6 +46,7 @@ export interface RoundContextData {
 
 export function anonymityStatement(context: RoundContextData, message: AnswerMessage): string {
   const anonymity = message("answer.anonymity", { n: context.minimumGroupSize });
+
   return context.aiProcessing ? `${anonymity} ${message("answer.aiNotice")}` : anonymity;
 }
 
@@ -53,21 +54,27 @@ export function parseRoundContext(data: unknown): RoundContextData | null {
   if (typeof data !== "object" || data === null) {
     return null;
   }
+
   if (!("roundId" in data) || typeof data.roundId !== "string") {
     return null;
   }
+
   if (!("pulseName" in data) || typeof data.pulseName !== "string") {
     return null;
   }
+
   if (!("minimumGroupSize" in data) || typeof data.minimumGroupSize !== "number") {
     return null;
   }
+
   if (!("closeTime" in data) || typeof data.closeTime !== "number") {
     return null;
   }
+
   if (!("state" in data) || typeof data.state !== "string") {
     return null;
   }
+
   if (!("hasAnswered" in data) || typeof data.hasAnswered !== "boolean") {
     return null;
   }
@@ -75,11 +82,13 @@ export function parseRoundContext(data: unknown): RoundContextData | null {
   const aiProcessing = "aiProcessing" in data && data.aiProcessing === true;
 
   const test = "test" in data && data.test === true;
+
   if (!("questions" in data) || !Array.isArray(data.questions)) {
     return null;
   }
 
   const questions: QuestionData[] = [];
+
   for (const item of data.questions) {
     if (
       typeof item === "object" &&
@@ -92,6 +101,7 @@ export function parseRoundContext(data: unknown): RoundContextData | null {
       typeof item.position === "number"
     ) {
       let qType: QuestionType = { _tag: "Rating", comment: true };
+
       if ("type" in item && typeof item.type === "object" && item.type !== null && "_tag" in item.type) {
         if (item.type._tag === "Rating") {
           qType = {
@@ -113,21 +123,25 @@ export function parseRoundContext(data: unknown): RoundContextData | null {
           Array.isArray(item.type.options)
         ) {
           const opts: string[] = [];
+
           for (const opt of item.type.options) {
             if (typeof opt === "string") {
               opts.push(opt);
             }
           }
+
           qType = { _tag: "SingleChoice", options: opts };
         } else if (item.type._tag === "LongText") {
           qType = { _tag: "LongText" };
         }
       }
+
       questions.push({ id: item.id, position: item.position, text: item.text, type: qType });
     }
   }
 
   const actions: ActionData[] = [];
+
   if ("actions" in data && Array.isArray(data.actions)) {
     for (const act of data.actions) {
       if (

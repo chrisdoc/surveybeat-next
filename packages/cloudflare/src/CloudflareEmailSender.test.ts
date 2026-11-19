@@ -65,6 +65,7 @@ describe("the send_email binding", () => {
 
 describe("cloudflareEmailSender", () => {
   const message = { to: EmailAddress.make("lead@example.com"), subject: "Hi", html: "<p>Hi</p>", text: "Hi" };
+
   const senderWith = (result: unknown) =>
     cloudflareEmailSender({
       raw: Effect.die("unused"),

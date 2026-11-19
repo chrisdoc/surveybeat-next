@@ -30,6 +30,7 @@ import { EmailSendRequested } from "./Email.ts";
 import type Organization from "./Organization.ts";
 
 export type Organizations = Effect.Success<typeof Organization>;
+
 type OrganizationStub = ReturnType<Organizations["getByName"]>;
 
 export const organizationSendStore = (organization: OrganizationStub) =>
@@ -50,6 +51,7 @@ export const InvitationTokensLive = Layer.effect(
   Effect.gen(function* () {
     const secret = yield* Config.Redacted("INVITATION_TOKEN_KEY");
     const key = yield* Effect.promise(() => importInvitationTokenKey(Redacted.value(secret)));
+
     return {
       derive: (ref: InvitationTokenRef) => Effect.promise(() => deriveInvitationToken(key, ref)),
       deriveTest: (ref: TestInvitationTokenRef) => Effect.promise(() => deriveTestInvitationToken(key, ref)),
@@ -74,9 +76,11 @@ const logOutcome = (sendId: SendId, state: SendState | null) => {
   if (state === null) {
     return Effect.logWarning("EMAIL_SEND_MISSING", { sendId });
   }
+
   if (state._tag === "Failed") {
     return Effect.logWarning("EMAIL_SEND_FAILED", { sendId, reason: state.reason, code: state.code });
   }
+
   return Effect.void;
 };
 
@@ -87,22 +91,30 @@ export const handleSendMessage = (
 ): Effect.Effect<void, never, EmailSender | EmailTemplates | RuntimeContext> =>
   Effect.gen(function* () {
     const request = decodeRequest(message.body);
+
     if (Option.isNone(request)) {
       yield* Effect.logError("EMAIL_MESSAGE_MALFORMED");
+
       return message.ack();
     }
+
     const { organizationId, sendId } = request.value;
+
     const result = yield* deliver(sendId).pipe(
       Effect.provideService(SendStore, organizationSendStore(organizations.getByName(organizationId))),
     );
+
     if (result._tag === "RetryAfter") {
       return message.retry({ delaySeconds: result.seconds });
     }
+
     if (result.state !== null) {
       yield* indexMessage(db, request.value, result.state);
       const inv = yield* organizations.getByName(organizationId).getInvitationBySendId(sendId);
+
       if (inv !== null) {
         const round = yield* organizations.getByName(organizationId).getRound(inv.roundId);
+
         if (round !== null) {
           yield* db
             .prepare(
@@ -112,6 +124,7 @@ export const handleSendMessage = (
             .run()
             .pipe(Effect.asVoid);
         }
+
         if (result.state._tag === "Failed") {
           yield* organizations
             .getByName(organizationId)
@@ -119,6 +132,7 @@ export const handleSendMessage = (
         }
       } else {
         const test = yield* organizations.getByName(organizationId).getTestSendBySendId(sendId);
+
         if (test !== null && result.state._tag !== "Failed") {
           yield* db
             .prepare(
@@ -127,6 +141,7 @@ export const handleSendMessage = (
             .bind(test.tokenHash, organizationId, test.pulseId, test.sentAt + testInvitationLifetimeMs)
             .run()
             .pipe(Effect.asVoid);
+
           for (const table of ["test_invitation_index", "test_submission_index"] as const) {
             yield* db
               .prepare(`DELETE FROM ${table} WHERE expires_at <= ?`)
@@ -137,6 +152,7 @@ export const handleSendMessage = (
         }
       }
     }
+
     yield* logOutcome(sendId, result.state);
     message.ack();
   });
@@ -144,15 +160,19 @@ export const handleSendMessage = (
 export const handleDeadLetter = (organizations: Organizations, message: Cloudflare.Queues.Message) =>
   Effect.gen(function* () {
     const request = decodeRequest(message.body);
+
     if (Option.isSome(request)) {
       const { organizationId, sendId } = request.value;
+
       const state = yield* organizations
         .getByName(organizationId)
         .abandonEmailSend(sendId, yield* Clock.currentTimeMillis);
+
       yield* Effect.logError("EMAIL_DEAD_LETTERED", { sendId, state: state?._tag ?? null });
     } else {
       yield* Effect.logError("EMAIL_DEAD_LETTERED");
     }
+
     message.ack();
   });
 
@@ -188,10 +208,13 @@ export const parseDeliveryEvent = (body: unknown): Option.Option<DeliveryEvent> 
     Option.flatMap((event) => {
       const name = event.type.replace(/^cf\.email\.sending\./, "").replace(/^message\./, "");
       const kind = KINDS.find((candidate) => candidate === name);
+
       if (kind === undefined) {
         return Option.none();
       }
+
       const { payload } = event;
+
       const code =
         payload.delivery?.smtpEnhancedStatusCode ??
         payload.rejection?.reason ??
@@ -199,6 +222,7 @@ export const parseDeliveryEvent = (body: unknown): Option.Option<DeliveryEvent> 
         payload.complaint?.type ??
         payload.bounce?.classification ??
         null;
+
       return Option.some({ messageId: payload.messageId, kind, code });
     }),
   );
@@ -214,23 +238,32 @@ export const handleDeliveryEvent = (
 ) =>
   Effect.gen(function* () {
     const event = parseDeliveryEvent(message.body);
+
     if (Option.isNone(event)) {
       yield* Effect.logWarning("EMAIL_EVENT_UNRECOGNIZED");
+
       return message.ack();
     }
+
     const row = yield* db
       .prepare("SELECT organization_id, send_id FROM email_message WHERE message_id = ?")
       .bind(event.value.messageId)
       .first();
+
     const route = decodeRoute(row);
+
     if (Option.isNone(route)) {
       yield* Effect.logWarning("EMAIL_EVENT_UNROUTED", { kind: event.value.kind });
+
       return message.ack();
     }
+
     const { organization_id, send_id } = route.value;
+
     const state = yield* organizations
       .getByName(organization_id)
       .recordEmailDeliveryEvent(send_id, event.value.kind, event.value.code, yield* Clock.currentTimeMillis);
+
     yield* logOutcome(send_id, state);
     message.ack();
   });

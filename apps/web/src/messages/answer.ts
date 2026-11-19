@@ -33,6 +33,7 @@ export const answerCatalog = {
 } as const;
 
 type AnswerCatalog = typeof answerCatalog;
+
 export type AnswerKey = keyof AnswerCatalog;
 
 export type AnswerTranslation = Readonly<Record<AnswerKey, string>>;

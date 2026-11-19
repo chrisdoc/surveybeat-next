@@ -41,6 +41,7 @@ export const resendEmailTestRoutes = (organizations: Organizations, db: Cloudfla
       },
       now,
     );
+
     for (const [personId, email] of [
       [member, "ada@example.com"],
       [leaver, "bob@example.com"],
@@ -65,24 +66,32 @@ export const resendEmailTestRoutes = (organizations: Organizations, db: Cloudfla
     yield* organization.runPulseCommand(admin, { _tag: "CreatePulse", teamId, pulseId }, now);
     yield* organization.scheduleNextRound(pulseId, teamId, now);
     const roundsView = yield* organization.viewRounds(admin, teamId, pulseId);
+
     const roundId =
       roundsView._tag === "Viewed" && roundsView.value.rounds[0] !== undefined
         ? roundsView.value.rounds[0].id
         : null;
+
     if (roundId === null) {
       return yield* HttpServerResponse.json({ error: "no_round" });
     }
+
     const openJob = (yield* organization.getJobsForRound(roundId)).find((job) => job.type === "open");
+
     if (openJob === undefined) {
       return yield* HttpServerResponse.json({ error: "no_open_job" });
     }
+
     yield* organization.runScheduleJob(openJob.id, openJob.due_at);
     const invitations = yield* organization.getInvitations(roundId);
+
     const sendOf = (personId: PersonId) => {
       const found = invitations.find((each) => each.personId === personId);
+
       if (found === undefined) {
         throw new Error(`no Invitation for ${personId}`);
       }
+
       return found.sendId;
     };
 
@@ -95,6 +104,7 @@ export const resendEmailTestRoutes = (organizations: Organizations, db: Cloudfla
     const leadSend = sendOf(lead);
     yield* organization.abandonEmailSend(leadSend, now);
     yield* organization.failInvitation(roundId, lead, "mailbox full", now);
+
     const reSent = yield* organization.runRoundCommand(
       admin,
       { _tag: "ResendInvitation", teamId, roundId, personId: lead },
@@ -130,6 +140,7 @@ export const resendEmailTestRoutes = (organizations: Organizations, db: Cloudfla
 
     const adaResend = yield* organization.resendFailedEmail(admin, adaSend, now);
     const leadRoundView = yield* organization.viewRound(admin, teamId, roundId);
+
     const failedInvitationsAfter =
       leadRoundView._tag === "Viewed"
         ? leadRoundView.value.failedInvitations.map((each) => each.personId)
@@ -142,10 +153,12 @@ export const resendEmailTestRoutes = (organizations: Organizations, db: Cloudfla
         times: 80,
       }),
     );
+
     const captured = yield* db
       .prepare("SELECT recipient, subject FROM captured_email WHERE recipient = ?")
       .bind(recipient)
       .all();
+
     const listedAfter = yield* organization.listFailedEmails(admin);
     const statusAfter = yield* organization.viewEmailStatus(admin, added);
 

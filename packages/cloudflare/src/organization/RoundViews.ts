@@ -27,17 +27,23 @@ export const organizationRoundViews = ({
     Effect.gen(function* () {
       const dirState = yield* directory.load;
       const auth = authorizeRoundAction(dirState, actorId, "team.viewRounds", teamId);
+
       if (auth._tag === "Rejected") {
         const rejected: RoundViewed<RoundList> = auth;
+
         return rejected;
       }
+
       if (findPulse(yield* pulses.load, teamId, pulseId) === undefined) {
         const rejected: RoundViewed<RoundList> = { _tag: "Rejected", rejection: { _tag: "PulseNotFound" } };
+
         return rejected;
       }
+
       const all = yield* rounds.getRoundsForPulse(pulseId);
       const invitedByRound = yield* rounds.getInvitedPersonIdsForPulse(pulseId);
       const paused = yield* rounds.isPulsePaused(pulseId);
+
       const viewed: RoundViewed<RoundList> = {
         _tag: "Viewed",
         value: {
@@ -62,6 +68,7 @@ export const organizationRoundViews = ({
           })),
         },
       };
+
       return viewed;
     }).pipe(Effect.orDie),
 
@@ -69,28 +76,38 @@ export const organizationRoundViews = ({
     Effect.gen(function* () {
       const dirState = yield* directory.load;
       const auth = authorizeRoundAction(dirState, actorId, "team.viewRounds", teamId);
+
       if (auth._tag === "Rejected") {
         const rejected: RoundViewed<RoundDetail> = auth;
+
         return rejected;
       }
+
       const team = dirState.teams.find((t) => t.id === teamId);
+
       if (team === undefined) {
         const rejected: RoundViewed<RoundDetail> = {
           _tag: "Rejected",
           rejection: { _tag: "TeamNotFound" },
         };
+
         return rejected;
       }
+
       const r = yield* rounds.getRound(roundId);
+
       if (r === null || r.teamId !== teamId) {
         const rejected: RoundViewed<RoundDetail> = {
           _tag: "Rejected",
           rejection: { _tag: "RoundNotFound" },
         };
+
         return rejected;
       }
+
       const questions = yield* rounds.getRoundQuestions(roundId);
       const failedInvitations = yield* rounds.getFailedInvitations(roundId);
+
       const viewed: RoundViewed<RoundDetail> = {
         _tag: "Viewed",
         value: {
@@ -114,6 +131,7 @@ export const organizationRoundViews = ({
           createdAt: r.createdAt,
         },
       };
+
       return viewed;
     }).pipe(Effect.orDie),
 });

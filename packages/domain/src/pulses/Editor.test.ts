@@ -27,10 +27,15 @@ import type { QuestionContent } from "./Question.ts";
 import { TemplateQuestionKey, weeklyTeamHealth } from "./Template.ts";
 
 const team = TeamId.make("platform");
+
 const otherTeam = TeamId.make("design");
+
 const admin = PersonId.make("admin");
+
 const lead = PersonId.make("lead");
+
 const member = PersonId.make("member");
+
 const pulseId = PulseId.make("pulse");
 
 const person = (id: PersonId, organizationAdmin = false) => ({
@@ -78,34 +83,42 @@ const run = (
 ): PulseState =>
   commands.reduce((current, command) => {
     const decision = decidePulse(dir, current, by, command, 1);
+
     if (decision._tag === "Rejected") {
       throw new Error(`${command._tag}: ${decision.rejection._tag}`);
     }
+
     return applyPulseChanges(current, decision.changes);
   }, state);
 
 const create: PulseCommand = { _tag: "CreatePulse", teamId: team, pulseId };
+
 const created = () => run([create]);
 
 const detail = (state: PulseState, by = lead, dir: DirectoryState = directory) => {
   const view = pulseView(dir, state, by, team, pulseId);
+
   if (view._tag === "Rejected") {
     throw new Error(view.rejection._tag);
   }
+
   return view.value;
 };
 
 const rejection = (state: PulseState, command: PulseCommand, by = lead) => {
   const decision = decidePulse(directory, state, by, command, 2);
+
   return decision._tag === "Rejected" ? decision.rejection._tag : "Accepted";
 };
 
 const key = (value: string) => TemplateQuestionKey.make(value);
+
 const written: QuestionContent = {
   text: "How was the offsite?",
   type: { _tag: "Rating", lowLabel: "Poor", highLabel: "Great", comment: false },
   dimension: null,
 };
+
 const addWritten = (n: number): PulseCommand => ({
   _tag: "AddQuestion",
   teamId: team,
@@ -113,7 +126,9 @@ const addWritten = (n: number): PulseCommand => ({
   questionId: QuestionId.make(`written-${n}`),
   question: { _tag: "Written", ...written, text: `Question ${n}?` },
 });
+
 const questions = () => weeklyTeamHealth("en").questions;
+
 const ids = (state: PulseState) => detail(state).questions.map((question) => question.questionId);
 
 describe("creating a Pulse", () => {
@@ -166,6 +181,7 @@ const withLeadLocale = (
   defaultLocale,
   people: directory.people.map((each) => (each.id === lead ? { ...each, locale, detectedLocale } : each)),
 });
+
 const english = withLeadLocale("en");
 
 describe("the language of a Pulse (ADR 0018, ADR 0025)", () => {
@@ -189,9 +205,11 @@ describe("the language of a Pulse (ADR 0018, ADR 0025)", () => {
   it("copies a Template Question added by a Lead in English", () => {
     const start = run([create], lead, EMPTY_PULSE_STATE, english);
     const [original] = detail(start, lead, english).questions.map(({ questionId }) => questionId);
+
     if (original === undefined) {
       throw new Error("no Questions");
     }
+
     const state = run(
       [
         { _tag: "RemoveQuestion", teamId: team, pulseId, questionId: original },
@@ -207,6 +225,7 @@ describe("the language of a Pulse (ADR 0018, ADR 0025)", () => {
       start,
       english,
     );
+
     expect(detail(state, lead, english).questions.at(-1)).toMatchObject({
       templateKey: "workload-manageable",
       text: weeklyTeamHealth("en").questions[0]?.text,
@@ -216,9 +235,11 @@ describe("the language of a Pulse (ADR 0018, ADR 0025)", () => {
   it("lists the Template Questions a Pulse lacks in the viewer's language", () => {
     const start = run([create]);
     const [original] = detail(start).questions.map(({ questionId }) => questionId);
+
     if (original === undefined) {
       throw new Error("no Questions");
     }
+
     const state = run([{ _tag: "RemoveQuestion", teamId: team, pulseId, questionId: original }], lead, start);
     expect(detail(state, lead, english).templateQuestions).toEqual([weeklyTeamHealth("en").questions[0]]);
     expect(detail(state).templateQuestions).toEqual([weeklyTeamHealth("en").questions[0]]);
@@ -228,9 +249,11 @@ describe("the language of a Pulse (ADR 0018, ADR 0025)", () => {
 describe("the Pulse editor", () => {
   it("removes and reorders Questions", () => {
     const [first, second, ...rest] = ids(created());
+
     if (first === undefined || second === undefined) {
       throw new Error("no Questions");
     }
+
     const state = run(
       [
         { _tag: "RemoveQuestion", teamId: team, pulseId, questionId: first },
@@ -239,6 +262,7 @@ describe("the Pulse editor", () => {
       lead,
       created(),
     );
+
     expect(ids(state)).toEqual([...rest, second]);
     // The removed Question stays in the library, and is offered again from the Template.
     expect(state.questions.map(({ id }) => id)).toContain(first);
@@ -248,9 +272,11 @@ describe("the Pulse editor", () => {
   it("adds a Template Question as a new library Question, and never twice", () => {
     const workload = key("workload-manageable");
     const [original] = ids(created());
+
     if (original === undefined) {
       throw new Error("no Questions");
     }
+
     const add: PulseCommand = {
       _tag: "AddQuestion",
       teamId: team,
@@ -258,12 +284,15 @@ describe("the Pulse editor", () => {
       questionId: QuestionId.make("again"),
       question: { _tag: "FromTemplate", key: workload },
     };
+
     expect(rejection(created(), add)).toBe("QuestionAlreadyInPulse");
+
     const state = run(
       [{ _tag: "RemoveQuestion", teamId: team, pulseId, questionId: original }, add],
       lead,
       created(),
     );
+
     expect(detail(state).questions.at(-1)).toMatchObject({
       questionId: "again",
       versionId: firstVersionId(QuestionId.make("again")),
@@ -277,10 +306,13 @@ describe("the Pulse editor", () => {
 
   it("detaches an edited Template Question, so the Template's original can be added again", () => {
     const [original] = ids(created());
+
     if (original === undefined) {
       throw new Error("no Questions");
     }
+
     const workload = key("workload-manageable");
+
     const state = run(
       [
         { _tag: "EditQuestion", teamId: team, pulseId, questionId: original, content: written },
@@ -295,6 +327,7 @@ describe("the Pulse editor", () => {
       lead,
       created(),
     );
+
     expect(detail(state).questions.map(({ templateKey, text }) => [templateKey, text])).toEqual([
       [null, written.text],
       ...questions()
@@ -319,14 +352,17 @@ describe("the Pulse editor", () => {
   it("keeps at least one Question", () => {
     const all = ids(created());
     const [last, ...others] = all;
+
     if (last === undefined) {
       throw new Error("no Questions");
     }
+
     const state = run(
       others.map((questionId) => ({ _tag: "RemoveQuestion", teamId: team, pulseId, questionId })),
       lead,
       created(),
     );
+
     expect(rejection(state, { _tag: "RemoveQuestion", teamId: team, pulseId, questionId: last })).toBe(
       "PulseNeedsAQuestion",
     );
@@ -334,11 +370,13 @@ describe("the Pulse editor", () => {
 
   it(`holds at most ${MAX_QUESTIONS} Questions`, () => {
     const room = MAX_QUESTIONS - questions().length;
+
     const state = run(
       Array.from({ length: room }, (_, n) => addWritten(n)),
       lead,
       created(),
     );
+
     expect(ids(state)).toHaveLength(MAX_QUESTIONS);
     expect(rejection(state, addWritten(99))).toBe("PulseFull");
   });
@@ -346,15 +384,18 @@ describe("the Pulse editor", () => {
   it("refuses a reorder that does not list each Question exactly once", () => {
     const all = ids(created());
     const [first, ...rest] = all;
+
     if (first === undefined) {
       throw new Error("no Questions");
     }
+
     const reorder = (order: readonly QuestionId[]): PulseCommand => ({
       _tag: "ReorderQuestions",
       teamId: team,
       pulseId,
       order,
     });
+
     expect(rejection(created(), reorder(rest))).toBe("OrderMismatch");
     expect(rejection(created(), reorder([...rest, rest[0] ?? first]))).toBe("OrderMismatch");
     expect(rejection(created(), reorder([...rest, QuestionId.make("elsewhere")]))).toBe("OrderMismatch");
@@ -371,6 +412,7 @@ describe("the Pulse editor", () => {
       anonymityMode: "anonymous",
       distribution: "invitation",
     });
+
     const state = run([{ _tag: "UpdatePulseSettings", teamId: team, pulseId, settings }], admin, created());
     expect(detail(state).settings).toEqual(settings);
   });
@@ -420,9 +462,11 @@ describe("Question versions", () => {
 
   it("keep exactly one version per Question through every command", () => {
     const [first, second] = ids(created());
+
     if (first === undefined || second === undefined) {
       throw new Error("no Questions");
     }
+
     const state = run(
       [
         addWritten(1),
@@ -440,12 +484,14 @@ describe("Question versions", () => {
       lead,
       created(),
     );
+
     for (const question of state.questions) {
       const versions = state.versions.filter((version) => version.questionId === question.id);
       expect(versions.map(({ id, number }) => ({ id, number }))).toEqual([
         { id: firstVersionId(question.id), number: 1 },
       ]);
     }
+
     // A Pulse points at versions, each of a Question it asks once.
     const pulse = state.pulses[0];
     expect(pulse?.questions.every((versionId) => state.versions.some(({ id }) => id === versionId))).toBe(
@@ -456,9 +502,11 @@ describe("Question versions", () => {
 
   it("rewrite a Question without Answers in place", () => {
     const [first] = ids(created());
+
     if (first === undefined) {
       throw new Error("no Questions");
     }
+
     const state = run([editCommand(first)], lead, created());
     expect(detail(state).questions[0]).toMatchObject({
       questionId: first,
@@ -469,9 +517,11 @@ describe("Question versions", () => {
 
   it("refuse to edit a Question that has Answers, but still let it be removed", () => {
     const [first] = ids(created());
+
     if (first === undefined) {
       throw new Error("no Questions");
     }
+
     const answered: PulseState = { ...created(), answered: [firstVersionId(first)] };
     expect(hasAnswers(answered, first)).toBe(true);
     expect(detail(answered).questions[0]?.hasAnswers).toBe(true);
@@ -493,10 +543,12 @@ describe("Question versions", () => {
 
 describe("the estimate and the warnings", () => {
   const rating: QuestionContent = written;
+
   const choice: QuestionContent = {
     ...written,
     type: { _tag: "SingleChoice", options: ["Yes", "No"] },
   };
+
   const longText: QuestionContent = { ...written, type: { _tag: "LongText" } };
 
   it("sums seconds by type: 6 for a rating, 10 for a single choice, 30 for long text", () => {
@@ -560,6 +612,7 @@ describe("the estimate and the warnings", () => {
 
 describe("the settings schema", () => {
   const decode = Schema.decodeUnknownOption(PulseSettings);
+
   const valid = {
     name: "Weekly",
     cadence: { _tag: "Weekly", day: "monday", time: "09:00" },
@@ -626,8 +679,10 @@ describe("the Question type schema", () => {
 describe("a test of a Pulse (ADR 0021)", () => {
   const outcome = (state: PulseState, by: PersonId, teamId = team) => {
     const decision = decideTestSend(directory, state, by, teamId, pulseId);
+
     return decision._tag === "Allowed" ? decision.person.email : decision.rejection._tag;
   };
+
   const withPulse = created();
 
   it("is open to Organization admins and the Team's Leads, to their own address", () => {
@@ -641,11 +696,13 @@ describe("a test of a Pulse (ADR 0021)", () => {
 
   it("is refused to a Lead of another Team", () => {
     const otherLead = PersonId.make("other-lead");
+
     const dir: DirectoryState = {
       ...directory,
       people: [...directory.people, { ...person(otherLead), email: EmailAddress.make("other@example.com") }],
       memberships: [...directory.memberships, membership(otherLead, "lead", otherTeam)],
     };
+
     const decision = decideTestSend(dir, withPulse, otherLead, team, pulseId);
     expect(decision).toMatchObject({ _tag: "Rejected", rejection: { _tag: "Forbidden" } });
   });
@@ -660,6 +717,7 @@ describe("a test of a Pulse (ADR 0021)", () => {
       ...withPulse,
       pulses: withPulse.pulses.map((pulse) => ({ ...pulse, questions: [] })),
     };
+
     expect(outcome(empty, admin)).toBe("PulseNeedsAQuestion");
   });
 });
@@ -701,6 +759,7 @@ describe("the state of a test send (ADR 0021, issue 147)", () => {
       code: "E_SENDER_NOT_VERIFIED",
       failedAt: 130,
     };
+
     expect(testSendStatusOf(failed, 100, 150)).toEqual({
       queuedAt: 100,
       checkedAt: 150,
@@ -713,12 +772,14 @@ describe("reading a test send (ADR 0021, issue 147)", () => {
   const now = 1_000_000_000;
   const sentAt = now - 1000;
   const pendingSend: SendState = { _tag: "Pending", attempts: 0, lastCode: null };
+
   const own = (by: PersonId, state: SendState = pendingSend) => ({
     personId: by,
     pulseId,
     sentAt,
     state,
   });
+
   const read = (
     found: Parameters<typeof testSendView>[4],
     by: PersonId = lead,
@@ -727,6 +788,7 @@ describe("reading a test send (ADR 0021, issue 147)", () => {
     at = now,
   ) => {
     const view = testSendView(directory, by, teamId, pulse, found, at);
+
     return view._tag === "Viewed" ? view.value : view.rejection._tag;
   };
 

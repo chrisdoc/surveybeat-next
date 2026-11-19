@@ -80,24 +80,31 @@ export const failRoundRejection = (rejection: RoundRejection): Effect.Effect<nev
     case "Forbidden": {
       return Effect.fail(new Forbidden());
     }
+
     case "TeamNotFound": {
       return Effect.fail(new TeamNotFound());
     }
+
     case "PulseNotFound": {
       return Effect.fail(new PulseNotFound());
     }
+
     case "RoundNotFound": {
       return Effect.fail(new RoundNotFound());
     }
+
     case "RoundNotOpen": {
       return Effect.fail(new RoundNotOpen());
     }
+
     case "InvalidRoundState": {
       return Effect.fail(new InvalidRoundState({ status: rejection.status }));
     }
+
     case "WeekOutOfRange": {
       return Effect.fail(new WeekOutOfRange());
     }
+
     case "InvitationNotFound": {
       return Effect.fail(new InvitationNotFound());
     }
@@ -109,12 +116,14 @@ const viewed = <A>(view: RoundViewed<A>): Effect.Effect<A, RoundError> =>
 
 export const runRoundCommand = Effect.fnUntraced(function* (member: Member, command: RoundCommand) {
   const rounds = yield* OrganizationRounds;
+
   const result = yield* rounds.run(
     member.organization.id,
     member.personId,
     command,
     yield* Clock.currentTimeMillis,
   );
+
   if (result._tag === "Rejected") {
     return yield* failRoundRejection(result.rejection);
   }

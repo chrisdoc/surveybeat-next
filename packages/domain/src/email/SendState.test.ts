@@ -17,11 +17,13 @@ import {
 import type { SendState } from "./SendState.ts";
 
 const policy = { leaseMillis: 1000, maxAttempts: 3 };
+
 const sending = (attempt: number, leaseExpiresAt = 2000): SendState => ({
   _tag: "Sending",
   attempt,
   leaseExpiresAt,
 });
+
 const sent: SendState = { _tag: "Sent", messageId: "m-1", sentAt: 1500 };
 
 describe("claim", () => {
@@ -173,6 +175,7 @@ describe("send state properties", () => {
     { state: SendStateSchema, now: Schema.Int, policy: Policy },
     ({ state, now, policy }) => {
       const decision = claim(state, now, policy);
+
       switch (state._tag) {
         case "Pending": {
           return (
@@ -181,6 +184,7 @@ describe("send state properties", () => {
             decision.state.leaseExpiresAt === now + policy.leaseMillis
           );
         }
+
         case "Sending": {
           return now < state.leaseExpiresAt
             ? decision._tag === "Wait" && decision.until === state.leaseExpiresAt
@@ -189,6 +193,7 @@ describe("send state properties", () => {
                 decision.state._tag === "Failed" &&
                 decision.state.reason === "unknown";
         }
+
         case "Sent": {
           return (
             decision._tag === "Finished" &&
@@ -197,6 +202,7 @@ describe("send state properties", () => {
             decision.state.messageId === state.messageId
           );
         }
+
         case "Failed": {
           return (
             decision._tag === "Finished" &&
@@ -214,22 +220,28 @@ describe("send state properties", () => {
     { state: SendStateSchema, attempt: Schema.Int, outcome: Outcome, now: Schema.Int, policy: Policy },
     ({ state, attempt, outcome, now, policy }) => {
       const settled = settle(state, attempt, outcome, now, policy);
+
       if (state._tag !== "Sending" || state.attempt !== attempt) {
         return Option.isNone(settled);
       }
+
       if (Option.isNone(settled)) {
         return false;
       }
+
       const next = settled.value;
+
       switch (outcome._tag) {
         case "Accepted": {
           return next._tag === "Sent" && next.messageId === outcome.messageId && next.sentAt === now;
         }
+
         case "Rejected": {
           return outcome.permanent || attempt >= policy.maxAttempts
             ? next._tag === "Failed" && next.reason === "rejected" && next.code === outcome.code
             : next._tag === "Pending" && next.attempts === attempt && next.lastCode === outcome.code;
         }
+
         case "Unknown": {
           return next._tag === "Failed" && next.reason === "unknown" && next.code === outcome.code;
         }
@@ -242,6 +254,7 @@ describe("send state properties", () => {
     { state: SendStateSchema },
     ({ state }) => {
       const requeued = requeue(state);
+
       if (state._tag === "Failed") {
         return (
           Option.isSome(requeued) &&
@@ -250,6 +263,7 @@ describe("send state properties", () => {
           requeued.value.lastCode === null
         );
       }
+
       return Option.isNone(requeued);
     },
   );
@@ -270,10 +284,12 @@ const machineAt = (state: SendState) =>
 
 const refuses = (state: SendState, event: Parameters<typeof transition<typeof sendMachine>>[2]): boolean => {
   const snapshot = machineAt(state);
+
   return isUnhandled(snapshot, transition(sendMachine, snapshot, event));
 };
 
 const live: SendState = sending(1, 2000);
+
 const dead: SendState = { _tag: "Failed", reason: "abandoned", code: null, failedAt: 10 };
 
 describe("send machine", () => {
@@ -367,6 +383,7 @@ describe("send machine", () => {
         const delivered = yield* createEffectActor(sendMachine, {
           snapshot: sendMachine.resolveState({ value: "sent", context: { state: sent } }),
         });
+
         yield* sendAndAwait(delivered, { type: "Delivery", kind: "bounced", code: "E_BOUNCE", now: 2000 });
         expect(delivered.getSnapshot().value).toBe("failed");
         expect(delivered.getSnapshot().context.state).toEqual({

@@ -23,6 +23,7 @@ export const actionHandlers = <R>(services: Effect.Effect<Context.Context<Action
           Effect.gen(function* () {
             yield* requireSameOrigin;
             const member = yield* currentMember;
+
             return yield* createAction(member, params.teamId, payload);
           }),
         ),
@@ -32,6 +33,7 @@ export const actionHandlers = <R>(services: Effect.Effect<Context.Context<Action
           Effect.gen(function* () {
             yield* requireSameOrigin;
             const member = yield* currentMember;
+
             return yield* updateAction(member, params.teamId, params.actionId, payload);
           }),
         ),

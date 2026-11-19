@@ -16,10 +16,13 @@ const escapeHtml = (text: string): string =>
 
 export const pageLocale = (lang: string | null | undefined, acceptLanguage: string | undefined): Locale => {
   const explicit = lang === null || lang === undefined ? undefined : matchLocale(lang);
+
   if (explicit !== undefined) {
     return explicit;
   }
+
   const languages = (acceptLanguage ?? "").split(",").map((part) => part.split(";")[0] ?? "");
+
   return browserLocale(languages) ?? DEFAULT_LOCALE;
 };
 
@@ -57,6 +60,7 @@ const DELIVERY_SCRIPT = `<script>
 export const renderDeliveryPage = (token: string, locale: Locale): string => {
   const m: Messages = messagesFor(locale);
   const options = TIME_ZONES.map((zone) => `<option value="${zone}">${zone}</option>`).join("\n        ");
+
   return `<!DOCTYPE html>
 <html lang="${locale}">
 <head>
@@ -97,9 +101,11 @@ export const renderDeliveryPage = (token: string, locale: Locale): string => {
 export const renderDeliverySuccessPage = (timeZone: string, locale: Locale): string => {
   const m: Messages = messagesFor(locale);
   const placeholder = "{timeZone}";
+
   const [before = "", after = ""] = m
     .message("page.deliverySaved.body", { timeZone: placeholder })
     .split(placeholder);
+
   return `<!DOCTYPE html>
 <html lang="${locale}">
 <head>
@@ -124,6 +130,7 @@ export const renderDeliverySuccessPage = (timeZone: string, locale: Locale): str
 
 export const renderUnsubscribePage = (token: string, locale: Locale): string => {
   const m: Messages = messagesFor(locale);
+
   return `<!DOCTYPE html>
 <html lang="${locale}">
 <head>

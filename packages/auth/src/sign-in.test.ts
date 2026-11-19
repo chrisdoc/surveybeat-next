@@ -3,11 +3,13 @@ import { Effect } from "effect";
 import { CODE_TTL_SECONDS, SESSION_COOKIE, memoryAuth } from "./index.ts";
 
 const origin = "http://localhost:5173";
+
 const address = "person@example.com";
 
 const harness = () => {
   const codes: string[] = [];
   const links: string[] = [];
+
   const auth = memoryAuth({
     sendSignInCode: ({ otp }) =>
       Effect.sync(() => {
@@ -18,6 +20,7 @@ const harness = () => {
         links.push(url);
       }),
   });
+
   return { auth, codes, links };
 };
 
@@ -41,6 +44,7 @@ const get = (auth: ReturnType<typeof memoryAuth>, path: string, cookie: string) 
 
 const cookiePair = (response: Response): string => {
   const [pair = ""] = (response.headers.get("set-cookie") ?? "").split(";");
+
   return pair;
 };
 
@@ -48,10 +52,12 @@ describe("email code sign-in through Better Auth", () => {
   it.effect("issues the __Host session cookie with the product's attributes", () =>
     Effect.gen(function* () {
       const { auth, codes } = harness();
+
       const sent = yield* post(auth, "/auth/email-otp/send-verification-otp", {
         email: address,
         type: "sign-in",
       });
+
       expect(sent.status).toBe(200);
       expect(codes).toHaveLength(1);
       const otp = codes[0] ?? "";
@@ -116,6 +122,7 @@ describe("Better Auth plugins", () => {
       const verified = yield* Effect.promise(() =>
         auth.handler(new Request(link.toString(), { headers: { origin } })),
       );
+
       expect(verified.status).toBeLessThan(400);
       const cookie = cookiePair(verified);
       expect(cookie.startsWith(`${SESSION_COOKIE}=`)).toBe(true);

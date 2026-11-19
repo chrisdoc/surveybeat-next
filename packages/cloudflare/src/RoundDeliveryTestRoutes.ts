@@ -64,14 +64,18 @@ export const roundDeliveryTestRoutes = (organizations: Organizations) =>
     yield* organization.runPulseCommand(admin, { _tag: "CreatePulse", pulseId, teamId }, now);
 
     const detail = yield* organization.viewPulse(admin, teamId, pulseId);
+
     if (detail._tag !== "Viewed") {
       return yield* HttpServerResponse.json({ error: "no_pulse" });
     }
+
     const settings = detail.value.settings;
+
     const movedSettings = {
       ...settings,
       cadence: { ...settings.cadence, day: otherWeekday[settings.cadence.day] },
     };
+
     yield* organization.runPulseCommand(
       admin,
       { _tag: "UpdatePulseSettings", teamId, pulseId, settings: movedSettings },
@@ -80,9 +84,11 @@ export const roundDeliveryTestRoutes = (organizations: Organizations) =>
 
     const rounds = yield* organization.viewRounds(admin, teamId, pulseId);
     const round = rounds._tag === "Viewed" ? rounds.value.rounds[0] : undefined;
+
     if (round === undefined) {
       return yield* HttpServerResponse.json({ error: "no_round" });
     }
+
     const fromDate = calculateRoundInstants(
       round.plannedOpenDate,
       movedSettings.cadence.time,
@@ -92,9 +98,11 @@ export const roundDeliveryTestRoutes = (organizations: Organizations) =>
     );
 
     const openJob = (yield* organization.getJobsForRound(round.id)).find((job) => job.type === "open");
+
     if (openJob === undefined) {
       return yield* HttpServerResponse.json({ error: "no_open_job" });
     }
+
     yield* organization.runScheduleJob(openJob.id, openJob.due_at);
     const invitations = yield* organization.getInvitations(round.id);
 

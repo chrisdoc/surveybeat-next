@@ -14,6 +14,7 @@ afterEach(() => {
 });
 
 const MINUTE = 60_000;
+
 const queuedAt = 1_800_000_000_000;
 
 /** A test send's status read `waitedMillis` after it was queued. */

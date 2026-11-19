@@ -21,7 +21,9 @@ function lint(file: string): readonly Diagnostic[] {
       encoding: "utf8",
     },
   );
+
   const report: { diagnostics: readonly Diagnostic[] } = JSON.parse(result.stdout);
+
   return report.diagnostics;
 }
 

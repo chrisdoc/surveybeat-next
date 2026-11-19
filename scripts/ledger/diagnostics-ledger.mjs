@@ -3,10 +3,15 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const here = import.meta.dirname;
+
 const baselinePath = join(here, "diagnostics-ledger.json");
+
 const sourceFile = /\.(?:[cm]?[jt]sx?)$/;
+
 const effectNextLine = /@effect-diagnostics-next-line\s+([A-Za-z]+):off\b/g;
+
 const effectFile = /@effect-diagnostics\s+([A-Za-z]+):off\b/g;
+
 const lintDisable = /oxlint-disable(-next-line|-line)?\b/g;
 
 const trackedFiles = () =>
@@ -21,12 +26,15 @@ const trackedFiles = () =>
 const countFile = (text, tally) => {
   /** @param {string} kind */
   const bump = (kind) => tally.set(kind, (tally.get(kind) ?? 0) + 1);
+
   for (const match of text.matchAll(effectNextLine)) {
     bump(`effect-next-line:${match[1]}`);
   }
+
   for (const match of text.matchAll(effectFile)) {
     bump(`effect-file:${match[1]}`);
   }
+
   for (const match of text.matchAll(lintDisable)) {
     bump(`lint:${match[1] ?? "block"}`);
   }
@@ -34,15 +42,19 @@ const countFile = (text, tally) => {
 
 const collect = () => {
   const tally = new Map();
+
   for (const file of trackedFiles()) {
     let text = "";
+
     try {
       text = readFileSync(file, "utf8");
     } catch {
       continue;
     }
+
     countFile(text, tally);
   }
+
   return tally;
 };
 
@@ -67,19 +79,24 @@ const main = () => {
   if (process.argv.includes("--update")) {
     writeFileSync(baselinePath, `${JSON.stringify(current, null, 2)}\n`);
     console.log(`ledger: wrote ${Object.keys(current).length} kinds to ${baselinePath}`);
+
     return 0;
   }
 
   const baseline = readBaseline();
   const problems = [];
+
   for (const [kind, count] of Object.entries(current)) {
     const allowed = baseline[kind] ?? 0;
+
     if (count > allowed) {
       problems.push(`${kind}: ${allowed} -> ${count}`);
     }
   }
+
   for (const [kind, count] of Object.entries(baseline)) {
     const now = current[kind] ?? 0;
+
     if (now < count) {
       problems.push(`${kind}: ${count} -> ${now} (baseline is stale)`);
     }
@@ -88,16 +105,20 @@ const main = () => {
   if (problems.length === 0) {
     const total = Object.values(current).reduce((sum, count) => sum + count, 0);
     console.log(`ledger: ${total} overrides across ${Object.keys(current).length} kinds, none added`);
+
     return 0;
   }
 
   console.error("ledger: the override counts changed, and the ledger only shrinks:");
+
   for (const problem of problems) {
     console.error(`  ${problem}`);
   }
+
   console.error(
     "ledger: remove the override and fix the code, or run `pnpm check:ledger --update` when the count went down.",
   );
+
   return 1;
 };
 

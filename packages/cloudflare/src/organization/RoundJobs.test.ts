@@ -22,11 +22,15 @@ import { makeRoundJobs } from "./RoundJobs.ts";
 import { makeScheduling } from "./Scheduling.ts";
 
 const migrationsDir = new URL("../../migrations/", import.meta.url);
+
 const HOUR = 3_600_000;
+
 const DAY = 24 * HOUR;
+
 const T0 = Date.UTC(2026, 10, 23, 9);
 
 const QUESTION_A = { text: "How clear is the plan?", lowLabel: "Unclear", highLabel: "Clear" };
+
 const QUESTION_B = { text: "How heard do you feel?", lowLabel: "Unheard", highLabel: "Heard" };
 
 type RecordedSend = {
@@ -38,6 +42,7 @@ type RecordedSend = {
 const seed = (db: ReturnType<typeof migratedDatabase>) => {
   const rating = (text: string, lowLabel: string, highLabel: string) =>
     JSON.stringify({ _tag: "Rating", lowLabel, highLabel, comment: false });
+
   db.exec(`
     INSERT INTO organization (id, name) VALUES ('org-1', 'Acme');
     INSERT INTO team (id, name, time_zone) VALUES ('team-1', 'Platform', 'UTC');
@@ -135,6 +140,7 @@ const build = (options: { readonly failNotifications?: boolean } = {}) =>
   Effect.gen(function* () {
     const db = migratedDatabase(migrationsDir);
     seed(db);
+
     const sql = yield* SqliteClient.make({
       storage: SqliteStorage.makeSqliteStorage(db) as unknown as NonNullable<
         Parameters<typeof SqliteClient.make>[0]["storage"]
@@ -147,6 +153,7 @@ const build = (options: { readonly failNotifications?: boolean } = {}) =>
     const directory = makeSqlDirectory(sql, realSends);
     const actions = makeSqlActions(sql);
     const recorded: RecordedSend[] = [];
+
     const sends = {
       create: (sendId: SendId, recipient: EmailAddress, email: StoredEmail) =>
         Effect.sync(() => {
@@ -156,6 +163,7 @@ const build = (options: { readonly failNotifications?: boolean } = {}) =>
 
     let ids = 0;
     const randomId = () => `generated-${++ids}`;
+
     const scheduling = makeScheduling({
       rounds,
       directory,
@@ -163,12 +171,15 @@ const build = (options: { readonly failNotifications?: boolean } = {}) =>
       repairAlarm: () => Effect.void,
       randomId,
     });
+
     const failingRounds = {
       ...rounds,
       insertJob: (job: Parameters<typeof rounds.insertJob>[0]) =>
         job.type === "send" ? Effect.die(new Error("notification insert failed")) : rounds.insertJob(job),
     };
+
     const wired = options.failNotifications === true ? failingRounds : rounds;
+
     const deps = {
       sql,
       rounds: wired,
@@ -183,8 +194,10 @@ const build = (options: { readonly failNotifications?: boolean } = {}) =>
       appOrigin: "https://app.test",
       ai: {} as never,
     };
+
     const jobs = makeRoundJobs(deps);
     const commands = organizationRoundCommands({ ...deps, jobs });
+
     return { db, jobs, commands, recorded };
   });
 
@@ -307,9 +320,11 @@ describe("the Results follow-up after a Round is computed", () => {
         yield* jobs.runScheduleJob("job-compute", NOW);
 
         assert.strictEqual(roundStatus(db, "round-1"), "ready");
+
         const shares = db
           .prepare("SELECT status, due_at FROM schedule_job WHERE round_id = 'round-1' AND type = 'share'")
           .all();
+
         const round = db.prepare("SELECT review_ends_at FROM round WHERE id = 'round-1'").get();
         assert.deepStrictEqual(shares, [{ status: "pending", due_at: Number(round?.review_ends_at) }]);
       }),
@@ -335,10 +350,12 @@ describe("the Results follow-up after a Round is computed", () => {
 
       assert.strictEqual(roundStatus(db, "round-1"), "shared");
       assert.strictEqual(jobStatus(db, "job-compute"), "completed");
+
       const resultsJobs = db
         .prepare("SELECT id FROM schedule_job WHERE round_id = 'round-1' AND type = 'send' ORDER BY id")
         .all()
         .map((row) => row.id);
+
       assert.deepStrictEqual(resultsJobs, ["results-ready-round-1-lead-1", "results-ready-round-1-member-1"]);
     }),
   );
@@ -351,10 +368,12 @@ describe("the Results follow-up after a Round is computed", () => {
       yield* jobs.runScheduleJob("job-compute", NOW);
 
       assert.strictEqual(roundStatus(db, "round-1"), "ready");
+
       const resultsJobs = db
         .prepare("SELECT id FROM schedule_job WHERE round_id = 'round-1' AND type = 'send' ORDER BY id")
         .all()
         .map((row) => row.id);
+
       assert.deepStrictEqual(resultsJobs, ["results-ready-round-1-lead-1"]);
       assert.strictEqual(
         db

@@ -50,7 +50,9 @@ export const pulseTestRoutes = (organizations: Organizations) =>
       Effect.map(organization.runPulseCommand(admin, command, now), (result) =>
         result._tag === "Accepted" ? "Accepted" : result.rejection._tag,
       );
+
     const target = { teamId, pulseId };
+
     const questionIds = () =>
       Effect.map(organization.viewPulse(admin, teamId, pulseId), (view) =>
         view._tag === "Viewed" ? view.value.questions.map((question) => question.questionId) : [],
@@ -59,6 +61,7 @@ export const pulseTestRoutes = (organizations: Organizations) =>
     const created = yield* step({ _tag: "CreatePulse", ...target });
     const [first, ...rest] = yield* questionIds();
     const firstId = first ?? QuestionId.make("none");
+
     const results = {
       created,
       createdAgain: yield* step({ _tag: "CreatePulse", ...target }),
@@ -106,7 +109,9 @@ export const pulseTestRoutes = (organizations: Organizations) =>
       }),
       reorderMismatch: yield* step({ _tag: "ReorderQuestions", ...target, order: rest }),
     };
+
     const view = yield* organization.viewPulse(admin, teamId, pulseId);
     const list = yield* organization.viewPulses(admin, teamId);
+
     return yield* HttpServerResponse.json({ results, view, list, first: firstId, rest });
   }).pipe(Effect.orDie);

@@ -4,6 +4,7 @@ import type { EmailAccepted, EmailOutcomeUnknown, EmailRejected, OutgoingEmail }
 import * as Effect from "effect/Effect";
 
 const CODE_MINUTES = Policy.signIn.codeMinutes;
+
 const LINK_MINUTES = Policy.signIn.magicLinkMinutes;
 
 export const signInCodeDelivery = (

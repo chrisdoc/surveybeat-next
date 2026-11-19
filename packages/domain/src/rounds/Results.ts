@@ -11,6 +11,7 @@ export const DistributionOption = Schema.Struct({
   option: Schema.Union([Schema.String, Schema.Int]),
   count: Schema.Int,
 });
+
 export type DistributionOption = typeof DistributionOption.Type;
 
 export const TrendPoint = Schema.Struct({
@@ -20,6 +21,7 @@ export const TrendPoint = Schema.Struct({
   contributors: Schema.Int,
   hasGap: Schema.Boolean,
 });
+
 export type TrendPoint = typeof TrendPoint.Type;
 
 export const DimensionTrendPoint = Schema.Struct({
@@ -31,12 +33,14 @@ export const DimensionTrendPoint = Schema.Struct({
   contributors: Schema.optionalKey(Schema.Int),
   hasGap: Schema.Boolean,
 });
+
 export type DimensionTrendPoint = typeof DimensionTrendPoint.Type;
 
 export const Highlight = Schema.Struct({
   isLargerThanUsual: Schema.Boolean,
   direction: Schema.NullOr(Schema.Literals(["rise", "drop"])),
 });
+
 export type Highlight = typeof Highlight.Type;
 
 export const TypicalChange = Schema.Struct({
@@ -45,6 +49,7 @@ export const TypicalChange = Schema.Struct({
   totalRequiredUsableRounds: Schema.Int,
   typicalChange: Schema.NullOr(Schema.Finite),
 });
+
 export type TypicalChange = typeof TypicalChange.Type;
 
 export const QuestionChange = Schema.Struct({
@@ -53,6 +58,7 @@ export const QuestionChange = Schema.Struct({
   previousRoundId: Schema.NullOr(RoundId),
   highlight: Schema.NullOr(Highlight),
 });
+
 export type QuestionChange = typeof QuestionChange.Type;
 
 export const DimensionChange = Schema.Struct({
@@ -64,6 +70,7 @@ export const DimensionChange = Schema.Struct({
   annotation: Schema.NullOr(Schema.String),
   highlight: Schema.NullOr(Highlight),
 });
+
 export type DimensionChange = typeof DimensionChange.Type;
 
 export const QuestionResult = Schema.Struct({
@@ -80,6 +87,7 @@ export const QuestionResult = Schema.Struct({
   typicalChange: Schema.NullOr(TypicalChange),
   trend: Schema.Array(TrendPoint),
 });
+
 export type QuestionResult = typeof QuestionResult.Type;
 
 export const DimensionResult = Schema.Struct({
@@ -94,12 +102,14 @@ export const DimensionResult = Schema.Struct({
   typicalChange: Schema.NullOr(TypicalChange),
   trend: Schema.Array(DimensionTrendPoint),
 });
+
 export type DimensionResult = typeof DimensionResult.Type;
 
 export const CommentResult = Schema.Struct({
   questionVersionId: QuestionVersionId,
   text: Schema.String,
 });
+
 export type CommentResult = typeof CommentResult.Type;
 
 export const CommentTheme = Schema.Struct({
@@ -107,6 +117,7 @@ export const CommentTheme = Schema.Struct({
   sentence: Schema.String,
   supportingComments: Schema.optionalKey(Schema.Int),
 });
+
 export type CommentTheme = typeof CommentTheme.Type;
 
 export const DiscussionGuide = Schema.Struct({
@@ -115,9 +126,11 @@ export const DiscussionGuide = Schema.Struct({
   actionsToCheckOn: Schema.Array(Schema.String),
   questions: Schema.Array(Schema.String).pipe(Schema.check(Schema.isMaxLength(3))),
 });
+
 export type DiscussionGuide = typeof DiscussionGuide.Type;
 
 export const ThemesStatus = Schema.Literals(["notRequested", "preparing", "ready", "unavailable"]);
+
 export type ThemesStatus = typeof ThemesStatus.Type;
 
 export const RoundResult = Schema.Struct({
@@ -152,6 +165,7 @@ export const RoundResult = Schema.Struct({
 
   couldNotCompute: Schema.optionalKey(Schema.Boolean),
 });
+
 export type RoundResult = typeof RoundResult.Type;
 
 export class ResultsNotReady extends Schema.TaggedError<ResultsNotReady, { readonly brand: unique symbol }>()(
@@ -168,6 +182,7 @@ export class ResultsDelayed extends Schema.TaggedError<ResultsDelayed, { readonl
 
 export const roundDecimals = (value: number, decimals: number): number => {
   const factor = 10 ** decimals;
+
   return Math.round((value + Number.EPSILON) * factor) / factor;
 };
 
@@ -175,17 +190,23 @@ export const median = (values: readonly number[]): number => {
   if (values.length === 0) {
     return 0;
   }
+
   const sorted = [...values].sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
+
   if (sorted.length % 2 === 1) {
     const val = sorted[mid];
+
     return val ?? 0;
   }
+
   const low = sorted[mid - 1];
   const high = sorted[mid];
+
   if (low === undefined || high === undefined) {
     return 0;
   }
+
   return roundDecimals((low + high) / 2, 4);
 };
 
@@ -229,11 +250,13 @@ export const computeDistribution = (
 ): readonly DistributionOption[] => {
   if (type._tag === "Rating") {
     const counts: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+
     for (const ans of answers) {
       if (ans.value !== null && ans.value >= 1 && ans.value <= 5) {
         counts[ans.value] = (counts[ans.value] ?? 0) + 1;
       }
     }
+
     return [1, 2, 3, 4, 5].map((opt) => ({
       option: opt,
       count: counts[opt] ?? 0,
@@ -242,17 +265,21 @@ export const computeDistribution = (
 
   if (type._tag === "SingleChoice") {
     const counts = new Map<string, number>();
+
     for (const opt of type.options) {
       counts.set(opt, 0);
     }
+
     for (const ans of answers) {
       if (ans.value !== null && ans.value >= 0 && ans.value < type.options.length) {
         const optionName = type.options[ans.value];
+
         if (optionName !== undefined) {
           counts.set(optionName, (counts.get(optionName) ?? 0) + 1);
         }
       }
     }
+
     return type.options.map((opt) => ({
       option: opt,
       count: counts.get(opt) ?? 0,
@@ -273,15 +300,18 @@ export const evaluateHighlight = (change: number, typicalChangeVal: number): Hig
 
 export const shuffleComments = (comments: readonly CommentResult[]): readonly CommentResult[] => {
   const arr = [...comments];
+
   for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     const temp = arr[i];
     const target = arr[j];
+
     if (temp !== undefined && target !== undefined) {
       arr[i] = target;
       arr[j] = temp;
     }
   }
+
   return arr;
 };
 
@@ -293,8 +323,10 @@ const pastDimContributors = (
   if (pastDim.contributors !== undefined && pastDim.contributors !== null) {
     return { contributors: pastDim.contributors };
   }
+
   const ids = new Set<string>(questions.flatMap((q) => (q.dimension === pastDim.dimension ? [q.id] : [])));
   const counts = past.questions.filter((pq) => ids.has(pq.questionVersionId)).map((pq) => pq.contributors);
+
   return counts.length === 0 ? {} : { contributors: Math.max(...counts) };
 };
 
@@ -307,9 +339,11 @@ const pastDimMeetsN = (
   if (pastDim.score === null || !pastDim.meetsMinimumGroupSize || past.submissionsCount < pastEffectiveN) {
     return false;
   }
+
   if (pastEffectiveN <= past.effectiveMinimumGroupSize) {
     return true;
   }
+
   if (
     pastDim.contributors !== undefined &&
     pastDim.contributors !== null &&
@@ -317,8 +351,10 @@ const pastDimMeetsN = (
   ) {
     return false;
   }
+
   const ids = new Set<string>(questions.flatMap((q) => (q.dimension === pastDim.dimension ? [q.id] : [])));
   const averaged = past.questions.filter((pq) => ids.has(pq.questionVersionId) && pq.score !== null);
+
   return (
     averaged.length > 0 &&
     averaged.length === pastDim.usableQuestionCount &&
@@ -362,6 +398,7 @@ export const calculateRoundResult = (params: {
 
   const submissionsCount = submissions.length;
   const meetsRoundN = submissionsCount >= effectiveN;
+
   const responseRate =
     eligibleMembersCount > 0 ? roundDecimals(submissionsCount / eligibleMembersCount, 4) : null;
 
@@ -369,12 +406,15 @@ export const calculateRoundResult = (params: {
   const shouldRevealResults = isClosedOrLater && meetsRoundN;
 
   const answersByQuestion = new Map<string, SubmissionAnswer[]>();
+
   for (const q of questions) {
     answersByQuestion.set(q.id, []);
   }
+
   for (const sub of submissions) {
     for (const ans of sub.answers) {
       const list = answersByQuestion.get(ans.questionVersionId);
+
       if (list !== undefined) {
         list.push(ans);
       }
@@ -393,6 +433,7 @@ export const calculateRoundResult = (params: {
 
   for (const q of questions) {
     const answers = answersByQuestion.get(q.id) ?? [];
+
     if (!shouldRevealResults) {
       tempQuestionScores.push({
         question: q,
@@ -476,7 +517,9 @@ export const calculateRoundResult = (params: {
     const dimQuestions = tempQuestionScores.filter(
       (tqs) => tqs.question.dimension === dim && tqs.question.type._tag === "Rating",
     );
+
     const totalCount = dimQuestions.length;
+
     if (totalCount === 0 || !shouldRevealResults) {
       tempDimensionScores.push({
         dimension: dim,
@@ -490,6 +533,7 @@ export const calculateRoundResult = (params: {
     }
 
     const usableQuestions = dimQuestions.filter((tqs) => tqs.meetsN && tqs.score !== null);
+
     if (usableQuestions.length === 0) {
       tempDimensionScores.push({
         dimension: dim,
@@ -503,9 +547,11 @@ export const calculateRoundResult = (params: {
       const sum = usableQuestions.reduce((acc, q) => acc + (q.score ?? 0), 0);
       const mean = roundDecimals(sum / usableQuestions.length, 2);
       const usableIds = new Set<string>(usableQuestions.map((tqs) => tqs.question.id));
+
       const dimContributors = submissions.filter((sub) =>
         sub.answers.some((ans) => ans.value !== null && usableIds.has(ans.questionVersionId)),
       ).length;
+
       tempDimensionScores.push({
         dimension: dim,
         score: mean,
@@ -523,9 +569,11 @@ export const calculateRoundResult = (params: {
     const q = tqs.question;
 
     const trendPoints: TrendPoint[] = [];
+
     for (const past of pastUpTo11) {
       const pastQ = past.questions.find((pq) => pq.questionVersionId === q.id);
       const pastEffectiveN = Math.max(past.effectiveMinimumGroupSize, effectiveN);
+
       const pastUsable =
         pastQ !== undefined &&
         pastQ.score !== null &&
@@ -573,9 +621,11 @@ export const calculateRoundResult = (params: {
     }
 
     const pastUsableRounds: UsablePastQuestionRound[] = [];
+
     for (const past of pastRoundsHistory) {
       const pastQ = past.questions.find((pq) => pq.questionVersionId === q.id);
       const pastEffectiveN = Math.max(past.effectiveMinimumGroupSize, effectiveN);
+
       if (
         pastQ !== undefined &&
         pastQ.score !== null &&
@@ -591,9 +641,11 @@ export const calculateRoundResult = (params: {
     }
 
     const pastDifferences: number[] = [];
+
     for (let i = 1; i < pastUsableRounds.length; i++) {
       const prev = pastUsableRounds[i - 1];
       const curr = pastUsableRounds[i];
+
       if (prev !== undefined && curr !== undefined) {
         pastDifferences.push(roundDecimals(Math.abs(curr.score - prev.score), 4));
       }
@@ -628,6 +680,7 @@ export const calculateRoundResult = (params: {
 
     if (mostRecentPastUsable !== undefined) {
       const diff = roundDecimals(tqs.score - mostRecentPastUsable.score, 2);
+
       const highlight =
         hasWarmUp && typicalChangeVal !== null ? evaluateHighlight(diff, typicalChangeVal) : null;
 
@@ -659,6 +712,7 @@ export const calculateRoundResult = (params: {
     const dim = tds.dimension;
 
     const dimTrendPoints: DimensionTrendPoint[] = [];
+
     for (const past of pastUpTo11) {
       const pastDim = past.dimensions.find((pd) => pd.dimension === dim);
       const pastEffectiveN = Math.max(past.effectiveMinimumGroupSize, effectiveN);
@@ -704,9 +758,11 @@ export const calculateRoundResult = (params: {
     }
 
     const usablePastDimRounds: UsablePastDimRound[] = [];
+
     for (const past of pastRoundsHistory) {
       const pastDim = past.dimensions.find((pd) => pd.dimension === dim);
       const pastEffectiveN = Math.max(past.effectiveMinimumGroupSize, effectiveN);
+
       if (pastDim !== undefined && pastDimMeetsN(pastDim, past, questions, pastEffectiveN)) {
         usablePastDimRounds.push({
           roundId: past.roundId,
@@ -717,9 +773,11 @@ export const calculateRoundResult = (params: {
     }
 
     const pastDimDifferences: number[] = [];
+
     for (let i = 1; i < usablePastDimRounds.length; i++) {
       const prev = usablePastDimRounds[i - 1];
       const curr = usablePastDimRounds[i];
+
       if (prev !== undefined && curr !== undefined) {
         const prevEffectiveN = Math.max(prev.roundData.effectiveMinimumGroupSize, effectiveN);
         const currEffectiveN = Math.max(curr.roundData.effectiveMinimumGroupSize, effectiveN);
@@ -803,8 +861,10 @@ export const calculateRoundResult = (params: {
           perQuestionChanges.reduce((a, b) => a + b, 0) / perQuestionChanges.length,
           2,
         );
+
         const matchedCount = perQuestionChanges.length;
         const currentCount = dimQuestions.length;
+
         const annotation =
           matchedCount < currentCount ? `Based on ${matchedCount} of ${currentCount} questions` : null;
 
@@ -837,6 +897,7 @@ export const calculateRoundResult = (params: {
   });
 
   const rawComments: CommentResult[] = [];
+
   if (shouldRevealResults) {
     for (const sub of submissions) {
       for (const ans of sub.answers) {
@@ -885,6 +946,7 @@ export const delayedRoundResult = (params: {
   readonly submissionsCount: number;
 }): RoundResult => {
   const { submissionsCount, eligibleMembersCount, effectiveMinimumGroupSize } = params;
+
   return {
     roundId: params.roundId,
     pulseId: params.pulseId,
@@ -918,21 +980,27 @@ const maskEarlierTrendPoints = <P extends MaskableTrendPoint>(
   effectiveN: number,
 ): { readonly points: readonly P[]; readonly newlyMasked: ReadonlySet<RoundId> } => {
   const newlyMasked = new Set<RoundId>();
+
   const masked = points.map((p) => {
     if (p.roundId === currentRoundId || p.score === null) {
       return p;
     }
+
     if (p.contributors !== undefined && p.contributors >= effectiveN) {
       return p;
     }
+
     newlyMasked.add(p.roundId);
+
     return { ...p, score: null, hasGap: true };
   });
+
   return { points: masked, newlyMasked };
 };
 
 export const enforceEffectiveNOnResult = (result: RoundResult, currentOrgN: number): RoundResult => {
   const effectiveN = Math.max(result.effectiveMinimumGroupSize, currentOrgN);
+
   if (effectiveN === result.effectiveMinimumGroupSize) {
     return result;
   }
@@ -942,14 +1010,18 @@ export const enforceEffectiveNOnResult = (result: RoundResult, currentOrgN: numb
   const maskedQuestions = result.questions.map((q): QuestionResult => {
     const meetsN = q.contributors >= effectiveN && meetsRoundN;
     const earlier = maskEarlierTrendPoints(q.trend, result.roundId, effectiveN);
+
     const trend = earlier.points.map((p) =>
       p.roundId === result.roundId && !meetsN ? { ...p, score: null, hasGap: true } : p,
     );
+
     const earlierChanged = earlier.newlyMasked.size > 0;
+
     if (meetsN) {
       if (!earlierChanged) {
         return q;
       }
+
       return {
         ...q,
         change:
@@ -962,6 +1034,7 @@ export const enforceEffectiveNOnResult = (result: RoundResult, currentOrgN: numb
         trend,
       };
     }
+
     return {
       ...q,
       meetsMinimumGroupSize: false,
@@ -976,22 +1049,27 @@ export const enforceEffectiveNOnResult = (result: RoundResult, currentOrgN: numb
   const maskedDimensions = result.dimensions.map((d): DimensionResult => {
     const dimensionQuestions = result.questions.filter((q) => q.dimension === d.dimension);
     const questionMasked = new Set<RoundId>();
+
     for (const q of dimensionQuestions) {
       for (const id of maskEarlierTrendPoints(q.trend, result.roundId, effectiveN).newlyMasked) {
         questionMasked.add(id);
       }
     }
+
     const base = maskEarlierTrendPoints(d.trend, result.roundId, effectiveN);
     const newlyMasked = new Set<RoundId>(base.newlyMasked);
+
     const earlier = {
       newlyMasked,
       points: base.points.map((p) => {
         if (p.roundId === result.roundId || p.score === null) {
           return p;
         }
+
         const averaged = dimensionQuestions.flatMap((q) =>
           q.trend.filter((t) => t.roundId === p.roundId && t.score !== null),
         );
+
         if (
           averaged.length > 0 &&
           averaged.length === p.usableQuestionCount &&
@@ -999,10 +1077,13 @@ export const enforceEffectiveNOnResult = (result: RoundResult, currentOrgN: numb
         ) {
           return p;
         }
+
         newlyMasked.add(p.roundId);
+
         return { ...p, score: null, hasGap: true };
       }),
     };
+
     const withCurrent = (
       current: Pick<DimensionTrendPoint, "score" | "usableQuestionCount" | "hasGap"> & {
         readonly contributors: number | null;
@@ -1012,7 +1093,9 @@ export const enforceEffectiveNOnResult = (result: RoundResult, currentOrgN: numb
         if (p.roundId !== result.roundId) {
           return p;
         }
+
         const { contributors: _previous, ...rest } = p;
+
         return {
           ...rest,
           score: current.score,
@@ -1025,6 +1108,7 @@ export const enforceEffectiveNOnResult = (result: RoundResult, currentOrgN: numb
     const usableQs = maskedQuestions.filter(
       (q) => q.dimension === d.dimension && q.meetsMinimumGroupSize && q.score !== null,
     );
+
     if (usableQs.length === 0 || !meetsRoundN) {
       return {
         ...d,
@@ -1037,6 +1121,7 @@ export const enforceEffectiveNOnResult = (result: RoundResult, currentOrgN: numb
         trend: withCurrent({ score: null, usableQuestionCount: 0, contributors: null, hasGap: true }),
       };
     }
+
     const sum = usableQs.reduce((acc, q) => acc + (q.score ?? 0), 0);
     const mean = roundDecimals(sum / usableQs.length, 2);
     const usableSetChanged = usableQs.length !== d.usableQuestionCount;
@@ -1044,12 +1129,15 @@ export const enforceEffectiveNOnResult = (result: RoundResult, currentOrgN: numb
     const contributors = usableSetChanged
       ? Math.max(...usableQs.map((q) => q.contributors))
       : (d.contributors ?? Math.max(...usableQs.map((q) => q.contributors)));
+
     const earlierChanged = newlyMasked.size > 0 || questionMasked.size > 0;
+
     const changeStale =
       usableSetChanged ||
       (d.change !== null &&
         d.change.previousRoundId !== null &&
         (newlyMasked.has(d.change.previousRoundId) || questionMasked.has(d.change.previousRoundId)));
+
     return {
       ...d,
       score: mean,

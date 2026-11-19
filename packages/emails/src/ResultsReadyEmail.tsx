@@ -15,6 +15,7 @@ export const subject = (email: ResultsReadyEmail) =>
 export function ResultsReadyEmailComponent({ email }: { email: ResultsReadyEmail }) {
   const m = messagesFor(email.locale);
   const p = params(email);
+
   return (
     <Layout
       messages={m}
@@ -32,6 +33,7 @@ export function ResultsReadyEmailComponent({ email }: { email: ResultsReadyEmail
 export const text = (email: ResultsReadyEmail): string => {
   const m = messagesFor(email.locale);
   const p = params(email);
+
   return textLayout(
     m,
     [

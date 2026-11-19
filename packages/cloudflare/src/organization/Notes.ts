@@ -25,24 +25,31 @@ export const organizationNotes = ({
     Effect.gen(function* () {
       const dirState = yield* directory.load;
       const auth = authorizeRoundAction(dirState, actorId, "team.viewNote", teamId);
+
       if (auth._tag === "Rejected") {
         const rejected: NoteViewed<RoundNoteView> = {
           _tag: "Rejected",
           rejection: { _tag: auth.rejection._tag === "TeamNotFound" ? "TeamNotFound" : "Forbidden" },
         };
+
         return rejected;
       }
+
       const round = yield* rounds.getRound(roundId);
+
       if (round === null || round.teamId !== teamId) {
         const rejected: NoteViewed<RoundNoteView> = {
           _tag: "Rejected",
           rejection: { _tag: "RoundNotFound" },
         };
+
         return rejected;
       }
+
       const isLead = auth.actor.roles.get(teamId) === "lead";
       const note = isLead || round.status === "shared" ? yield* notes.getNote(roundId) : null;
       const viewed: NoteViewed<RoundNoteView> = { _tag: "Viewed", value: { roundId, note } };
+
       return viewed;
     }).pipe(Effect.orDie),
 
@@ -58,6 +65,7 @@ export const organizationNotes = ({
         Effect.gen(function* () {
           const dirState = yield* directory.load;
           const auth = authorizeRoundAction(dirState, actorId, "team.writeNote", teamId);
+
           if (auth._tag === "Rejected") {
             const rejected: NoteViewed<RoundNoteView> = {
               _tag: "Rejected",
@@ -65,24 +73,32 @@ export const organizationNotes = ({
                 _tag: auth.rejection._tag === "TeamNotFound" ? "TeamNotFound" : "Forbidden",
               },
             };
+
             return rejected;
           }
+
           const round = yield* rounds.getRound(roundId);
+
           if (round === null || round.teamId !== teamId) {
             const rejected: NoteViewed<RoundNoteView> = {
               _tag: "Rejected",
               rejection: { _tag: "RoundNotFound" },
             };
+
             return rejected;
           }
+
           const change = noteChange(text);
+
           if (change._tag === "Delete") {
             yield* notes.deleteNote(roundId);
           } else {
             yield* notes.upsertNote({ roundId, teamId, text: change.text, updatedAt: now });
           }
+
           const note = yield* notes.getNote(roundId);
           const viewed: NoteViewed<RoundNoteView> = { _tag: "Viewed", value: { roundId, note } };
+
           return viewed;
         }),
       )

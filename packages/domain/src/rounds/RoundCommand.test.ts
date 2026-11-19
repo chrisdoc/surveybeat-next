@@ -15,20 +15,33 @@ import { decideRoundCommand } from "./RoundCommand.ts";
 import type { RoundCommandDecision, RoundCommandInput, RoundFacts } from "./RoundCommand.ts";
 
 const NOW = Date.UTC(2026, 10, 17, 12);
+
 const WEEK_OF_NOW = "2026-11-17";
 
 const TEAM_A = TeamId.make("team-a");
+
 const TEAM_B = TeamId.make("team-b");
+
 const PULSE_A = PulseId.make("pulse-a");
+
 const PULSE_B = PulseId.make("pulse-b");
+
 const ROUND_A = RoundId.make("round-a");
+
 const ROUND_B = RoundId.make("round-b");
+
 const LEAD_A = PersonId.make("lead-a");
+
 const LEAD_B = PersonId.make("lead-b");
+
 const MEMBER_A = PersonId.make("member-a");
+
 const ADMIN = PersonId.make("admin");
+
 const OUTSIDER = PersonId.make("outsider");
+
 const REMOVED = PersonId.make("removed");
+
 const ABSENT = PersonId.make("absent");
 
 const person = (id: PersonId, extra: Partial<PersonRecord> = {}): PersonRecord => ({
@@ -104,6 +117,7 @@ const pulsesFor = (teamA: TeamId, teamB: TeamId): PulseState => ({
 });
 
 const directory = directoryFor(TEAM_A, TEAM_B);
+
 const pulses = pulsesFor(TEAM_A, TEAM_B);
 
 const roundOf = (status: RoundStatus, overrides: Partial<RoundFacts> = {}): RoundFacts => ({
@@ -126,27 +140,35 @@ const commandFor = (
     case "SkipWeek": {
       return { _tag: "SkipWeek", teamId, pulseId, plannedOpenDate: WEEK_OF_NOW };
     }
+
     case "UnskipWeek": {
       return { _tag: "UnskipWeek", teamId, pulseId, plannedOpenDate: WEEK_OF_NOW };
     }
+
     case "PausePulse": {
       return { _tag: "PausePulse", teamId, pulseId };
     }
+
     case "ResumePulse": {
       return { _tag: "ResumePulse", teamId, pulseId };
     }
+
     case "CloseRoundEarly": {
       return { _tag: "CloseRoundEarly", teamId, roundId };
     }
+
     case "ShareResults": {
       return { _tag: "ShareResults", teamId, roundId };
     }
+
     case "RetryResult": {
       return { _tag: "RetryResult", teamId, roundId };
     }
+
     case "CancelRound": {
       return { _tag: "CancelRound", teamId, roundId };
     }
+
     case "ResendInvitation": {
       return { _tag: "ResendInvitation", teamId, roundId, personId: MEMBER_A };
     }
@@ -194,6 +216,7 @@ describe("decideRoundCommand: authorization", () => {
       round: roundOf("open"),
       invitation: { resendCount: 0 },
     });
+
     expect(decision).toEqual(rejectedWith({ _tag: "Forbidden" }));
   });
 
@@ -268,12 +291,14 @@ describe("decideRoundCommand: Pulse commands", () => {
       pulseId: PULSE_B,
       plannedOpenDate: "2030-01-01",
     };
+
     expect(decide({ command })).toEqual(rejectedWith({ _tag: "PulseNotFound" }));
   });
 
   it("refuses a week that is not one of the next eight cadence dates as WeekOutOfRange", () => {
     const outside = (plannedOpenDate: string) =>
       decide({ command: { _tag: "SkipWeek", teamId: TEAM_A, pulseId: PULSE_A, plannedOpenDate } });
+
     expect(outside("2026-11-18")).toEqual(rejectedWith({ _tag: "WeekOutOfRange" }));
     expect(outside("2026-11-10")).toEqual(rejectedWith({ _tag: "WeekOutOfRange" }));
     expect(outside("2027-01-12")).toEqual(rejectedWith({ _tag: "WeekOutOfRange" }));
@@ -293,9 +318,11 @@ describe("decideRoundCommand: Pulse commands", () => {
     { weeks: Schema.Int },
     ({ weeks }) => {
       const offset = Math.abs(weeks) % 12;
+
       const decision = decide({
         command: { _tag: "SkipWeek", teamId: TEAM_A, pulseId: PULSE_A, plannedOpenDate: dateAfter(offset) },
       });
+
       return offset < 8 ? decision._tag === "Apply" : isRejectedWith(decision, "WeekOutOfRange");
     },
   );
@@ -311,15 +338,18 @@ describe("decideRoundCommand: Pulse commands", () => {
       if (first === second) {
         return true;
       }
+
       const teamA = TeamId.make(first);
       const teamB = TeamId.make(second);
       const dir = directoryFor(teamA, teamB);
       const state = pulsesFor(teamA, teamB);
       const leadOfA = dir.memberships.find((m) => m.teamId === teamA && m.role === "lead")?.personId;
       const leadOfB = dir.memberships.find((m) => m.teamId === teamB && m.role === "lead")?.personId;
+
       if (leadOfA === undefined || leadOfB === undefined) {
         return false;
       }
+
       const attempt = (actorId: PersonId, teamId: TeamId, pulseId: PulseId) =>
         decideRoundCommand({
           directory: dir,
@@ -331,8 +361,10 @@ describe("decideRoundCommand: Pulse commands", () => {
           invitation: null,
           computePending: false,
         });
+
       const crossTeam = attempt(leadOfA, teamA, PULSE_B);
       const ownTeam = attempt(leadOfB, teamB, PULSE_B);
+
       return isRejectedWith(crossTeam, "PulseNotFound") && ownTeam._tag === "Apply";
     },
   );
@@ -359,6 +391,7 @@ describe("decideRoundCommand: Round commands", () => {
 
   it("finds the Round of another Team as RoundNotFound before a non-lead is Forbidden", () => {
     const otherTeamRound = roundOf("open", { id: ROUND_B, teamId: TEAM_B, pulseId: PULSE_B });
+
     for (const tag of ["ShareResults", "RetryResult"] as const) {
       expect(
         decide({ actorId: ADMIN, command: commandFor(tag, TEAM_A, PULSE_A, ROUND_B), round: otherTeamRound }),
@@ -451,6 +484,7 @@ describe("decideRoundCommand: Round commands", () => {
     { minimum: Schema.Int, effective: Schema.NullOr(Schema.Int) },
     ({ minimum, effective }) => {
       const dir: DirectoryState = { ...directory, minimumGroupSize: minimum };
+
       const decision = decideRoundCommand({
         directory: dir,
         pulses,
@@ -461,6 +495,7 @@ describe("decideRoundCommand: Round commands", () => {
         invitation: null,
         computePending: false,
       });
+
       return (
         decision._tag === "Apply" &&
         decision.plan._tag === "CloseRoundEarly" &&
@@ -529,6 +564,7 @@ describe("decideRoundCommand: ResendInvitation", () => {
     ({ resendCount }) => {
       const count = Math.abs(resendCount) % 1000;
       const decision = resend({ invitation: { resendCount: count } });
+
       return (
         decision._tag === "Apply" &&
         decision.plan._tag === "ResendInvitation" &&
@@ -544,13 +580,16 @@ describe("decideRoundCommand: ResendInvitation", () => {
 describe("decideRoundCommand agrees with the Round machine", () => {
   it("returns the machine's rejection for every Round command on every status the machine refuses", () => {
     const statuses: readonly RoundStatus[] = ["scheduled", "open", "closed", "ready", "shared", "cancelled"];
+
     for (const tag of ROUND_TAGS) {
       for (const status of statuses) {
         const command = commandFor(tag);
         const machine = roundCommandRejection(status, command);
+
         if (machine === null) {
           continue;
         }
+
         expect(
           decide({ command, round: roundOf(status), invitation: { resendCount: 0 } }),
           `${tag} on ${status}`,

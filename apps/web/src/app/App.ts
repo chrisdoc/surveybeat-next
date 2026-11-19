@@ -235,76 +235,94 @@ export const Model = Schema.Struct({
   noteBusy: Schema.Boolean,
   noteFailure: Schema.Option(Failure),
 });
+
 export type Model = typeof Model.Type;
 
 export const OutcomeResults = Schema.Union([
   Schema.TaggedStruct("Success", { result: RoundResult }),
   Schema.TaggedStruct("Failure", { failure: Failure }),
 ]);
+
 export const OutcomeActions = Schema.Union([
   Schema.TaggedStruct("Success", { list: ActionList }),
   Schema.TaggedStruct("Failure", { failure: Failure }),
 ]);
+
 export const OutcomeActionItem = Schema.Union([
   Schema.TaggedStruct("Success", { action: ActionItem }),
   Schema.TaggedStruct("Failure", { failure: Failure }),
 ]);
+
 export const OutcomeRoundNote = Schema.Union([
   Schema.TaggedStruct("Success", { view: RoundNoteView }),
   Schema.TaggedStruct("Failure", { failure: Failure }),
 ]);
+
 export const OutcomeRounds = Schema.Union([
   Schema.TaggedStruct("Success", { list: RoundList }),
   Schema.TaggedStruct("Failure", { failure: Failure }),
 ]);
+
 export const OutcomeRoundDetail = Schema.Union([
   Schema.TaggedStruct("Success", { detail: RoundDetail }),
   Schema.TaggedStruct("Failure", { failure: Failure }),
 ]);
+
 export const OutcomeTeams = Schema.Union([
   Schema.TaggedStruct("Success", { teams: Schema.Array(TeamSummary) }),
   Schema.TaggedStruct("Failure", { failure: Failure }),
 ]);
+
 export const OutcomeTeamDetail = Schema.Union([
   Schema.TaggedStruct("Success", { detail: TeamDetail }),
   Schema.TaggedStruct("Failure", { failure: Failure }),
 ]);
+
 export const OutcomeTeamOverview = Schema.Union([
   Schema.TaggedStruct("Success", { overview: TeamOverview }),
   Schema.TaggedStruct("Failure", { failure: Failure }),
 ]);
+
 export const OutcomeMyHistory = Schema.Union([
   Schema.TaggedStruct("Success", { history: MemberHistory, kept: KeptAnswers }),
   Schema.TaggedStruct("Failure", { failure: Failure }),
 ]);
+
 export const OutcomeSettings = Schema.Union([
   Schema.TaggedStruct("Success", { settings: OrganizationSettings }),
   Schema.TaggedStruct("Failure", { failure: Failure }),
 ]);
+
 export const OutcomePulses = Schema.Union([
   Schema.TaggedStruct("Success", { pulses: PulseList }),
   Schema.TaggedStruct("Failure", { failure: Failure }),
 ]);
+
 export const OutcomePulseDetail = Schema.Union([
   Schema.TaggedStruct("Success", { detail: PulseDetail }),
   Schema.TaggedStruct("Failure", { failure: Failure }),
 ]);
+
 export const OutcomeTestSent = Schema.Union([
   Schema.TaggedStruct("Success", { email: Schema.String, sendId: SendId, pulseId: PulseId }),
   Schema.TaggedStruct("Failure", { failure: Failure }),
 ]);
+
 export const OutcomeTestSendStatus = Schema.Union([
   Schema.TaggedStruct("Success", { status: TestSendStatus }),
   Schema.TaggedStruct("Failure", { failure: Failure }),
 ]);
+
 export const OutcomeFailedEmails = Schema.Union([
   Schema.TaggedStruct("Success", { list: FailedEmails }),
   Schema.TaggedStruct("Failure", { failure: Failure }),
 ]);
+
 export const OutcomeFailedEmailStatus = Schema.Union([
   Schema.TaggedStruct("Success", { status: FailedEmailStatus }),
   Schema.TaggedStruct("Failure", { failure: Failure }),
 ]);
+
 export const OutcomeVoid = Schema.Union([
   Schema.TaggedStruct("Success", {}),
   Schema.TaggedStruct("Failure", { failure: Failure }),
@@ -461,6 +479,7 @@ export const Message = defineMessageUnion({
   SubmitNote: {},
   SavedNote: { outcome: OutcomeRoundNote },
 });
+
 export type Message = typeof Message.Type;
 
 export const LoadSession = Command.define("LoadSession", {
@@ -967,6 +986,7 @@ export const GetMyHistoryCmd = Command.define("GetMyHistoryCmd", {
       (history) => {
         const storage = browserStorage();
         const kept = storage === null ? {} : readKeptAnswers(storage, DateTime.toEpochMillis(now));
+
         return Message.GotMyHistory({ outcome: { _tag: "Success", history, kept } });
       },
       (failure) => Message.GotMyHistory({ outcome: { _tag: "Failure", failure } }),
@@ -978,9 +998,11 @@ export const ClearKeptAnswersCmd = Command.define("ClearKeptAnswersCmd", {
   messages: [Message.ClearedKeptAnswers],
   execute: Effect.sync(() => {
     const storage = browserStorage();
+
     if (storage !== null) {
       clearKeptAnswers(storage);
     }
+
     return Message.ClearedKeptAnswers();
   }),
 });
@@ -1111,6 +1133,7 @@ export const LoadExternalUrl = Command.define("LoadExternalUrl", {
 export const initialModel = (url: Url, languages: readonly string[]): Model => {
   const route = urlToAppRoute(url);
   const timeZone = typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC";
+
   return {
     url,
     route,
@@ -1226,18 +1249,24 @@ const attentionItems = (model: Model): readonly AttentionItem[] => {
   if (model.route._tag !== "Teams") {
     return [];
   }
+
   if (model.teams._tag !== "Loaded") {
     return [];
   }
+
   const items: AttentionItem[] = [];
+
   for (const team of model.teams.teams) {
     const pulses = model.homePulses[team.id];
+
     if (pulses !== undefined) {
       for (const pulse of pulses.pulses) {
         const rounds = model.homeRounds[pulse.id];
+
         if (rounds === undefined) {
           continue;
         }
+
         for (const round of rounds.rounds) {
           if (round.status === "closed" || round.status === "ready") {
             items.push({
@@ -1263,14 +1292,18 @@ const attentionItems = (model: Model): readonly AttentionItem[] => {
         }
       }
     }
+
     const actions = model.homeActions[team.id];
+
     if (actions === undefined) {
       continue;
     }
+
     for (const action of actions) {
       if (action.status !== "committed") {
         continue;
       }
+
       items.push({
         label: message("home.attention.action"),
         text: action.title,
@@ -1282,34 +1315,45 @@ const attentionItems = (model: Model): readonly AttentionItem[] => {
       });
     }
   }
+
   return items;
 };
 
 const firstRunChecklist = (model: Model): readonly ChecklistStep[] | null => {
   const route = model.route;
+
   if (route._tag !== "Team") {
     return null;
   }
+
   if (model.teamDetail._tag !== "Loaded") {
     return null;
   }
+
   const detail = model.teamDetail.detail;
+
   if (!detail.may.managePulses) {
     return null;
   }
+
   if (model.pulses._tag !== "Loaded") {
     return null;
   }
+
   if (model.pulses.pulses.pulses.length > 0 && model.rounds._tag !== "Loaded") {
     return null;
   }
+
   const rounds = model.rounds._tag === "Loaded" ? model.rounds.list.rounds : [];
+
   if (rounds.some((round) => round.status !== "scheduled" && round.status !== "open")) {
     return null;
   }
+
   const firstPulse = model.pulses.pulses.pulses[0];
   const scheduled = rounds.find((round) => round.status === "scheduled" || round.status === "open");
   const members = detail.roster.length;
+
   return [
     {
       text: message("team.checklist.members"),
@@ -1347,6 +1391,7 @@ export const loadActiveRouteCommand = (route: AppRoute) => {
     case "Teams": {
       return [ListTeams()];
     }
+
     case "Team": {
       return [
         GetTeam({ teamId: route.teamId }),
@@ -1354,21 +1399,27 @@ export const loadActiveRouteCommand = (route: AppRoute) => {
         ListPulses({ teamId: route.teamId }),
       ];
     }
+
     case "History": {
       return [GetMyHistoryCmd()];
     }
+
     case "Settings": {
       return [GetSettings(), ListFailedEmails()];
     }
+
     case "Pulses": {
       return [ListPulses({ teamId: route.teamId })];
     }
+
     case "Pulse": {
       return [GetPulse({ teamId: route.teamId, pulseId: route.pulseId })];
     }
+
     case "Rounds": {
       return [GetTeam({ teamId: route.teamId })];
     }
+
     case "RoundResults": {
       return [
         GetResultsCmd({ teamId: route.teamId, roundId: route.roundId }),
@@ -1377,6 +1428,7 @@ export const loadActiveRouteCommand = (route: AppRoute) => {
         GetTeam({ teamId: route.teamId }),
       ];
     }
+
     case "Privacy":
     case "NotFound": {
       return [];
@@ -1396,6 +1448,7 @@ const foldNavMenu = Update.foldChild({
   toParentMessage: (message: Popover.Message) => Message.GotNavMenuMessage({ message }),
   foldOutMessage: () => (model: Model) => ({ model }),
 });
+
 const foldAccountMenu = Update.foldChild({
   update: Popover.update,
   read: (model: Model) => Option.some(model.accountMenu),
@@ -1407,6 +1460,7 @@ const foldAccountMenu = Update.foldChild({
 const closeHeaderMenus = (model: Model): Update.Return<Model, Message> => {
   const closedNav = foldNavMenu(model, Popover.Message.RequestedClose());
   const closedAccount = foldAccountMenu(closedNav.model, Popover.Message.RequestedClose());
+
   return {
     model: closedAccount.model,
     commands: [...(closedNav.commands ?? []), ...(closedAccount.commands ?? [])],
@@ -1424,12 +1478,15 @@ const navSectionOf = (route: AppRoute, organizationAdmin: boolean): NavSection |
     case "RoundResults": {
       return "teams";
     }
+
     case "History": {
       return "history";
     }
+
     case "Settings": {
       return organizationAdmin ? "settings" : "teams";
     }
+
     case "Privacy": {
       return null;
     }
@@ -1443,20 +1500,24 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
   switch (message._tag) {
     case "UrlRequested": {
       const { request } = message;
+
       if (request._tag === "Internal") {
         const path =
           request.url.pathname + (Option.isSome(request.url.search) ? `?${request.url.search.value}` : "");
+
         if (request.url.pathname.startsWith("/auth/")) {
           return {
             model,
             commands: [LoadExternalUrl({ href: path })],
           };
         }
+
         return {
           model,
           commands: [Navigate({ url: path })],
         };
       }
+
       return {
         model,
         commands: [LoadExternalUrl({ href: request.href })],
@@ -1465,6 +1526,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
 
     case "UrlChanged": {
       const route = urlToAppRoute(message.url);
+
       const nextModel: Model = {
         ...model,
         url: message.url,
@@ -1509,13 +1571,16 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         noteBusy: false,
         noteFailure: Option.none(),
       };
+
       const closed = closeHeaderMenus(nextModel);
+
       if (model.session._tag === "SignedIn") {
         return {
           model: closed.model,
           commands: [...(closed.commands ?? []), ...loadActiveRouteCommand(route)],
         };
       }
+
       return closed;
     }
 
@@ -1544,6 +1609,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
             },
           };
         }
+
         case "Failed": {
           return {
             model: {
@@ -1552,6 +1618,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
             },
           };
         }
+
         case "CreateOrganization": {
           return {
             model: {
@@ -1560,6 +1627,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
             },
           };
         }
+
         case "ChooseOrganization": {
           return {
             model: {
@@ -1572,6 +1640,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
             },
           };
         }
+
         case "SignedIn": {
           const nextModel: Model = {
             ...model,
@@ -1622,9 +1691,11 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       if (model.session._tag !== "SignedOut" || model.session.busy) {
         return { model };
       }
+
       if (model.session.email.trim() === "") {
         return { model };
       }
+
       return {
         model: { ...model, session: { ...model.session, busy: true, notice: null } },
         commands: [SendSignInCode({ email: EmailAddress.make(model.session.email.trim()) })],
@@ -1635,9 +1706,11 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       if (model.session._tag !== "SignedOut" || model.session.busy) {
         return { model };
       }
+
       if (model.session.code.trim() === "") {
         return { model };
       }
+
       return {
         model: { ...model, session: { ...model.session, busy: true, notice: null } },
         commands: [
@@ -1653,6 +1726,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       if (model.session._tag !== "SignedOut") {
         return { model };
       }
+
       return {
         model: {
           ...model,
@@ -1677,12 +1751,14 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       if (model.session._tag !== "SignedOut") {
         return { model };
       }
+
       if (message.verified) {
         return {
           model: { ...model, session: { ...model.session, busy: false, notice: null } },
           commands: [LoadSession()],
         };
       }
+
       return {
         model: {
           ...model,
@@ -1700,15 +1776,18 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
           },
         };
       }
+
       return { model };
     }
 
     case "SubmitCreateOrg": {
       if (model.session._tag === "CreateOrganization") {
         const name = model.session.name.trim();
+
         if (name === "") {
           return { model };
         }
+
         return {
           model: {
             ...model,
@@ -1717,6 +1796,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
           commands: [CreateOrganization({ name })],
         };
       }
+
       return { model };
     }
 
@@ -1730,6 +1810,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
           commands: [ChooseOrganization({ organizationId: message.organizationId })],
         };
       }
+
       return { model };
     }
 
@@ -1743,6 +1824,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
 
     case "GotTeams": {
       const { outcome } = message;
+
       if (outcome._tag === "Success") {
         return {
           model: {
@@ -1757,9 +1839,11 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
               : [],
         };
       }
+
       if (outcome.failure === "Unauthenticated") {
         return { model, commands: [LoadSession()] };
       }
+
       return {
         model: {
           ...model,
@@ -1784,11 +1868,13 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       const n = decodeName(model.createTeamName.trim());
       const z = decodeZone(model.createTeamTimeZone.trim());
       const e = decodeEmail(model.createTeamLeadEmail.trim());
+
       if (Option.isNone(n) || Option.isNone(z) || Option.isNone(e)) {
         return {
           model: { ...model, createTeamFailure: Option.some("Invalid") },
         };
       }
+
       return {
         model: { ...model, createTeamBusy: true, createTeamFailure: Option.none() },
         commands: [CreateTeam({ name: n.value, timeZone: z.value, leadEmail: e.value })],
@@ -1797,16 +1883,20 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
 
     case "CreatedTeam": {
       const { outcome } = message;
+
       if (outcome._tag === "Success") {
         const nextUrl = teamHref(outcome.detail.team.id);
+
         return {
           model: { ...model, createTeamBusy: false },
           commands: [Navigate({ url: nextUrl })],
         };
       }
+
       if (outcome.failure === "Unauthenticated") {
         return { model, commands: [LoadSession()] };
       }
+
       return {
         model: {
           ...model,
@@ -1818,6 +1908,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
 
     case "GotTeam": {
       const { outcome } = message;
+
       if (outcome._tag === "Success") {
         return {
           model: {
@@ -1832,9 +1923,11 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
               : [],
         };
       }
+
       if (outcome.failure === "Unauthenticated") {
         return { model, commands: [LoadSession()] };
       }
+
       return {
         model: {
           ...model,
@@ -1855,12 +1948,15 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       if (model.teamDetail._tag !== "Loaded") {
         return { model };
       }
+
       const teamId = model.teamDetail.detail.team.id;
       const n = decodeName(model.renameName.trim());
       const z = decodeZone(model.renameTimeZone.trim());
+
       if (Option.isNone(n) || Option.isNone(z)) {
         return { model: { ...model, renameFailure: Option.some("Invalid") } };
       }
+
       return {
         model: { ...model, renameBusy: true, renameFailure: Option.none() },
         commands: [UpdateTeam({ teamId, name: n.value, timeZone: z.value })],
@@ -1871,16 +1967,20 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       if (model.teamDetail._tag !== "Loaded") {
         return { model };
       }
+
       const teamId = model.teamDetail.detail.team.id;
+
       if (message.outcome._tag === "Success") {
         return {
           model: { ...model, renameBusy: false },
           commands: [GetTeam({ teamId })],
         };
       }
+
       if (message.outcome.failure === "Unauthenticated") {
         return { model, commands: [LoadSession()] };
       }
+
       return {
         model: {
           ...model,
@@ -1898,11 +1998,14 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       if (model.teamDetail._tag !== "Loaded") {
         return { model };
       }
+
       const teamId = model.teamDetail.detail.team.id;
       const e = decodeEmail(model.addMemberEmail.trim());
+
       if (Option.isNone(e)) {
         return { model: { ...model, addMemberFailure: Option.some("Invalid") } };
       }
+
       return {
         model: { ...model, addMemberBusy: true, addMemberFailure: Option.none() },
         commands: [AddMember({ teamId, email: e.value })],
@@ -1913,7 +2016,9 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       if (model.teamDetail._tag !== "Loaded") {
         return { model };
       }
+
       const teamId = model.teamDetail.detail.team.id;
+
       if (message.outcome._tag === "Success") {
         return {
           model: {
@@ -1925,9 +2030,11 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
           commands: [GetTeam({ teamId })],
         };
       }
+
       if (message.outcome.failure === "Unauthenticated") {
         return { model, commands: [LoadSession()] };
       }
+
       return {
         model: {
           ...model,
@@ -1945,11 +2052,14 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       if (model.teamDetail._tag !== "Loaded") {
         return { model };
       }
+
       const teamId = model.teamDetail.detail.team.id;
       const e = decodeEmail(model.assignLeadEmail.trim());
+
       if (Option.isNone(e)) {
         return { model: { ...model, assignLeadFailure: Option.some("Invalid") } };
       }
+
       return {
         model: { ...model, assignLeadBusy: true, assignLeadFailure: Option.none() },
         commands: [AssignLead({ teamId, email: e.value })],
@@ -1960,7 +2070,9 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       if (model.teamDetail._tag !== "Loaded") {
         return { model };
       }
+
       const teamId = model.teamDetail.detail.team.id;
+
       if (message.outcome._tag === "Success") {
         return {
           model: {
@@ -1972,9 +2084,11 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
           commands: [GetTeam({ teamId })],
         };
       }
+
       if (message.outcome.failure === "Unauthenticated") {
         return { model, commands: [LoadSession()] };
       }
+
       return {
         model: {
           ...model,
@@ -1988,7 +2102,9 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       if (model.teamDetail._tag !== "Loaded") {
         return { model };
       }
+
       const entry = model.teamDetail.detail.roster.find((row) => row.personId === message.personId);
+
       return {
         model: {
           ...model,
@@ -2006,16 +2122,20 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       if (model.teamDetail._tag !== "Loaded") {
         return { model };
       }
+
       const teamId = model.teamDetail.detail.team.id;
+
       if (message.outcome._tag === "Success") {
         return {
           model: { ...model, rosterBusy: false },
           commands: [GetTeam({ teamId })],
         };
       }
+
       if (message.outcome.failure === "Unauthenticated") {
         return { model, commands: [LoadSession()] };
       }
+
       return {
         model: {
           ...model,
@@ -2029,7 +2149,9 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       if (model.teamDetail._tag !== "Loaded") {
         return { model };
       }
+
       const entry = model.teamDetail.detail.roster.find((row) => row.personId === message.personId);
+
       return {
         model: {
           ...model,
@@ -2046,6 +2168,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     case "ConfirmRemove": {
       if (Option.isSome(model.pendingRemovePerson)) {
         const personId = model.pendingRemovePerson.value.personId;
+
         return {
           model: {
             ...model,
@@ -2056,14 +2179,18 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
           commands: [RemovePerson({ personId })],
         };
       }
+
       if (Option.isNone(model.pendingRemove)) {
         return { model };
       }
+
       if (model.teamDetail._tag !== "Loaded") {
         return { model };
       }
+
       const pending = model.pendingRemove.value;
       const teamId = model.teamDetail.detail.team.id;
+
       return {
         model: { ...model, pendingRemove: Option.none(), rosterBusy: true, rosterFailure: Option.none() },
         commands: [
@@ -2082,16 +2209,20 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       if (model.teamDetail._tag !== "Loaded") {
         return { model };
       }
+
       const teamId = model.teamDetail.detail.team.id;
+
       if (message.outcome._tag === "Success") {
         return {
           model: { ...model, rosterBusy: false },
           commands: [GetTeam({ teamId })],
         };
       }
+
       if (message.outcome.failure === "Unauthenticated") {
         return { model, commands: [LoadSession()] };
       }
+
       return {
         model: {
           ...model,
@@ -2103,6 +2234,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
 
     case "GotSettings": {
       const { outcome } = message;
+
       if (outcome._tag === "Success") {
         return {
           model: {
@@ -2112,9 +2244,11 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
           },
         };
       }
+
       if (outcome.failure === "Unauthenticated") {
         return { model, commands: [LoadSession()] };
       }
+
       return {
         model: {
           ...model,
@@ -2125,12 +2259,15 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
 
     case "GotFailedEmails": {
       const { outcome } = message;
+
       if (outcome._tag === "Success") {
         return { model: { ...model, failedEmails: { _tag: "Loaded", list: outcome.list } } };
       }
+
       if (outcome.failure === "Unauthenticated") {
         return { model, commands: [LoadSession()] };
       }
+
       return { model: { ...model, failedEmails: { _tag: "Failed", failure: outcome.failure } } };
     }
 
@@ -2146,6 +2283,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       ) {
         return { model };
       }
+
       return {
         model: withFailedEmailResend(model, sendId, { _tag: "Resending" }),
         commands: [ResendFailedEmailCmd({ sendId })],
@@ -2158,22 +2296,28 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       if (model.failedEmailResends[sendId]?._tag !== "Resending") {
         return { model };
       }
+
       if (outcome._tag === "Failure") {
         const failed = withFailedEmailResend(model, sendId, { _tag: "Failed", failure: outcome.failure });
+
         return outcome.failure === "Unauthenticated"
           ? { model: failed, commands: [LoadSession()] }
           : { model: failed };
       }
+
       const { state } = outcome.status;
+
       const next = withFailedEmailResend(model, sendId, {
         _tag: "Resent",
         state,
         polls: 0,
         statusUnavailable: false,
       });
+
       if (!failedEmailKeepsPolling(state, 0)) {
         return { model: next };
       }
+
       return { model: next, commands: [PollFailedEmailCmd({ sendId })] };
     }
 
@@ -2184,16 +2328,20 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       if (current?._tag !== "Resent") {
         return { model };
       }
+
       if (outcome._tag === "Failure") {
         const failed = withFailedEmailResend(model, sendId, { ...current, statusUnavailable: true });
+
         return outcome.failure === "Unauthenticated"
           ? { model: failed, commands: [LoadSession()] }
           : { model: failed };
       }
+
       const polls = current.polls + 1;
       const { state } = outcome.status;
       const keepsPolling = failedEmailKeepsPolling(state, polls);
       const settled = state._tag === "Sent" || state._tag === "Failed";
+
       const next = withFailedEmailResend(model, sendId, {
         _tag: "Resent",
         state,
@@ -2201,9 +2349,11 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
 
         statusUnavailable: !keepsPolling && !settled,
       });
+
       if (!keepsPolling) {
         return { model: next };
       }
+
       return { model: next, commands: [PollFailedEmailCmd({ sendId })] };
     }
 
@@ -2213,9 +2363,11 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
 
     case "SubmitSize": {
       const parsed = decodeSize(Number(model.size));
+
       if (Option.isNone(parsed)) {
         return { model: { ...model, sizeFailure: Option.some("Invalid") } };
       }
+
       return {
         model: { ...model, sizeBusy: true, sizeFailure: Option.none(), sizeSaved: false },
         commands: [UpdateSettings({ minimumGroupSize: parsed.value })],
@@ -2229,9 +2381,11 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
           commands: [GetSettings()],
         };
       }
+
       if (message.outcome.failure === "Unauthenticated") {
         return { model, commands: [LoadSession()] };
       }
+
       return {
         model: {
           ...model,
@@ -2245,6 +2399,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       if (model.aiBusy) {
         return { model };
       }
+
       return {
         model: { ...model, aiBusy: true, aiFailure: Option.none() },
         commands: [UpdateAiProcessing({ aiProcessing: message.isOn })],
@@ -2258,9 +2413,11 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
           commands: [GetSettings()],
         };
       }
+
       if (message.outcome.failure === "Unauthenticated") {
         return { model, commands: [LoadSession()] };
       }
+
       return {
         model: { ...model, aiBusy: false, aiFailure: Option.some(message.outcome.failure) },
       };
@@ -2280,9 +2437,11 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
           commands: [GetSettings()],
         };
       }
+
       if (message.outcome.failure === "Unauthenticated") {
         return { model, commands: [LoadSession()] };
       }
+
       return {
         model: {
           ...model,
@@ -2306,9 +2465,11 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
           commands: [GetSettings()],
         };
       }
+
       if (message.outcome.failure === "Unauthenticated") {
         return { model, commands: [LoadSession()] };
       }
+
       return {
         model: {
           ...model,
@@ -2323,6 +2484,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         model.settings._tag === "Loaded"
           ? model.settings.settings.people.find((row) => row.personId === message.personId)
           : undefined;
+
       return {
         model: {
           ...model,
@@ -2347,6 +2509,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       if (Option.isNone(model.pendingDropId)) {
         return { model };
       }
+
       return update(
         model,
         Message.UpdateActionStatus({ actionId: model.pendingDropId.value, status: "dropped" }),
@@ -2358,25 +2521,32 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         case "createTeam": {
           return { model: { ...model, createTeamOpen: !model.createTeamOpen } };
         }
+
         case "renameTeam": {
           return { model: { ...model, renameOpen: !model.renameOpen } };
         }
+
         case "addMember": {
           return { model: { ...model, addMemberOpen: !model.addMemberOpen } };
         }
+
         case "assignLead": {
           return { model: { ...model, assignLeadOpen: !model.assignLeadOpen } };
         }
+
         case "skipWeek": {
           return { model: { ...model, roundsSkipOpen: !model.roundsSkipOpen } };
         }
+
         case "commitAction": {
           return { model: { ...model, actionFormOpen: !model.actionFormOpen } };
         }
+
         case "minimumSize": {
           return { model: { ...model, sizeOpen: !model.sizeOpen } };
         }
       }
+
       return { model };
     }
 
@@ -2387,9 +2557,11 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
           commands: [GetSettings()],
         };
       }
+
       if (message.outcome.failure === "Unauthenticated") {
         return { model, commands: [LoadSession()] };
       }
+
       return {
         model: {
           ...model,
@@ -2401,6 +2573,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
 
     case "GotPulses": {
       const { outcome } = message;
+
       if (outcome._tag === "Success") {
         return {
           model: {
@@ -2424,9 +2597,11 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
                 : [],
         };
       }
+
       if (outcome.failure === "Unauthenticated") {
         return { model, commands: [LoadSession()] };
       }
+
       return {
         model: {
           ...model,
@@ -2439,7 +2614,9 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       if (model.route._tag !== "Pulses") {
         return { model };
       }
+
       const teamId = model.route.teamId;
+
       return {
         model: { ...model, createPulseBusy: true, createPulseFailure: Option.none() },
         commands: [CreatePulse({ teamId })],
@@ -2450,17 +2627,22 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       if (model.route._tag !== "Pulses") {
         return { model };
       }
+
       const teamId = model.route.teamId;
+
       if (message.outcome._tag === "Success") {
         const nextUrl = pulseHref(teamId, message.outcome.detail.id);
+
         return {
           model: { ...model, createPulseBusy: false },
           commands: [Navigate({ url: nextUrl })],
         };
       }
+
       if (message.outcome.failure === "Unauthenticated") {
         return { model, commands: [LoadSession()] };
       }
+
       return {
         model: {
           ...model,
@@ -2472,8 +2654,10 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
 
     case "GotPulse": {
       const { outcome } = message;
+
       if (outcome._tag === "Success") {
         const { detail } = outcome;
+
         return {
           model: {
             ...model,
@@ -2487,9 +2671,11 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
           },
         };
       }
+
       if (outcome.failure === "Unauthenticated") {
         return { model, commands: [LoadSession()] };
       }
+
       return {
         model: {
           ...model,
@@ -2502,13 +2688,17 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       if (model.pulseDetail._tag !== "Loaded") {
         return { model };
       }
+
       const { detail } = model.pulseDetail;
       const order: QuestionId[] = detail.questions.map((q) => q.questionId);
       const [moved] = order.splice(message.index, 1);
+
       if (moved === undefined) {
         return { model };
       }
+
       order.splice(message.index + message.by, 0, moved);
+
       return {
         model: { ...model, pulseActionBusy: true, pulseActionFailure: Option.none() },
         commands: [
@@ -2531,14 +2721,19 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
           },
         };
       }
+
       const targetId = message.questionId.value;
+
       if (model.pulseDetail._tag !== "Loaded") {
         return { model };
       }
+
       const q = model.pulseDetail.detail.questions.find((question) => question.questionId === targetId);
+
       if (!q) {
         return { model };
       }
+
       return {
         model: {
           ...model,
@@ -2559,7 +2754,9 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       if (model.pulseDetail._tag !== "Loaded") {
         return { model };
       }
+
       const { detail } = model.pulseDetail;
+
       return {
         model: { ...model, pulseActionBusy: true, pulseActionFailure: Option.none() },
         commands: [
@@ -2576,7 +2773,9 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       if (model.pulseDetail._tag !== "Loaded") {
         return { model };
       }
+
       const { detail } = model.pulseDetail;
+
       return {
         model: { ...model, pulseActionBusy: true, pulseActionFailure: Option.none() },
         commands: [
@@ -2638,7 +2837,9 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       if (model.pulseDetail._tag !== "Loaded") {
         return { model };
       }
+
       const { detail } = model.pulseDetail;
+
       const typed: QuestionType =
         model.formKind === "Rating"
           ? {
@@ -2679,9 +2880,11 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
           ],
         };
       }
+
       if (Option.isNone(model.editingQuestionId)) {
         return { model };
       }
+
       return {
         model: { ...model, formBusy: true, formFailure: Option.none() },
         commands: [
@@ -2697,6 +2900,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
 
     case "UpdatedPulse": {
       const { outcome } = message;
+
       if (outcome._tag === "Success") {
         return {
           model: {
@@ -2713,9 +2917,11 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
           },
         };
       }
+
       if (outcome.failure === "Unauthenticated") {
         return { model, commands: [LoadSession()] };
       }
+
       return {
         model: {
           ...model,
@@ -2763,7 +2969,9 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       if (model.pulseDetail._tag !== "Loaded") {
         return { model };
       }
+
       const { detail } = model.pulseDetail;
+
       const parsed = decodeSettings({
         ...detail.settings,
         name: model.settingsName.trim(),
@@ -2797,7 +3005,9 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       if (model.pulseDetail._tag !== "Loaded" || model.testSendBusy) {
         return { model };
       }
+
       const { detail } = model.pulseDetail;
+
       return {
         model: { ...model, testSendBusy: true, testSendResult: Option.none() },
         commands: [SendTestInvitationCmd({ teamId: detail.team.id, pulseId: detail.id })],
@@ -2806,10 +3016,12 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
 
     case "SentTestInvitation": {
       const { outcome } = message;
+
       if (outcome._tag === "Success") {
         if (model.route._tag !== "Pulse" || model.route.pulseId !== outcome.pulseId) {
           return { model: { ...model, testSendBusy: false } };
         }
+
         return {
           model: {
             ...model,
@@ -2826,9 +3038,11 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
           ],
         };
       }
+
       if (outcome.failure === "Unauthenticated") {
         return { model: { ...model, testSendBusy: false }, commands: [LoadSession()] };
       }
+
       return {
         model: {
           ...model,
@@ -2845,23 +3059,29 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       if (current?._tag !== "Sent" || current.sendId !== sendId) {
         return { model };
       }
+
       if (outcome._tag === "Failure") {
         const failed: Model = {
           ...model,
           testSendResult: Option.some({ ...current, statusUnavailable: true }),
         };
+
         return outcome.failure === "Unauthenticated"
           ? { model: failed, commands: [LoadSession()] }
           : { model: failed };
       }
+
       const { status } = outcome;
+
       const next: Model = {
         ...model,
         testSendResult: Option.some({ ...current, status, statusUnavailable: false }),
       };
+
       if (model.route._tag !== "Pulse" || !testSendKeepsPolling(status)) {
         return { model: next };
       }
+
       return {
         model: next,
         commands: [PollTestSendCmd({ teamId: model.route.teamId, pulseId: model.route.pulseId, sendId })],
@@ -2870,16 +3090,21 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
 
     case "GotRounds": {
       const { outcome } = message;
+
       if (outcome._tag === "Failure") {
         if (outcome.failure === "Unauthenticated") {
           return { model, commands: [LoadSession()] };
         }
+
         return { model: { ...model, rounds: { _tag: "Failed", failure: outcome.failure } } };
       }
+
       const lead = isLead(model.teamDetail);
       const commands = [];
+
       if (lead && model.route._tag === "Rounds") {
         const teamId = model.route.teamId;
+
         for (const round of outcome.list.rounds) {
           if (round.status === "open") {
             commands.push(GetRoundDetailCmd({ teamId, roundId: round.id }));
@@ -2888,6 +3113,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
           }
         }
       }
+
       return {
         model: {
           ...model,
@@ -2905,6 +3131,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       if (message.outcome._tag === "Failure") {
         return { model };
       }
+
       return {
         model: {
           ...model,
@@ -2917,6 +3144,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       if (message.outcome._tag === "Failure") {
         return { model };
       }
+
       return {
         model: {
           ...model,
@@ -2933,6 +3161,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       if (model.route._tag !== "Rounds") {
         return { model };
       }
+
       return {
         model: { ...model, roundsBusy: true, roundsFailure: Option.none() },
         commands: [
@@ -2949,6 +3178,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       if (model.route._tag !== "Rounds" || model.roundsSkipDate.trim() === "") {
         return { model };
       }
+
       return {
         model: { ...model, roundsBusy: true, roundsFailure: Option.none() },
         commands: [
@@ -2965,6 +3195,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       if (model.route._tag !== "Rounds") {
         return { model };
       }
+
       return {
         model: { ...model, roundsBusy: true, roundsFailure: Option.none() },
         commands: [PausePulseCmd({ teamId: model.route.teamId, pulseId: model.route.pulseId })],
@@ -2975,6 +3206,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       if (model.route._tag !== "Rounds") {
         return { model };
       }
+
       return {
         model: { ...model, roundsBusy: true, roundsFailure: Option.none() },
         commands: [ResumePulseCmd({ teamId: model.route.teamId, pulseId: model.route.pulseId })],
@@ -2999,8 +3231,10 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       if (model.route._tag !== "Rounds" || Option.isNone(model.roundConfirm)) {
         return { model };
       }
+
       const { kind, roundId } = model.roundConfirm.value;
       const teamId = model.route.teamId;
+
       return {
         model: { ...model, roundConfirm: Option.none(), roundsBusy: true, roundsFailure: Option.none() },
         commands: [
@@ -3013,6 +3247,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       if (model.route._tag !== "Rounds") {
         return { model };
       }
+
       return {
         model: { ...model, roundsBusy: true, roundsFailure: Option.none() },
         commands: [
@@ -3027,16 +3262,20 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
 
     case "RoundCommandDone": {
       const { outcome } = message;
+
       if (outcome._tag === "Failure") {
         if (outcome.failure === "Unauthenticated") {
           return { model, commands: [LoadSession()] };
         }
+
         return { model: { ...model, roundsBusy: false, roundsFailure: Option.some(outcome.failure) } };
       }
+
       const reload =
         model.route._tag === "Rounds"
           ? [ListRoundsCmd({ teamId: model.route.teamId, pulseId: model.route.pulseId })]
           : [];
+
       return {
         model: { ...model, roundsBusy: false, roundDetails: {}, roundRates: {}, roundsSkipDate: "" },
         commands: reload,
@@ -3045,11 +3284,14 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
 
     case "GotTeamOverview": {
       const { outcome } = message;
+
       if (outcome._tag === "Success") {
         const isCurrentTeam = model.route._tag === "Team" && model.route.teamId === outcome.overview.teamId;
+
         if (!isCurrentTeam) {
           return { model };
         }
+
         return {
           model: {
             ...model,
@@ -3057,6 +3299,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
           },
         };
       }
+
       return {
         model: {
           ...model,
@@ -3067,10 +3310,12 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
 
     case "GotMyHistory": {
       const { outcome } = message;
+
       if (outcome._tag === "Success") {
         if (model.route._tag !== "History") {
           return { model };
         }
+
         return {
           model: {
             ...model,
@@ -3078,9 +3323,11 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
           },
         };
       }
+
       if (outcome.failure === "Unauthenticated") {
         return { model, commands: [LoadSession()] };
       }
+
       return {
         model: { ...model, history: { _tag: "Failed", failure: outcome.failure } },
       };
@@ -3090,6 +3337,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       if (model.history._tag !== "Loaded") {
         return { model };
       }
+
       return { model, commands: [ClearKeptAnswersCmd()] };
     }
 
@@ -3097,6 +3345,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       if (model.history._tag !== "Loaded") {
         return { model };
       }
+
       return {
         model: { ...model, history: { ...model.history, kept: {}, cleared: true } },
       };
@@ -3104,6 +3353,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
 
     case "GotResults": {
       const { outcome } = message;
+
       if (outcome._tag === "Success") {
         return {
           model: {
@@ -3113,6 +3363,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
           },
         };
       }
+
       return {
         model: {
           ...model,
@@ -3124,6 +3375,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
 
     case "ToggleResultsTable": {
       const current = model.showTable[message.key] ?? false;
+
       return {
         model: {
           ...model,
@@ -3145,10 +3397,12 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     case "CopiedGuide": {
       return { model: { ...model, guideCopy: message.ok ? "copied" : "failed" } };
     }
+
     case "ShareResultsClicked": {
       if (model.route._tag !== "RoundResults" || model.shareBusy) {
         return { model };
       }
+
       return {
         model: { ...model, shareBusy: true, shareFailure: Option.none() },
         commands: [ShareResultsCmd({ teamId: model.route.teamId, roundId: model.route.roundId })],
@@ -3157,6 +3411,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
 
     case "ResultsShareDone": {
       const { outcome } = message;
+
       if (outcome._tag === "Failure") {
         return { model: { ...model, shareBusy: false, shareFailure: Option.some(outcome.failure) } };
       }
@@ -3165,6 +3420,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         model.route._tag === "RoundResults"
           ? [GetResultsCmd({ teamId: model.route.teamId, roundId: model.route.roundId })]
           : [];
+
       return { model: { ...model, shareBusy: false, shareFailure: Option.none() }, commands: reload };
     }
 
@@ -3172,6 +3428,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       if (model.route._tag !== "RoundResults" || model.retryBusy) {
         return { model };
       }
+
       return {
         model: { ...model, retryBusy: true, retryFailure: Option.none() },
         commands: [RetryResultCmd({ teamId: model.route.teamId, roundId: model.route.roundId })],
@@ -3180,6 +3437,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
 
     case "RetryResultDone": {
       const { outcome } = message;
+
       if (outcome._tag === "Failure") {
         return { model: { ...model, retryBusy: false, retryFailure: Option.some(outcome.failure) } };
       }
@@ -3188,11 +3446,13 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         model.route._tag === "RoundResults"
           ? [GetResultsCmd({ teamId: model.route.teamId, roundId: model.route.roundId })]
           : [];
+
       return { model: { ...model, retryBusy: false, retryFailure: Option.none() }, commands: reload };
     }
 
     case "GotActions": {
       const { outcome } = message;
+
       if (outcome._tag === "Success") {
         return {
           model: {
@@ -3205,6 +3465,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
           },
         };
       }
+
       return {
         model: {
           ...model,
@@ -3233,15 +3494,19 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       if (model.route._tag !== "RoundResults" || model.actionTitle.trim() === "") {
         return { model };
       }
+
       const teamId = model.route.teamId;
       const roundId = model.route.roundId;
       const roster = model.teamDetail._tag === "Loaded" ? model.teamDetail.detail.roster : [];
       const ownerId = Option.getOrElse(model.actionOwnerId, () => roster[0]?.personId);
+
       if (ownerId === undefined) {
         return { model };
       }
+
       const dueDate = model.actionDueDate.trim() !== "" ? model.actionDueDate.trim() : null;
       const dimension = model.actionDimension !== "none" ? model.actionDimension : null;
+
       return {
         model: { ...model, actionBusy: true, actionFailure: Option.none() },
         commands: [
@@ -3259,11 +3524,13 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
 
     case "CreatedAction": {
       const { outcome } = message;
+
       if (outcome._tag === "Success") {
         const nextActions =
           model.actions._tag === "Loaded"
             ? LoadedActions.Loaded({ actions: [...model.actions.actions, outcome.action] })
             : model.actions;
+
         return {
           model: {
             ...model,
@@ -3276,6 +3543,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
           },
         };
       }
+
       return {
         model: {
           ...model,
@@ -3289,6 +3557,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       if (model.route._tag !== "RoundResults") {
         return { model };
       }
+
       return {
         model,
         commands: [
@@ -3303,6 +3572,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
 
     case "UpdatedAction": {
       const { outcome } = message;
+
       if (outcome._tag === "Success") {
         const nextActions =
           model.actions._tag === "Loaded"
@@ -3312,17 +3582,21 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
                 ),
               })
             : model.actions;
+
         return { model: { ...model, actions: nextActions } };
       }
+
       return { model: { ...model, actionFailure: Option.some(outcome.failure) } };
     }
 
     case "GotRoundNote": {
       const { outcome } = message;
+
       if (outcome._tag === "Success") {
         if (!isCurrentRoundNote(model, outcome.view.roundId)) {
           return { model };
         }
+
         return {
           model: {
             ...model,
@@ -3330,6 +3604,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
           },
         };
       }
+
       return {
         model: {
           ...model,
@@ -3341,6 +3616,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     case "NoteEditClicked": {
       const current =
         model.roundNote._tag === "Loaded" && model.roundNote.note !== null ? model.roundNote.note.text : "";
+
       return {
         model: { ...model, noteDraft: current, noteEditing: true, noteFailure: Option.none() },
       };
@@ -3362,6 +3638,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       ) {
         return { model };
       }
+
       return {
         model: { ...model, noteBusy: true, noteFailure: Option.none() },
         commands: [
@@ -3376,10 +3653,12 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
 
     case "SavedNote": {
       const { outcome } = message;
+
       if (outcome._tag === "Success") {
         if (!isCurrentRoundNote(model, outcome.view.roundId)) {
           return { model };
         }
+
         return {
           model: {
             ...model,
@@ -3391,6 +3670,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
           },
         };
       }
+
       return {
         model: {
           ...model,
@@ -3410,6 +3690,7 @@ export const localeOf = (model: Model): Locale => {
       organization: model.session.organizationLocale,
     });
   }
+
   return model.browserLocale ?? "en";
 };
 
@@ -3493,6 +3774,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
   }
 
   const { organization, organizationAdmin } = model.session;
+
   const shellTitle = screenTitle({
     route: model.route,
     organizationName: organization.name,
@@ -3503,6 +3785,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
   });
 
   let screenContent = null;
+
   switch (model.route._tag) {
     case "Teams":
     case "NotFound": {
@@ -3646,6 +3929,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
           h,
         );
       }
+
       break;
     }
 

@@ -11,6 +11,7 @@ import type {
 import { InvitationTokens, withToken } from "./EmailTemplates.ts";
 
 const invitation = { roundId: "round-1", personId: "person-1", generation: 2 };
+
 const base = {
   pulseName: "Weekly Pulse",
   baseUrl: "https://app.surveybeat.app",
@@ -23,6 +24,7 @@ const tokens = {
   deriveTest: (ref: { pulseId: string; personId: string; testId: string }) =>
     Effect.succeed(`test.${ref.pulseId}.${ref.personId}.${ref.testId}`),
 };
+
 const resolve = (email: StoredEmail) =>
   withToken(email).pipe(Effect.provideService(InvitationTokens, tokens));
 
@@ -33,7 +35,9 @@ const invitationEmail: InvitationEmail = {
   minimumGroupSize: 4,
   invitation,
 };
+
 const reminderEmail: ReminderEmail = { _tag: "ReminderEmail", locale: "en", ...base, invitation };
+
 const testEmail: TestInvitationEmail = {
   _tag: "TestInvitationEmail",
   locale: "en",
@@ -85,7 +89,9 @@ describe("withToken", () => {
         anonymityStatement: "Your name is never stored with your answers.",
         token: "stored-token",
       };
+
       expect(yield* resolve(legacy)).toEqual(legacy);
+
       const legacyReminder: ReminderEmailWithToken = {
         _tag: "ReminderEmail",
         locale: "en",
@@ -93,6 +99,7 @@ describe("withToken", () => {
         token: "stored-token",
         unsubscribeUrl: "https://app.surveybeat.app/api/reminders/unsubscribe?t=stored-token",
       };
+
       expect(yield* resolve(legacyReminder)).toEqual(legacyReminder);
     }),
   );
@@ -109,6 +116,7 @@ describe("stored email schemas", () => {
       anonymityStatement: "Your name is never stored with your answers.",
       token: "stored-token",
     };
+
     expect(decodeStored(row)).toEqual({ ...row, locale: "en" });
     expect(() => decodeWritable(row)).toThrow();
   });
@@ -148,6 +156,7 @@ describe("stored email schemas", () => {
       minimumGroupSize: 4,
       test: { pulseId: "pulse-1", personId: "person-1", testId: "test-7" },
     };
+
     expect(decodeStored(testSend)).toEqual(testSend);
     expect(decodeWritable(testSend)).toEqual(testSend);
     expect(JSON.stringify(Schema.encodeSync(StoredEmail)(testSend))).not.toContain("token");

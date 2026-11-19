@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 import { keepAnswer, keptAnswersLifetimeMs, keptAnswersPrefix } from "./kept-answers.ts";
 
 const now = 1_800_000_000_000;
+
 const oneYear = 365 * 24 * 60 * 60 * 1000;
 
 const fakeStorage = (initial: Record<string, string> = {}) => {
   const map = new Map(Object.entries(initial));
+
   return {
     map,
     storage: {
@@ -19,6 +21,7 @@ const fakeStorage = (initial: Record<string, string> = {}) => {
 
 const read = (map: Map<string, string>, roundId: string) => {
   const raw = map.get(`${keptAnswersPrefix}${roundId}`);
+
   return raw === undefined ? undefined : JSON.parse(raw);
 };
 
@@ -108,6 +111,7 @@ describe("keepAnswer", () => {
       },
       setItem: (): void => {},
     };
+
     expect(() => keepAnswer(() => storage, "round-1", "qv-1", { value: 1 }, now)).not.toThrow();
   });
 
@@ -118,6 +122,7 @@ describe("keepAnswer", () => {
         throw new Error("QuotaExceededError");
       },
     };
+
     expect(() => keepAnswer(() => storage, "round-1", "qv-1", { value: 1 }, now)).not.toThrow();
   });
 
@@ -136,6 +141,7 @@ describe("keepAnswer", () => {
     const blocked = (): Storage => {
       throw new DOMException("blocked", "SecurityError");
     };
+
     expect(() => keepAnswer(blocked, "round-1", "qv-1", { value: 3 }, now)).not.toThrow();
   });
 });

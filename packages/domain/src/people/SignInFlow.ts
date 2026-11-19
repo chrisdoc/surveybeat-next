@@ -34,6 +34,7 @@ export interface SessionOutcome {
 const memberOf = Effect.fnUntraced(function* (session: SignedInSession, organization: OrganizationSummary) {
   const people = yield* OrganizationPeople;
   const person = yield* people.activePerson(organization.id, session.identity.userId);
+
   return Option.map(person, (active) => ({ organization, ...active }));
 });
 
@@ -52,19 +53,24 @@ export const checkSession = Effect.fnUntraced(function* (cookie: Redacted.Redact
       ],
       { concurrency: "unbounded" },
     );
+
     const candidate = candidatesFor(session.identity, linked, unlinked).find(
       (each) => each.organization.id === chosen.value,
     );
+
     const member =
       candidate === undefined ? Option.none<Member>() : yield* memberOf(session, candidate.organization);
+
     return { session, member } satisfies CheckedSession;
   }
 
   const linked = yield* index.linkedPersons(session.identity.userId);
   const [only, ...rest] = linked;
+
   if (only === undefined || rest.length > 0) {
     return { session, member: Option.none() } satisfies CheckedSession;
   }
+
   return { session, member: yield* memberOf(session, only.organization) } satisfies CheckedSession;
 });
 
@@ -84,6 +90,7 @@ const signedIn = (session: SignedInSession, member: Member): SessionOutcome => (
 const candidatesOf = Effect.fnUntraced(function* (session: SignedInSession) {
   const index = yield* PeopleIndex;
   const { identity } = session;
+
   const [linked, unlinked] = yield* Effect.all(
     [
       index.linkedPersons(identity.userId),
@@ -92,6 +99,7 @@ const candidatesOf = Effect.fnUntraced(function* (session: SignedInSession) {
     ],
     { concurrency: "unbounded" },
   );
+
   return candidatesFor(identity, linked, unlinked);
 });
 
@@ -109,16 +117,22 @@ const enter = Effect.fnUntraced(function* (session: SignedInSession, candidate: 
       identity.userId,
       identity.email,
     );
+
     if (!linked) {
       return yield* new Forbidden();
     }
+
     yield* index.linkPerson(organizationId, candidate.personId, identity.userId);
   }
+
   const member = yield* memberOf(session, candidate.organization);
+
   if (Option.isNone(member)) {
     return yield* new Forbidden();
   }
+
   yield* sessions.chooseOrganization(session.sessionId, organizationId);
+
   return signedIn(session, member.value);
 });
 
@@ -136,10 +150,13 @@ const finishCreation = Effect.fnUntraced(function* (session: SignedInSession, cl
   });
 
   const member = yield* memberOf(session, organization);
+
   if (Option.isNone(member)) {
     yield* index.completeClaim(identity.userId, yield* Clock.currentTimeMillis);
+
     return yield* new Forbidden();
   }
+
   yield* index.putOrganization(organization);
   yield* index.putPerson({
     organizationId: organization.id,
@@ -149,6 +166,7 @@ const finishCreation = Effect.fnUntraced(function* (session: SignedInSession, cl
   });
   yield* index.completeClaim(identity.userId, yield* Clock.currentTimeMillis);
   yield* sessions.chooseOrganization(session.sessionId, organization.id);
+
   return signedIn(session, member.value);
 });
 
@@ -164,20 +182,24 @@ export const sessionState = Effect.fnUntraced(function* (
   allowlist: OrganizationCreationAllowlist,
 ) {
   const { session } = checked;
+
   if (Option.isSome(checked.member)) {
     return signedIn(session, checked.member.value);
   }
 
   const claim = yield* (yield* PeopleIndex).claimOf(session.identity.userId);
+
   if (isUnfinished(claim, session, allowlist)) {
     return yield* finishCreation(session, claim.value);
   }
 
   const decision = decideSignIn(session.identity, yield* candidatesOf(session), allowlist);
+
   switch (decision._tag) {
     case "Enter": {
       return yield* enter(session, decision.candidate);
     }
+
     case "ChooseOrganization": {
       return {
         session,
@@ -187,12 +209,14 @@ export const sessionState = Effect.fnUntraced(function* (
         },
       } satisfies SessionOutcome;
     }
+
     case "CreateOrganization": {
       return {
         session,
         state: { _tag: Option.isSome(claim) ? "NotInOrganization" : "CreateOrganization" },
       } satisfies SessionOutcome;
     }
+
     case "NotInOrganization": {
       return { session, state: { _tag: decision._tag } } satisfies SessionOutcome;
     }
@@ -216,16 +240,19 @@ export const createOrganization = Effect.fnUntraced(function* (
   if (Option.isSome(checked.member)) {
     return signedIn(session, checked.member.value);
   }
+
   if (!allowlist.allows(session.identity)) {
     return yield* new Forbidden();
   }
 
   const existing = yield* index.claimOf(session.identity.userId);
+
   if (Option.isSome(existing)) {
     return yield* finishOrEnter(session, existing.value);
   }
 
   const decision = decideSignIn(session.identity, yield* candidatesOf(session), allowlist);
+
   if (decision._tag !== "CreateOrganization") {
     return yield* new Forbidden();
   }
@@ -234,7 +261,9 @@ export const createOrganization = Effect.fnUntraced(function* (
     organization: { id: yield* ids.organizationId, name },
     adminPersonId: yield* ids.personId,
   });
+
   const canonical = Option.getOrElse(yield* index.claimOf(session.identity.userId), () => claimed);
+
   return yield* finishOrEnter(session, canonical);
 });
 
@@ -245,17 +274,21 @@ export const chooseOrganization = Effect.fnUntraced(function* (
   const candidate = (yield* candidatesOf(checked.session)).find(
     (each) => each.organization.id === organizationId,
   );
+
   if (candidate === undefined) {
     return yield* new Forbidden();
   }
+
   return yield* enter(checked.session, candidate);
 });
 
 export const signOut = Effect.fnUntraced(function* (cookie: Redacted.Redacted) {
   const sessions = yield* SessionIdentityProvider;
   const session = yield* sessions.authenticate(cookie).pipe(Effect.option);
+
   if (Option.isNone(session)) {
     return yield* Effect.void;
   }
+
   yield* sessions.revokeSession(session.value.sessionId);
 });

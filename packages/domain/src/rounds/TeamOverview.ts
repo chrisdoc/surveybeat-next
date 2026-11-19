@@ -12,12 +12,15 @@ export const OverviewRound = Schema.Struct({
   plannedOpenDate: Schema.String,
   pulseName: Schema.optionalKey(Schema.String),
 });
+
 export type OverviewRound = typeof OverviewRound.Type;
 
 export const OverviewPoint = Schema.Struct({ roundId: RoundId, score: Schema.NullOr(Schema.Finite) });
+
 export type OverviewPoint = typeof OverviewPoint.Type;
 
 export const DimensionOverview = Schema.Struct({ dimension: Dimension, points: Schema.Array(OverviewPoint) });
+
 export type DimensionOverview = typeof DimensionOverview.Type;
 
 export const ActionMarker = Schema.Struct({
@@ -26,6 +29,7 @@ export const ActionMarker = Schema.Struct({
   kind: Schema.Literals(["committed", "done"]),
   at: Schema.Int,
 });
+
 export type ActionMarker = typeof ActionMarker.Type;
 
 export const TeamOverview = Schema.Struct({
@@ -34,6 +38,7 @@ export const TeamOverview = Schema.Struct({
   dimensions: Schema.Array(DimensionOverview),
   markers: Schema.Array(ActionMarker),
 });
+
 export type TeamOverview = typeof TeamOverview.Type;
 
 export interface OverviewActionInput {
@@ -50,10 +55,13 @@ const pointScore = (result: RoundResult, dimension: Dimension): number | null =>
   if (!result.meetsMinimumGroupSize) {
     return null;
   }
+
   const dimensionResult = result.dimensions.find((each) => each.dimension === dimension);
+
   if (dimensionResult === undefined || !dimensionResult.meetsMinimumGroupSize) {
     return null;
   }
+
   return dimensionResult.score;
 };
 
@@ -71,15 +79,18 @@ export const buildTeamOverview = (params: {
     );
 
   const dimensions: DimensionOverview[] = [];
+
   for (const dimension of Dimension.literals) {
     const asked = shared.some((result) =>
       result.questions.some(
         (question) => question.dimension === dimension && question.type._tag === "Rating",
       ),
     );
+
     if (!asked) {
       continue;
     }
+
     dimensions.push({
       dimension,
       points: shared.map((result) => ({ roundId: result.roundId, score: pointScore(result, dimension) })),
@@ -87,15 +98,19 @@ export const buildTeamOverview = (params: {
   }
 
   const markers: ActionMarker[] = [];
+
   for (const action of params.actions) {
     if (action.status !== "committed" && action.status !== "done") {
       continue;
     }
+
     markers.push({ actionId: action.id, title: action.title, kind: "committed", at: action.createdAt });
+
     if (action.status === "done" && action.doneAt !== null) {
       markers.push({ actionId: action.id, title: action.title, kind: "done", at: action.doneAt });
     }
   }
+
   markers.sort(
     (a, b) =>
       a.at - b.at ||

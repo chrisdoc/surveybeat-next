@@ -10,6 +10,7 @@ export const FailedEmailKind = Schema.Literals([
   "ReminderEmail",
   "ResultsReadyEmail",
 ]);
+
 export type FailedEmailKind = typeof FailedEmailKind.Type;
 
 export const FailedEmail = Schema.Struct({
@@ -21,9 +22,11 @@ export const FailedEmail = Schema.Struct({
   failedAt: Schema.Int,
   resendable: Schema.Boolean,
 });
+
 export type FailedEmail = typeof FailedEmail.Type;
 
 export const FailedEmails = Schema.Struct({ emails: Schema.Array(FailedEmail) });
+
 export type FailedEmails = typeof FailedEmails.Type;
 
 export const EmailSendProgress = Schema.TaggedUnion({
@@ -33,9 +36,11 @@ export const EmailSendProgress = Schema.TaggedUnion({
   Sent: { sentAt: Schema.Int },
   Failed: { reason: FailureReason, code: Schema.NullOr(Schema.String), failedAt: Schema.Int },
 });
+
 export type EmailSendProgress = typeof EmailSendProgress.Type;
 
 export const FailedEmailStatus = Schema.Struct({ sendId: SendId, state: EmailSendProgress });
+
 export type FailedEmailStatus = typeof FailedEmailStatus.Type;
 
 export const progressOf = (state: SendState): EmailSendProgress => {
@@ -43,12 +48,15 @@ export const progressOf = (state: SendState): EmailSendProgress => {
     case "Pending": {
       return { _tag: "Queued", attempts: state.attempts, lastCode: state.lastCode };
     }
+
     case "Sending": {
       return { _tag: "Sending", attempt: state.attempt };
     }
+
     case "Sent": {
       return { _tag: "Sent", sentAt: state.sentAt };
     }
+
     case "Failed": {
       return { _tag: "Failed", reason: state.reason, code: state.code, failedAt: state.failedAt };
     }
@@ -90,20 +98,25 @@ export const isResendable = (sendId: SendId, facts: ResendFacts): boolean => {
   if (facts.reason === "complained") {
     return false;
   }
+
   switch (facts.kind) {
     case "AddedToTeam":
     case "ResultsReadyEmail": {
       return true;
     }
+
     case "InvitationEmail": {
       return currentInvitation(facts) && facts.invitation?.sendId === sendId;
     }
+
     case "ReminderEmail": {
       return currentInvitation(facts);
     }
+
     case "TestInvitationEmail": {
       return facts.testSend;
     }
+
     default: {
       return false;
     }

@@ -20,6 +20,7 @@ export const themesTestRoutes = (organizations: Organizations) =>
       Config.withDefault(Redacted.make("")),
       Effect.orDie,
     );
+
     if (Redacted.value(aiKey) !== "") {
       return yield* HttpServerResponse.json({ error: "ai_key_configured" });
     }
@@ -111,14 +112,17 @@ const scenario = (organizations: Organizations, label: string, aiProcessing: boo
     const roundId = RoundId.make(listed._tag === "Viewed" ? (listed.value.rounds[0]?.id ?? "") : "");
 
     const openJob = (yield* organization.getJobsForRound(roundId)).find((job) => job.type === "open");
+
     if (openJob === undefined) {
       return { error: "no_open_job" };
     }
+
     yield* organization.runScheduleJob(openJob.id, openJob.due_at);
 
     const context = yield* organization.getSubmissionRoundContext(roundId, lead);
     const questions = context?.questions ?? [];
     const firstRating = questions.find((question) => question.type._tag === "Rating");
+
     for (const [index, person] of [lead, member, otherMember].entries()) {
       yield* organization.recordFirstAnswer(
         roundId,
@@ -133,9 +137,11 @@ const scenario = (organizations: Organizations, label: string, aiProcessing: boo
     }
 
     const closeJob = (yield* organization.getJobsForRound(roundId)).find((job) => job.type === "close");
+
     if (closeJob === undefined) {
       return { error: "no_close_job" };
     }
+
     yield* organization.runScheduleJob(closeJob.id, closeJob.due_at);
     const jobsAfterClose = yield* organization.getJobsForRound(roundId);
     const themesJob = jobsAfterClose.find((job) => job.type === "themes");

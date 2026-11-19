@@ -19,6 +19,7 @@ const Stack = Alchemy.Stack(
   { providers: Cloudflare.providers(), state: Alchemy.localState() },
   Effect.gen(function* () {
     const main = yield* MainWorker;
+
     return { url: main.url.as<string>() };
   }),
 );
@@ -40,6 +41,7 @@ const call = (method: "GET" | "POST", query: string) =>
     const { url } = yield* stack;
     const response = yield* Effect.promise(() => fetch(`${url}/__test/email?${query}`, { method }));
     assert.strictEqual(response.status, 200);
+
     return yield* Effect.promise(() => response.json() as Promise<Probe>);
   });
 
@@ -61,6 +63,7 @@ test(
         times: 80,
       }),
     );
+
     assert.strictEqual(done.state?._tag, "Sent");
     assert.deepStrictEqual(
       done.captured.map(({ recipient, subject }) => ({ recipient, subject })),

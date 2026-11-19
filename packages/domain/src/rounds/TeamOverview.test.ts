@@ -13,8 +13,11 @@ import { buildTeamOverview } from "./TeamOverview.ts";
 import type { OverviewActionInput, TeamOverview } from "./TeamOverview.ts";
 
 const TEAM = TeamId.make("team-1");
+
 const PULSE = PulseId.make("pulse-1");
+
 const Q1 = QuestionVersionId.make("q-1.1");
+
 const Q2 = QuestionVersionId.make("q-2.1");
 
 const ratingType: QuestionType = { _tag: "Rating", lowLabel: "Low", highLabel: "High", comment: false };
@@ -74,7 +77,9 @@ const computeRound = (spec: RoundSpec): RoundResult =>
   });
 
 const ROUND_EARLY = RoundId.make("round-early");
+
 const ROUND_MIDDLE = RoundId.make("round-middle");
+
 const ROUND_LATE = RoundId.make("round-late");
 
 const scoresOf = (overview: TeamOverview, dimension: Dimension): readonly (number | null)[] | undefined =>
@@ -94,12 +99,14 @@ describe("buildTeamOverview rounds", () => {
       storedN: 2,
       submissions: submissions(5, [Q1]),
     });
+
     const early = computeRound({
       roundId: "round-early",
       plannedOpenDate: "2026-11-02",
       storedN: 2,
       submissions: submissions(5, [Q1]),
     });
+
     const middle = computeRound({
       roundId: "round-middle",
       plannedOpenDate: "2026-11-09",
@@ -130,6 +137,7 @@ describe("buildTeamOverview rounds", () => {
       storedN: 2,
       submissions: submissions(5, [Q1]),
     });
+
     const a = computeRound({
       roundId: "round-a",
       plannedOpenDate: "2026-11-09",
@@ -152,6 +160,7 @@ describe("buildTeamOverview rounds", () => {
       storedN: 2,
       submissions: submissions(5, [Q1]),
     });
+
     const closed = computeRound({
       roundId: "round-closed",
       plannedOpenDate: "2026-11-09",
@@ -192,12 +201,14 @@ describe("buildTeamOverview gaps and minimum group size (ADR 0004)", () => {
       storedN: 2,
       submissions: submissions(5, [Q1]),
     });
+
     const thin = computeRound({
       roundId: "round-middle",
       plannedOpenDate: "2026-11-09",
       storedN: 2,
       submissions: submissions(1, [Q1]),
     });
+
     const last = computeRound({
       roundId: "round-late",
       plannedOpenDate: "2026-11-16",
@@ -244,6 +255,7 @@ describe("buildTeamOverview dimensions", () => {
       questions: [WORKLOAD_QUESTION],
       submissions: submissions(5, [Q1]),
     });
+
     const withBoth = computeRound({
       roundId: "round-late",
       plannedOpenDate: "2026-11-16",
@@ -347,6 +359,7 @@ describe("buildTeamOverview performance", () => {
     assert.isBelow(elapsedMs, 1500);
     assert.strictEqual(overview.rounds.length, 104);
     assert.strictEqual(overview.dimensions.length, 2);
+
     for (const line of overview.dimensions) {
       assert.strictEqual(line.points.length, 104);
     }

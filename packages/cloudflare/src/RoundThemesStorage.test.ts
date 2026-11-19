@@ -48,6 +48,7 @@ const makeRounds = (db: DatabaseSync) =>
         Parameters<typeof SqliteClient.make>[0]["storage"]
       >,
     }).pipe(Effect.provideService(Scope.Scope, yield* Scope.make()), Effect.provide(Reactivity.layer));
+
     return makeSqlRounds(sql, yield* Unlinkability.seededRandomBytes);
   });
 
@@ -99,12 +100,14 @@ describe("Comment themes storage (ADR 0016, ADR 0019)", () => {
         )
         .run(),
     );
+
     const indexes = db
       .prepare(
         "SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'schedule_job' ORDER BY name",
       )
       .all()
       .map((row) => row.name);
+
     assert.deepStrictEqual(indexes, ["schedule_job_due", "schedule_job_round"]);
   });
 
@@ -137,12 +140,14 @@ describe("Comment themes storage (ADR 0016, ADR 0019)", () => {
         )
         .run(),
     );
+
     const indexes = db
       .prepare(
         "SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'schedule_job' ORDER BY name",
       )
       .all()
       .map((row) => row.name);
+
     assert.deepStrictEqual(indexes, ["schedule_job_due", "schedule_job_round"]);
 
     // The Pulse that existed before the migration gets the default three-day Review window.
@@ -265,6 +270,7 @@ describe("Comment themes storage (ADR 0016, ADR 0019)", () => {
 
       const dueAt = (id: string) =>
         db.prepare("SELECT due_at FROM schedule_job WHERE id = ?").get(id)?.due_at;
+
       assert.strictEqual(dueAt("job-pending"), 7000);
       assert.strictEqual(dueAt("job-done"), 1000);
     }),

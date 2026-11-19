@@ -15,12 +15,15 @@ const migrationsDir = new URL("../migrations/", import.meta.url);
 
 const initDatabase = (): DatabaseSync => {
   const db = new DatabaseSync(":memory:");
+
   const files = readdirSync(migrationsDir)
     .filter((f) => f.endsWith(".sql"))
     .sort();
+
   for (const file of files) {
     db.exec(readFileSync(new URL(file, migrationsDir), "utf8"));
   }
+
   return db;
 };
 
@@ -41,11 +44,13 @@ const openRounds = (roundId: RoundId) =>
       `INSERT INTO round (id, pulse_id, team_id, status, planned_open_date, planned_open_at, planned_close_at, pulse_name, answer_window_days, reminders, anonymity_mode, distribution, created_at, updated_at)
        VALUES (?, 'pulse-1', 'team-1', 'open', '2026-11-09', 1000, 9999999, 'Pulse 1', 3, 1, 'anonymous', 'invitation', 1000, 1000)`,
     ).run(roundId);
+
     const sql = yield* SqliteClient.make({
       storage: SqliteStorage.makeSqliteStorage(db) as unknown as NonNullable<
         Parameters<typeof SqliteClient.make>[0]["storage"]
       >,
     }).pipe(Effect.provideService(Scope.Scope, yield* Scope.make()), Effect.provide(Reactivity.layer));
+
     return { db, rounds: makeSqlRounds(sql, yield* Unlinkability.seededRandomBytes) };
   });
 
@@ -86,6 +91,7 @@ describe("Submissions privacy invariants (SPEC §7, ADR 0005)", () => {
       const rows = db.prepare(`PRAGMA table_info(${tableName})`).all() as {
         name: string;
       }[];
+
       return rows.map((r) => r.name.toLowerCase());
     };
 
@@ -122,17 +128,20 @@ describe("Submissions privacy invariants (SPEC §7, ADR 0005)", () => {
 
   it("A10: No Submission, Answer, or Participation table stores a language (ADR 0018)", () => {
     const db = initDatabase();
+
     const tables = (
       db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as { name: string }[]
     )
       .map((t) => t.name)
       .filter((name) => /submission|answer|participation/i.test(name));
+
     assert.includeMembers(tables, ["submission", "answer", "participation"]);
 
     for (const table of tables) {
       const columns = (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((c) =>
         c.name.toLowerCase(),
       );
+
       for (const column of columns) {
         assert.isFalse(
           /lang|locale/.test(column),
@@ -146,13 +155,16 @@ describe("Submissions privacy invariants (SPEC §7, ADR 0005)", () => {
     "A4: After k Submissions through the real write path, dump gives no better than random guess",
     () => {
       const roundId = RoundId.make("round-a4");
+
       const subject = Effect.gen(function* () {
         const { db, rounds } = yield* openRounds(roundId);
+
         return {
           // The product's own `recordFirstAnswer`: participation, submission, and answer in one transaction.
           write: ({ person, answer }) =>
             Effect.gen(function* () {
               db.prepare("INSERT INTO person (id, email) VALUES (?, ?)").run(person, `${person}@example.com`);
+
               const outcome = yield* rounds
                 .recordFirstAnswer(
                   roundId,
@@ -162,6 +174,7 @@ describe("Submissions privacy invariants (SPEC §7, ADR 0005)", () => {
                   [],
                 )
                 .pipe(Effect.orDie);
+
               assert.isString(outcome.submissionId);
             }),
           dump: Effect.sync(() => ({
@@ -182,8 +195,10 @@ describe("Submissions privacy invariants (SPEC §7, ADR 0005)", () => {
       return Effect.gen(function* () {
         const reports = yield* Unlinkability.assertUnlinkable(subject);
         assert.strictEqual(reports.length, Unlinkability.SEEDS.length);
+
         for (const report of reports) {
           assert.strictEqual(report.k, Unlinkability.K);
+
           for (const attack of report.attacks) {
             assert.isAtMost(
               attack.matches,
@@ -238,6 +253,7 @@ describe("Submissions privacy invariants (SPEC §7, ADR 0005)", () => {
           submission: db.prepare("SELECT * FROM submission").all(),
           answer: db.prepare("SELECT * FROM answer").all(),
         });
+
         assert.isFalse(anonymousDump.includes(personId));
         assert.isFalse(anonymousDump.includes("carol@example.com"));
 
@@ -245,6 +261,7 @@ describe("Submissions privacy invariants (SPEC §7, ADR 0005)", () => {
         const answers = db
           .prepare("SELECT question_version_id, value, comment FROM answer ORDER BY question_version_id")
           .all();
+
         assert.deepStrictEqual(answers, [
           {
             question_version_id: qRating,
@@ -253,18 +270,22 @@ describe("Submissions privacy invariants (SPEC §7, ADR 0005)", () => {
           },
           { question_version_id: qText, value: null, comment: "Ask [name] about it" },
         ]);
+
         const everything = JSON.stringify(
           db
             .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
             .all()
             .flatMap((table) => {
               const name = String((table as { name: unknown }).name);
+
               return db.prepare(`SELECT * FROM "${name}"`).all();
             }),
         );
+
         for (const raw of ["Anna", "Bob Smith", "jane.doe@example.com", "2345 6789"]) {
           assert.isFalse(everything.includes(raw), `raw text '${raw}' must not be stored`);
         }
+
         assert.strictEqual(outcome.shownToLead, "Ask [name] about it");
       }),
   );
@@ -299,6 +320,7 @@ describe("Submissions privacy invariants (SPEC §7, ADR 0005)", () => {
         "SELECT COUNT(*) as count FROM participation WHERE round_id = 'round-a8' AND person_id = 'person-1'",
       )
       .get() as { count: number };
+
     assert.strictEqual(count.count, 1);
   });
 
@@ -331,16 +353,19 @@ describe("Submissions privacy invariants (SPEC §7, ADR 0005)", () => {
     const partCount = db
       .prepare("SELECT COUNT(*) as count FROM participation WHERE person_id = 'person-del'")
       .get() as { count: number };
+
     assert.strictEqual(partCount.count, 0, "participation record must be deleted");
 
     const subCount = db
       .prepare("SELECT COUNT(*) as count FROM submission WHERE id = 'sub-survive'")
       .get() as { count: number };
+
     assert.strictEqual(subCount.count, 1, "anonymous submission must survive");
 
     const ansCount = db
       .prepare("SELECT COUNT(*) as count FROM answer WHERE submission_id = 'sub-survive'")
       .get() as { count: number };
+
     assert.strictEqual(ansCount.count, 1, "anonymous answer must survive");
   });
 });

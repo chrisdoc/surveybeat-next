@@ -118,6 +118,7 @@ describe("toMarkdown", () => {
       price: 0.008,
       since: "2026-11-18T00:00:00Z",
     });
+
     expect(text).toContain("| Workflow | Runs | Runner minutes | Per job |");
     expect(text).toContain("created since 2026-11-18T00:00:00Z (1 days × 24 h)");
     expect(text).toContain("Minutes are unrounded job durations");

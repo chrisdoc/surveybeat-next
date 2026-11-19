@@ -22,6 +22,7 @@ describe("AiInput privacy", () => {
       dimensions: [],
       actions: [],
     };
+
     expect(input.comments).toHaveLength(1);
   });
 
@@ -34,11 +35,13 @@ describe("AiInput privacy", () => {
         { title: text, name: "Ada Lovelace" },
       ],
     };
+
     expect(input.actions).toHaveLength(1);
   });
 
   it("rejects a plain string where RedactedText is required", () => {
     const plain = "not yet redacted";
+
     const input: AiInput = {
       questions: [],
       // @ts-expect-error only RedactedText may reach the model
@@ -46,6 +49,7 @@ describe("AiInput privacy", () => {
       dimensions: [],
       actions: [],
     };
+
     expect(input.comments).toHaveLength(1);
   });
 
@@ -58,6 +62,7 @@ describe("AiInput privacy", () => {
       dimensions: [],
       actions: [],
     };
+
     expect(input.questions).toHaveLength(0);
   });
 
@@ -77,6 +82,7 @@ describe("AiInput privacy", () => {
       dimensions: [{ dimension: "clarity", score: 4, change: null, largerThanUsual: false }],
       actions: [{ title: text }],
     });
+
     expect(decoded.questions[0]?.dimension).toBe("clarity");
   });
 });
@@ -96,6 +102,7 @@ describe("fakeAiClient", () => {
         Effect.succeed({ themes: ["a"] }),
         Effect.fail(new AiUnavailable({ reason: "timeout" })),
       ]);
+
       const complete = AiClient.use((client) => client.complete(request)).pipe(Effect.provide(fake.layer));
 
       const first = yield* complete;

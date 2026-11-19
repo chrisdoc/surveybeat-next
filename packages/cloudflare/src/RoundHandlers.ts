@@ -92,6 +92,7 @@ export const roundHandlers = <R>(services: Effect.Effect<Context.Context<RoundSe
               }),
             );
             const member = yield* currentMember;
+
             return yield* viewRound(member, params.teamId, params.roundId);
           }),
         ),
@@ -129,6 +130,7 @@ export const roundHandlers = <R>(services: Effect.Effect<Context.Context<RoundSe
               }),
             );
             const member = yield* currentMember;
+
             return yield* viewRound(member, params.teamId, params.roundId);
           }),
         ),

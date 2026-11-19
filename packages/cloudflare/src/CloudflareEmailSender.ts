@@ -23,21 +23,27 @@ const codeOf = (error: unknown): string | undefined => {
   if (typeof error !== "object" || error === null) {
     return undefined;
   }
+
   const code: unknown = "code" in error ? error.code : undefined;
+
   if (typeof code === "string" && code.startsWith("E_")) {
     return code;
   }
+
   return "cause" in error ? codeOf(error.cause) : undefined;
 };
 
 export const classifySendError = (error: unknown): EmailRejected | EmailOutcomeUnknown => {
   const code = codeOf(error);
+
   if (code === undefined) {
     return new EmailOutcomeUnknown({ code: "E_UNCLASSIFIED" });
   }
+
   if (AMBIGUOUS.has(code)) {
     return new EmailOutcomeUnknown({ code });
   }
+
   return new EmailRejected({ code, permanent: PERMANENT.has(code) || code.startsWith("E_HEADER_") });
 };
 
@@ -46,6 +52,7 @@ const decodeResult = Schema.decodeUnknownOption(Schema.Struct({ messageId: Schem
 export const cloudflareEmailSender = (client: Cloudflare.Email.SendClient) =>
   Effect.gen(function* () {
     const runtime = yield* Effect.context<RuntimeContext>();
+
     return EmailSender.of({
       send: (message) =>
         client

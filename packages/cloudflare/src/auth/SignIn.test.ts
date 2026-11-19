@@ -11,6 +11,7 @@ import { Browser, ORIGIN, SignInWorld } from "../testing.ts";
 
 const setup = (allowlist = "") => {
   const world = new SignInWorld(allowlist);
+
   return { world, browser: new Browser(world.handler()), newBrowser: () => new Browser(world.handler()) };
 };
 
@@ -43,9 +44,11 @@ describe("first sign-in with no matching Person", () => {
     });
 
     const organizationId = [...world.durable.organizations.keys()][0];
+
     if (organizationId === undefined) {
       throw new Error("no Organization");
     }
+
     expect(world.durable.organizations.get(organizationId)?.state.organizationName).toBe("Acme");
     expect((await browser.session()).body).toMatchObject({
       _tag: "SignedIn",
@@ -83,14 +86,17 @@ describe("creating an Organization is idempotent per user", () => {
     browser.signIn(token);
     const second = new Browser(world.handler());
     second.signIn(token);
+
     const [a, b] = await Promise.all([
       browser.post("/auth/organization", { name: "Acme" }),
       second.post("/auth/organization", { name: "Acme twice" }),
     ]);
+
     const bodies: unknown[] = [await a.json(), await b.json()];
     expect(world.durable.organizations.size).toBe(1);
     expect(world.index.claims.size).toBe(1);
     const [organizationId] = [...world.durable.organizations.keys()];
+
     for (const body of bodies) {
       expect(body).toMatchObject({ _tag: "SignedIn", organization: { id: organizationId, name: "Acme" } });
     }
@@ -124,9 +130,11 @@ describe("creating an Organization is idempotent per user", () => {
 describe("a creator removed from their Organization", () => {
   const removeCreator = (world: SignInWorld) => {
     const [claim] = [...world.index.claims.values()];
+
     if (claim === undefined) {
       throw new Error("no claim");
     }
+
     world.durable.remove(claim.organization.id, claim.adminPersonId);
   };
 
@@ -148,9 +156,11 @@ describe("languages in the session (ADR 0018)", () => {
     const acme = world.addOrganization("Acme");
     const personId = world.addPerson(acme.id, "ada@example.com");
     const organization = world.durable.organizations.get(acme.id);
+
     if (organization === undefined) {
       throw new Error("no Organization");
     }
+
     organization.state = { ...organization.state, defaultLocale: "en" };
     world.durable.update(acme.id, personId, { locale: "en", detectedLocale: "en" });
 
@@ -277,11 +287,13 @@ describe("linking a signed-in user to a Person", () => {
   it("refuses state-changing requests from another origin", async () => {
     const { world, browser } = setup("ops@example.com");
     browser.signIn(world.sessions.login("ops@example.com"));
+
     const response = await browser.post(
       "/auth/organization",
       { name: "Acme" },
       "https://pr-1.submit.surveybeat.app",
     );
+
     expect(response.status).toBe(403);
     expect(world.durable.organizations.size).toBe(0);
   });
@@ -294,6 +306,7 @@ describe("the per-request session check", () => {
     const personId = context.world.addPerson(acme.id, "ada@example.com");
     const token = context.world.sessions.login("ada@example.com");
     context.browser.signIn(token);
+
     return { ...context, acme, personId, token };
   };
 
@@ -334,10 +347,12 @@ describe("the per-request session check", () => {
 
   it("signs out with 403 and keeps the cookie when the request comes from another origin", async () => {
     const { world, browser } = signedIn();
+
     const logout = await browser.fetch("/auth/logout", {
       method: "POST",
       headers: { origin: "https://pr-1.submit.surveybeat.app" },
     });
+
     expect(logout.status).toBe(403);
     expect(browser.cookies.has(SESSION_COOKIE)).toBe(true);
     expect(world.sessions.revocations).toEqual([]);

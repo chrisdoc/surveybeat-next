@@ -14,7 +14,9 @@ const lint = (file: string): readonly Diagnostic[] => {
     ["exec", "oxlint", "--config", "oxlint.fixtures.json", "--format", "json", file],
     { cwd: fixtures, encoding: "utf8" },
   );
+
   const report: { diagnostics: readonly Diagnostic[] } = JSON.parse(result.stdout);
+
   return report.diagnostics;
 };
 

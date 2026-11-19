@@ -61,18 +61,23 @@ const mapRejection = (rejection: ActionRejection): ActionError => {
     case "Forbidden": {
       return new Forbidden();
     }
+
     case "TeamNotFound": {
       return new TeamNotFound();
     }
+
     case "RoundNotFound": {
       return new RoundNotFound();
     }
+
     case "ActionNotFound": {
       return new ActionNotFound();
     }
+
     case "OwnerNotInTeam": {
       return new OwnerNotInTeam();
     }
+
     case "PersonNotFound": {
       return new PersonNotFound();
     }
@@ -99,6 +104,7 @@ export const createAction = (
     const actions = yield* OrganizationActions;
     const now = yield* Clock.currentTimeMillis;
     const result = yield* actions.create(member.organization.id, member.personId, teamId, payload, now);
+
     return yield* unwrap(result);
   });
 
@@ -111,6 +117,7 @@ export const updateAction = (
   Effect.gen(function* () {
     const actions = yield* OrganizationActions;
     const now = yield* Clock.currentTimeMillis;
+
     const result = yield* actions.update(
       member.organization.id,
       member.personId,
@@ -119,5 +126,6 @@ export const updateAction = (
       payload,
       now,
     );
+
     return yield* unwrap(result);
   });

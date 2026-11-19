@@ -9,6 +9,7 @@ describe("Organization", () => {
         id: "org-1",
         name: "Acme",
       });
+
       expect(organization.name).toBe("Acme");
     }),
   );
@@ -19,6 +20,7 @@ describe("Organization", () => {
         id: "org-1",
         name: "",
       }).pipe(Effect.flip);
+
       expect(failure._tag).toBe("SchemaError");
     }),
   );

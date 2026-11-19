@@ -3,12 +3,15 @@ import { QuestionType, QuestionVersionId } from "../pulses/Question.ts";
 import { RoundId, RoundStatus } from "./Round.ts";
 
 export const SubmissionId = Schema.String.pipe(Schema.brand("SubmissionId"));
+
 export type SubmissionId = typeof SubmissionId.Type;
 
 export const EditKey = Schema.String.pipe(Schema.brand("EditKey"));
+
 export type EditKey = typeof EditKey.Type;
 
 export const EditKeyHash = Schema.String.pipe(Schema.brand("EditKeyHash"));
+
 export type EditKeyHash = typeof EditKeyHash.Type;
 
 export const SubmissionAnswer = Schema.Struct({
@@ -16,6 +19,7 @@ export const SubmissionAnswer = Schema.Struct({
   value: Schema.NullOr(Schema.Int),
   comment: Schema.NullOr(Schema.String),
 });
+
 export type SubmissionAnswer = typeof SubmissionAnswer.Type;
 
 export const SubmissionQuestion = Schema.Struct({
@@ -24,12 +28,14 @@ export const SubmissionQuestion = Schema.Struct({
   text: Schema.String,
   type: QuestionType,
 });
+
 export type SubmissionQuestion = typeof SubmissionQuestion.Type;
 
 export const SubmissionAction = Schema.Struct({
   id: Schema.String,
   title: Schema.String,
 });
+
 export type SubmissionAction = typeof SubmissionAction.Type;
 
 export const SubmissionRoundContext = Schema.Struct({
@@ -47,6 +53,7 @@ export const SubmissionRoundContext = Schema.Struct({
 
   test: Schema.optionalKey(Schema.Literal(true)),
 });
+
 export type SubmissionRoundContext = typeof SubmissionRoundContext.Type;
 
 export class AlreadyAnswered extends Schema.TaggedError<AlreadyAnswered, { readonly brand: unique symbol }>()(

@@ -17,6 +17,7 @@ export interface SqliteStorage {
 
 export const makeSqliteStorage = (db: DatabaseSync): SqliteStorage => {
   let depth = 0;
+
   return {
     sql: {
       exec: (query, ...bindings) => {
@@ -24,6 +25,7 @@ export const makeSqliteStorage = (db: DatabaseSync): SqliteStorage => {
         statement.setReturnArrays(true);
         const columnNames = statement.columns().map((column) => column.name);
         const rows: (readonly unknown[])[] = [];
+
         if (columnNames.length === 0) {
           statement.run(...bindings);
         } else {
@@ -31,6 +33,7 @@ export const makeSqliteStorage = (db: DatabaseSync): SqliteStorage => {
             rows.push(Object.values(row));
           }
         }
+
         return { columnNames, raw: () => rows[Symbol.iterator]() };
       },
     },
@@ -39,6 +42,7 @@ export const makeSqliteStorage = (db: DatabaseSync): SqliteStorage => {
       const savepoint = `storage_level_${level}`;
       db.exec(level === 0 ? "BEGIN" : `SAVEPOINT ${savepoint}`);
       let rolledBack = false;
+
       const undo = () => {
         if (level === 0) {
           db.exec("ROLLBACK");
@@ -46,17 +50,20 @@ export const makeSqliteStorage = (db: DatabaseSync): SqliteStorage => {
           db.exec(`ROLLBACK TO ${savepoint}; RELEASE ${savepoint}`);
         }
       };
+
       try {
         const result = await body({
           rollback: () => {
             rolledBack = true;
           },
         });
+
         if (rolledBack) {
           undo();
         } else {
           db.exec(level === 0 ? "COMMIT" : `RELEASE ${savepoint}`);
         }
+
         return result;
       } catch (error) {
         undo();

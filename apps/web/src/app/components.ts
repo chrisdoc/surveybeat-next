@@ -11,12 +11,16 @@ export type Child = Html | string;
 
 export const buttonClass =
   "inline-flex min-h-11 items-center justify-center rounded-control bg-primary px-5 py-2 font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-50";
+
 export const secondaryButtonClass =
   "inline-flex min-h-11 items-center justify-center rounded-control border border-line bg-surface px-5 py-2 font-semibold text-ink hover:bg-subtle disabled:opacity-50";
+
 export const mintButtonClass =
   "inline-flex min-h-11 items-center justify-center rounded-control bg-mint px-5 py-2 font-semibold text-evergreen hover:bg-mint-text disabled:opacity-50";
+
 export const darkOutlineButtonClass =
   "inline-flex min-h-11 items-center justify-center rounded-control border border-mint-text px-4 py-2 font-semibold text-white hover:bg-evergreen-raised disabled:opacity-50";
+
 export const dangerButtonClass =
   "rounded-control bg-danger px-4 py-2 text-sm font-semibold text-on-primary transition hover:opacity-90 disabled:opacity-50";
 
@@ -25,8 +29,11 @@ export const dangerLinkButton =
 
 export const linkButton =
   "inline-flex min-h-11 items-center px-1 text-sm font-semibold text-primary underline underline-offset-4 hover:text-primary-hover disabled:opacity-50";
+
 export const linkClass = "font-semibold text-primary underline underline-offset-4 hover:text-primary-hover";
+
 export const labelClass = "block text-[15px] font-semibold";
+
 export const inputClass =
   "mt-1.5 min-h-11 w-full rounded-control border border-line bg-surface px-3 py-2 text-base text-ink disabled:opacity-60";
 
@@ -57,6 +64,7 @@ export const pageShell = <Message>(
 ): Html => {
   const width = config.wide === true ? "max-w-[1120px]" : "max-w-[720px]";
   const privacyCurrent = config.privacyCurrent === true;
+
   return h.div(
     [h.Class("flex min-h-screen flex-col bg-stone text-ink")],
     [
@@ -130,12 +138,14 @@ export const breadcrumbs = <Message>(crumbs: readonly Crumb[], h: HtmlBuilder<Me
         [h.Class("flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted")],
         crumbs.map((crumb, index) => {
           const isLast = index === crumbs.length - 1;
+
           const label =
             isLast || crumb.href === undefined
               ? h.span(isLast ? [h.AriaCurrent("page"), h.Class("font-semibold text-ink")] : [], [
                   crumb.label,
                 ])
               : h.a([h.Href(crumb.href), h.Class(linkClass)], [crumb.label]);
+
           return h.li(
             [h.Class("flex items-center gap-x-2")],
             [
@@ -170,6 +180,7 @@ export const subSectionTitle = <Message>(
   level: 2 | 3 | 4 = 3,
 ): Html => {
   const attrs = [h.Class("text-[19px] leading-snug font-semibold text-ink")];
+
   return level === 2 ? h.h2(attrs, [text]) : level === 3 ? h.h3(attrs, [text]) : h.h4(attrs, [text]);
 };
 
@@ -256,8 +267,10 @@ export const emailAddress = <Message>(
   h: HtmlBuilder<Message>,
 ): Html => {
   const at = config.email.indexOf("@");
+
   const [local, domain] =
     at === -1 ? [config.email, ""] : [config.email.slice(0, at), config.email.slice(at)];
+
   return h.span(
     [h.Class(`min-w-0 wrap-break-word ${config.className ?? ""}`.trim())],
     [local, h.wbr([]), domain],
@@ -298,6 +311,7 @@ export const dataTable = <Message>(
 ): Html => {
   const stacked = options.stackOnPhone === true;
   const role = (name: string): readonly Attribute<Message>[] => (stacked ? [h.Role(name)] : []);
+
   return h.table(
     [
       h.Class(stacked ? "mt-2 block w-full text-left text-sm sm:table" : "mt-2 w-full text-left text-sm"),
@@ -359,6 +373,7 @@ export const problemView = <Message>(failure: Failure | undefined, h: HtmlBuilde
   if (failure === undefined) {
     return null;
   }
+
   return alertView(failureMessage(failure), h);
 };
 
@@ -444,6 +459,7 @@ export const confirmDialog = <Message>(
 export const timeZoneOptions = (current: string): readonly (readonly [string, string])[] => {
   const known = Intl.supportedValuesOf("timeZone");
   const all = known.includes(current) ? known : [current, ...known];
+
   return all.map((zone): readonly [string, string] => [zone, zone]);
 };
 

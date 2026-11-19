@@ -12,7 +12,9 @@ import type { SendPolicy } from "./SendState.ts";
 import { layerMemory, SendStore } from "./SendStore.ts";
 
 const id = SendId.make("send-1");
+
 const recipient = EmailAddress.make("ada@example.com");
+
 const email: AddedToTeam = {
   _tag: "AddedToTeam",
   locale: "en",
@@ -27,12 +29,14 @@ type Reply = Effect.Effect<EmailAccepted, EmailRejected | EmailOutcomeUnknown>;
 const scriptedSender = (replies: readonly Reply[]) =>
   Effect.gen(function* () {
     const sent = yield* Ref.make<readonly OutgoingEmail[]>([]);
+
     const layer = Layer.succeed(EmailSender, {
       send: (message) =>
         Ref.modify(sent, (all): [number, readonly OutgoingEmail[]] => [all.length, [...all, message]]).pipe(
           Effect.flatMap((index) => replies[index] ?? Effect.die(`unexpected send #${index + 1}`)),
         ),
     });
+
     return { sent, layer };
   });
 
@@ -57,14 +61,17 @@ const withSend = <A, E>(
 ) =>
   Effect.gen(function* () {
     const sender = yield* scriptedSender(replies);
+
     return yield* Effect.gen(function* () {
       yield* (yield* SendStore).create(id, recipient, email);
+
       return yield* body(sender.sent);
     }).pipe(Effect.provide(Layer.mergeAll(layerMemory(policy), sender.layer, templates)));
   });
 
 const stateOf = Effect.gen(function* () {
   const record = yield* (yield* SendStore).get(id);
+
   return Option.map(record, (r) => r.state).pipe(Option.getOrThrow);
 });
 
@@ -126,12 +133,14 @@ describe("deliver", () => {
         expect(crashed._tag).toBe("Send");
 
         yield* TestClock.adjust(Duration.millis(defaultSendPolicy.leaseMillis));
+
         const unknown = {
           _tag: "Failed",
           reason: "unknown",
           code: null,
           failedAt: defaultSendPolicy.leaseMillis,
         };
+
         expect(yield* deliver(id)).toEqual({ _tag: "Done", state: unknown });
         expect(yield* deliver(id)).toEqual({ _tag: "Done", state: unknown });
         expect(yield* Ref.get(sent)).toHaveLength(0);

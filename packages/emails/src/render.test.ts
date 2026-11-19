@@ -77,10 +77,13 @@ describe("a send stored before locales were recorded", () => {
       leadName: "Grace Hopper",
       signInUrl: "https://app.surveybeat.app/",
     });
+
     expect(stored.locale).toBe("en");
+
     if (stored._tag !== "AddedToTeam") {
       throw new Error("expected an AddedToTeam");
     }
+
     const { subject, html } = await renderEmail(stored);
     expect(subject).toBe("You've been added to Platform");
     expect(html).toContain('<html dir="ltr" lang="en">');
@@ -93,6 +96,7 @@ describe("AddedToTeam", () => {
       ...examples.AddedToTeam,
       teamName: "R&D <script>alert(1)</script>",
     });
+
     expect(html).not.toContain("<script>");
     expect(html).toContain("R&amp;D &lt;script&gt;");
     expect(text).toContain("R&D <script>alert(1)</script>");
@@ -103,6 +107,7 @@ describe("AddedToTeam", () => {
       ...examples.AddedToTeam,
       teamName: "Platform\r\nBcc: x@evil.test",
     });
+
     expect(subject).toBe("You've been added to Platform Bcc: x@evil.test");
   });
 
@@ -120,9 +125,11 @@ describe("InvitationEmail", () => {
     expect(html).toContain(
       "Your lead only sees combined answers from at least 4 people, never who answered what. Your name is never stored with your answers.",
     );
+
     for (let v = 1; v <= 5; v++) {
       expect(html).toContain(`https://app.surveybeat.app/a#t=test-token-123&amp;v=${v}`);
     }
+
     expect(html).toContain("Open check-in");
     expect(html).toContain("https://app.surveybeat.app/a#t=test-token-123");
     expect(html).toContain("Keep pairing sessions short");
@@ -143,10 +150,12 @@ describe("InvitationEmail", () => {
 describe("InvitationEmail rows stored before N was carried", () => {
   it("render their statement verbatim", async () => {
     const { minimumGroupSize: _n, ...rest } = examples.InvitationEmail;
+
     const { text } = await renderEmail({
       ...rest,
       anonymityStatement: "Your name is never stored with your answers.",
     });
+
     expect(text).toContain("Your name is never stored with your answers.");
     expect(text).not.toContain("at least");
   });
@@ -177,10 +186,12 @@ describe.each(testCases)(
       const { html, text } = await renderEmail(testEmail);
       expect(html).toContain(notice.replaceAll("'", "&#x27;")); // HTML escapes the apostrophe
       expect(text).toContain(notice);
+
       for (let v = 1; v <= 5; v++) {
         expect(html).toContain(`https://app.surveybeat.app${answerPath}#t=test-token-123&amp;v=${v}`);
         expect(text).toContain(`https://app.surveybeat.app${answerPath}#t=test-token-123&v=${v}`);
       }
+
       expect(html).toContain(`https://app.surveybeat.app${answerPath}#t=test-token-123"`);
       expect(text).toContain(`https://app.surveybeat.app${answerPath}#t=test-token-123`);
     });
@@ -229,6 +240,7 @@ describe("ReminderEmail", () => {
       ...examples.ReminderEmail,
       unsubscribeUrl: "https://old.example/api/reminders/unsubscribe?t=old",
     });
+
     expect(headers?.["List-Unsubscribe"]).toBe("<https://old.example/api/reminders/unsubscribe?t=old>");
   });
 
@@ -304,6 +316,7 @@ describe("answer and delivery links follow the email's locale", () => {
       ...examples.ReminderEmail,
       unsubscribeUrl: "https://old.example/api/reminders/unsubscribe?t=old",
     });
+
     expect(headers?.["List-Unsubscribe"]).toBe("<https://old.example/api/reminders/unsubscribe?t=old>");
     expect(text).toContain("https://old.example/api/reminders/unsubscribe?t=old");
     expect(text).not.toContain("lang=");

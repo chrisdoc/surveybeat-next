@@ -11,6 +11,7 @@ import { answerMessages } from "./src/answer/answer-messages.ts";
 
 const prerenderAnswer = (): Plugin => {
   let outDir = "dist";
+
   return {
     name: "prerender-answer",
     configResolved(config) {
@@ -20,7 +21,9 @@ const prerenderAnswer = (): Plugin => {
       if (!ctx.path.endsWith("answer.html") && !html.includes("<!--PRERENDER_STYLE-->")) {
         return html;
       }
+
       const rawCss = readFileSync(resolve(import.meta.dirname, "src/answer/style.css"), "utf8");
+
       const minCss = rawCss
         .replaceAll(/\/\*[\s\S]*?\*\//g, "")
         .replaceAll(/\s*([{};:,])\s*/g, "$1")
@@ -80,6 +83,7 @@ const prerenderAnswer = (): Plugin => {
       const scale = [1, 2, 3, 4, 5]
         .map((value) => {
           const id = value === 1 ? ' id="q1low"' : value === 5 ? ' id="q1high"' : "";
+
           return `<label><input type="radio" name="q1" value="${value}"><span${id}>${value}</span></label>`;
         })
         .join("");
@@ -131,21 +135,28 @@ const preloadAnswerChunks = (): Plugin => ({
     order: "post",
     handler(html, ctx) {
       const { bundle, chunk } = ctx;
+
       if (!ctx.path.endsWith("answer.html") || bundle === undefined || chunk === undefined) {
         return html;
       }
+
       const seen = new Set<string>();
       const pending = [...chunk.imports];
+
       while (pending.length > 0) {
         const fileName = pending.pop() ?? "";
         const imported = bundle[fileName];
+
         if (seen.has(fileName) || imported === undefined || imported.type !== "chunk") {
           continue;
         }
+
         seen.add(fileName);
         pending.push(...imported.imports);
       }
+
       const links = [...seen].map((fileName) => `<link rel="modulepreload" crossorigin href="/${fileName}">`);
+
       return html.replace("</head>", `${links.join("")}</head>`);
     },
   },

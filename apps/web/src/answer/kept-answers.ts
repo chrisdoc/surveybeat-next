@@ -1,5 +1,7 @@
 export const keptAnswersPrefix = "sb_answers_";
+
 export const keptAnswersLifetimeMs = 365 * 24 * 60 * 60 * 1000;
+
 export interface KeptAnswer {
   readonly value?: number;
   readonly comment?: string;
@@ -7,15 +9,19 @@ export interface KeptAnswer {
 
 const readAnswers = (raw: string | null): Record<string, unknown> => {
   let data: unknown;
+
   try {
     data = JSON.parse(raw ?? "null");
   } catch {
     return {};
   }
+
   if (typeof data !== "object" || data === null || !("answers" in data)) {
     return {};
   }
+
   const { answers } = data;
+
   return typeof answers === "object" && answers !== null ? { ...answers } : {};
 };
 

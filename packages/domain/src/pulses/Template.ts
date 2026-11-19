@@ -6,12 +6,14 @@ export const TemplateQuestionKey = Schema.String.pipe(
   Schema.check(Schema.isPattern(/^[a-z][a-z0-9-]{0,39}$/)),
   Schema.brand("TemplateQuestionKey"),
 );
+
 export type TemplateQuestionKey = typeof TemplateQuestionKey.Type;
 
 export const TemplateQuestion = Schema.Struct({
   key: TemplateQuestionKey,
   ...QuestionContent.fields,
 });
+
 export type TemplateQuestion = typeof TemplateQuestion.Type;
 
 export interface Template {

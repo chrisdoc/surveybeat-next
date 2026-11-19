@@ -7,6 +7,7 @@ import { QuestionContent, QuestionId, QuestionVersionId } from "./Question.ts";
 import { TemplateQuestion, TemplateQuestionKey } from "./Template.ts";
 
 export const PulseId = Schema.String.pipe(Schema.brand("PulseId"));
+
 export type PulseId = typeof PulseId.Type;
 
 export const PulseName = Schema.String.pipe(
@@ -22,9 +23,11 @@ export const Weekday = Schema.Literals([
   "saturday",
   "sunday",
 ]);
+
 export type Weekday = typeof Weekday.Type;
 
 const CLOCK_TIME = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
+
 export const SendTime = Schema.String.pipe(
   Schema.check(
     Schema.isPattern(CLOCK_TIME),
@@ -37,11 +40,13 @@ export const SendTime = Schema.String.pipe(
   ),
   Schema.brand("SendTime"),
 );
+
 export type SendTime = typeof SendTime.Type;
 
 export const Cadence = Schema.TaggedUnion({
   Weekly: { day: Weekday, time: SendTime },
 });
+
 export type Cadence = typeof Cadence.Type;
 
 export const AnswerWindowDays = Schema.Int.pipe(
@@ -57,9 +62,11 @@ export const ReminderCount = Schema.Int.pipe(
 );
 
 export const AnonymityMode = Schema.Literals(["anonymous"]);
+
 export type AnonymityMode = typeof AnonymityMode.Type;
 
 export const Distribution = Schema.Literals(["invitation"]);
+
 export type Distribution = typeof Distribution.Type;
 
 export const PulseSettings = Schema.Struct({
@@ -71,11 +78,13 @@ export const PulseSettings = Schema.Struct({
   anonymityMode: AnonymityMode,
   distribution: Distribution,
 });
+
 export type PulseSettings = typeof PulseSettings.Type;
 
 export const MIN_QUESTIONS = 1;
 
 export const MAX_QUESTIONS = Policy.questions.maximum;
+
 export const RECOMMENDED_MAX_SECONDS = 90;
 
 export const PulseWarning = Schema.TaggedUnion({
@@ -87,6 +96,7 @@ export const PulseWarning = Schema.TaggedUnion({
 
   TeamBelowMinimumGroupSize: { members: Schema.Int, minimumGroupSize: Schema.Int },
 });
+
 export type PulseWarning = typeof PulseWarning.Type;
 
 export const PulseQuestion = Schema.Struct({
@@ -99,6 +109,7 @@ export const PulseQuestion = Schema.Struct({
   hasAnswers: Schema.Boolean,
   estimatedSeconds: Schema.Int,
 });
+
 export type PulseQuestion = typeof PulseQuestion.Type;
 
 export const PulseSummary = Schema.Struct({
@@ -112,12 +123,14 @@ export const PulseSummary = Schema.Struct({
 
   nextRoundDate: Schema.optional(Schema.NullOr(Schema.String)),
 });
+
 export type PulseSummary = typeof PulseSummary.Type;
 
 export const PulseList = Schema.Struct({
   team: TeamSummary,
   pulses: Schema.Array(PulseSummary),
 });
+
 export type PulseList = typeof PulseList.Type;
 
 export const PulseDetail = Schema.Struct({
@@ -130,12 +143,14 @@ export const PulseDetail = Schema.Struct({
 
   templateQuestions: Schema.Array(TemplateQuestion),
 });
+
 export type PulseDetail = typeof PulseDetail.Type;
 
 export const NewPulseQuestion = Schema.Union([
   Schema.TaggedStruct("FromTemplate", { key: TemplateQuestionKey }),
   Schema.TaggedStruct("Written", QuestionContent.fields),
 ]);
+
 export type NewPulseQuestion = typeof NewPulseQuestion.Type;
 
 export class PulseNotFound extends Schema.TaggedError<PulseNotFound, { readonly brand: unique symbol }>()(
@@ -186,6 +201,7 @@ export class TestSendLimitReached extends Schema.TaggedError<
 >()("TestSendLimitReached", { perHour: Schema.Int }, { httpApiStatus: 429 }) {}
 
 export const TestInvitationSent = Schema.Struct({ email: EmailAddress, sendId: SendId });
+
 export type TestInvitationSent = typeof TestInvitationSent.Type;
 
 export const TestSendStatus = Schema.Struct({
@@ -200,6 +216,7 @@ export const TestSendStatus = Schema.Struct({
     Failed: { reason: FailureReason, code: Schema.NullOr(Schema.String), failedAt: Schema.Int },
   }),
 });
+
 export type TestSendStatus = typeof TestSendStatus.Type;
 
 export class TestSendNotFound extends Schema.TaggedError<

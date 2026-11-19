@@ -8,7 +8,9 @@ import * as Scope from "effect/Scope";
 import { makeSqlNotes } from "./SqlNotes.ts";
 
 const migrationsDir = new URL("../migrations/", import.meta.url);
+
 const roundId = RoundId.make("round-1");
+
 const teamId = TeamId.make("team-1");
 
 /** The Organization's migrations in order, with one Team, one Pulse, and one Round to hold a Note. */
@@ -23,11 +25,13 @@ const openNotes = Effect.gen(function* () {
     `INSERT INTO round (id, pulse_id, team_id, status, planned_open_date, planned_open_at, planned_close_at, effective_minimum_group_size, pulse_name, answer_window_days, reminders, anonymity_mode, distribution, created_at, updated_at)
      VALUES ('round-1', 'pulse-1', 'team-1', 'shared', '2026-01-05', 1000, 2000, 4, 'Pulse 1', 3, 1, 'anonymous', 'invitation', 1000, 1000)`,
   ).run();
+
   const sql = yield* SqliteClient.make({
     storage: SqliteStorage.makeSqliteStorage(db) as unknown as NonNullable<
       Parameters<typeof SqliteClient.make>[0]["storage"]
     >,
   }).pipe(Effect.provideService(Scope.Scope, yield* Scope.make()), Effect.provide(Reactivity.layer));
+
   return { db, notes: makeSqlNotes(sql) };
 });
 

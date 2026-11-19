@@ -18,19 +18,24 @@ const migrationsDir = new URL("../migrations/", import.meta.url);
 const directory = () =>
   Effect.gen(function* () {
     const db = new DatabaseSync(":memory:");
+
     for (const file of readdirSync(migrationsDir)
       .filter((f) => f.endsWith(".sql"))
       .sort()) {
       db.exec(readFileSync(new URL(file, migrationsDir), "utf8"));
     }
+
     db.prepare("INSERT INTO organization (id, name) VALUES ('org-1', 'Acme')").run();
+
     const sql = yield* SqliteClient.make({
       storage: SqliteStorage.makeSqliteStorage(db) as unknown as NonNullable<
         Parameters<typeof SqliteClient.make>[0]["storage"]
       >,
     }).pipe(Effect.provideService(Scope.Scope, yield* Scope.make()), Effect.provide(Reactivity.layer));
+
     // Emails are not sent by these changes, so the send store is never reached.
     const sends = { create: () => Effect.void } as unknown as SendStoreShape;
+
     return { store: makeSqlDirectory(sql, sends), db };
   });
 

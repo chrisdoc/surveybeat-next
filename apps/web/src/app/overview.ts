@@ -28,6 +28,7 @@ export const LoadedOverview = defineTaggedUnion({
   Loaded: { overview: TeamOverview },
   Failed: { failure: Failure },
 });
+
 export type LoadedOverview = typeof LoadedOverview.Type;
 
 const OVERVIEW_WIDTH = 360;
@@ -58,14 +59,17 @@ const tooltipAnchor = (x: number): string => {
   if (x < 0.15) {
     return "left-0";
   }
+
   if (x > 0.85) {
     return "right-0";
   }
+
   return "left-1/2 -translate-x-1/2";
 };
 
 const markerButton = <Message>(marker: ActionMarker, x: number, h: HtmlBuilder<Message>): Html => {
   const text = markerText(marker);
+
   return h.button(
     [
       h.Type("button"),
@@ -92,24 +96,31 @@ const plannedOpenMillis = (isoDate: string): number =>
 export const overviewXs = (overview: TeamOverview): OverviewXs => {
   let tMin = Number.POSITIVE_INFINITY;
   let tMax = Number.NEGATIVE_INFINITY;
+
   for (const round of overview.rounds) {
     tMin = Math.min(tMin, plannedOpenMillis(round.plannedOpenDate));
     tMax = Math.max(tMax, plannedOpenMillis(round.plannedOpenDate));
   }
+
   for (const marker of overview.markers) {
     tMin = Math.min(tMin, marker.at);
     tMax = Math.max(tMax, marker.at);
   }
+
   const markerX = (at: number): number => {
     if (tMax === tMin) {
       return 0.5;
     }
+
     return Math.min(1, Math.max(0, (at - tMin) / (tMax - tMin)));
   };
+
   const rounds = new Map<RoundId, number>();
+
   for (const round of overview.rounds) {
     rounds.set(round.roundId, markerX(plannedOpenMillis(round.plannedOpenDate)));
   }
+
   return { rounds, markerX };
 };
 
@@ -137,9 +148,11 @@ const markerOverlay = <Message>(
       : [h.AriaHidden(true), h.Class("absolute inset-0")],
     markers.map((marker, i) => {
       const x = xs[i] ?? 0.5;
+
       if (interactive) {
         return markerButton(marker, x, h);
       }
+
       return h.span(
         [
           h.AriaHidden(true),
@@ -154,10 +167,12 @@ const markerOverlay = <Message>(
 const latestDimensionScore = (dimension: DimensionOverview): number | null => {
   for (let i = dimension.points.length - 1; i >= 0; i--) {
     const point = dimension.points[i]!;
+
     if (point.score !== null) {
       return point.score;
     }
   }
+
   return null;
 };
 
@@ -172,15 +187,19 @@ const dimensionPanel = <Message>(
 ): Html => {
   const name = dimensionName(dimension.dimension);
   const points: ChartPoint[] = [];
+
   for (const point of dimension.points) {
     const x = xByRound.get(point.roundId);
+
     if (x !== undefined) {
       points.push({ x, score: point.score, joinsPrevious: true });
     }
   }
+
   const first = rounds[0];
   const newest = rounds.at(-1);
   const latest = latestDimensionScore(dimension);
+
   return panel(
     [
       subSectionTitle(name, h),
@@ -229,12 +248,14 @@ const roundsTable = <Message>(overview: TeamOverview, h: HtmlBuilder<Message>): 
         dimension.points.map((point): readonly [string, number | null] => [point.roundId, point.score]),
       ),
   );
+
   return dataTable(
     [message("overview.tableRoundDate"), ...overview.dimensions.map((d) => dimensionName(d.dimension))],
     overview.rounds.map((round) => [
       formatRoundDate(round.plannedOpenDate),
       ...scoresByDimension.map((scores) => {
         const score = scores.get(round.roundId) ?? null;
+
         return score !== null ? formatScore(score) : message("overview.gap");
       }),
     ]),
@@ -263,9 +284,11 @@ const roundName = (round: OverviewRound): string =>
 
 const latestResults = <Message>(overview: TeamOverview, h: HtmlBuilder<Message>): Html | null => {
   const latest = overview.rounds.at(-1);
+
   if (latest === undefined) {
     return null;
   }
+
   return panel(
     [
       subSectionTitle(message("overview.latest.title"), h, 2),
@@ -323,10 +346,12 @@ export const teamOverviewView = <Message>(
     if (state.failure === "Forbidden") {
       return null;
     }
+
     return problemView(state.failure, h);
   }
 
   const { overview } = state;
+
   if (overview.rounds.length === 0) {
     return h.section(
       [h.Class("flex flex-col gap-4")],
@@ -341,6 +366,7 @@ export const teamOverviewView = <Message>(
   const markerXs = overview.markers.map((marker) => markerX(marker.at));
 
   const latest = latestResults(overview, h);
+
   const children: Html[] = [
     sectionTitle(message("overview.title"), h),
     h.p([h.Class("text-muted")], [message("overview.intro")]),
@@ -350,6 +376,7 @@ export const teamOverviewView = <Message>(
 
   if (isTable) {
     children.push(plotBox([roundsTable(overview, h)], h));
+
     if (overview.markers.length > 0) {
       children.push(plotBox([markersTable(overview.markers, h)], h));
     }

@@ -13,9 +13,11 @@ export const HistoryQuestion = Schema.Struct({
   type: QuestionType,
   teamScore: Schema.NullOr(Schema.Finite),
 });
+
 export type HistoryQuestion = typeof HistoryQuestion.Type;
 
 export const HistoryTeamResult = Schema.Literals(["shown", "notShared", "belowMinimumGroupSize"]);
+
 export type HistoryTeamResult = typeof HistoryTeamResult.Type;
 
 export const HistoryRound = Schema.Struct({
@@ -27,11 +29,13 @@ export const HistoryRound = Schema.Struct({
   teamResult: HistoryTeamResult,
   questions: Schema.Array(HistoryQuestion),
 });
+
 export type HistoryRound = typeof HistoryRound.Type;
 
 export const MemberHistory = Schema.Struct({
   rounds: Schema.Array(HistoryRound),
 });
+
 export type MemberHistory = typeof MemberHistory.Type;
 
 export interface MemberHistoryRoundInput {
@@ -50,6 +54,7 @@ const compareStrings = (a: string, b: string): number => (a < b ? -1 : a > b ? 1
 
 const historyRound = (input: MemberHistoryRoundInput, minimumGroupSize: number): HistoryRound => {
   const questions = [...input.questions].sort((a, b) => a.position - b.position);
+
   const base = {
     roundId: input.roundId,
     teamId: input.teamId,
@@ -57,6 +62,7 @@ const historyRound = (input: MemberHistoryRoundInput, minimumGroupSize: number):
     pulseName: input.pulseName,
     plannedOpenDate: input.plannedOpenDate,
   };
+
   const noScores = (teamResult: HistoryTeamResult): HistoryRound => ({
     ...base,
     teamResult,
@@ -68,6 +74,7 @@ const historyRound = (input: MemberHistoryRoundInput, minimumGroupSize: number):
   }
 
   const enforced = enforceEffectiveNOnResult(input.result, minimumGroupSize);
+
   if (!enforced.meetsMinimumGroupSize) {
     return noScores("belowMinimumGroupSize");
   }
@@ -77,10 +84,12 @@ const historyRound = (input: MemberHistoryRoundInput, minimumGroupSize: number):
     teamResult: "shown",
     questions: questions.map((question) => {
       const result = enforced.questions.find((each) => each.questionVersionId === question.id);
+
       const score =
         question.type._tag === "Rating" && result !== undefined && result.meetsMinimumGroupSize
           ? result.score
           : null;
+
       return toHistoryQuestion(question, score);
     }),
   };
@@ -103,5 +112,6 @@ export const buildMemberHistory = (params: {
     .sort(
       (a, b) => compareStrings(b.plannedOpenDate, a.plannedOpenDate) || compareStrings(b.roundId, a.roundId),
     );
+
   return { rounds };
 };

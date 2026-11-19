@@ -87,33 +87,43 @@ const fail = (rejection: PulseRejection): Effect.Effect<never, PulseError> => {
     case "Forbidden": {
       return Effect.fail(new Forbidden());
     }
+
     case "TeamNotFound": {
       return Effect.fail(new TeamNotFound());
     }
+
     case "PulseNotFound": {
       return Effect.fail(new PulseNotFound());
     }
+
     case "QuestionNotFound": {
       return Effect.fail(new QuestionNotFound());
     }
+
     case "QuestionAlreadyInPulse": {
       return Effect.fail(new QuestionAlreadyInPulse());
     }
+
     case "QuestionHasAnswers": {
       return Effect.fail(new QuestionHasAnswers());
     }
+
     case "PulseNeedsAQuestion": {
       return Effect.fail(new PulseNeedsAQuestion());
     }
+
     case "PulseFull": {
       return Effect.fail(new PulseFull({ maximum: rejection.maximum }));
     }
+
     case "OrderMismatch": {
       return Effect.fail(new OrderMismatch());
     }
+
     case "TestSendLimitReached": {
       return Effect.fail(new TestSendLimitReached({ perHour: rejection.perHour }));
     }
+
     case "TestSendNotFound": {
       return Effect.fail(new TestSendNotFound());
     }
@@ -125,12 +135,14 @@ const viewed = <A>(view: PulseViewed<A>): Effect.Effect<A, PulseError> =>
 
 export const runPulseCommand = Effect.fnUntraced(function* (member: Member, command: PulseCommand) {
   const pulses = yield* OrganizationPulses;
+
   const result = yield* pulses.run(
     member.organization.id,
     member.personId,
     command,
     yield* Clock.currentTimeMillis,
   );
+
   if (result._tag === "Rejected") {
     return yield* fail(result.rejection);
   }
@@ -152,6 +164,7 @@ export const sendTestInvitation = Effect.fnUntraced(function* (
   pulseId: PulseId,
 ) {
   const pulses = yield* OrganizationPulses;
+
   const result = yield* pulses.sendTest(
     member.organization.id,
     member.personId,
@@ -159,15 +172,18 @@ export const sendTestInvitation = Effect.fnUntraced(function* (
     pulseId,
     yield* Clock.currentTimeMillis,
   );
+
   if (result._tag === "Rejected") {
     return yield* fail(result.rejection);
   }
+
   return { email: result.email, sendId: result.sendId };
 });
 
 export const viewTestInvitation = (member: Member, teamId: TeamId, pulseId: PulseId, sendId: SendId) =>
   Effect.gen(function* () {
     const pulses = yield* OrganizationPulses;
+
     return yield* Effect.flatMap(
       pulses.testSend(
         member.organization.id,

@@ -14,29 +14,37 @@ const setup = async () => {
   const world = new SignInWorld();
   const acme = world.addOrganization("Acme");
   world.addPerson(acme.id, "admin@example.com", true);
+
   const as = async (email: string) => {
     const browser = new Browser(world.handler());
     browser.signIn(world.sessions.login(email));
     await browser.session();
+
     return browser;
   };
+
   const admin = await as("admin@example.com");
+
   const created = await admin.call("POST", "/api/teams", {
     name: "Platform",
     timeZone: "Europe/Berlin",
     leadEmail: "grace@example.com",
   });
+
   const teamId = teamIdOf(created.body);
+
   const other = await admin.call("POST", "/api/teams", {
     name: "Design",
     timeZone: "UTC",
     leadEmail: "linus@example.com",
   });
+
   const otherTeamId = teamIdOf(other.body);
   const lead = await as("grace@example.com");
   await lead.call("POST", `/api/teams/${teamId}/members`, { email: "ada@example.com" });
   const member = await as("ada@example.com");
   const otherLead = await as("linus@example.com");
+
   return { world, admin, lead, member, otherLead, teamId, otherTeamId };
 };
 
@@ -57,6 +65,7 @@ interface Detail {
 const createPulse = async (browser: Browser, teamId: string): Promise<Detail> => {
   const response = await browser.call("POST", `/api/teams/${teamId}/pulses`);
   expect(response.status).toBe(200);
+
   return response.body as Detail;
 };
 
@@ -139,6 +148,7 @@ describe("a Lead", () => {
       _tag: "FromTemplate",
       key: "workload-manageable",
     });
+
     // A new library Question, copied from the Template again.
     expect((fromTemplate.body as Detail).questions.at(-1)).toMatchObject({
       templateKey: "workload-manageable",
@@ -155,6 +165,7 @@ describe("a Lead", () => {
       dimension: null,
       type: { _tag: "SingleChoice", options: ["Stand-up", "Retro", "Planning"] },
     });
+
     expect(written.status).toBe(200);
     const added = (written.body as Detail).questions.at(-1);
     expect(added).toMatchObject({
@@ -168,6 +179,7 @@ describe("a Lead", () => {
       dimension: null,
       type: { _tag: "LongText" },
     });
+
     expect((edited.body as Detail).questions.at(-1)).toMatchObject({
       questionId: added?.questionId,
       text: "Anything else on your mind?",
@@ -187,6 +199,7 @@ describe("a Lead", () => {
     const pulse = await createPulse(lead, teamId);
     const path = `/api/teams/${teamId}/pulses/${pulse.id}/settings`;
     expect(await lead.call("PUT", path, settings)).toMatchObject({ status: 200, body: { settings } });
+
     for (const patch of [
       { cadence: { _tag: "Weekly", day: "friday", time: "05:30" } },
       { cadence: { _tag: "Weekly", day: "friday", time: "21:30" } },
@@ -202,6 +215,7 @@ describe("a Lead", () => {
         400,
       );
     }
+
     expect((await lead.call("GET", `/api/teams/${teamId}/pulses/${pulse.id}`)).body).toMatchObject({
       settings,
     });
@@ -211,6 +225,7 @@ describe("a Lead", () => {
     const { lead, teamId } = await setup();
     const pulse = await createPulse(lead, teamId);
     const path = `/api/teams/${teamId}/pulses/${pulse.id}/questions`;
+
     for (const question of [
       { _tag: "Written", text: "", dimension: null, type: { _tag: "LongText" } },
       { _tag: "Written", text: "Score?", dimension: null, type: { _tag: "Enps" } },
@@ -219,6 +234,7 @@ describe("a Lead", () => {
     ]) {
       expect((await lead.call("POST", path, question)).status, JSON.stringify(question)).toBe(400);
     }
+
     expect(await lead.call("POST", path, { _tag: "FromTemplate", key: "no-such-question" })).toMatchObject({
       status: 404,
       body: { _tag: "QuestionNotFound" },
@@ -270,6 +286,7 @@ describe("a member", () => {
     const pulse = await createPulse(lead, teamId);
     const base = `/api/teams/${teamId}/pulses/${pulse.id}`;
     const questionId = pulse.questions[0]?.questionId;
+
     for (const [method, path, body] of [
       ["GET", `/api/teams/${teamId}/pulses`, undefined],
       ["POST", `/api/teams/${teamId}/pulses`, undefined],
@@ -306,12 +323,14 @@ describe("every Pulse endpoint", () => {
 
   it("refuses changes from another origin", async () => {
     const { world, lead, teamId } = await setup();
+
     const response = await lead.send(
       "POST",
       `/api/teams/${teamId}/pulses`,
       undefined,
       "https://pr-1.submit.surveybeat.app",
     );
+
     expect(response.status).toBe(403);
     expect([...world.durable.organizations.values()].every(({ pulses }) => pulses.pulses.length === 0)).toBe(
       true,
@@ -380,9 +399,11 @@ describe("sending a test of a Pulse (ADR 0021)", () => {
     const { lead, teamId } = await setup();
     const pulse = await createPulse(lead, teamId);
     const statuses = [];
+
     for (let i = 0; i < 5; i++) {
       statuses.push((await lead.call("POST", testPath(teamId, pulse.id))).status);
     }
+
     expect(statuses).toEqual([200, 200, 200, 200, 200]);
     expect(await lead.call("POST", testPath(teamId, pulse.id))).toMatchObject({
       status: 429,
@@ -393,12 +414,14 @@ describe("sending a test of a Pulse (ADR 0021)", () => {
   it("refuses a test from another origin, and sends nothing", async () => {
     const { world, lead, teamId } = await setup();
     const pulse = await createPulse(lead, teamId);
+
     const response = await lead.send(
       "POST",
       testPath(teamId, pulse.id),
       undefined,
       "https://pr-1.submit.surveybeat.app",
     );
+
     expect(response.status).toBe(403);
     expect(testSends(world)).toEqual([]);
   });
@@ -408,6 +431,7 @@ describe("sending a test of a Pulse (ADR 0021)", () => {
 describe("reading a test send's state (issue 147)", () => {
   const testPath = (teamId: string, pulseId: string) =>
     `/api/teams/${teamId}/pulses/${pulseId}/test-invitation`;
+
   const statePath = (teamId: string, pulseId: string, sendId: string) =>
     `/api/teams/${teamId}/pulses/${pulseId}/test-invitations/${sendId}`;
 
@@ -415,6 +439,7 @@ describe("reading a test send's state (issue 147)", () => {
   const setState = (world: SignInWorld, sendId: string, state: SendState) => {
     for (const organization of world.durable.organizations.values()) {
       const send = organization.sends.get(SendId.make(sendId));
+
       if (send !== undefined) {
         organization.sends.set(SendId.make(sendId), { ...send, state });
       }

@@ -40,11 +40,14 @@ export const previewAnswers = (
   roster: Roster,
 ): { readonly shownToLead: string | null } => {
   let shownToLead: string | null = null;
+
   for (const answer of answers) {
     const redacted = answer.comment ? redact(answer.comment, roster) : null;
+
     if (redacted !== null) {
       shownToLead = redacted;
     }
   }
+
   return { shownToLead };
 };

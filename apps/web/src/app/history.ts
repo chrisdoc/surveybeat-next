@@ -26,6 +26,7 @@ export const LoadedHistory = defineTaggedUnion({
   Loaded: { history: MemberHistory, kept: KeptAnswers, cleared: Schema.Boolean },
   Failed: { failure: Failure },
 });
+
 export type LoadedHistory = typeof LoadedHistory.Type;
 
 const isScaleValue = (value: number): value is 1 | 2 | 3 | 4 | 5 =>
@@ -37,9 +38,11 @@ const ratingText = (
   highLabel: string | undefined,
 ): string => {
   const label = value === 1 ? lowLabel : value === 5 ? highLabel : undefined;
+
   if (label === undefined || label === "") {
     return String(value);
   }
+
   return message("history.yours.rating", { value: String(value), label });
 };
 
@@ -53,6 +56,7 @@ const yourAnswer = (
   switch (type._tag) {
     case "Rating": {
       const value = answer?.value;
+
       return {
         main:
           value !== undefined && isScaleValue(value)
@@ -61,11 +65,14 @@ const yourAnswer = (
         comment: nonEmpty(answer?.comment),
       };
     }
+
     case "SingleChoice": {
       const index = answer?.value;
       const option = index !== undefined && Number.isInteger(index) ? type.options[index] : undefined;
+
       return { main: option, comment: undefined };
     }
+
     case "LongText": {
       return { main: nonEmpty(answer?.comment), comment: undefined };
     }
@@ -80,10 +87,13 @@ const yourAnswerView = <Message>(
   if (roundAnswers === undefined) {
     return h.span([], [message("history.yours.notOnDevice")]);
   }
+
   const { main, comment } = yourAnswer(question.type, roundAnswers[question.questionVersionId]);
+
   if (main === undefined && comment === undefined) {
     return h.span([], [message("history.yours.none")]);
   }
+
   return h.div(
     [h.Class("flex flex-col gap-1")],
     [
@@ -99,9 +109,11 @@ const teamScoreText = (round: HistoryRound, question: HistoryQuestion): string =
   if (question.teamScore !== null) {
     return message("history.team.score", { score: formatScore(question.teamScore) });
   }
+
   if (round.teamResult === "shown" && question.type._tag === "Rating") {
     return message("history.team.hidden");
   }
+
   return message("results.dash");
 };
 
@@ -109,9 +121,11 @@ const teamResultNote = (teamResult: HistoryTeamResult): string | null => {
   if (teamResult === "notShared") {
     return message("history.team.notShared");
   }
+
   if (teamResult === "belowMinimumGroupSize") {
     return message("history.team.belowMinimum");
   }
+
   return null;
 };
 
@@ -123,6 +137,7 @@ const questionsTable = <Message>(
 ): Html => {
   const header = (text: string): Html =>
     h.th([h.Class("py-2 pr-4 text-[13px] font-semibold text-muted")], [text]);
+
   return h.table(
     [h.Class("mt-2 w-full text-left text-sm")],
     [
@@ -166,6 +181,7 @@ const roundView = <Message>(
 ): Html => {
   const date = formatRoundDate(round.plannedOpenDate);
   const note = teamResultNote(round.teamResult);
+
   return panel(
     [
       subSectionTitle(round.pulseName, h, 2),
@@ -201,14 +217,17 @@ export const historyView = <Message>(
 
   if (state._tag === "Loading") {
     children.push(h.p([h.Class("mt-6 text-muted")], [message("app.loading")]));
+
     return h.section([], children);
   }
 
   if (state._tag === "Failed") {
     const problem = problemView(state.failure, h);
+
     if (problem !== null) {
       children.push(problem);
     }
+
     return h.section([], children);
   }
 

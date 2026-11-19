@@ -44,20 +44,27 @@ const render = (points: readonly ChartPoint[], extra: Partial<Parameters<typeof 
 /** Every string a subtree renders, so a count label can be found by its text. */
 const textsOf = (tree: Tree): string[] => {
   const parts: string[] = [];
+
   const walk = (child: Tree | string): void => {
     if (typeof child === "string") {
       parts.push(child);
+
       return;
     }
+
     const inner = (child as { text?: string }).text;
+
     if (inner !== undefined) {
       parts.push(inner);
     }
+
     for (const grandchild of child.children ?? []) {
       walk(grandchild);
     }
   };
+
   walk(tree);
+
   return parts;
 };
 
@@ -112,22 +119,29 @@ describe("lineChart", () => {
   /** A text element's label: foldkit wraps the string child in a text vnode, which carries `text`. */
   const textOf = (node: Tree): string => {
     const parts: string[] = [];
+
     const walk = (child: Tree | string): void => {
       if (typeof child === "string") {
         parts.push(child);
+
         return;
       }
+
       const inner = (child as { text?: string }).text;
+
       if (inner !== undefined) {
         parts.push(inner);
       }
+
       for (const grandchild of child.children ?? []) {
         walk(grandchild);
       }
     };
+
     for (const child of node.children ?? []) {
       walk(child);
     }
+
     return parts.join("");
   };
 
@@ -145,6 +159,7 @@ describe("lineChart", () => {
       ],
       latestLabel: "4.2",
     });
+
     const labels = labelsOf(tree);
     expect(labels).toContain("26.10.2026");
     expect(labels).toContain("09.11.2026");
@@ -189,6 +204,7 @@ describe("trendChart", () => {
   const points = [roundPoint(3, false), roundPoint(4, true), roundPoint(5, false)];
   const svgOf = (tree: Tree): Tree => elements(tree, "svg")[0]!;
   const overlayOf = (tree: Tree): Tree => elements(tree, "div").find((node) => hasClass(node, "absolute"))!;
+
   const dotsOf = (tree: Tree): Tree[] =>
     elements(tree, "span").filter((node) => hasClass(node, "rounded-full"));
 

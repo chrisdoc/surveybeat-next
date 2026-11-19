@@ -5,6 +5,7 @@ import * as Schema from "effect/Schema";
 import { Dimension } from "../pulses/Question.ts";
 
 export const RedactedText = Schema.String.pipe(Schema.brand("RedactedText"));
+
 export type RedactedText = typeof RedactedText.Type;
 
 export const AiInput = Schema.Struct({
@@ -38,6 +39,7 @@ export const AiInput = Schema.Struct({
     }),
   ),
 });
+
 export type AiInput = typeof AiInput.Type;
 
 export interface AiRequest {

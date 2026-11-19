@@ -6,6 +6,7 @@ import { TeamId } from "./Team.ts";
 import type { MembershipRole } from "./Team.ts";
 
 const team = TeamId.make("platform");
+
 const otherTeam = TeamId.make("design");
 
 const actor = (organizationAdmin: boolean, role?: MembershipRole): Actor => ({
@@ -24,7 +25,9 @@ const ACTORS = {
   leadElsewhere: { ...actor(false), roles: new Map([[otherTeam, "lead" as const]]) },
   nobody: actor(false),
 } satisfies Record<string, Actor>;
+
 type Who = keyof typeof ACTORS;
+
 const EVERYONE = Object.keys(ACTORS) as readonly Who[];
 
 /**

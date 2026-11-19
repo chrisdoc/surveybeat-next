@@ -54,15 +54,25 @@ import {
 import { setLocale } from "../messages/locale.ts";
 
 const decodeOrgId = Schema.decodeSync(OrganizationId);
+
 const decodeTeamId = Schema.decodeSync(TeamId);
+
 const decodePulseId = Schema.decodeSync(PulseId);
+
 const decodePersonId = Schema.decodeSync(PersonId);
+
 const decodeQuestionId = Schema.decodeSync(QuestionId);
+
 const decodeVersionId = Schema.decodeSync(QuestionVersionId);
+
 const decodeTemplateKey = Schema.decodeSync(TemplateQuestionKey);
+
 const decodeTimeZone = Schema.decodeSync(TimeZone);
+
 const decodeEmail = Schema.decodeSync(EmailAddress);
+
 const decodeSize = Schema.decodeSync(MinimumGroupSize);
+
 const decodeSendTime = Schema.decodeSync(SendTime);
 
 const makeUrl = (str: string) => Option.getOrThrow(fromString(str));
@@ -87,6 +97,7 @@ describe("App Stories", () => {
         ),
         Story.model((m) => {
           expect(m.session._tag).toBe("SignedOut");
+
           if (m.session._tag === "SignedOut") {
             expect(m.session.failed).toBe(false);
           }
@@ -105,6 +116,7 @@ describe("App Stories", () => {
         ),
         Story.model((m) => {
           expect(m.session._tag).toBe("SignedOut");
+
           if (m.session._tag === "SignedOut") {
             expect(m.session.failed).toBe(true);
           }
@@ -237,6 +249,7 @@ describe("App Stories", () => {
   describe("Teams screen", () => {
     it("loads teams list and creates a team", () => {
       const teamId = decodeTeamId("team-1");
+
       const teamSummary = {
         id: teamId,
         name: "Engineering",
@@ -283,6 +296,7 @@ describe("App Stories", () => {
         ),
         Story.model((m) => {
           expect(m.teams._tag).toBe("Loaded");
+
           if (m.teams._tag === "Loaded") {
             expect(m.teams.teams).toHaveLength(1);
             expect(m.teams.teams[0]?.name).toBe("Engineering");
@@ -330,6 +344,7 @@ describe("App Stories", () => {
     it("renames team, adds member, and assigns lead", () => {
       const teamId = decodeTeamId("team-1");
       const personId = decodePersonId("person-1");
+
       const detail = {
         team: {
           id: teamId,
@@ -461,6 +476,7 @@ describe("App Stories", () => {
   describe("Settings screen", () => {
     it("updates minimum group size and manages admin roles", () => {
       const personId = decodePersonId("person-1");
+
       const settings = {
         name: "Acme",
         minimumGroupSize: decodeSize(4),
@@ -615,6 +631,7 @@ describe("App Stories", () => {
         ),
         Story.model((m) => {
           expect(m.pulses._tag).toBe("Loaded");
+
           if (m.pulses._tag === "Loaded") {
             expect(m.pulses.pulses.pulses).toHaveLength(1);
           }
@@ -813,6 +830,7 @@ describe("App Stories", () => {
     const openId = Schema.decodeSync(RoundId)("round-open");
     const closedId = Schema.decodeSync(RoundId)("round-closed");
     const url = makeUrl(`https://app.surveybeat.com/teams/${teamId}/pulses/${pulseId}/rounds`);
+
     const summary = (id: RoundId, status: "open" | "closed") => ({
       id,
       pulseId,
@@ -826,7 +844,9 @@ describe("App Stories", () => {
       pulseName: "Weekly check-in",
       invitations: null,
     });
+
     const list = { pulseId, paused: false, rounds: [summary(openId, "open"), summary(closedId, "closed")] };
+
     const teamAs = (yourRole: "lead" | null) => ({
       team: { id: teamId, name: "Platform", timeZone: decodeTimeZone("Europe/Berlin"), yourRole },
       roster: [],
@@ -838,6 +858,7 @@ describe("App Stories", () => {
         viewResults: false,
       },
     });
+
     const signedIn = {
       ...initialModel(url, []),
       session: {

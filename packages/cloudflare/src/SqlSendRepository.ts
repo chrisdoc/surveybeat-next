@@ -6,6 +6,7 @@ import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 
 const StateJson = Schema.fromJsonString(SendState);
+
 const ContentJson = Schema.fromJsonString(StoredEmail);
 
 const Row = Schema.Struct({
@@ -16,7 +17,9 @@ const Row = Schema.Struct({
 });
 
 const decodeRow = Schema.decodeUnknownEffect(Row);
+
 const encodeState = Schema.encodeEffect(StateJson);
+
 const encodeContent = Schema.encodeEffect(ContentJson);
 
 export const makeSqlSendRepository = (sql: SqliteClient.SqliteClient): SendRepository => ({

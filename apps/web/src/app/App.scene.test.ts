@@ -89,18 +89,31 @@ const instant = (iso: string): number => DateTime.toEpochMillis(DateTime.makeUns
 setup();
 
 const decodeOrgId = Schema.decodeSync(OrganizationId);
+
 const decodeTeamId = Schema.decodeSync(TeamId);
+
 const decodePulseId = Schema.decodeSync(PulseId);
+
 const decodePersonId = Schema.decodeSync(PersonId);
+
 const decodeQuestionId = Schema.decodeSync(QuestionId);
+
 const decodeVersionId = Schema.decodeSync(QuestionVersionId);
+
 const decodeTemplateKey = Schema.decodeSync(TemplateQuestionKey);
+
 const decodeTimeZone = Schema.decodeSync(TimeZone);
+
 const decodeEmail = Schema.decodeSync(EmailAddress);
+
 const decodeSize = Schema.decodeSync(MinimumGroupSize);
+
 const decodeSendTime = Schema.decodeSync(SendTime);
+
 const decodeRoundId = Schema.decodeSync(RoundId);
+
 const decodeActionId = Schema.decodeSync(ActionId);
+
 const decodeSendId = Schema.decodeSync(SendId);
 
 const makeUrl = (str: string) => Option.getOrThrow(fromString(str));
@@ -280,12 +293,14 @@ describe("App Scenes", () => {
     const pulseId = decodePulseId("pulse-1");
     const roundId = decodeRoundId("round-1");
     const actionId = decodeActionId("action-1");
+
     const teamSummary = {
       id: teamId,
       name: "Engineering",
       timeZone: decodeTimeZone("Europe/Berlin"),
       yourRole: "lead" as const,
     };
+
     const pulse = {
       id: pulseId,
       name: "Weekly check-in",
@@ -293,6 +308,7 @@ describe("App Scenes", () => {
       questionCount: 3,
       estimatedSeconds: 90,
     };
+
     const round = (status: "closed" | "open" | "shared") => ({
       id: roundId,
       pulseId,
@@ -305,6 +321,7 @@ describe("App Scenes", () => {
       closedAt: status === "open" ? null : instant("2026-11-13T09:00:00Z"),
       pulseName: "Weekly check-in",
     });
+
     const action = (status: "committed" | "done") => ({
       id: actionId,
       teamId,
@@ -319,6 +336,7 @@ describe("App Scenes", () => {
       updatedAt: instant("2026-11-01T09:00:00Z"),
       doneAt: status === "done" ? instant("2026-11-02T09:00:00Z") : null,
     });
+
     const home = (status: "closed" | "open" | "shared", actionStatus: "committed" | "done") => ({
       teams: { _tag: "Loaded" as const, teams: [teamSummary] },
       homePulses: { [teamId]: { team: teamSummary, pulses: [pulse] } },
@@ -409,6 +427,7 @@ describe("App Scenes", () => {
 
     it("renders teams list and creates team via form", () => {
       const teamId = decodeTeamId("team-1");
+
       const teamSummary = {
         id: teamId,
         name: "Engineering",
@@ -471,6 +490,7 @@ describe("App Scenes", () => {
     it("interacts with roster and team renaming", () => {
       const teamId = decodeTeamId("team-1");
       const personId = decodePersonId("person-1");
+
       const detail = {
         team: {
           id: teamId,
@@ -571,6 +591,7 @@ describe("App Scenes", () => {
     it("asks before removing a member, and Escape or Cancel leave the roster alone", () => {
       const teamId = decodeTeamId("team-1");
       const personId = decodePersonId("person-1");
+
       const detail = {
         team: {
           id: teamId,
@@ -619,6 +640,7 @@ describe("App Scenes", () => {
     it("shows no row actions to a Team member who may not remove People", () => {
       const teamId = decodeTeamId("team-1");
       const personId = decodePersonId("person-1");
+
       const detail = {
         team: {
           id: teamId,
@@ -660,6 +682,7 @@ describe("App Scenes", () => {
       const teamId = decodeTeamId("team-1");
       const pulseId = Schema.decodeSync(PulseId)("pulse-1");
       const roundId = Schema.decodeSync(RoundId)("round-1");
+
       const detail = {
         team: {
           id: teamId,
@@ -683,6 +706,7 @@ describe("App Scenes", () => {
           viewResults: true,
         },
       };
+
       const pulse = {
         id: pulseId,
         name: "Weekly check-in",
@@ -921,6 +945,7 @@ describe("App Scenes", () => {
           session: signedInAdmin,
           teamDetail: { _tag: "Loaded" as const, detail: detailWith(true) },
         };
+
         const stale = update(
           model,
           Message.GotTeamOverview({
@@ -930,6 +955,7 @@ describe("App Scenes", () => {
             },
           }),
         );
+
         expect(stale.model.teamOverview).toEqual({ _tag: "Loading" });
 
         const current = update(model, Message.GotTeamOverview({ outcome: { _tag: "Success", overview } }));
@@ -941,6 +967,7 @@ describe("App Scenes", () => {
           { ...initialModel(teamUrl, []), session: signedInAdmin },
           Message.UrlChanged({ url: teamUrl }),
         );
+
         expect(result.model.teamOverview).toEqual({ _tag: "Loading" });
         expect(result.commands?.map((command) => command.name)).toEqual([
           "GetTeam",
@@ -1075,6 +1102,7 @@ describe("App Scenes", () => {
         { ...initialModel(makeUrl("https://app.surveybeat.com/teams"), []), session: signedInAdmin },
         Message.UrlChanged({ url: historyUrl }),
       );
+
       expect(result.model.history).toEqual({ _tag: "Loading" });
       expect(result.commands?.map((command) => command.name)).toEqual(["GetMyHistoryCmd"]);
     });
@@ -1084,10 +1112,12 @@ describe("App Scenes", () => {
         ...initialModel(makeUrl("https://app.surveybeat.com/teams"), []),
         session: signedInAdmin,
       };
+
       const stale = update(
         model,
         Message.GotMyHistory({ outcome: { _tag: "Success", history: { rounds: [shownRound] }, kept } }),
       );
+
       expect(stale.model.history).toEqual({ _tag: "Loading" });
     });
 
@@ -1096,6 +1126,7 @@ describe("App Scenes", () => {
         team: "Platform",
         date: formatDate(DateTime.makeUnsafe("2026-11-02T12:00:00Z")),
       });
+
       Scene.scene(
         { update, view },
         Scene.given(loaded([shownRound], kept)),
@@ -1117,6 +1148,7 @@ describe("App Scenes", () => {
         [3, "3"],
         [5, "5 · Clear"],
       ];
+
       for (const [value, text] of expectations) {
         Scene.scene(
           { update, view },
@@ -1214,6 +1246,7 @@ describe("App Scenes", () => {
   describe("Settings screen", () => {
     it("renders organization settings and updates minimum group size", () => {
       const personId = decodePersonId("person-1");
+
       const settings = {
         name: "Acme",
         minimumGroupSize: decodeSize(4),
@@ -1274,6 +1307,7 @@ describe("App Scenes", () => {
       defaultLocale: "en" as const,
       people: [],
     };
+
     const failedAt = 1_800_000_000_000;
 
     it("shows that no email has failed", () => {
@@ -1360,6 +1394,7 @@ describe("App Scenes", () => {
 
     describe("resending a failed send", () => {
       const sendId = decodeSendId("send-1");
+
       const failedRow = (resendable: boolean) => ({
         sendId,
         kind: "ReminderEmail" as const,
@@ -1369,6 +1404,7 @@ describe("App Scenes", () => {
         failedAt,
         resendable,
       });
+
       const listedModel = (resendable = true, resends: Record<string, FailedEmailResend> = {}) => ({
         ...initialModel(makeUrl("https://app.surveybeat.com/settings"), []),
         session: signedInAdmin,
@@ -1377,11 +1413,15 @@ describe("App Scenes", () => {
         failedEmails: { _tag: "Loaded" as const, list: { emails: [failedRow(resendable)] } },
         failedEmailResends: resends,
       });
+
       const resendStatus = (state: EmailSendProgress): FailedEmailStatus => ({ sendId, state });
+
       const resent = (state: EmailSendProgress) =>
         Message.ResentFailedEmail({ sendId, outcome: { _tag: "Success", status: resendStatus(state) } });
+
       const polled = (state: EmailSendProgress) =>
         Message.PolledFailedEmail({ sendId, outcome: { _tag: "Success", status: resendStatus(state) } });
+
       const resendClick = Scene.click(Scene.role("button", { name: "Resend" }));
       const queued: EmailSendProgress = { _tag: "Queued", attempts: 0, lastCode: null };
 
@@ -1516,16 +1556,19 @@ describe("App Scenes", () => {
         const waiting = listedModel(true, {
           [sendId]: { _tag: "Resent", state: queued, polls: 299, statusUnavailable: false },
         });
+
         const last = update(waiting, polled(queued));
         expect(last.commands?.length ?? 0).toBe(0);
         // Still queued when it gives up: the row says to reload.
         expect(last.model.failedEmailResends[sendId]).toMatchObject({ statusUnavailable: true });
+
         const earlier = update(
           listedModel(true, {
             [sendId]: { _tag: "Resent", state: queued, polls: 298, statusUnavailable: false },
           }),
           polled(queued),
         );
+
         expect(earlier.commands?.map((command) => command.name)).toEqual(["PollFailedEmailCmd"]);
       });
     });
@@ -1535,6 +1578,7 @@ describe("App Scenes", () => {
         { ...initialModel(makeUrl("https://app.surveybeat.com/teams"), []), session: signedInAdmin },
         Message.UrlChanged({ url: makeUrl("https://app.surveybeat.com/settings") }),
       );
+
       expect(result.model.failedEmails).toEqual({ _tag: "Loading" });
       expect(result.commands?.map((command) => command.name)).toEqual(["GetSettings", "ListFailedEmails"]);
     });
@@ -1543,6 +1587,7 @@ describe("App Scenes", () => {
   describe("AI processing setting", () => {
     it("turns AI processing on and reloads the settings", () => {
       const personId = decodePersonId("person-1");
+
       const settings = {
         name: "Acme",
         minimumGroupSize: decodeSize(4),
@@ -1798,6 +1843,7 @@ describe("App Scenes", () => {
   describe("Send me a test", () => {
     const teamId = decodeTeamId("team-1");
     const pulseId = decodePulseId("pulse-1");
+
     const detail = {
       id: pulseId,
       team: { id: teamId, name: "Engineering", timeZone: decodeTimeZone("UTC"), yourRole: "lead" as const },
@@ -1826,6 +1872,7 @@ describe("App Scenes", () => {
       warnings: [],
       templateQuestions: [],
     };
+
     const editorModel = () => ({
       ...initialModel(makeUrl(`https://app.surveybeat.com/teams/${teamId}/pulses/${pulseId}`), []),
       session: signedInAdmin,
@@ -1839,14 +1886,19 @@ describe("App Scenes", () => {
     });
 
     const sendId = decodeSendId("send-1");
+
     /** Queue and read times of a send read `minutes` after it was queued (server clock). */
     const waited = (minutes: number) => {
       const queuedAt = 1_800_000_000_000;
+
       return { queuedAt, checkedAt: queuedAt + minutes * 60_000 };
     };
+
     const polled = (state: TestSendStatus["state"], times = waited(0), id = sendId) =>
       Message.PolledTestSend({ sendId: id, outcome: { _tag: "Success", status: { ...times, state } } });
+
     const pollCmd = () => PollTestSendCmd({ teamId, pulseId, sendId });
+
     /** Sends a test and lets the send succeed, so the editor's first status read is pending. */
     const sentSteps = [
       Scene.click(Scene.role("button", { name: "Send me a test" })),
@@ -2353,10 +2405,12 @@ describe("App Scenes", () => {
 
     it("asks before dropping an action, and cancelling leaves it untouched", () => {
       const actionId = Schema.decodeSync(ActionId)("action-1");
+
       const base = {
         ...initialModel(makeUrl("https://app.surveybeat.com/teams/team-1/rounds/round-1"), []),
         session: signedInAdmin,
       };
+
       const asked = update(base, Message.AskDropAction({ actionId }));
       expect(Option.getOrUndefined(asked.model.pendingDropId)).toBe(actionId);
       expect(asked.commands ?? []).toHaveLength(0);
@@ -2410,6 +2464,7 @@ describe("App Scenes", () => {
     const trendResult = (rounds: number): RoundResult => {
       const teamId = decodeTeamId("team-1");
       const roundId = Schema.decodeSync(RoundId)("round-trend");
+
       const trend = Array.from({ length: rounds }, (_, i) => ({
         roundId,
         plannedOpenDate: `2026-11-${String(9 + i).padStart(2, "0")}`,
@@ -2417,6 +2472,7 @@ describe("App Scenes", () => {
         contributors: 6,
         hasGap: false,
       }));
+
       return {
         roundId,
         pulseId: decodePulseId("pulse-1"),
@@ -2538,6 +2594,7 @@ describe("App Scenes", () => {
 
     describe("Trend panel is only for Rating Questions", () => {
       const roundId = Schema.decodeSync(RoundId)("round-bare");
+
       const choiceQuestion = (
         trend: RoundResult["questions"][number]["trend"],
       ): RoundResult["questions"][number] => ({
@@ -2895,6 +2952,7 @@ describe("App Scenes", () => {
 
       it("explains to the Lead, and only the Lead, how to turn on themes when AI is off", () => {
         const aiOff = meetingResult({ themesStatus: "notRequested", themes: [] });
+
         const adminLine =
           "An Organization admin can turn on AI processing in Settings to get themes and a discussion guide.";
 
@@ -2990,6 +3048,7 @@ describe("App Scenes", () => {
 
     const noteText = "We agreed to shorten pairing sessions.";
     const updatedAt = 1_731_150_000_000;
+
     const savedNote = {
       roundId,
       text: noteText,
@@ -3090,6 +3149,7 @@ describe("App Scenes", () => {
         submissionsCount: 3,
         responseRate: 0.375,
       };
+
       Scene.scene(
         { update, view },
         Scene.given({
@@ -3359,6 +3419,7 @@ describe("App Scenes", () => {
       pulseName: "Weekly check-in",
       invitations: null,
     });
+
     const rounds = {
       pulseId,
       paused: false,
@@ -3368,6 +3429,7 @@ describe("App Scenes", () => {
         summary(closedId, "closed", "2026-11-02"),
       ],
     };
+
     const teamAs = (yourRole: "lead" | "member" | null) => ({
       team: { id: teamId, name: "Platform", timeZone: decodeTimeZone("Europe/Berlin"), yourRole },
       roster: [],
@@ -3379,6 +3441,7 @@ describe("App Scenes", () => {
         viewResults: false,
       },
     });
+
     const openDetail: RoundDetail = {
       id: openId,
       pulseId,
@@ -3401,6 +3464,7 @@ describe("App Scenes", () => {
       ],
       createdAt: 1_731_100_000_000,
     };
+
     const given = (yourRole: "lead" | "member" | null) => ({
       ...initialModel(url, []),
       session: signedInAdmin,
@@ -3450,11 +3514,13 @@ describe("App Scenes", () => {
 
     it("titles a Round by its planned open date, the date Results and History show, even when it opened early", () => {
       const earlyId = Schema.decodeSync(RoundId)("round-early");
+
       const early: RoundSummary = {
         ...summary(earlyId, "open", "2026-11-23"),
         openedAt: instant("2026-11-19T09:00:00Z"),
         plannedCloseAt: instant("2026-11-26T09:00:00Z"),
       };
+
       Scene.scene(
         { update, view },
         Scene.given({
@@ -3471,10 +3537,12 @@ describe("App Scenes", () => {
 
     it("titles a Round by the Team's calendar day when its open instant falls on another day for the viewer", () => {
       const aheadId = Schema.decodeSync(RoundId)("round-ahead");
+
       const ahead: RoundSummary = {
         ...summary(aheadId, "scheduled", "2026-11-23"),
         plannedOpenAt: instant("2026-11-22T20:00:00Z"),
       };
+
       Scene.scene(
         { update, view },
         Scene.given({
@@ -3812,6 +3880,7 @@ describe("App Scenes", () => {
 
   describe("Language", () => {
     const teamsUrl = makeUrl("https://app.surveybeat.com/");
+
     const signedIn = (locale: Locale | null, organizationLocale: Locale): SessionModel => ({
       _tag: "SignedIn",
       organization: { id: decodeOrgId("org-1"), name: "Acme" },
@@ -3882,6 +3951,7 @@ describe("App Scenes", () => {
           busy: false,
           notice: null,
         };
+
         expect(localeOf(modelWith("en", signedOut))).toBe("en");
         expect(localeOf(modelWith(null, signedOut))).toBe("en");
       });
@@ -3890,6 +3960,7 @@ describe("App Scenes", () => {
 
   describe("Header and footer", () => {
     const teamsUrl = makeUrl("https://app.surveybeat.com/teams");
+
     const teamsModel = (session: SessionModel = signedInAdmin) => ({
       ...initialModel(teamsUrl, []),
       session,
@@ -4022,6 +4093,7 @@ describe("App Scenes", () => {
         navMenu: Popover.open(Popover.init({ id: "nav-menu" })).model,
         accountMenu: Popover.open(Popover.init({ id: "account-menu" })).model,
       };
+
       expect(open.navMenu.isOpen).toBe(true);
       expect(open.accountMenu.isOpen).toBe(true);
 
@@ -4044,11 +4116,13 @@ describe("App Scenes", () => {
           view: (current, h) => {
             const document = view(current, h);
             title = document.title;
+
             return document;
           },
         },
         Scene.given(model),
       );
+
       return title;
     };
 
@@ -4058,6 +4132,7 @@ describe("App Scenes", () => {
       timeZone: decodeTimeZone("UTC"),
       yourRole: "lead" as const,
     });
+
     const teamDetailOf = (id: string, name: string) => ({
       team: teamOf(id, name),
       roster: [],
@@ -4069,7 +4144,9 @@ describe("App Scenes", () => {
         viewResults: true,
       },
     });
+
     const platform = { _tag: "Loaded" as const, detail: teamDetailOf("team-1", "Platform Engineering") };
+
     const pulseDetail = {
       _tag: "Loaded" as const,
       detail: {
@@ -4090,6 +4167,7 @@ describe("App Scenes", () => {
         templateQuestions: [],
       },
     };
+
     const inOrganization = (url: string, extra: Partial<Model> = {}): Model => ({
       ...initialModel(makeUrl(url), []),
       session: signedInAdmin,
@@ -4229,6 +4307,7 @@ describe("App Scenes", () => {
           notice: null,
         },
       });
+
       expect(titleOf(signedOut("https://app.surveybeat.com/"))).toBe("Sign in to SurveyBeat");
       expect(titleOf(signedOut("https://app.surveybeat.com/privacy"))).toBe("Privacy at SurveyBeat");
       expect(titleOf({ ...initialModel(teamsUrl, []), session: { _tag: "Loading" } })).toBe("SurveyBeat");

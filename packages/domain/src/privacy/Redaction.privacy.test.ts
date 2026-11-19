@@ -28,6 +28,7 @@ const Part = Schema.Struct({
 });
 
 const Digit = Schema.Literals(["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]);
+
 const AreaDigit = Schema.Literals(["2", "3", "4", "5", "6", "7", "8", "9"]);
 
 const GermanNumber = Schema.Struct({
@@ -47,11 +48,13 @@ const germanNumber = (number: typeof GermanNumber.Type): string => {
   const subscriber = digits(number.subscriber, 6, 8);
   const separatorOf = (index: number) => number.separators[index % number.separators.length] ?? " ";
   let groups = "";
+
   for (let group = 0, index = 0; index < subscriber.length; group += 1) {
     const size = 2 + (group % 2);
     groups += `${separatorOf(group)}${subscriber.slice(index, index + size)}`;
     index += size;
   }
+
   return `${number.prefix}${national}${groups}`;
 };
 
@@ -154,43 +157,55 @@ describe("redact", () => {
     { parts: Schema.Array(Part) },
     ({ parts }) => {
       const roster: Roster = [...ROSTER_NAMES];
+
       const text = `${parts
         .slice(0, 40)
         .map((part, position) => {
           const name = ROSTER_NAMES[Math.abs(part.index + position) % ROSTER_NAMES.length] ?? "Alice";
+
           switch (part.kind) {
             case "word": {
               return part.word;
             }
+
             case "lower": {
               return name.toLowerCase();
             }
+
             case "upper": {
               return name.toUpperCase();
             }
+
             case "possessive": {
               return `${name}'s`;
             }
+
             case "parenthesised": {
               return `(${name})`;
             }
           }
         })
         .join(" ")}.`;
+
       const redacted = redact(text, roster);
       const segmenter = new Intl.Segmenter("en", { granularity: "word" });
+
       for (const segment of segmenter.segment(redacted)) {
         if (!segment.isWordLike) {
           continue;
         }
+
         let word = segment.segment.toLowerCase();
+
         if (word.endsWith("'s") || word.endsWith("\u2019s")) {
           word = word.slice(0, -2);
         }
+
         if (ROSTER_NAMES.some((name) => name.toLowerCase() === word)) {
           return false;
         }
       }
+
       return true;
     },
   );
@@ -339,6 +354,7 @@ describe("redact German phone numbers", () => {
     { number: GermanNumber },
     ({ number }) => {
       const phone = germanNumber(number);
+
       return redact(sentence(phone), []) === redacted;
     },
   );
@@ -353,6 +369,7 @@ describe("redact German phone numbers", () => {
       const validYear = 1990 + (((year % 110) + 110) % 110);
       const date = short ? pad(validYear % 100) : `${pad(validDay)}.${pad(validMonth)}.${validYear}`;
       const text = `Am ${date} um 10:30 Uhr danke.`;
+
       return redact(text, []) === text;
     },
   );

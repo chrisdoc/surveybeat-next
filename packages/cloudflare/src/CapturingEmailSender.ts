@@ -9,6 +9,7 @@ import * as Effect from "effect/Effect";
 export const capturingEmailSender = (db: Cloudflare.D1.QueryDatabaseClient) =>
   Effect.gen(function* () {
     const runtime = yield* Effect.context<RuntimeContext>();
+
     return EmailSender.of({
       send: (message) =>
         Effect.gen(function* () {
@@ -28,6 +29,7 @@ export const capturingEmailSender = (db: Cloudflare.D1.QueryDatabaseClient) =>
               headers,
             )
             .run();
+
           return { messageId };
         }).pipe(Effect.provideContext(runtime)),
     });

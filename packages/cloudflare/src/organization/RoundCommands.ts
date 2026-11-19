@@ -55,10 +55,12 @@ export const organizationRoundCommands = ({
             const dirState = yield* directory.load;
             const pulseState = yield* pulses.load;
             const round = "roundId" in command ? yield* rounds.getRound(command.roundId) : null;
+
             const invitation =
               command._tag === "ResendInvitation"
                 ? yield* rounds.getInvitation(command.roundId, command.personId)
                 : null;
+
             const computePending =
               command._tag === "RetryResult" && round !== null
                 ? yield* rounds.hasPendingJob(round.id, "compute")
@@ -74,24 +76,30 @@ export const organizationRoundCommands = ({
               invitation,
               computePending,
             });
+
             if (decision._tag === "Rejected") {
               return { _tag: "Rejected", rejection: decision.rejection } satisfies RoundCommandResult;
             }
+
             if (decision._tag === "Unchanged") {
               return { _tag: "Accepted" } satisfies RoundCommandResult;
             }
 
             const plan = decision.plan;
+
             switch (plan._tag) {
               case "SkipWeek": {
                 yield* rounds.skipWeek(plan.pulseId, plan.plannedOpenDate, now);
                 const scheduled = yield* rounds.findScheduledRound(plan.pulseId);
+
                 if (scheduled !== null && scheduled.plannedOpenDate === plan.plannedOpenDate) {
                   yield* rounds.cancelRound(scheduled.id, now);
                   yield* rounds.cancelJobsForRound(scheduled.id);
                   yield* scheduleNextRound(plan.pulseId, plan.teamId, now);
                 }
+
                 yield* repairAlarm();
+
                 return { _tag: "Accepted" } satisfies RoundCommandResult;
               }
 
@@ -99,21 +107,27 @@ export const organizationRoundCommands = ({
                 yield* rounds.unskipWeek(plan.pulseId, plan.plannedOpenDate);
                 const scheduled = yield* rounds.findScheduledRound(plan.pulseId);
                 const open = yield* rounds.findOpenRound(plan.pulseId);
+
                 if (scheduled === null && open === null) {
                   yield* scheduleNextRound(plan.pulseId, plan.teamId, now);
                 }
+
                 yield* repairAlarm();
+
                 return { _tag: "Accepted" } satisfies RoundCommandResult;
               }
 
               case "PausePulse": {
                 yield* rounds.pausePulse(plan.pulseId, now);
                 const scheduled = yield* rounds.findScheduledRound(plan.pulseId);
+
                 if (scheduled !== null) {
                   yield* rounds.cancelRound(scheduled.id, now);
                   yield* rounds.cancelJobsForRound(scheduled.id);
                 }
+
                 yield* repairAlarm();
+
                 return { _tag: "Accepted" } satisfies RoundCommandResult;
               }
 
@@ -121,10 +135,13 @@ export const organizationRoundCommands = ({
                 yield* rounds.resumePulse(plan.pulseId);
                 const scheduled = yield* rounds.findScheduledRound(plan.pulseId);
                 const open = yield* rounds.findOpenRound(plan.pulseId);
+
                 if (scheduled === null && open === null) {
                   yield* scheduleNextRound(plan.pulseId, plan.teamId, now);
                 }
+
                 yield* repairAlarm();
+
                 return { _tag: "Accepted" } satisfies RoundCommandResult;
               }
 
@@ -150,11 +167,13 @@ export const organizationRoundCommands = ({
                 });
                 yield* executeComputeJob(computeJobId, plan.roundId, now);
                 yield* repairAlarm();
+
                 return { _tag: "Accepted" } satisfies RoundCommandResult;
               }
 
               case "ShareResults": {
                 yield* shareResults(plan.roundId, now);
+
                 return { _tag: "Accepted" } satisfies RoundCommandResult;
               }
 
@@ -173,6 +192,7 @@ export const organizationRoundCommands = ({
                 });
                 yield* executeComputeJob(computeJobId, plan.roundId, now);
                 yield* repairAlarm();
+
                 return { _tag: "Accepted" } satisfies RoundCommandResult;
               }
 
@@ -182,15 +202,18 @@ export const organizationRoundCommands = ({
                 yield* rounds.revokeInvitationsForRound(plan.roundId, now);
                 yield* rounds.deleteSubmissionsAndParticipations(plan.roundId);
                 yield* repairAlarm();
+
                 return { _tag: "Accepted" } satisfies RoundCommandResult;
               }
 
               case "ResendInvitation": {
                 const { round: target, person, pulse, generation } = plan;
                 const invitationRef = { roundId: target.id, personId: person.id, generation };
+
                 const newTokenHash = yield* tokenOf(invitationRef).pipe(
                   Effect.flatMap((token) => Effect.promise(() => hashToken(token))),
                 );
+
                 const newSendId = SendId.make(randomId());
                 yield* rounds.resendInvitation(target.id, person.id, newSendId, newTokenHash, now);
 
@@ -198,6 +221,7 @@ export const organizationRoundCommands = ({
                   yield* rounds.getRoundQuestions(target.id),
                   pulseState,
                 );
+
                 const eligibleActions = yield* actions.getEligibleActionsForRound(
                   target.teamId,
                   target.pulseId,
@@ -217,6 +241,7 @@ export const organizationRoundCommands = ({
                 };
 
                 yield* sends.create(newSendId, person.email, invitationEmail);
+
                 return { _tag: "Accepted" } satisfies RoundCommandResult;
               }
             }

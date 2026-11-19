@@ -24,12 +24,14 @@ const WorkerSettings = Schema.Struct({
     ),
   ),
 });
+
 export type WorkerSettings = typeof WorkerSettings.Type;
 
 const Page = Schema.Struct({
   result: Schema.Array(WorkerSettings),
   result_info: Schema.optional(Schema.Struct({ total_pages: Schema.optional(Schema.Finite) })),
 });
+
 const One = Schema.Struct({ result: WorkerSettings });
 
 export const findViolations = (worker: WorkerSettings): string[] => {
@@ -37,30 +39,39 @@ export const findViolations = (worker: WorkerSettings): string[] => {
   const logs = observability?.logs;
   const traces = observability?.traces;
   const found: string[] = [];
+
   if (observability?.enabled === true) {
     found.push("observability.enabled is on");
   }
+
   if (logs?.enabled === true) {
     found.push("observability.logs.enabled is on");
   }
+
   if (logs?.enabled === true && logs.invocation_logs === true) {
     found.push("observability.logs.invocation_logs is on");
   }
+
   if (logs?.enabled === true && logs.persist === true) {
     found.push("observability.logs.persist is on");
   }
+
   if (traces?.enabled === true) {
     found.push("observability.traces.enabled is on");
   }
+
   if (traces?.enabled === true && traces.persist === true) {
     found.push("observability.traces.persist is on");
   }
+
   if (worker.logpush === true) {
     found.push("logpush is on");
   }
+
   if ((worker.tail_consumers?.length ?? 0) > 0) {
     found.push("tail consumers are attached");
   }
+
   return found;
 };
 
@@ -68,9 +79,11 @@ const api = "https://api.cloudflare.com/client/v4";
 
 const get = async (path: string, token: string): Promise<unknown> => {
   const response = await fetch(`${api}${path}`, { headers: { authorization: `Bearer ${token}` } });
+
   if (!response.ok) {
     throw new Error(`GET ${path} failed with HTTP ${response.status}`);
   }
+
   return await response.json();
 };
 
@@ -81,15 +94,20 @@ export const findWorker = async (
   logicalId: string,
 ): Promise<WorkerSettings> => {
   const wanted = ["alchemy:stack:Surveybeat", `alchemy:stage:${stage}`, `alchemy:id:${logicalId}`];
+
   for (let page = 1; ; page++) {
     const body = Schema.decodeUnknownSync(Page)(
       await get(`/accounts/${accountId}/workers/workers?per_page=100&page=${page}`, token),
     );
+
     const match = body.result.find((worker) => wanted.every((tag) => worker.tags?.includes(tag)));
+
     if (match !== undefined) {
       const detail = await get(`/accounts/${accountId}/workers/workers/${match.id}`, token);
+
       return Schema.decodeUnknownSync(One)(detail).result;
     }
+
     if (page >= (body.result_info?.total_pages ?? 1)) {
       throw new Error(`No ${logicalId} Worker found for stage ${stage}`);
     }
@@ -101,12 +119,15 @@ const main = async (): Promise<number> => {
   const stage = stageFlag === -1 ? undefined : process.argv[stageFlag + 1];
   const token = process.env.CLOUDFLARE_API_TOKEN;
   const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+
   if (stage === undefined || token === undefined || accountId === undefined) {
     console.error(
       "Usage: check-observability.ts --stage <stage> (needs CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID)",
     );
+
     return 2;
   }
+
   const worker = await findWorker(accountId, token, stage, "Submission");
   console.log(
     JSON.stringify(
@@ -121,13 +142,17 @@ const main = async (): Promise<number> => {
     ),
   );
   const violations = findViolations(worker);
+
   if (violations.length > 0) {
     for (const violation of violations) {
       console.error(`FAIL: ${violation}`);
     }
+
     return 1;
   }
+
   console.log("OK: every log channel is off and no tail consumer is attached");
+
   return 0;
 };
 

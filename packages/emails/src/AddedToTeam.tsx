@@ -11,6 +11,7 @@ export const subject = (email: AddedToTeam) =>
 export function AddedToTeamEmail({ email }: { email: AddedToTeam }) {
   const m = messagesFor(email.locale);
   const p = params(email);
+
   return (
     <Layout
       messages={m}
@@ -28,6 +29,7 @@ export function AddedToTeamEmail({ email }: { email: AddedToTeam }) {
 export const text = (email: AddedToTeam): string => {
   const m = messagesFor(email.locale);
   const p = params(email);
+
   return textLayout(
     m,
     [

@@ -29,5 +29,6 @@ const decode = Schema.decodeUnknownOption(SubmissionRoundContext);
 
 export function validateRoundContext(raw: unknown): boolean {
   const result = decode(raw);
+
   return result._tag === "Some";
 }

@@ -9,10 +9,13 @@ import { EmailSendRequested } from "../Email.ts";
 const QUEUE_BATCH_LIMIT = 100;
 
 const OutboxRow = Schema.Struct({ id: Schema.Int, send_id: SendId });
+
 const decodeOutboxRows = Schema.decodeUnknownEffect(Schema.Array(OutboxRow));
+
 const decodeOrganizationRows = Schema.decodeUnknownEffect(
   Schema.Array(Schema.Struct({ id: OrganizationId })),
 );
+
 const encodeRequest = Schema.encodeEffect(EmailSendRequested);
 
 export const makeEmailOutbox = (
@@ -51,23 +54,30 @@ export const makeEmailOutbox = (
     const rows = yield* sql`SELECT id, send_id FROM email_outbox ORDER BY id LIMIT ${QUEUE_BATCH_LIMIT}`.pipe(
       Effect.flatMap(decodeOutboxRows),
     );
+
     const last = rows.at(-1);
+
     if (last === undefined) {
       return false;
     }
+
     const [organization] = yield* sql`SELECT id FROM organization LIMIT 1`.pipe(
       Effect.flatMap(decodeOrganizationRows),
     );
+
     if (organization === undefined) {
       return yield* Effect.die("an Organization with sends has no organization row");
     }
+
     const messages = yield* Effect.forEach(rows, (row) =>
       encodeRequest({ organizationId: organization.id, sendId: row.send_id }).pipe(
         Effect.map((body) => ({ body })),
       ),
     );
+
     yield* queue.sendBatch(messages);
     yield* sql`DELETE FROM email_outbox WHERE id <= ${last.id}`;
+
     return rows.length === QUEUE_BATCH_LIMIT;
   });
 
