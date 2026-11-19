@@ -1,7 +1,7 @@
 // @effect-diagnostics asyncFunction:off -- Playwright's API is promise-based and these specs never enter an Effect.
 
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures.ts";
 
 const mockExchangeContext = {
   roundId: "round-test-123",
@@ -276,11 +276,23 @@ test.describe("answer page static entry (Issue #44, ADR 0005, ADR 0007, ADR 0008
     await expect(page.locator("#screen-1")).toBeHidden();
   });
 
-  test("without a token the page shows the error and no form", async ({ page }) => {
+  test("without a token the page shows the incomplete-link state and no form", async ({ page }) => {
     await page.goto("/a");
-    await expect(page.locator("#err")).toBeVisible();
-    await expect(page.locator("#err")).toHaveText("Something went wrong. Please try again.");
+    await expect(page.locator("#state-message")).toHaveText(
+      "This link is incomplete. Open the link in your Invitation email again.",
+    );
+    await expect(page.locator("#err")).toBeHidden();
     await expect(page.locator("#screen-1")).toBeHidden();
+  });
+
+  test("a malformed token shows the incomplete-link state and no form", async ({ page, pageErrors }) => {
+    await page.goto("/a#t=token%20with%20spaces");
+    await expect(page.locator("#state-message")).toHaveText(
+      "This link is incomplete. Open the link in your Invitation email again.",
+    );
+    await expect(page.locator("#err")).toBeHidden();
+    await expect(page.locator("#screen-1")).toBeHidden();
+    expect(pageErrors).toEqual([]);
   });
 
   test("a failed exchange shows the error and no form", async ({ page }) => {

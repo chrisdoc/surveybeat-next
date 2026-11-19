@@ -53,6 +53,10 @@ function getStoredToken(): string {
   return typeof stored === "string" ? stored : "";
 }
 
+export function isWellFormedToken(token: string): boolean {
+  return /^[A-Za-z0-9_-]+$/.test(token);
+}
+
 function generateEditKey(): string {
   const bytes = new Uint8Array(32);
   crypto.getRandomValues(bytes);
@@ -170,12 +174,14 @@ async function run(message: AnswerMessage): Promise<void> {
   const token = getStoredToken();
   const submitOrigin = getSubmitOrigin();
 
+  if (!isWellFormedToken(token)) {
+    window.sessionStorage.removeItem("sb_token");
+    showStateMessage(message("answer.state.noLink"));
+    return;
+  }
+
   let exchangePromise = window.__exchangePromise;
   if (!exchangePromise) {
-    if (token.length === 0) {
-      showFatalError(message("answer.error"));
-      return;
-    }
     exchangePromise = postJson(`${submitOrigin}/exchange`, { token });
   }
 

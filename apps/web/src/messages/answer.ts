@@ -25,6 +25,7 @@ export const answerCatalog = {
   "answer.test.thanks": "This was a test. Your answers weren't saved.",
   "answer.error": "Something went wrong. Please try again.",
   "answer.state.closed": "This check-in is closed.",
+  "answer.state.noLink": "This link is incomplete. Open the link in your Invitation email again.",
   "answer.state.alreadyAnswered": "You've already answered this check-in.",
   "answer.state.otherBrowser":
     "You answered this check-in in another browser. Your answers are anonymous and can only be changed from the browser you used to submit them.",
