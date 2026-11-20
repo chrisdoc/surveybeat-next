@@ -104,7 +104,7 @@ export const legalAgreementsCatalog = {
     "SurveyBeat gives the Organization the information needed to show compliance with this agreement, and allows audits by the Organization or an auditor it names, with reasonable notice, normally once a year and again after a breach. The audit may not disclose other Organizations' data.",
   "legal.dpa.s08.title": "Return and deletion",
   "legal.dpa.s08.p1":
-    "When the services end, SurveyBeat returns the Organization's personal data on request in a common machine-readable format and then deletes it, unless the law requires it to keep a copy. Copies in backups are overwritten as the {restoreDays}-day restore window passes. Anonymous Submissions are not personal data. Automatic deletion at the end of the retention period is not in place yet. They are deleted when the Organization is deleted.",
+    "When the services end, SurveyBeat returns the Organization's personal data on request in a common machine-readable format and then deletes it, unless the law requires it to keep a copy. Copies in backups are overwritten as the {restoreDays}-day restore window passes. Anonymous Submissions are not personal data. Automatic deletion at the end of the retention period is not in place yet. Cancelling a Round deletes that Round's Answers, Submissions and Participation records.",
   "legal.dpa.s09.title": "Transfers",
   "legal.dpa.s09.p1":
     "A transfer of personal data outside the EU and EEA takes place only under an adequacy decision, the EU Standard Contractual Clauses or another safeguard Chapter V of the GDPR allows. Comment text for AI processing goes only to endpoints in the EU.",

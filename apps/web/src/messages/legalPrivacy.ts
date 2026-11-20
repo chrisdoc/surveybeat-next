@@ -49,7 +49,7 @@ export const legalPrivacyCatalog = {
   "legal.privacy.s03.tanswers.basis":
     "Anonymous Submissions are not personal data (see the next section). Where a comment still identifies someone, point f applies.",
   "legal.privacy.s03.tanswers.retention":
-    "The policy is {rawMonths} months for raw Answers and comments, unless the Organization sets another period. Automatic deletion on that schedule is not in place yet, so they stay with the Pulse until it is. Aggregated Results may be kept longer. Backups are kept for {restoreDays} days.",
+    "The policy is {rawMonths} months for raw Answers and comments, unless the Organization sets another period. Automatic deletion on that schedule is not in place yet. Until it is, they stay with the Pulse, except that cancelling a Round deletes that Round's Answers, Submissions and Participation records. Aggregated Results may be kept longer. Backups are kept for {restoreDays} days.",
   "legal.privacy.s03.tresults.data":
     "Results, Lead's Notes and Actions: scores, response rates, comment themes, the Lead's Note and Actions with an owner and a due date. The Organization is the controller.",
   "legal.privacy.s03.tresults.purpose": "Let a Team talk about its Results and agree what to change.",
