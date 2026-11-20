@@ -1,4 +1,4 @@
-import { Schema } from "effect";
+import { Option, Schema } from "effect";
 import { EmailAddress } from "../email/Email.ts";
 
 export const AuthUserId = Schema.String.pipe(Schema.brand("AuthUserId"));
@@ -16,6 +16,14 @@ export type PersonId = typeof PersonId.Type;
 export const normaliseEmail = (email: string): string => email.normalize("NFKC").trim().toLowerCase();
 
 const isPrintableAscii = (text: string): boolean => /^[\u0020-\u007E]*$/.test(text);
+
+export const parseRectifiedEmail = (input: string): Option.Option<EmailAddress> => {
+  const normalised = normaliseEmail(input);
+
+  return isPrintableAscii(normalised) && Schema.is(EmailAddress)(normalised)
+    ? Option.some(EmailAddress.make(normalised))
+    : Option.none();
+};
 
 export interface Identity {
   readonly userId: AuthUserId;

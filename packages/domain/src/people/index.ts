@@ -1,5 +1,7 @@
 export * from "./Identity.ts";
 
+export * from "./EmailErrors.ts";
+
 export * from "./Organization.ts";
 
 export * from "./SignIn.ts";
@@ -23,3 +25,5 @@ export * from "./Locale.ts";
 export * from "./PersonalData.ts";
 
 export * from "./Offboarding.ts";
+
+export * from "./EmailRectification.ts";

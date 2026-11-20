@@ -46,7 +46,7 @@ export const requestOrigin = Effect.map(HttpServerRequest, (request) =>
     : Option.match(toURL(request), { onNone: () => "http://localhost", onSome: (url) => url.origin }),
 );
 
-const sessionCookie = Effect.map(HttpServerRequest, (request) =>
+export const sessionCookie = Effect.map(HttpServerRequest, (request) =>
   Option.map(Option.fromNullishOr(request.cookies[SESSION_COOKIE]), Redacted.make),
 );
 
@@ -63,7 +63,7 @@ export const requireSameOrigin = Effect.gen(function* () {
   }
 });
 
-const setSessionCookie = (token: Redacted.Redacted) =>
+export const setSessionCookie = (token: Redacted.Redacted) =>
   HttpEffect.appendPreResponseHandler((_request, response) =>
     HttpServerResponse.setCookie(response, SESSION_COOKIE, Redacted.value(token), {
       ...cookieOptions,
@@ -71,7 +71,7 @@ const setSessionCookie = (token: Redacted.Redacted) =>
     }).pipe(Effect.orDie),
   );
 
-export const signedInSession = Effect.gen(function* () {
+export const signedInWithCookie = Effect.gen(function* () {
   const cookie = yield* sessionCookie;
 
   if (Option.isNone(cookie)) {
@@ -80,10 +80,14 @@ export const signedInSession = Effect.gen(function* () {
 
   const sessions = yield* SessionIdentityProvider;
 
-  return yield* sessions
+  const session = yield* sessions
     .authenticate(cookie.value)
     .pipe(Effect.tapError((error) => (error._tag === "Unauthenticated" ? expireSessionCookie : Effect.void)));
+
+  return { cookie: cookie.value, session };
 });
+
+export const signedInSession = Effect.map(signedInWithCookie, ({ session }) => session);
 
 export const authenticated = Effect.gen(function* () {
   const cookie = yield* sessionCookie;

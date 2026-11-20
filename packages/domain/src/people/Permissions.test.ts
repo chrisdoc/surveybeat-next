@@ -40,6 +40,7 @@ const TABLE: Readonly<Record<Action, readonly Who[]>> = {
   "organization.updateSettings": ["admin", "adminLead"],
   "organization.setAdmin": ["admin", "adminLead"],
   "organization.removePerson": ["admin", "adminLead"],
+  "organization.correctEmail": ["admin", "adminLead"],
   "organization.offboard": ["admin", "adminLead"],
   "organization.listTeams": ["admin", "adminLead"],
   "organization.createTeam": ["admin", "adminLead"],

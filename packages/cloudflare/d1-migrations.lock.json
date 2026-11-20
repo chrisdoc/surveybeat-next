@@ -10,5 +10,6 @@
   "0009_better_auth_plugins.sql": "1ff4dc99be7639d715230a76436ea3ae013f0abc3f926346fbf30a627550d5e0",
   "0010_rename_workos_index_columns.sql": "bde94d48d5402c82825b61d79aee341c5d6cd84a0e7f115313e457c518b43b87",
   "0011_person_index_removed_at.sql": "9e98e3e152691f3a34fa9a4781b5a7eb5f50cb8d7429fe72fff1c83289bfbd08",
-  "0012_organization_offboarding.sql": "4f9e61eede1016ef5c01c0eb48e8ecfa3234b0d764c635f297c3c821711e809d"
+  "0012_organization_offboarding.sql": "4f9e61eede1016ef5c01c0eb48e8ecfa3234b0d764c635f297c3c821711e809d",
+  "0013_email_rectification.sql": "24d2940181d51ad9710b192dbeafc5f3744de6795a26c74dbef3d72c1a89badc"
 }

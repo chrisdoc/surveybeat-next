@@ -52,6 +52,7 @@ import { message, message as translate, setLocale } from "../messages/locale.ts"
 import { Failure, runApi } from "./api.ts";
 import { pageShell, privacyContent, privacyView, screenView } from "./components.ts";
 import type { Child } from "./components.ts";
+import { emailChangeView } from "./emailChange.ts";
 import { selfErasureView } from "./erasure.ts";
 import {
   decodeEmail,
@@ -165,6 +166,19 @@ export const Model = Schema.Struct({
   selfErase: Schema.Struct({
     open: Schema.Boolean,
     confirmation: Schema.String,
+    busy: Schema.Boolean,
+    failure: Schema.Option(Failure),
+  }),
+  emailChange: Schema.Struct({
+    step: Schema.Literals(["closed", "address", "code", "done"]),
+    email: Schema.String,
+    code: Schema.String,
+    busy: Schema.Boolean,
+    failure: Schema.Option(Failure),
+  }),
+  correctEmail: Schema.Struct({
+    pending: Schema.Option(Schema.Struct({ personId: PersonId, email: Schema.String })),
+    value: Schema.String,
     busy: Schema.Boolean,
     failure: Schema.Option(Failure),
   }),
@@ -439,6 +453,20 @@ export const Message = defineMessageUnion({
   SelfEraseSubmitted: {},
   SelfErased: { outcome: OutcomeVoid },
   LeftAfterErasure: {},
+  EmailChangeOpened: {},
+  EmailChangeAddressChanged: { value: Schema.String },
+  EmailChangeCodeRequested: {},
+  EmailChangeCodeSent: { outcome: OutcomeVoid },
+  EmailChangeCodeChanged: { value: Schema.String },
+  EmailChangeConfirmed: {},
+  EmailChangeFinished: { outcome: OutcomeVoid },
+  EmailChangeOtherAddress: {},
+  EmailChangeDismissed: {},
+  CorrectEmailClicked: { personId: PersonId },
+  CorrectEmailChanged: { value: Schema.String },
+  CorrectEmailSubmitted: {},
+  CorrectedEmail: { outcome: OutcomeVoid },
+  CorrectEmailDismissed: {},
   OffboardingDownloaded: {},
   OffboardingOpened: {},
   OffboardingConfirmationChanged: { value: Schema.String },
@@ -808,6 +836,39 @@ export const EraseOwnAccountData = Command.define("EraseOwnAccountData", {
       (api) => api.me.eraseAccount({ payload: { confirmation } }),
       () => Message.SelfErased({ outcome: { _tag: "Success" } }),
       (failure) => Message.SelfErased({ outcome: { _tag: "Failure", failure } }),
+    ),
+});
+
+export const RequestEmailChange = Command.define("RequestEmailChange", {
+  args: { email: Schema.String },
+  messages: [Message.EmailChangeCodeSent],
+  execute: ({ email }) =>
+    runApi(
+      (api) => api.me.requestEmailChange({ payload: { email } }),
+      () => Message.EmailChangeCodeSent({ outcome: { _tag: "Success" } }),
+      (failure) => Message.EmailChangeCodeSent({ outcome: { _tag: "Failure", failure } }),
+    ),
+});
+
+export const ConfirmEmailChange = Command.define("ConfirmEmailChange", {
+  args: { email: Schema.String, otp: Schema.String },
+  messages: [Message.EmailChangeFinished],
+  execute: ({ email, otp }) =>
+    runApi(
+      (api) => api.me.confirmEmailChange({ payload: { email, otp } }),
+      () => Message.EmailChangeFinished({ outcome: { _tag: "Success" } }),
+      (failure) => Message.EmailChangeFinished({ outcome: { _tag: "Failure", failure } }),
+    ),
+});
+
+export const CorrectPersonEmail = Command.define("CorrectPersonEmail", {
+  args: { personId: PersonId, email: Schema.String },
+  messages: [Message.CorrectedEmail],
+  execute: ({ personId, email }) =>
+    runApi(
+      (api) => api.directory.correctPersonEmail({ params: { personId }, payload: { email } }),
+      () => Message.CorrectedEmail({ outcome: { _tag: "Success" } }),
+      (failure) => Message.CorrectedEmail({ outcome: { _tag: "Failure", failure } }),
     ),
 });
 
@@ -1279,6 +1340,8 @@ export const initialModel = (url: Url, languages: readonly string[]): Model => {
     pendingErasePerson: Option.none(),
     erasePersonConfirmation: "",
     selfErase: { open: false, confirmation: "", busy: false, failure: Option.none() },
+    emailChange: { step: "closed", email: "", code: "", busy: false, failure: Option.none() },
+    correctEmail: { pending: Option.none(), value: "", busy: false, failure: Option.none() },
     offboardingDownloaded: false,
     offboarding: { open: false, confirmation: "", busy: false, failure: Option.none() },
     settings: { _tag: "Loading" },
@@ -2825,6 +2888,213 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       return { model };
     }
 
+    case "EmailChangeOpened": {
+      return {
+        model: {
+          ...model,
+          emailChange: { step: "address", email: "", code: "", busy: false, failure: Option.none() },
+        },
+      };
+    }
+
+    case "EmailChangeAddressChanged": {
+      return {
+        model: {
+          ...model,
+          emailChange: { ...model.emailChange, email: message.value, failure: Option.none() },
+        },
+      };
+    }
+
+    case "EmailChangeCodeRequested": {
+      const email = model.emailChange.email.trim();
+
+      if (email === "") {
+        return { model };
+      }
+
+      return {
+        model: { ...model, emailChange: { ...model.emailChange, busy: true, failure: Option.none() } },
+        commands: [RequestEmailChange({ email })],
+      };
+    }
+
+    case "EmailChangeCodeSent": {
+      if (message.outcome._tag === "Success") {
+        return {
+          model: {
+            ...model,
+            emailChange: {
+              ...model.emailChange,
+              step: "code",
+              code: "",
+              busy: false,
+              failure: Option.none(),
+            },
+          },
+        };
+      }
+
+      if (message.outcome.failure === "Unauthenticated") {
+        return { model, commands: [LoadSession()] };
+      }
+
+      return {
+        model: {
+          ...model,
+          emailChange: { ...model.emailChange, busy: false, failure: Option.some(message.outcome.failure) },
+        },
+      };
+    }
+
+    case "EmailChangeCodeChanged": {
+      return {
+        model: {
+          ...model,
+          emailChange: { ...model.emailChange, code: message.value, failure: Option.none() },
+        },
+      };
+    }
+
+    case "EmailChangeConfirmed": {
+      const otp = model.emailChange.code.trim();
+
+      if (otp === "") {
+        return { model };
+      }
+
+      return {
+        model: { ...model, emailChange: { ...model.emailChange, busy: true, failure: Option.none() } },
+        commands: [ConfirmEmailChange({ email: model.emailChange.email.trim(), otp })],
+      };
+    }
+
+    case "EmailChangeFinished": {
+      if (message.outcome._tag === "Success") {
+        return {
+          model: {
+            ...model,
+            emailChange: {
+              ...model.emailChange,
+              step: "done",
+              code: "",
+              busy: false,
+              failure: Option.none(),
+            },
+          },
+        };
+      }
+
+      if (message.outcome.failure === "Unauthenticated") {
+        return { model, commands: [LoadSession()] };
+      }
+
+      return {
+        model: {
+          ...model,
+          emailChange: { ...model.emailChange, busy: false, failure: Option.some(message.outcome.failure) },
+        },
+      };
+    }
+
+    case "EmailChangeOtherAddress": {
+      return {
+        model: {
+          ...model,
+          emailChange: {
+            ...model.emailChange,
+            step: "address",
+            code: "",
+            busy: false,
+            failure: Option.none(),
+          },
+        },
+      };
+    }
+
+    case "EmailChangeDismissed": {
+      return {
+        model: {
+          ...model,
+          emailChange: { step: "closed", email: "", code: "", busy: false, failure: Option.none() },
+        },
+      };
+    }
+
+    case "CorrectEmailClicked": {
+      const loaded = model.settings._tag === "Loaded" ? model.settings.settings : undefined;
+
+      const person =
+        loaded?.people.find((row) => row.personId === message.personId) ??
+        loaded?.removedPeople.find((row) => row.personId === message.personId);
+
+      return {
+        model: {
+          ...model,
+          correctEmail: {
+            pending: Option.some({ personId: message.personId, email: person?.email ?? "" }),
+            value: "",
+            busy: false,
+            failure: Option.none(),
+          },
+        },
+      };
+    }
+
+    case "CorrectEmailChanged": {
+      return {
+        model: {
+          ...model,
+          correctEmail: { ...model.correctEmail, value: message.value, failure: Option.none() },
+        },
+      };
+    }
+
+    case "CorrectEmailSubmitted": {
+      const email = model.correctEmail.value.trim();
+
+      if (Option.isNone(model.correctEmail.pending) || email === "") {
+        return { model };
+      }
+
+      return {
+        model: { ...model, correctEmail: { ...model.correctEmail, busy: true, failure: Option.none() } },
+        commands: [CorrectPersonEmail({ personId: model.correctEmail.pending.value.personId, email })],
+      };
+    }
+
+    case "CorrectedEmail": {
+      if (message.outcome._tag === "Success") {
+        return {
+          model: {
+            ...model,
+            correctEmail: { pending: Option.none(), value: "", busy: false, failure: Option.none() },
+          },
+          commands: [GetSettings()],
+        };
+      }
+
+      if (message.outcome.failure === "Unauthenticated") {
+        return { model, commands: [LoadSession()] };
+      }
+
+      return {
+        model: {
+          ...model,
+          correctEmail: { ...model.correctEmail, busy: false, failure: Option.some(message.outcome.failure) },
+        },
+      };
+    }
+
+    case "CorrectEmailDismissed": {
+      return {
+        model: {
+          ...model,
+          correctEmail: { pending: Option.none(), value: "", busy: false, failure: Option.none() },
+        },
+      };
+    }
+
     case "OffboardingDownloaded": {
       return { model: { ...model, offboardingDownloaded: true } };
     }
@@ -4048,6 +4318,27 @@ const selfErasureOf = (model: Model, kind: "person" | "account", h: HtmlBuilder<
     h,
   );
 
+const emailChangeOf = (model: Model, h: HtmlBuilder<Message>): Child =>
+  emailChangeView(
+    {
+      step: model.emailChange.step,
+      email: model.emailChange.email,
+      code: model.emailChange.code,
+      busy: model.emailChange.busy,
+      failure: Option.getOrUndefined(model.emailChange.failure),
+    },
+    {
+      onOpen: Message.EmailChangeOpened(),
+      onEmailChange: (value) => Message.EmailChangeAddressChanged({ value }),
+      onSendCode: Message.EmailChangeCodeRequested(),
+      onCodeChange: (value) => Message.EmailChangeCodeChanged({ value }),
+      onConfirm: Message.EmailChangeConfirmed(),
+      onOtherAddress: Message.EmailChangeOtherAddress(),
+      onCancel: Message.EmailChangeDismissed(),
+    },
+    h,
+  );
+
 export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
   setLocale(localeOf(model));
 
@@ -4059,7 +4350,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
       title: message("privacy.title"),
       body: pageShell(
         { privacyCurrent: true },
-        privacyContent(h, true, [selfErasureOf(model, "account", h)]),
+        privacyContent(h, true, [emailChangeOf(model, h), selfErasureOf(model, "account", h)]),
         h,
       ),
     };
@@ -4240,7 +4531,10 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
     }
 
     case "Privacy": {
-      screenContent = h.div([], privacyContent(h, true, [selfErasureOf(model, "person", h)]));
+      screenContent = h.div(
+        [],
+        privacyContent(h, true, [emailChangeOf(model, h), selfErasureOf(model, "person", h)]),
+      );
       break;
     }
 
@@ -4287,6 +4581,12 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
               pendingRemovePerson: Option.getOrUndefined(model.pendingRemovePerson),
               pendingErasePerson: Option.getOrUndefined(model.pendingErasePerson),
               erasePersonConfirmation: model.erasePersonConfirmation,
+              correctEmail: {
+                pending: Option.getOrUndefined(model.correctEmail.pending),
+                value: model.correctEmail.value,
+                busy: model.correctEmail.busy,
+                failure: Option.getOrUndefined(model.correctEmail.failure),
+              },
               failedEmails: model.failedEmails,
               failedEmailResends: model.failedEmailResends,
               offboardingDownloaded: model.offboardingDownloaded,
@@ -4311,6 +4611,10 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
               onErasePersonConfirmationChange: (value) => Message.ErasePersonConfirmationChanged({ value }),
               onConfirmErasePerson: Message.ConfirmErasePerson(),
               onCancelErasePerson: Message.DismissErasePerson(),
+              onCorrectEmail: (personId) => Message.CorrectEmailClicked({ personId }),
+              onCorrectEmailChange: (value) => Message.CorrectEmailChanged({ value }),
+              onSubmitCorrectEmail: Message.CorrectEmailSubmitted(),
+              onCancelCorrectEmail: Message.CorrectEmailDismissed(),
               onResendFailedEmail: (sendId) => Message.ResendFailedEmailClicked({ sendId }),
               onOffboardingDownloaded: Message.OffboardingDownloaded(),
               onOffboardingOpen: Message.OffboardingOpened(),

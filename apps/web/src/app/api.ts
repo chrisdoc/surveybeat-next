@@ -14,6 +14,13 @@ export const Failure = Schema.Literals([
   "ErasureNotConfirmed",
   "OrganizationNotConfirmed",
   "AccountStillInUse",
+  "EmailTaken",
+  "EmailUnusable",
+  "EmailUnchanged",
+  "EmailChangePending",
+  "WrongEmailCode",
+  "SignInAgainRequired",
+  "PersonHasAccount",
   "TeamNameTaken",
   "QuestionAlreadyInPulse",
   "QuestionHasAnswers",
@@ -60,6 +67,34 @@ export const failureMessage = (failure: Failure): string => {
 
     case "AccountStillInUse": {
       return message("error.AccountStillInUse");
+    }
+
+    case "EmailTaken": {
+      return message("error.EmailTaken");
+    }
+
+    case "EmailUnusable": {
+      return message("error.EmailUnusable");
+    }
+
+    case "EmailUnchanged": {
+      return message("error.EmailUnchanged");
+    }
+
+    case "EmailChangePending": {
+      return message("error.EmailChangePending");
+    }
+
+    case "WrongEmailCode": {
+      return message("error.WrongEmailCode");
+    }
+
+    case "SignInAgainRequired": {
+      return message("error.SignInAgainRequired");
+    }
+
+    case "PersonHasAccount": {
+      return message("error.PersonHasAccount");
     }
 
     case "TeamNameTaken": {
@@ -151,6 +186,13 @@ export const failureOf = (error: unknown): Failure => {
   }
 
   for (const tag of [
+    "EmailTaken",
+    "EmailUnusable",
+    "EmailUnchanged",
+    "EmailChangePending",
+    "WrongEmailCode",
+    "SignInAgainRequired",
+    "PersonHasAccount",
     "QuestionAlreadyInPulse",
     "QuestionHasAnswers",
     "PulseNeedsAQuestion",

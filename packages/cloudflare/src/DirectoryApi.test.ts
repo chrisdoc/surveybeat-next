@@ -458,7 +458,7 @@ describe("erasing a Person (GDPR 307)", () => {
     const settings = await admin.call("GET", "/api/organization");
 
     expect(settings.body).toMatchObject({
-      removedPeople: [{ personId: id, email: "ghost@example.com" }],
+      removedPeople: [{ personId: id, email: "ghost@example.com", linked: false }],
     });
 
     expect((await erase(admin, id, "ghost@example.com")).status).toBe(204);
@@ -554,6 +554,74 @@ describe("erasing a Person (GDPR 307)", () => {
   });
 });
 
+describe("correcting a Person's email (GDPR 309)", () => {
+  it("changes the address of a Person who has not signed in, in the Durable Object and the index", async () => {
+    const { world, acme, admin } = await setup();
+    const pat = world.addPerson(acme.id, "pat@example.com");
+
+    const response = await admin.call("POST", `/api/organization/people/${pat}/email`, {
+      email: " Pat.New@Example.com ",
+    });
+
+    expect(response).toEqual({ status: 204, body: null });
+    expect(world.durable.person(acme.id, pat)?.email).toBe("pat.new@example.com");
+    expect(world.index.persons.get(`${acme.id}/${pat}`)?.email).toBe("pat.new@example.com");
+  });
+
+  it("refuses a Person who has signed in and an address an account already has", async () => {
+    const { world, acme, admin, personId } = await setup();
+    const pat = world.addPerson(acme.id, "pat@example.com");
+
+    const signedIn = await admin.call(
+      "POST",
+      `/api/organization/people/${personId("ada@example.com")}/email`,
+      {
+        email: "ada.new@example.com",
+      },
+    );
+
+    const taken = await admin.call("POST", `/api/organization/people/${pat}/email`, {
+      email: "ada@example.com",
+    });
+
+    const another = await admin.call("POST", `/api/organization/people/${pat}/email`, {
+      email: "grace@example.com",
+    });
+
+    expect(signedIn).toEqual({ status: 409, body: { _tag: "PersonHasAccount" } });
+    expect(taken).toEqual({ status: 409, body: { _tag: "EmailTaken" } });
+    expect(another).toEqual({ status: 409, body: { _tag: "EmailTaken" } });
+    expect(world.durable.person(acme.id, pat)?.email).toBe("pat@example.com");
+    expect(world.durable.person(acme.id, personId("ada@example.com"))?.email).toBe("ada@example.com");
+  });
+
+  it("refuses an address that cannot be matched at sign-in", async () => {
+    const { world, acme, admin } = await setup();
+    const pat = world.addPerson(acme.id, "pat@example.com");
+
+    const response = await admin.call("POST", `/api/organization/people/${pat}/email`, {
+      email: "pät@example.com",
+    });
+
+    expect(response).toEqual({ status: 422, body: { _tag: "EmailUnusable" } });
+    expect(world.durable.person(acme.id, pat)?.email).toBe("pat@example.com");
+  });
+
+  it("is for an Organization admin on the same origin", async () => {
+    const { world, acme, admin, lead, member } = await setup();
+    const pat = world.addPerson(acme.id, "pat@example.com");
+    const body = { email: "pat.new@example.com" };
+
+    expect((await lead.call("POST", `/api/organization/people/${pat}/email`, body)).status).toBe(403);
+    expect((await member.call("POST", `/api/organization/people/${pat}/email`, body)).status).toBe(403);
+    expect(
+      (await admin.send("POST", `/api/organization/people/${pat}/email`, body, "https://evil.example"))
+        .status,
+    ).toBe(403);
+    expect(world.durable.person(acme.id, pat)?.email).toBe("pat@example.com");
+  });
+});
+
 describe("every directory endpoint", () => {
   const team = { name: "X", timeZone: "UTC", leadEmail: "x@example.com" };
   const email = { email: "x@example.com" };
@@ -577,6 +645,7 @@ describe("every directory endpoint", () => {
     ["DELETE", "/api/organization/admins/p", undefined],
     ["DELETE", "/api/organization/people/p", undefined],
     ["POST", "/api/organization/people/p/erasure", { confirmation: "x@example.com" }],
+    ["POST", "/api/organization/people/p/email", email],
   ];
 
   it.each(ENDPOINTS)("%s %s answers 401 without a session", async (method, path, body) => {

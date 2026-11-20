@@ -44,6 +44,9 @@ import {
   OffboardOrganization,
   RemoveMember,
   RemovePerson,
+  ConfirmEmailChange,
+  CorrectPersonEmail,
+  RequestEmailChange,
   ErasePersonData,
   EraseOwnPersonData,
   EraseOwnAccountData,
@@ -758,6 +761,170 @@ describe("App Stories", () => {
     });
   });
 
+  describe("Rectifying an email address (GDPR 309)", () => {
+    const personId = decodePersonId("person-1");
+
+    const signedInModel = {
+      ...initialModel(makeUrl("https://app.surveybeat.com/privacy"), []),
+      session: {
+        _tag: "SignedIn" as const,
+        organization: { id: decodeOrgId("org-1"), name: "Acme" },
+        organizationAdmin: true,
+        locale: null,
+        detectedLocale: null,
+        organizationLocale: "en" as const,
+      },
+    };
+
+    it("sends a code for the typed address, then the code, and ends on the new address", () => {
+      Story.story(
+        update,
+        Story.given(signedInModel),
+        Story.message(Message.EmailChangeCodeRequested()),
+        Story.Command.expectNone(),
+        Story.message(Message.EmailChangeOpened()),
+        Story.message(Message.EmailChangeAddressChanged({ value: " alice.new@acme.com " })),
+        Story.message(Message.EmailChangeCodeRequested()),
+        Story.model((m) => {
+          expect(m.emailChange.busy).toBe(true);
+        }),
+        Story.Command.expectHas(RequestEmailChange),
+        Story.Command.resolve(
+          RequestEmailChange,
+          Message.EmailChangeCodeSent({ outcome: { _tag: "Success" } }),
+        ),
+        Story.model((m) => {
+          expect(m.emailChange.step).toBe("code");
+          expect(m.emailChange.busy).toBe(false);
+        }),
+        Story.message(Message.EmailChangeConfirmed()),
+        Story.Command.expectNone(),
+        Story.message(Message.EmailChangeCodeChanged({ value: " 123456 " })),
+        Story.message(Message.EmailChangeConfirmed()),
+        Story.Command.expectHas(ConfirmEmailChange),
+        Story.Command.resolve(
+          ConfirmEmailChange,
+          Message.EmailChangeFinished({ outcome: { _tag: "Success" } }),
+        ),
+        Story.model((m) => {
+          expect(m.emailChange.step).toBe("done");
+          expect(m.emailChange.email).toBe(" alice.new@acme.com ");
+          expect(m.emailChange.code).toBe("");
+        }),
+      );
+    });
+
+    it("keeps the step and shows the failure, then lets the Person pick another address", () => {
+      Story.story(
+        update,
+        Story.given(signedInModel),
+        Story.message(Message.EmailChangeOpened()),
+        Story.message(Message.EmailChangeAddressChanged({ value: "bob@acme.com" })),
+        Story.message(Message.EmailChangeCodeRequested()),
+        Story.Command.resolve(
+          RequestEmailChange,
+          Message.EmailChangeCodeSent({ outcome: { _tag: "Failure", failure: "EmailTaken" } }),
+        ),
+        Story.model((m) => {
+          expect(m.emailChange.step).toBe("address");
+          expect(Option.getOrNull(m.emailChange.failure)).toBe("EmailTaken");
+        }),
+        Story.message(Message.EmailChangeAddressChanged({ value: "alice.new@acme.com" })),
+        Story.model((m) => {
+          expect(Option.isNone(m.emailChange.failure)).toBe(true);
+        }),
+        Story.message(Message.EmailChangeCodeRequested()),
+        Story.Command.resolve(
+          RequestEmailChange,
+          Message.EmailChangeCodeSent({ outcome: { _tag: "Success" } }),
+        ),
+        Story.message(Message.EmailChangeCodeChanged({ value: "000000" })),
+        Story.message(Message.EmailChangeConfirmed()),
+        Story.Command.resolve(
+          ConfirmEmailChange,
+          Message.EmailChangeFinished({ outcome: { _tag: "Failure", failure: "WrongEmailCode" } }),
+        ),
+        Story.model((m) => {
+          expect(m.emailChange.step).toBe("code");
+          expect(m.emailChange.busy).toBe(false);
+          expect(Option.getOrNull(m.emailChange.failure)).toBe("WrongEmailCode");
+        }),
+        Story.message(Message.EmailChangeOtherAddress()),
+        Story.model((m) => {
+          expect(m.emailChange.step).toBe("address");
+          expect(m.emailChange.code).toBe("");
+          expect(Option.isNone(m.emailChange.failure)).toBe(true);
+        }),
+        Story.message(Message.EmailChangeDismissed()),
+        Story.model((m) => {
+          expect(m.emailChange.step).toBe("closed");
+          expect(m.emailChange.email).toBe("");
+        }),
+      );
+    });
+
+    it("sends the Person to sign in again when the session ended", () => {
+      Story.story(
+        update,
+        Story.given(signedInModel),
+        Story.message(Message.EmailChangeOpened()),
+        Story.message(Message.EmailChangeAddressChanged({ value: "alice.new@acme.com" })),
+        Story.message(Message.EmailChangeCodeRequested()),
+        Story.Command.resolve(
+          RequestEmailChange,
+          Message.EmailChangeCodeSent({ outcome: { _tag: "Failure", failure: "Unauthenticated" } }),
+        ),
+        Story.Command.expectHas(LoadSession),
+        Story.Command.resolve(LoadSession, Message.GotSession({ result: { _tag: "SignedOut" } })),
+      );
+    });
+
+    it("sends the corrected address of a Person who has not signed in, and reloads the People", () => {
+      Story.story(
+        update,
+        Story.given(signedInModel),
+        Story.message(Message.CorrectEmailClicked({ personId })),
+        Story.message(Message.CorrectEmailSubmitted()),
+        Story.Command.expectNone(),
+        Story.message(Message.CorrectEmailChanged({ value: " pat.new@acme.com " })),
+        Story.message(Message.CorrectEmailSubmitted()),
+        Story.Command.expectHas(CorrectPersonEmail),
+        Story.Command.resolve(
+          CorrectPersonEmail,
+          Message.CorrectedEmail({ outcome: { _tag: "Failure", failure: "PersonHasAccount" } }),
+        ),
+        Story.model((m) => {
+          expect(Option.isSome(m.correctEmail.pending)).toBe(true);
+          expect(m.correctEmail.busy).toBe(false);
+          expect(Option.getOrNull(m.correctEmail.failure)).toBe("PersonHasAccount");
+        }),
+        Story.message(Message.CorrectEmailSubmitted()),
+        Story.Command.resolve(CorrectPersonEmail, Message.CorrectedEmail({ outcome: { _tag: "Success" } })),
+        Story.model((m) => {
+          expect(Option.isNone(m.correctEmail.pending)).toBe(true);
+          expect(m.correctEmail.value).toBe("");
+        }),
+        Story.Command.expectHas(GetSettings),
+        Story.Command.resolve(
+          GetSettings,
+          Message.GotSettings({
+            outcome: {
+              _tag: "Success",
+              settings: {
+                name: "Acme",
+                minimumGroupSize: decodeSize(4),
+                aiProcessing: false,
+                defaultLocale: "en" as const,
+                people: [],
+                removedPeople: [],
+              },
+            },
+          }),
+        ),
+      );
+    });
+  });
+
   describe("Erasing personal data (GDPR 307)", () => {
     const personId = decodePersonId("person-1");
 
@@ -767,7 +934,7 @@ describe("App Stories", () => {
       aiProcessing: false,
       defaultLocale: "en" as const,
       people: [],
-      removedPeople: [{ personId, email: decodeEmail("ghost@acme.com") }],
+      removedPeople: [{ personId, email: decodeEmail("ghost@acme.com"), linked: false }],
     };
 
     const signedIn = Message.GotSession({

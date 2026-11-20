@@ -109,6 +109,7 @@ export const d1PeopleIndex = (db: Cloudflare.D1.QueryDatabaseClient) =>
         2,
       ],
       ["DELETE FROM organization_claim WHERE auth_user_id = ?", 1],
+      ["DELETE FROM email_rectification WHERE auth_user_id = ?", 1],
       ["DELETE FROM auth_user WHERE id = ?", 1],
     ];
 
@@ -166,6 +167,15 @@ export const d1PeopleIndex = (db: Cloudflare.D1.QueryDatabaseClient) =>
         write(
           `UPDATE person_index SET removed_at = unixepoch() * 1000
             WHERE organization_id = ? AND person_id = ? AND removed_at IS NULL`,
+          organizationId,
+          personId,
+        ),
+
+      correctEmail: (organizationId, personId, email) =>
+        write(
+          `UPDATE person_index SET email = ?
+            WHERE organization_id = ? AND person_id = ? AND auth_user_id IS NULL`,
+          EmailAddress.make(normaliseEmail(email)),
           organizationId,
           personId,
         ),

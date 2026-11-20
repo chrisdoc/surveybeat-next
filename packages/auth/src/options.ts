@@ -33,6 +33,10 @@ export interface AuthSettings {
 
 export interface CodeDelivery {
   readonly sendSignInCode: (code: { readonly email: string; readonly otp: string }) => Effect.Effect<void>;
+  readonly sendEmailChangeCode: (code: {
+    readonly email: string;
+    readonly otp: string;
+  }) => Effect.Effect<void>;
   readonly sendMagicLink: (link: { readonly email: string; readonly url: string }) => Effect.Effect<void>;
 }
 
@@ -43,8 +47,23 @@ export const authPlugins = (delivery: CodeDelivery): BetterAuthPlugin[] => [
     otpLength: Policy.signIn.codeDigits,
     expiresIn: CODE_TTL_SECONDS,
     allowedAttempts: Policy.signIn.codeAttempts,
-    sendVerificationOTP: ({ email, otp, type }) =>
-      type === "sign-in" ? Effect.runPromise(delivery.sendSignInCode({ email, otp })) : Promise.resolve(),
+    changeEmail: { enabled: true },
+    sendVerificationOTP: ({ email, otp, type }) => {
+      switch (type) {
+        case "sign-in": {
+          return Effect.runPromise(delivery.sendSignInCode({ email, otp }));
+        }
+
+        case "change-email": {
+          return Effect.runPromise(delivery.sendEmailChangeCode({ email, otp }));
+        }
+
+        case "email-verification":
+        case "forget-password": {
+          return Promise.resolve();
+        }
+      }
+    },
   }),
   magicLink({
     expiresIn: MAGIC_LINK_TTL_SECONDS,

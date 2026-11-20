@@ -888,4 +888,112 @@ describe("languages (ADR 0018)", () => {
       expect(rejection(erase(world, ADMIN, PersonId.make("nobody"), "x@example.com"))).toBe("PersonNotFound");
     });
   });
+  describe("correcting a Person's email (GDPR 309)", () => {
+    const correct = (world: World, actor: PersonId, personId: PersonId, email: string) =>
+      world.run(actor, { _tag: "CorrectEmail", personId, email: EmailAddress.make(email) });
+
+    const setup = () => {
+      const world = new World();
+      const platform = world.createTeam("Platform", "grace@example.com");
+      world.add(ADMIN, platform, "ada@example.com");
+      world.add(ADMIN, platform, "bob@example.com");
+
+      return {
+        world,
+        platform,
+        ada: world.personWith("ada@example.com"),
+        bob: world.personWith("bob@example.com"),
+      };
+    };
+
+    it("changes the address of a Person who has not signed in and asks the index to follow", () => {
+      const { world, ada } = setup();
+
+      const corrected = world.ok(ADMIN, {
+        _tag: "CorrectEmail",
+        personId: ada,
+        email: EmailAddress.make("ada.new@example.com"),
+      });
+
+      expect(corrected.changes).toEqual([
+        { _tag: "EmailCorrected", personId: ada, email: "ada.new@example.com" },
+      ]);
+      expect(corrected.followUps).toEqual([
+        {
+          _tag: "CorrectIndexEmail",
+          person: { id: ada, email: "ada.new@example.com", authUserId: null },
+        },
+      ]);
+      expect(world.personWith("ada.new@example.com")).toBe(ada);
+    });
+
+    it("is for an Organization admin only", () => {
+      const { world, ada, bob } = setup();
+      const grace = world.personWith("grace@example.com");
+
+      expect(rejection(correct(world, grace, ada, "ada.new@example.com"))).toBe("Forbidden");
+      expect(rejection(correct(world, bob, ada, "ada.new@example.com"))).toBe("Forbidden");
+      expect(world.state.people.find((person) => person.id === ada)?.email).toBe("ada@example.com");
+    });
+
+    it("refuses a Person who has signed in, who uses the self-service route", () => {
+      const { world, ada } = setup();
+      world.state = {
+        ...world.state,
+        people: world.state.people.map((person) =>
+          person.id === ada ? { ...person, authUserId: AuthUserId.make("user_ada") } : person,
+        ),
+      };
+
+      expect(rejection(correct(world, ADMIN, ada, "ada.new@example.com"))).toBe("PersonHasAccount");
+      expect(world.state.people.find((person) => person.id === ada)?.email).toBe("ada@example.com");
+    });
+
+    it("corrects a removed Person but not an erased one", () => {
+      const { world, ada, bob } = setup();
+      world.ok(ADMIN, { _tag: "RemovePerson", personId: ada });
+      world.ok(ADMIN, {
+        _tag: "ErasePerson",
+        authority: "admin",
+        personId: bob,
+        confirmation: EmailAddress.make("bob@example.com"),
+      });
+
+      expect(correct(world, ADMIN, ada, "ada.new@example.com")._tag).toBe("Accepted");
+      expect(world.state.people.find((person) => person.id === ada)?.removedAt).not.toBeNull();
+      expect(rejection(correct(world, ADMIN, bob, "bob.new@example.com"))).toBe("PersonNotFound");
+      expect(rejection(correct(world, ADMIN, PersonId.make("nobody"), "x@example.com"))).toBe(
+        "PersonNotFound",
+      );
+    });
+
+    it("keeps the address unique among non-erased People of the Organization", () => {
+      const { world, ada, bob } = setup();
+
+      expect(rejection(correct(world, ADMIN, ada, "bob@example.com"))).toBe("EmailTaken");
+      expect(world.state.people.find((person) => person.id === ada)?.email).toBe("ada@example.com");
+
+      world.ok(ADMIN, {
+        _tag: "ErasePerson",
+        authority: "admin",
+        personId: bob,
+        confirmation: EmailAddress.make("bob@example.com"),
+      });
+      expect(correct(world, ADMIN, ada, "bob@example.com")._tag).toBe("Accepted");
+    });
+
+    it("finishes the index again on a retry that changes nothing", () => {
+      const { world, ada } = setup();
+      correct(world, ADMIN, ada, "ada.new@example.com");
+
+      const again = world.ok(ADMIN, {
+        _tag: "CorrectEmail",
+        personId: ada,
+        email: EmailAddress.make("ada.new@example.com"),
+      });
+
+      expect(again.changes).toEqual([]);
+      expect(again.followUps).toHaveLength(1);
+    });
+  });
 });

@@ -2,6 +2,7 @@ import { BetterAuth } from "@alchemy.run/better-auth";
 import { CloudflareD1 } from "@alchemy.run/better-auth/CloudflareD1";
 import * as Cloudflare from "@alchemy.run/cloudflare";
 import {
+  EmailRectification,
   EmailSender,
   MembershipId,
   OrganizationDirectory,
@@ -39,12 +40,14 @@ import * as Stream from "effect/Stream";
 import { HttpServerRequest } from "effect/http/HttpServerRequest";
 import * as Etag from "effect/http/Etag";
 import * as HttpRouter from "effect/http/HttpRouter";
+import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
 import { actionHandlers } from "./ActionHandlers.ts";
 import { authBindings, authSettings } from "./auth/AuthConfig.ts";
 import { signInCodeDelivery } from "./auth/AuthResource.ts";
 import { betterAuthIdentityProvider } from "./auth/BetterAuthIdentityProvider.ts";
 import { authHandlers } from "./auth/AuthHandlers.ts";
+import { d1EmailRectification } from "./auth/D1EmailRectification.ts";
 import { d1OrganizationOffboarding } from "./auth/D1OrganizationOffboarding.ts";
 import { d1PeopleIndex } from "./auth/D1PeopleIndex.ts";
 import { personalDataSource } from "./auth/PersonalDataSource.ts";
@@ -100,6 +103,11 @@ const SURVEYBEAT_AUTH_PATHS = new Set([
   "/auth/session",
   "/auth/organization",
   "/auth/organization/choose",
+]);
+
+const SURVEYBEAT_OWNED_AUTH_PATHS = new Set([
+  "/auth/email-otp/request-email-change",
+  "/auth/email-otp/change-email",
 ]);
 
 export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
@@ -258,6 +266,7 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
 
       return Context.make(SessionIdentityProvider, sessions).pipe(
         Context.add(PeopleIndex, yield* d1PeopleIndex(database)),
+        Context.add(EmailRectification, yield* d1EmailRectification(database)),
         Context.add(OrganizationPeople, people),
         Context.add(OrganizationDirectory, directory),
         Context.add(
@@ -312,6 +321,10 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
 
         if (path === DELIVERY_PAGE_PATH || path === UNSUBSCRIBE_PAGE_PATH) {
           return yield* pages;
+        }
+
+        if (SURVEYBEAT_OWNED_AUTH_PATHS.has(path)) {
+          return HttpServerResponse.empty({ status: 404 });
         }
 
         if (path.startsWith("/auth/") && !SURVEYBEAT_AUTH_PATHS.has(path)) {

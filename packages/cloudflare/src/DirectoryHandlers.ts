@@ -1,5 +1,6 @@
 import { SurveyBeatApi } from "@surveybeat/api";
 import {
+  correctPersonEmail,
   NewIds,
   OFFBOARDING_EXPORT_FILENAME,
   offboardOrganization,
@@ -20,6 +21,7 @@ import type {
   Member,
   NewMember,
   OrganizationDirectory,
+  EmailRectification,
 } from "@surveybeat/domain";
 import type * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -36,7 +38,11 @@ import {
 } from "./auth/AuthHandlers.ts";
 import type { AuthServices } from "./auth/AuthHandlers.ts";
 
-export type DirectoryServices = AuthServices | OrganizationDirectory | OrganizationOffboarding;
+export type DirectoryServices =
+  | AuthServices
+  | OrganizationDirectory
+  | OrganizationOffboarding
+  | EmailRectification;
 
 const downloadHeaders = HttpEffect.appendPreResponseHandler((_request, response) =>
   Effect.succeed(
@@ -239,6 +245,16 @@ export const directoryHandlers = <R>(
               : yield* authenticated;
 
             yield* offboardOrganization(checked, payload.confirmation);
+          }),
+        ),
+      )
+      .handle("correctPersonEmail", ({ params, payload }) =>
+        provide(
+          Effect.gen(function* () {
+            yield* requireSameOrigin;
+            const member = yield* currentMember;
+
+            yield* correctPersonEmail(member, params.personId, payload.email);
           }),
         ),
       )

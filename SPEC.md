@@ -144,7 +144,7 @@ Anonymity is a product feature, and section 3 explains why it comes first. These
 - **Comments.** In anonymous rounds, the lead sees comments only after a redaction pass. The pass removes names, email addresses, and unusual identifying phrases, and it is done by an AI model with a rule-based check after it. The lead can choose themes only, which hides raw comments entirely.
 - **Timing.** Anonymous submissions store a coarse time bucket (the day), not an exact time. Results do not update live during a round for teams below 2N members. Live updates would let a lead match a new response to the person who just told them they had answered.
 - **Logs and telemetry.** Request logs for the submission endpoint must not contain the invitation token, the person, or the IP address together with the submission. Use separate requests, or remove the fields before logging. Write tests for this.
-- **Data rights.** A person can export and delete their personal data. Anonymous submissions are not personal data under this design, so they survive deletion. The privacy page must state that plainly.
+- **Data rights.** A person can export their personal data, correct their email address, and delete their personal data. Anonymous submissions are not personal data under this design, so they survive deletion. The privacy page must state that plainly.
 - **Retention.** An organization sets a retention period for raw answers and comments, defaulting to 24 months. Aggregated results can be kept longer.
 
 ### 5.4 Understand: results and insight

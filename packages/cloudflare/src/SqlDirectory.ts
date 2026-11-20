@@ -126,6 +126,10 @@ export const makeSqlDirectory = (sql: SqliteClient.SqliteClient, sends: SendStor
           WHERE id = ${change.personId}`;
       }
 
+      case "EmailCorrected": {
+        return sql`UPDATE person SET email = ${change.email} WHERE id = ${change.personId}`;
+      }
+
       case "TeamAdded": {
         return sql`INSERT INTO team (id, name, time_zone)
           VALUES (${change.team.id}, ${change.team.name}, ${change.team.timeZone})`;

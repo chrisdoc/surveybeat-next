@@ -27,6 +27,7 @@ const signedIn = () =>
         Effect.sync(() => {
           codes.push(otp);
         }),
+      sendEmailChangeCode: () => Effect.void,
       sendMagicLink: () => Effect.void,
     });
 
@@ -99,6 +100,7 @@ describe("Better Auth identity provider", () => {
           Effect.sync(() => {
             codes.push(otp);
           }),
+        sendEmailChangeCode: () => Effect.void,
         sendMagicLink: () => Effect.void,
       });
 

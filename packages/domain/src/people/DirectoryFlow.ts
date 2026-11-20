@@ -1,9 +1,10 @@
 import { Clock, Context, Effect, Option } from "effect";
-import type { SendId } from "../email/Email.ts";
+import type { SendId, EmailAddress } from "../email/Email.ts";
 import { EmailNotResendable, FailedEmailNotFound } from "../email/FailedEmails.ts";
 import type { FailedEmailStatus, FailedEmails } from "../email/FailedEmails.ts";
 import type { DirectoryCommand, DirectoryRejection, FollowUp, ResendResult, Viewed } from "./Directory.ts";
-import type { PersonId } from "./Identity.ts";
+import { EmailTaken, PersonHasAccount } from "./EmailErrors.ts";
+import type { AuthUserId, PersonId } from "./Identity.ts";
 import type { OrganizationId } from "./Organization.ts";
 import { Forbidden } from "./SignIn.ts";
 import type { CheckedSession, Member } from "./SignInFlow.ts";
@@ -77,6 +78,12 @@ export interface OrganizationDirectoryShape {
   ) => Effect.Effect<Viewed<null>>;
 
   readonly clearPersonErasure: (organizationId: OrganizationId, personId: PersonId) => Effect.Effect<void>;
+
+  readonly rectifyEmail: (
+    organizationId: OrganizationId,
+    userId: AuthUserId,
+    email: EmailAddress,
+  ) => Effect.Effect<void>;
 }
 
 export class OrganizationDirectory extends Context.Service<
@@ -89,6 +96,8 @@ export type DirectoryError =
   | TeamNotFound
   | PersonNotFound
   | PersonWasRemoved
+  | PersonHasAccount
+  | EmailTaken
   | LastLead
   | LastAdmin
   | ErasureNotConfirmed
@@ -112,6 +121,14 @@ const fail = (rejection: DirectoryRejection): Effect.Effect<never, DirectoryErro
 
     case "PersonWasRemoved": {
       return Effect.fail(new PersonWasRemoved());
+    }
+
+    case "PersonHasAccount": {
+      return Effect.fail(new PersonHasAccount());
+    }
+
+    case "EmailTaken": {
+      return Effect.fail(new EmailTaken());
     }
 
     case "LastLead": {
@@ -158,6 +175,10 @@ const followUp = Effect.fnUntraced(function* (organizationId: OrganizationId, st
 
     case "UnindexPerson": {
       return yield* index.removePerson(organizationId, step.personId);
+    }
+
+    case "CorrectIndexEmail": {
+      return yield* index.correctEmail(organizationId, step.person.id, step.person.email);
     }
 
     case "ErasePersonIndex": {

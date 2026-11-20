@@ -17,6 +17,13 @@ export const signInCodeDelivery = (
       text: `Your SurveyBeat sign-in code is ${otp}. It expires in ${CODE_MINUTES} minutes.`,
       html: `<p>Your SurveyBeat sign-in code is <strong>${otp}</strong>. It expires in ${CODE_MINUTES} minutes.</p>`,
     }).pipe(Effect.asVoid, Effect.orDie),
+  sendEmailChangeCode: ({ email, otp }) =>
+    send({
+      to: EmailAddress.make(email),
+      subject: `Confirm your new SurveyBeat address: ${otp}`,
+      text: `Your code to confirm this address for your SurveyBeat account is ${otp}. It expires in ${CODE_MINUTES} minutes. If you did not ask to change your address, ignore this email.`,
+      html: `<p>Your code to confirm this address for your SurveyBeat account is <strong>${otp}</strong>. It expires in ${CODE_MINUTES} minutes.</p><p>If you did not ask to change your address, ignore this email.</p>`,
+    }).pipe(Effect.asVoid, Effect.orDie),
   sendMagicLink: ({ email, url }) =>
     send({
       to: EmailAddress.make(email),

@@ -131,6 +131,12 @@ export const organizationDirectory = ({
         )
         .pipe(Effect.orDie),
 
+    rectifyEmail: (authUserId: string, email: string) =>
+      sql`UPDATE person SET email = ${email} WHERE auth_user_id = ${authUserId} AND erased_at IS NULL`.pipe(
+        Effect.asVoid,
+        Effect.orDie,
+      ),
+
     clearPersonErasure: (personId: PersonId) =>
       sql`DELETE FROM person_erasure WHERE person_id = ${personId}`.pipe(Effect.asVoid, Effect.orDie),
     viewTeams: (actorId: PersonId) =>

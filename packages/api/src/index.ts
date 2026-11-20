@@ -2,6 +2,10 @@ import {
   AccountStillInUse,
   AuthUnavailable,
   EmailAddress,
+  EmailChangePending,
+  EmailTaken,
+  EmailUnchanged,
+  EmailUnusable,
   ErasureNotConfirmed,
   Locale,
   Forbidden,
@@ -14,6 +18,7 @@ import {
   OrganizationOffboardingExport,
   OrganizationSettings,
   PersonalDataExport,
+  PersonHasAccount,
   PersonId,
   PersonNotFound,
   PersonWasRemoved,
@@ -54,6 +59,7 @@ import {
   SendId,
   UpdateAction,
   SessionState,
+  SignInAgainRequired,
   TeamDetail,
   TeamId,
   TeamName,
@@ -67,6 +73,7 @@ import {
   TestSendStatus,
   TimeZone,
   Unauthenticated,
+  WrongEmailCode,
 } from "@surveybeat/domain";
 import { Schema } from "effect";
 import { HttpApi, HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from "effect/http-api";
@@ -122,6 +129,10 @@ const ErasureConfirmation = Schema.Struct({ confirmation: EmailAddress });
 
 const OffboardingConfirmation = Schema.Struct({ confirmation: Schema.String });
 
+const EmailChange = Schema.Struct({ email: Schema.String });
+
+const EmailChangeConfirmation = Schema.Struct({ email: Schema.String, otp: Schema.String });
+
 const directoryErrors = [
   Unauthenticated,
   Forbidden,
@@ -145,8 +156,24 @@ const directoryErrors = [
   ErasureNotConfirmed,
   TeamNameTaken,
   PersonWasRemoved,
+  PersonHasAccount,
+  EmailTaken,
   FailedEmailNotFound,
   EmailNotResendable,
+] as const;
+
+const correctEmailErrors = [...directoryErrors, EmailUnusable] as const;
+
+const emailChangeErrors = [
+  Unauthenticated,
+  Forbidden,
+  AuthUnavailable,
+  SignInAgainRequired,
+  WrongEmailCode,
+  EmailUnusable,
+  EmailUnchanged,
+  EmailTaken,
+  EmailChangePending,
 ] as const;
 
 const teamParams = { teamId: TeamId };
@@ -244,6 +271,12 @@ export class DirectoryApiGroup extends HttpApiGroup.make("directory")
       params: { personId: PersonId },
       payload: ErasureConfirmation,
       error: directoryErrors,
+    }),
+    HttpApiEndpoint.post("correctPersonEmail", "/organization/people/:personId/email", {
+      params: { personId: PersonId },
+      payload: EmailChange,
+      success: HttpApiSchema.Empty(204),
+      error: correctEmailErrors,
     }),
     HttpApiEndpoint.get("exportOffboarding", "/organization/offboarding-export", {
       success: OrganizationOffboardingExport,
@@ -488,6 +521,16 @@ export class MeApiGroup extends HttpApiGroup.make("me")
     HttpApiEndpoint.post("erasePerson", "/me/erasure", {
       payload: ErasureConfirmation,
       error: directoryErrors,
+    }),
+    HttpApiEndpoint.post("requestEmailChange", "/me/email-change", {
+      payload: EmailChange,
+      success: HttpApiSchema.Empty(204),
+      error: emailChangeErrors,
+    }),
+    HttpApiEndpoint.post("confirmEmailChange", "/me/email-change/confirm", {
+      payload: EmailChangeConfirmation,
+      success: HttpApiSchema.Empty(204),
+      error: emailChangeErrors,
     }),
     HttpApiEndpoint.post("eraseAccount", "/me/account-erasure", {
       payload: ErasureConfirmation,
