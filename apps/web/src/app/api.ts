@@ -12,6 +12,7 @@ export const Failure = Schema.Literals([
   "LastLead",
   "LastAdmin",
   "ErasureNotConfirmed",
+  "OrganizationNotConfirmed",
   "AccountStillInUse",
   "TeamNameTaken",
   "QuestionAlreadyInPulse",
@@ -51,6 +52,10 @@ export const failureMessage = (failure: Failure): string => {
 
     case "ErasureNotConfirmed": {
       return message("error.ErasureNotConfirmed");
+    }
+
+    case "OrganizationNotConfirmed": {
+      return message("error.OrganizationNotConfirmed");
     }
 
     case "AccountStillInUse": {

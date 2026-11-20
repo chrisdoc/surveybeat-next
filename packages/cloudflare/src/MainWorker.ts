@@ -5,6 +5,7 @@ import {
   EmailSender,
   MembershipId,
   OrganizationDirectory,
+  OrganizationOffboarding,
   NewIds,
   OrganizationPeople,
   PeopleIndex,
@@ -44,6 +45,7 @@ import { authBindings, authSettings } from "./auth/AuthConfig.ts";
 import { signInCodeDelivery } from "./auth/AuthResource.ts";
 import { betterAuthIdentityProvider } from "./auth/BetterAuthIdentityProvider.ts";
 import { authHandlers } from "./auth/AuthHandlers.ts";
+import { d1OrganizationOffboarding } from "./auth/D1OrganizationOffboarding.ts";
 import { d1PeopleIndex } from "./auth/D1PeopleIndex.ts";
 import { personalDataSource } from "./auth/PersonalDataSource.ts";
 import {
@@ -258,6 +260,12 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
         Context.add(PeopleIndex, yield* d1PeopleIndex(database)),
         Context.add(OrganizationPeople, people),
         Context.add(OrganizationDirectory, directory),
+        Context.add(
+          OrganizationOffboarding,
+          yield* d1OrganizationOffboarding(database, (organizationId) =>
+            organizations.getByName(organizationId).wipeOrganization(),
+          ),
+        ),
         Context.add(OrganizationPulses, pulses),
         Context.add(OrganizationRounds, rounds),
         Context.add(OrganizationActions, actions),

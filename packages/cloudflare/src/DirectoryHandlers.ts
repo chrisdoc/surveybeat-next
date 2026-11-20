@@ -1,10 +1,13 @@
 import { SurveyBeatApi } from "@surveybeat/api";
 import {
   NewIds,
+  OFFBOARDING_EXPORT_FILENAME,
+  offboardOrganization,
   resendFailedEmail,
   runDirectoryCommand,
   viewEmailStatus,
   viewFailedEmails,
+  viewOffboardingExport,
   viewSettings,
   viewTeam,
   viewTeams,
@@ -15,14 +18,26 @@ import type {
   Member,
   NewMember,
   OrganizationDirectory,
+  OrganizationOffboarding,
 } from "@surveybeat/domain";
 import type * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
+import * as HttpEffect from "effect/http/HttpEffect";
+import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
-import { currentMember, requestOrigin, requireSameOrigin } from "./auth/AuthHandlers.ts";
+import { authenticated, currentMember, requestOrigin, requireSameOrigin } from "./auth/AuthHandlers.ts";
 import type { AuthServices } from "./auth/AuthHandlers.ts";
 
-export type DirectoryServices = AuthServices | OrganizationDirectory;
+export type DirectoryServices = AuthServices | OrganizationDirectory | OrganizationOffboarding;
+
+const downloadHeaders = HttpEffect.appendPreResponseHandler((_request, response) =>
+  Effect.succeed(
+    HttpServerResponse.setHeaders(response, {
+      "content-disposition": `attachment; filename="${OFFBOARDING_EXPORT_FILENAME}"`,
+      "cache-control": "no-store",
+    }),
+  ),
+);
 
 const signInUrl = Effect.map(requestOrigin, (origin) => {
   const url = new URL("/", origin);
@@ -191,6 +206,26 @@ export const directoryHandlers = <R>(
       )
       .handle("removePerson", ({ params }) =>
         provide(change(() => Effect.succeed({ _tag: "RemovePerson", personId: params.personId }))),
+      )
+      .handle("exportOffboarding", () =>
+        provide(
+          Effect.gen(function* () {
+            yield* requireSameOrigin;
+            const member = yield* currentMember;
+            yield* downloadHeaders;
+
+            return yield* viewOffboardingExport(member);
+          }),
+        ),
+      )
+      .handle("offboardOrganization", ({ payload }) =>
+        provide(
+          Effect.gen(function* () {
+            yield* requireSameOrigin;
+
+            yield* offboardOrganization(yield* authenticated, payload.confirmation);
+          }),
+        ),
       )
       .handle("erasePerson", ({ params, payload }) =>
         provide(

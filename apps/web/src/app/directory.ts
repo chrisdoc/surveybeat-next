@@ -24,6 +24,7 @@ import {
   badge,
   confirmDialog,
   dataTable,
+  dangerButtonClass,
   dangerLinkButton,
   emailAddress,
   emptyState,
@@ -31,6 +32,7 @@ import {
   linkClass,
   pageShell,
   pageTitle,
+  panel,
   problemView,
   rowActionsMenu,
   secondaryButtonClass,
@@ -1081,6 +1083,114 @@ const failedEmailsView = <Message>(
   return h.div([h.Class("mt-8")], children);
 };
 
+export interface OffboardingForm {
+  readonly open: boolean;
+  readonly confirmation: string;
+  readonly busy: boolean;
+  readonly failure: Failure | undefined;
+}
+
+const offboardingExportHref = "/api/organization/offboarding-export";
+
+const dangerZoneView = <Message>(
+  state: { readonly downloaded: boolean; readonly form: OffboardingForm },
+  actions: {
+    readonly onDownloaded: Message;
+    readonly onOpen: Message;
+    readonly onConfirmationChange: (value: string) => Message;
+    readonly onSubmit: Message;
+    readonly onCancel: Message;
+  },
+  h: HtmlBuilder<Message>,
+): Child => {
+  const { form } = state;
+
+  return panel(
+    [
+      subSectionTitle(message("offboarding.title"), h, 2),
+      h.p([h.Class("mt-1 leading-relaxed text-muted")], [message("offboarding.body")]),
+      h.p([h.Class("mt-3 leading-relaxed text-muted")], [message("offboarding.download.body")]),
+      h.div(
+        [h.Class("mt-4 flex flex-wrap gap-3")],
+        [
+          h.a(
+            [
+              h.Href(offboardingExportHref),
+              h.Download("surveybeat-organization.json"),
+              h.OnClick(actions.onDownloaded),
+              h.Class(secondaryButtonClass),
+            ],
+            [message("offboarding.download")],
+          ),
+        ],
+      ),
+      state.downloaded && !form.open
+        ? h.div(
+            [h.Class("mt-4")],
+            [
+              appButton(
+                {
+                  text: message("offboarding.start"),
+                  className: secondaryButtonClass,
+                  onClick: actions.onOpen,
+                },
+                h,
+              ),
+            ],
+          )
+        : null,
+      state.downloaded && form.open
+        ? h.div(
+            [h.Class("mt-4 flex flex-col gap-4")],
+            [
+              h.p(
+                [h.Class("leading-relaxed text-muted")],
+                [message("offboarding.confirm.body", { days: Policy.backupRetentionDays })],
+              ),
+              textField(
+                {
+                  id: "delete-organization-confirmation",
+                  label: message("offboarding.confirm.label"),
+                  value: form.confirmation,
+                  type: "text",
+                  isDisabled: form.busy,
+                  onInput: actions.onConfirmationChange,
+                },
+                h,
+              ),
+              problemView(form.failure, h),
+              h.div(
+                [h.Class("flex flex-wrap gap-3")],
+                [
+                  appButton(
+                    {
+                      text: message("offboarding.confirm.action"),
+                      className: dangerButtonClass,
+                      isDisabled: form.busy || form.confirmation.trim() === "",
+                      onClick: actions.onSubmit,
+                    },
+                    h,
+                  ),
+                  appButton(
+                    {
+                      text: message("confirm.cancel"),
+                      className: secondaryButtonClass,
+                      isDisabled: form.busy,
+                      onClick: actions.onCancel,
+                    },
+                    h,
+                  ),
+                ],
+              ),
+            ],
+          )
+        : null,
+    ].filter(Predicate.isNotNull),
+    h,
+    "mt-8",
+  );
+};
+
 export const settingsScreenView = <Message>(
   state: {
     readonly settings: LoadedSettings;
@@ -1098,8 +1208,15 @@ export const settingsScreenView = <Message>(
     readonly pendingRemovePerson: { readonly personId: PersonId; readonly email: string } | undefined;
     readonly pendingErasePerson: { readonly personId: PersonId; readonly email: string } | undefined;
     readonly erasePersonConfirmation: string;
+    readonly offboardingDownloaded: boolean;
+    readonly offboarding: OffboardingForm;
   },
   actions: {
+    readonly onOffboardingDownloaded: Message;
+    readonly onOffboardingOpen: Message;
+    readonly onOffboardingConfirmationChange: (value: string) => Message;
+    readonly onOffboardingSubmit: Message;
+    readonly onOffboardingCancel: Message;
     readonly onSizeChange: (size: string) => Message;
     readonly onToggleSize: Message;
     readonly onSubmitSize: Message;
@@ -1349,7 +1466,20 @@ export const settingsScreenView = <Message>(
     );
   }
 
-  children.push(failedEmailsView(state, actions.onResendFailedEmail, h));
+  children.push(
+    failedEmailsView(state, actions.onResendFailedEmail, h),
+    dangerZoneView(
+      { downloaded: state.offboardingDownloaded, form: state.offboarding },
+      {
+        onDownloaded: actions.onOffboardingDownloaded,
+        onOpen: actions.onOffboardingOpen,
+        onConfirmationChange: actions.onOffboardingConfirmationChange,
+        onSubmit: actions.onOffboardingSubmit,
+        onCancel: actions.onOffboardingCancel,
+      },
+      h,
+    ),
+  );
 
   return h.section([], children);
 };

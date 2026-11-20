@@ -6,6 +6,7 @@ import { makeEmailOutbox } from "./organization/EmailOutbox.ts";
 import { organizationEmailVisibility } from "./organization/EmailVisibility.ts";
 import { failureSummary } from "./organization/JobFailure.ts";
 import { organizationNotes } from "./organization/Notes.ts";
+import { organizationOffboarding } from "./organization/Offboarding.ts";
 import { organizationPersonalData } from "./organization/PersonalData.ts";
 import { organizationResults } from "./organization/Results.ts";
 import { organizationRoundCommands } from "./organization/RoundCommands.ts";
@@ -356,6 +357,8 @@ const organizationObject = Effect.gen(function* () {
       ...organizationDirectory({ sql, rounds, directory }),
 
       ...organizationPersonalData(sql),
+
+      ...organizationOffboarding({ sql, directory, pulses, storage: state.raw.storage }),
 
       ...organizationSends(sql, sends),
     };

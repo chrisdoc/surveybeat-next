@@ -273,6 +273,17 @@ export const catalog = {
   "settings.failedEmails.reason": "Reason",
   "settings.failedEmails.time": "Time",
   "settings.failedEmails.action": "Action",
+  "offboarding.title": "Delete this Organization",
+  "offboarding.body":
+    "Deleting the Organization removes all its Teams, People, Pulses, Rounds, Submissions, Answers and Results. It cannot be undone.",
+  "offboarding.download.body":
+    "Download a copy first. The file holds the Organization's settings, Teams, People, Memberships, Pulses and Questions. It holds no Results, comments, Actions, Notes, Submissions or Answers, because an Organization admin has no access to a Team's Results.",
+  "offboarding.download": "Download a copy first",
+  "offboarding.start": "Delete this Organization",
+  "offboarding.confirm.label": "Type the Organization name to confirm",
+  "offboarding.confirm.body":
+    "Deleting cannot be undone. Backups keep a copy of the Organization for up to {days} days, then they expire. You are signed out afterwards.",
+  "offboarding.confirm.action": "Delete permanently",
   "settings.failedEmails.resend": "Resend",
   "settings.failedEmails.resending": "Resending…",
   "settings.failedEmails.status.queued": "Queued…",
@@ -468,6 +479,7 @@ export const catalog = {
   "error.LastAdmin": "The Organization needs at least one admin. Make someone else admin first.",
   "error.TeamNameTaken": "A Team with that name already exists.",
   "error.ErasureNotConfirmed": "That is not the email address. Type it exactly to confirm.",
+  "error.OrganizationNotConfirmed": "That is not the Organization name. Type it exactly to confirm.",
   "error.AccountStillInUse":
     "Your sign-in still belongs to a Person in an Organization. Erase your personal data there first.",
   "error.PersonWasRemoved": "This person was removed from the Organization. Ask an admin.",

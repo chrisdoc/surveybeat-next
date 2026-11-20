@@ -875,6 +875,38 @@ export const settingsView = (state: DirectoryState, actorId: PersonId): Viewed<O
   };
 };
 
+export const offboardingAccess = (state: DirectoryState, actorId: PersonId): Viewed<null> => {
+  const actor = actorOf(state, actorId);
+
+  if (Option.isNone(actor)) {
+    return forbidden;
+  }
+
+  if (!can(actor.value, "organization.offboard", { _tag: "Organization" })) {
+    return forbidden;
+  }
+
+  return { _tag: "Viewed", value: null };
+};
+
+export const offboardingConfirmation = (
+  state: DirectoryState,
+  actorId: PersonId,
+  confirmation: string,
+): Viewed<null> => {
+  const access = offboardingAccess(state, actorId);
+
+  if (access._tag === "Rejected") {
+    return access;
+  }
+
+  if (confirmation !== state.organizationName) {
+    return reject({ _tag: "ErasureNotConfirmed" });
+  }
+
+  return access;
+};
+
 export const isEmailAdmin = (state: DirectoryState, actorId: PersonId): boolean => {
   const actor = actorOf(state, actorId);
 

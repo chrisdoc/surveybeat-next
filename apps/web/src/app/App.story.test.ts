@@ -41,6 +41,7 @@ import {
   LoadSession,
   Message,
   Navigate,
+  OffboardOrganization,
   RemoveMember,
   RemovePerson,
   ErasePersonData,
@@ -584,6 +585,152 @@ describe("App Stories", () => {
             expect(m.settings.settings.people).toHaveLength(0);
           }
         }),
+      );
+    });
+  });
+
+  describe("Deleting the Organization (GDPR 308)", () => {
+    const settings = {
+      name: "Acme",
+      minimumGroupSize: decodeSize(4),
+      aiProcessing: false,
+      defaultLocale: "en" as const,
+      people: [],
+      removedPeople: [],
+    };
+
+    const signedIn = Message.GotSession({
+      result: {
+        _tag: "SignedIn",
+        organization: { id: decodeOrgId("org-1"), name: "Acme" },
+        organizationAdmin: true,
+        locale: null,
+        detectedLocale: null,
+        organizationLocale: "en",
+      },
+    });
+
+    it("keeps deletion closed until the export has been downloaded", () => {
+      Story.story(
+        update,
+        Story.given(initialModel(makeUrl("https://app.surveybeat.com/settings"), [])),
+        Story.message(signedIn),
+        Story.Command.resolve(GetSettings, Message.GotSettings({ outcome: { _tag: "Success", settings } })),
+        Story.Command.resolve(
+          ListFailedEmails,
+          Message.GotFailedEmails({ outcome: { _tag: "Success", list: { emails: [] } } }),
+        ),
+        Story.message(Message.OffboardingOpened()),
+        Story.model((m) => {
+          expect(m.offboardingDownloaded).toBe(false);
+          expect(m.offboarding.open).toBe(false);
+        }),
+        Story.message(Message.OffboardingDownloaded()),
+        Story.model((m) => {
+          expect(m.offboardingDownloaded).toBe(true);
+        }),
+        Story.message(Message.OffboardingOpened()),
+        Story.model((m) => {
+          expect(m.offboarding.open).toBe(true);
+          expect(m.offboarding.confirmation).toBe("");
+        }),
+      );
+    });
+
+    it("sends only the typed name, then leaves the app when the Organization is deleted", () => {
+      Story.story(
+        update,
+        Story.given({
+          ...initialModel(makeUrl("https://app.surveybeat.com/settings"), []),
+          offboardingDownloaded: true,
+        }),
+        Story.message(signedIn),
+        Story.Command.resolve(GetSettings, Message.GotSettings({ outcome: { _tag: "Success", settings } })),
+        Story.Command.resolve(
+          ListFailedEmails,
+          Message.GotFailedEmails({ outcome: { _tag: "Success", list: { emails: [] } } }),
+        ),
+        Story.message(Message.OffboardingOpened()),
+        Story.message(Message.OffboardingSubmitted()),
+        Story.Command.expectNone(),
+        Story.message(Message.OffboardingConfirmationChanged({ value: "Acme" })),
+        Story.message(Message.OffboardingSubmitted()),
+        Story.Command.expectHas(OffboardOrganization({ confirmation: "Acme" })),
+        Story.model((m) => {
+          expect(m.offboarding.busy).toBe(true);
+        }),
+        Story.Command.resolve(
+          OffboardOrganization,
+          Message.OffboardedOrganization({ outcome: { _tag: "Success" } }),
+        ),
+        Story.Command.resolve(LeaveAfterErasureCmd, Message.LeftAfterErasure()),
+      );
+    });
+
+    it("keeps the form open with the reason when the typed name does not match", () => {
+      Story.story(
+        update,
+        Story.given({
+          ...initialModel(makeUrl("https://app.surveybeat.com/settings"), []),
+          offboardingDownloaded: true,
+        }),
+        Story.message(signedIn),
+        Story.Command.resolve(GetSettings, Message.GotSettings({ outcome: { _tag: "Success", settings } })),
+        Story.Command.resolve(
+          ListFailedEmails,
+          Message.GotFailedEmails({ outcome: { _tag: "Success", list: { emails: [] } } }),
+        ),
+        Story.message(Message.OffboardingOpened()),
+        Story.message(Message.OffboardingConfirmationChanged({ value: "acme" })),
+        Story.message(Message.OffboardingSubmitted()),
+        Story.Command.resolve(
+          OffboardOrganization,
+          Message.OffboardedOrganization({
+            outcome: { _tag: "Failure", failure: "OrganizationNotConfirmed" },
+          }),
+        ),
+        Story.model((m) => {
+          expect(m.offboarding.open).toBe(true);
+          expect(m.offboarding.busy).toBe(false);
+          expect(m.offboarding.confirmation).toBe("acme");
+          expect(m.offboardingDownloaded).toBe(true);
+          expect(Option.getOrNull(m.offboarding.failure)).toBe("OrganizationNotConfirmed");
+        }),
+        Story.message(Message.OffboardingConfirmationChanged({ value: "Acme" })),
+        Story.model((m) => {
+          expect(Option.isNone(m.offboarding.failure)).toBe(true);
+        }),
+        Story.message(Message.OffboardingDismissed()),
+        Story.model((m) => {
+          expect(m.offboarding.open).toBe(false);
+          expect(m.offboarding.confirmation).toBe("");
+          expect(m.offboardingDownloaded).toBe(true);
+        }),
+      );
+    });
+
+    it("asks for the sign-in again when the session has expired", () => {
+      Story.story(
+        update,
+        Story.given({
+          ...initialModel(makeUrl("https://app.surveybeat.com/settings"), []),
+          offboardingDownloaded: true,
+        }),
+        Story.message(signedIn),
+        Story.Command.resolve(GetSettings, Message.GotSettings({ outcome: { _tag: "Success", settings } })),
+        Story.Command.resolve(
+          ListFailedEmails,
+          Message.GotFailedEmails({ outcome: { _tag: "Success", list: { emails: [] } } }),
+        ),
+        Story.message(Message.OffboardingOpened()),
+        Story.message(Message.OffboardingConfirmationChanged({ value: "Acme" })),
+        Story.message(Message.OffboardingSubmitted()),
+        Story.Command.resolve(
+          OffboardOrganization,
+          Message.OffboardedOrganization({ outcome: { _tag: "Failure", failure: "Unauthenticated" } }),
+        ),
+        Story.Command.expectHas(LoadSession),
+        Story.Command.resolve(LoadSession, Message.GotSession({ result: { _tag: "NotInOrganization" } })),
       );
     });
   });

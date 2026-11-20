@@ -168,6 +168,13 @@ export const Model = Schema.Struct({
     busy: Schema.Boolean,
     failure: Schema.Option(Failure),
   }),
+  offboardingDownloaded: Schema.Boolean,
+  offboarding: Schema.Struct({
+    open: Schema.Boolean,
+    confirmation: Schema.String,
+    busy: Schema.Boolean,
+    failure: Schema.Option(Failure),
+  }),
 
   settings: LoadedSettings,
   size: Schema.String,
@@ -432,6 +439,12 @@ export const Message = defineMessageUnion({
   SelfEraseSubmitted: {},
   SelfErased: { outcome: OutcomeVoid },
   LeftAfterErasure: {},
+  OffboardingDownloaded: {},
+  OffboardingOpened: {},
+  OffboardingConfirmationChanged: { value: Schema.String },
+  OffboardingDismissed: {},
+  OffboardingSubmitted: {},
+  OffboardedOrganization: { outcome: OutcomeVoid },
 
   GotPulses: { outcome: OutcomePulses },
   CreatePulseClicked: {},
@@ -794,6 +807,23 @@ export const EraseOwnAccountData = Command.define("EraseOwnAccountData", {
       (api) => api.me.eraseAccount({ payload: { confirmation } }),
       () => Message.SelfErased({ outcome: { _tag: "Success" } }),
       (failure) => Message.SelfErased({ outcome: { _tag: "Failure", failure } }),
+    ),
+});
+
+export const OffboardOrganization = Command.define("OffboardOrganization", {
+  args: { confirmation: Schema.String },
+  messages: [Message.OffboardedOrganization],
+  execute: ({ confirmation }) =>
+    runApi(
+      (api) => api.directory.offboardOrganization({ payload: { confirmation } }),
+      () => Message.OffboardedOrganization({ outcome: { _tag: "Success" } }),
+      (failure) =>
+        Message.OffboardedOrganization({
+          outcome: {
+            _tag: "Failure",
+            failure: failure === "ErasureNotConfirmed" ? "OrganizationNotConfirmed" : failure,
+          },
+        }),
     ),
 });
 
@@ -1248,6 +1278,8 @@ export const initialModel = (url: Url, languages: readonly string[]): Model => {
     pendingErasePerson: Option.none(),
     erasePersonConfirmation: "",
     selfErase: { open: false, confirmation: "", busy: false, failure: Option.none() },
+    offboardingDownloaded: false,
+    offboarding: { open: false, confirmation: "", busy: false, failure: Option.none() },
     settings: { _tag: "Loading" },
     size: "3",
     sizeSaved: false,
@@ -2792,6 +2824,74 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       return { model };
     }
 
+    case "OffboardingDownloaded": {
+      return { model: { ...model, offboardingDownloaded: true } };
+    }
+
+    case "OffboardingOpened": {
+      if (!model.offboardingDownloaded) {
+        return { model };
+      }
+
+      return {
+        model: {
+          ...model,
+          offboarding: { open: true, confirmation: "", busy: false, failure: Option.none() },
+        },
+      };
+    }
+
+    case "OffboardingConfirmationChanged": {
+      return {
+        model: {
+          ...model,
+          offboarding: { ...model.offboarding, confirmation: message.value, failure: Option.none() },
+        },
+      };
+    }
+
+    case "OffboardingDismissed": {
+      return {
+        model: {
+          ...model,
+          offboarding: { open: false, confirmation: "", busy: false, failure: Option.none() },
+        },
+      };
+    }
+
+    case "OffboardingSubmitted": {
+      if (
+        !model.offboardingDownloaded ||
+        !model.offboarding.open ||
+        model.offboarding.busy ||
+        model.offboarding.confirmation.trim() === ""
+      ) {
+        return { model };
+      }
+
+      return {
+        model: { ...model, offboarding: { ...model.offboarding, busy: true, failure: Option.none() } },
+        commands: [OffboardOrganization({ confirmation: model.offboarding.confirmation })],
+      };
+    }
+
+    case "OffboardedOrganization": {
+      if (message.outcome._tag === "Success") {
+        return { model, commands: [LeaveAfterErasureCmd()] };
+      }
+
+      if (message.outcome.failure === "Unauthenticated") {
+        return { model, commands: [LoadSession()] };
+      }
+
+      return {
+        model: {
+          ...model,
+          offboarding: { ...model.offboarding, busy: false, failure: Option.some(message.outcome.failure) },
+        },
+      };
+    }
+
     case "GotPulses": {
       const { outcome } = message;
 
@@ -4167,6 +4267,13 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
               erasePersonConfirmation: model.erasePersonConfirmation,
               failedEmails: model.failedEmails,
               failedEmailResends: model.failedEmailResends,
+              offboardingDownloaded: model.offboardingDownloaded,
+              offboarding: {
+                open: model.offboarding.open,
+                confirmation: model.offboarding.confirmation,
+                busy: model.offboarding.busy,
+                failure: Option.getOrUndefined(model.offboarding.failure),
+              },
             },
             {
               onSizeChange: (size) => Message.SizeChanged({ size }),
@@ -4183,6 +4290,11 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
               onConfirmErasePerson: Message.ConfirmErasePerson(),
               onCancelErasePerson: Message.DismissErasePerson(),
               onResendFailedEmail: (sendId) => Message.ResendFailedEmailClicked({ sendId }),
+              onOffboardingDownloaded: Message.OffboardingDownloaded(),
+              onOffboardingOpen: Message.OffboardingOpened(),
+              onOffboardingConfirmationChange: (value) => Message.OffboardingConfirmationChanged({ value }),
+              onOffboardingSubmit: Message.OffboardingSubmitted(),
+              onOffboardingCancel: Message.OffboardingDismissed(),
             },
             h,
           );

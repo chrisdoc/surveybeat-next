@@ -52,9 +52,11 @@ import {
   GetSettings,
   GetTeam,
   initialModel,
+  LeaveAfterErasureCmd,
   ListRoundsCmd,
   ListTeams,
   localeOf,
+  OffboardOrganization,
   PollFailedEmailCmd,
   PollTestSendCmd,
   Message,
@@ -1296,6 +1298,86 @@ describe("App Scenes", () => {
             },
           }),
         ),
+      );
+    });
+  });
+
+  describe("Deleting the Organization (GDPR 308)", () => {
+    const settings = {
+      name: "Acme",
+      minimumGroupSize: decodeSize(4),
+      aiProcessing: false,
+      defaultLocale: "en" as const,
+      people: [],
+      removedPeople: [],
+    };
+
+    const settingsModel = (offboardingDownloaded: boolean) => ({
+      ...initialModel(makeUrl("https://app.surveybeat.com/settings"), []),
+      session: signedInAdmin,
+      settings: { _tag: "Loaded" as const, settings },
+      size: "4",
+      offboardingDownloaded,
+    });
+
+    it("offers no deletion until the export has been downloaded", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given(settingsModel(false)),
+        Scene.expect(Scene.role("link", { name: "Download a copy first" })).toExist(),
+        Scene.expect(Scene.role("button", { name: "Delete this Organization" })).toBeAbsent(),
+      );
+    });
+
+    it("offers the delete control once the export is downloaded", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given(settingsModel(false)),
+        Scene.click(Scene.role("link", { name: "Download a copy first" })),
+        Scene.expect(Scene.role("button", { name: "Delete this Organization" })).toExist(),
+      );
+    });
+
+    it("sends the typed name with the deletion, then leaves the app", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given(settingsModel(true)),
+        Scene.click(Scene.role("button", { name: "Delete this Organization" })),
+        Scene.expect(Scene.label("Type the Organization name to confirm")).toExist(),
+        Scene.expect(Scene.role("button", { name: "Delete permanently" })).toBeDisabled(),
+        Scene.type(Scene.label("Type the Organization name to confirm"), "Acme"),
+        Scene.expect(Scene.role("button", { name: "Delete permanently" })).toBeEnabled(),
+        Scene.click(Scene.role("button", { name: "Delete permanently" })),
+        Scene.Command.expectHas(OffboardOrganization({ confirmation: "Acme" })),
+        Scene.Command.resolve(
+          OffboardOrganization,
+          Message.OffboardedOrganization({ outcome: { _tag: "Success" } }),
+        ),
+        Scene.Command.expectHas(LeaveAfterErasureCmd),
+        Scene.Command.resolve(LeaveAfterErasureCmd, Message.LeftAfterErasure()),
+      );
+    });
+
+    it("shows the name mismatch and keeps the form open, then cancels and clears it", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given(settingsModel(true)),
+        Scene.click(Scene.role("button", { name: "Delete this Organization" })),
+        Scene.type(Scene.label("Type the Organization name to confirm"), "acme"),
+        Scene.click(Scene.role("button", { name: "Delete permanently" })),
+        Scene.Command.expectHas(OffboardOrganization({ confirmation: "acme" })),
+        Scene.Command.resolve(
+          OffboardOrganization,
+          Message.OffboardedOrganization({
+            outcome: { _tag: "Failure", failure: "OrganizationNotConfirmed" },
+          }),
+        ),
+        Scene.expect(Scene.text("That is not the Organization name. Type it exactly to confirm.")).toExist(),
+        Scene.expect(Scene.label("Type the Organization name to confirm")).toExist(),
+        Scene.expect(Scene.role("button", { name: "Delete permanently" })).toBeEnabled(),
+        Scene.click(Scene.role("button", { name: "Cancel" })),
+        Scene.expect(Scene.label("Type the Organization name to confirm")).toBeAbsent(),
+        Scene.expect(Scene.role("button", { name: "Delete this Organization" })).toExist(),
       );
     });
   });
