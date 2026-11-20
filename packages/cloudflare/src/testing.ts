@@ -4,6 +4,8 @@
 import { SurveyBeatApi } from "@surveybeat/api";
 import {
   applyChanges,
+  assemblePersonalDataExport,
+  PersonalDataSource,
   applyPulseChanges,
   emailStatusView,
   failedEmailsView,
@@ -91,6 +93,7 @@ import * as HttpServer from "effect/http/HttpServer";
 import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
 import { actionHandlers } from "./ActionHandlers.ts";
 import { directoryHandlers } from "./DirectoryHandlers.ts";
+import { meHandlers } from "./MeHandlers.ts";
 import { noteHandlers } from "./NoteHandlers.ts";
 import { pulseHandlers } from "./PulseHandlers.ts";
 import { roundHandlers } from "./RoundHandlers.ts";
@@ -212,10 +215,18 @@ export class FakeSessions {
 }
 
 export class MemoryIndex {
+  private removedAtTick = 0;
+
   readonly organizations = new Map<OrganizationId, { name: string }>();
   readonly persons = new Map<
     string,
-    { organizationId: OrganizationId; personId: PersonId; email: string; userId: AuthUserId | null }
+    {
+      organizationId: OrganizationId;
+      personId: PersonId;
+      email: string;
+      userId: AuthUserId | null;
+      removedAt: number | null;
+    }
   >();
   readonly claims = new Map<AuthUserId, ClaimStatus>();
 
@@ -229,13 +240,15 @@ export class MemoryIndex {
     linkedPersons: (userId) =>
       Effect.sync(() =>
         [...this.persons.values()].flatMap((person) =>
-          person.userId === userId ? [this.candidate(person.organizationId, person.personId, true)] : [],
+          person.userId === userId && person.removedAt === null
+            ? [this.candidate(person.organizationId, person.personId, true)]
+            : [],
         ),
       ),
     unlinkedPersons: (email) =>
       Effect.sync(() =>
         [...this.persons.values()].flatMap((person) =>
-          person.userId === null && person.email === normaliseEmail(email)
+          person.userId === null && person.removedAt === null && person.email === normaliseEmail(email)
             ? [this.candidate(person.organizationId, person.personId, false)]
             : [],
         ),
@@ -253,17 +266,23 @@ export class MemoryIndex {
           personId: person.personId,
           email: normaliseEmail(person.email),
           userId: existing?.userId ?? Option.getOrNull(person.userId),
+          removedAt: null,
         });
       }),
     removePerson: (organizationId, personId) =>
       Effect.sync(() => {
-        this.persons.delete(`${organizationId}/${personId}`);
+        const person = this.persons.get(`${organizationId}/${personId}`);
+
+        if (person !== undefined && person.removedAt === null) {
+          this.removedAtTick += 1;
+          person.removedAt = this.removedAtTick;
+        }
       }),
     linkPerson: (organizationId, personId, userId) =>
       Effect.sync(() => {
         const person = this.persons.get(`${organizationId}/${personId}`);
 
-        if (person !== undefined && person.userId === null) {
+        if (person !== undefined && person.userId === null && person.removedAt === null) {
           person.userId = userId;
         }
       }),
@@ -1009,10 +1028,66 @@ export class SignInWorld {
       personId,
       email: normalised,
       userId: null,
+      removedAt: null,
     });
 
     return personId;
   }
+
+  readonly personalData = PersonalDataSource.of({
+    gather: (userId, now) =>
+      Effect.sync(() => {
+        const user = this.sessions.users.get(userId);
+
+        const organizations = [...this.durable.organizations].flatMap(([id, organization]) =>
+          organization.state.people
+            .filter((person) => person.authUserId === userId)
+            .map((person) => ({
+              organization: { id, name: organization.state.organizationName },
+              person: {
+                id: person.id,
+                email: person.email,
+                timeZone: null,
+                locale: person.locale,
+                detectedLocale: person.detectedLocale,
+                organizationAdmin: person.organizationAdmin,
+                removedAt: person.removedAt === null ? null : String(person.removedAt),
+              },
+              memberships: [],
+              participation: [],
+              roundMembers: [],
+              invitations: [],
+              reminderOptOuts: [],
+              actions: [],
+              emailSends: [],
+              testSends: [],
+            })),
+        );
+
+        return assemblePersonalDataExport({
+          now,
+          account: {
+            user:
+              user === undefined
+                ? null
+                : {
+                    id: user.id,
+                    name: user.email,
+                    email: user.email,
+                    emailVerified: user.emailVerified,
+                    createdAt: null,
+                    updatedAt: null,
+                  },
+            activeSessions: [],
+            providerLinks: [],
+            passkeys: [],
+            personIndex: [],
+            organizationClaims: [],
+          },
+          organizations,
+        });
+      }),
+  });
 
   readonly handler = (): ((request: Request) => Promise<Response>) => {
     const services = Context.make(SessionIdentityProvider, this.sessions.service).pipe(
@@ -1023,6 +1098,7 @@ export class SignInWorld {
       Context.add(OrganizationRounds, this.durable.rounds),
       Context.add(OrganizationActions, this.durable.actions),
       Context.add(OrganizationNotes, this.durable.notes),
+      Context.add(PersonalDataSource, this.personalData),
       Context.add(
         NewIds,
         NewIds.of({
@@ -1050,6 +1126,7 @@ export class SignInWorld {
           roundHandlers(Effect.succeed(services)),
           actionHandlers(Effect.succeed(services)),
           noteHandlers(Effect.succeed(services)),
+          meHandlers(Effect.succeed(services)),
         ]),
         Layer.provide(HttpServer.layerServices),
       ),

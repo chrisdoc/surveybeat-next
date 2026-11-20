@@ -308,7 +308,7 @@ describe("removing", () => {
     const history = world.state.memberships.filter((membership) => membership.personId === ada);
     expect(history.map((membership) => membership.endedAt)).toEqual([1001 * DAY, 1001 * DAY]);
     expect(Option.isNone(actorOf(world.state, ada))).toBe(true);
-    // The index forgets them; the Organization owns everything else.
+    // Sign-in is told to drop them. The Organization keeps the Person and the Membership history.
     expect(removed.followUps).toEqual([{ _tag: "UnindexPerson", personId: ada }]);
   });
 

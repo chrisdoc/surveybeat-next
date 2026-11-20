@@ -16,6 +16,7 @@ import {
   OrganizationRounds,
   OrganizationActions,
   OrganizationNotes,
+  PersonalDataSource,
   PulseId,
   QuestionId,
   TeamId,
@@ -44,6 +45,7 @@ import { signInCodeDelivery } from "./auth/AuthResource.ts";
 import { betterAuthIdentityProvider } from "./auth/BetterAuthIdentityProvider.ts";
 import { authHandlers } from "./auth/AuthHandlers.ts";
 import { d1PeopleIndex } from "./auth/D1PeopleIndex.ts";
+import { personalDataSource } from "./auth/PersonalDataSource.ts";
 import {
   durableObjectActions,
   durableObjectDirectory,
@@ -68,6 +70,7 @@ import {
 import { emailTestRoutes, isTestStage, TEST_ROUTES } from "./EmailTestRoutes.ts";
 import { FLOW_TEST_ROUTE, flowTestRoutes } from "./FlowTestRoutes.ts";
 import { hostnameFor, mainWorkerDomainFor } from "./Hostnames.ts";
+import { meHandlers } from "./MeHandlers.ts";
 import { noteHandlers } from "./NoteHandlers.ts";
 import { pulseHandlers } from "./PulseHandlers.ts";
 import { roundHandlers } from "./RoundHandlers.ts";
@@ -259,6 +262,7 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
         Context.add(OrganizationRounds, rounds),
         Context.add(OrganizationActions, actions),
         Context.add(OrganizationNotes, notes),
+        Context.add(PersonalDataSource, yield* personalDataSource(database, organizations)),
         Context.add(
           NewIds,
           NewIds.of({
@@ -284,6 +288,7 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
           roundHandlers(services),
           actionHandlers(services),
           noteHandlers(services),
+          meHandlers(services),
         ]),
         Layer.provide([Etag.layer, httpPlatformStub, Path.layer]),
       ),

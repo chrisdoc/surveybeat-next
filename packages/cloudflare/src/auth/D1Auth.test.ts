@@ -39,7 +39,10 @@ const makeIndex = () => {
     prepare: (sql: string) => statement(sql, []),
   } as unknown as Cloudflare.D1.QueryDatabaseClient;
 
-  return d1PeopleIndex(client).pipe(Effect.provideService(RuntimeContext, {} as RuntimeContext["Service"]));
+  return d1PeopleIndex(client).pipe(
+    Effect.provideService(RuntimeContext, {} as RuntimeContext["Service"]),
+    Effect.map((index) => ({ index, sqlite })),
+  );
 };
 
 const acme = { id: OrganizationId.make("acme"), name: "Acme" };
@@ -51,7 +54,7 @@ const ada = AuthUserId.make("user_ada");
 describe("D1 PeopleIndex", () => {
   it.effect("finds unlinked Persons by normalised email, then by user once linked", () =>
     Effect.gen(function* () {
-      const index = yield* makeIndex();
+      const { index } = yield* makeIndex();
       yield* index.putOrganization(acme);
       yield* index.putOrganization(globex);
       const person = PersonId.make("p1");
@@ -89,7 +92,7 @@ describe("D1 PeopleIndex", () => {
 
   it.effect("keeps the first Organization claim of a user", () =>
     Effect.gen(function* () {
-      const index = yield* makeIndex();
+      const { index } = yield* makeIndex();
       const first = { organization: acme, adminPersonId: PersonId.make("admin-1") };
       const second = { organization: globex, adminPersonId: PersonId.make("admin-2") };
 
@@ -109,7 +112,7 @@ describe("D1 PeopleIndex", () => {
 
   it.effect("closes a claim for good once it is completed", () =>
     Effect.gen(function* () {
-      const index = yield* makeIndex();
+      const { index } = yield* makeIndex();
       const claim = { organization: acme, adminPersonId: PersonId.make("admin-1") };
       yield* index.claimOrganization(ada, claim);
       yield* index.completeClaim(ada, 1);
@@ -169,6 +172,80 @@ describe("D1 PeopleIndex", () => {
         .run();
     });
   });
+
+  it.effect("hides a removed Person from sign-in and shows them again when they are added back", () =>
+    Effect.gen(function* () {
+      const { index, sqlite } = yield* makeIndex();
+      yield* index.putOrganization(acme);
+      yield* index.putOrganization(globex);
+      const linked = PersonId.make("linked");
+      const unlinked = PersonId.make("unlinked");
+      yield* index.putPerson({
+        organizationId: acme.id,
+        personId: linked,
+        email: EmailAddress.make("ada@example.com"),
+        userId: Option.some(ada),
+      });
+      yield* index.putPerson({
+        organizationId: globex.id,
+        personId: unlinked,
+        email: EmailAddress.make("ada@example.com"),
+        userId: Option.none(),
+      });
+
+      yield* index.removePerson(acme.id, linked);
+
+      const removedAt = (organizationId: string) =>
+        sqlite
+          .prepare("SELECT auth_user_id, removed_at FROM person_index WHERE organization_id = ?")
+          .get(organizationId) as { auth_user_id: string | null; removed_at: number | null };
+
+      const firstRemovedAt = removedAt(acme.id).removed_at;
+      yield* index.removePerson(acme.id, linked);
+      yield* index.removePerson(globex.id, unlinked);
+
+      assert.strictEqual(removedAt(acme.id).removed_at, firstRemovedAt);
+      assert.strictEqual(typeof firstRemovedAt, "number");
+      assert.strictEqual(removedAt(acme.id).auth_user_id, ada);
+      assert.strictEqual(removedAt(globex.id).auth_user_id, null);
+      assert.strictEqual(typeof removedAt(globex.id).removed_at, "number");
+      assert.deepStrictEqual(yield* index.linkedPersons(ada), []);
+      assert.deepStrictEqual(yield* index.unlinkedPersons(EmailAddress.make("ada@example.com")), []);
+      yield* index.linkPerson(globex.id, unlinked, AuthUserId.make("user_later"));
+      assert.strictEqual(removedAt(globex.id).auth_user_id, null);
+      assert.deepStrictEqual(yield* index.linkedPersons(AuthUserId.make("user_later")), []);
+      assert.strictEqual(
+        (sqlite.prepare("SELECT COUNT(*) AS count FROM person_index").get() as { count: number }).count,
+        2,
+      );
+
+      yield* index.putPerson({
+        organizationId: acme.id,
+        personId: linked,
+        email: EmailAddress.make("ada@example.com"),
+        userId: Option.some(ada),
+      });
+      assert.deepStrictEqual(yield* index.linkedPersons(ada), [
+        { organization: acme, personId: linked, linked: true },
+      ]);
+      assert.strictEqual(removedAt(acme.id).removed_at, null);
+      assert.deepStrictEqual(yield* index.unlinkedPersons(EmailAddress.make("ada@example.com")), []);
+
+      yield* index.putPerson({
+        organizationId: globex.id,
+        personId: unlinked,
+        email: EmailAddress.make("ada@example.com"),
+        userId: Option.none(),
+      });
+      assert.deepStrictEqual(
+        (yield* index.unlinkedPersons(EmailAddress.make("ada@example.com"))).map(
+          (candidate) => candidate.organization.id,
+        ),
+        [globex.id],
+      );
+      assert.strictEqual(removedAt(globex.id).removed_at, null);
+    }),
+  );
 });
 
 const authOrigin = "http://localhost:5173";

@@ -10,6 +10,7 @@ import {
   OrderMismatch,
   OrganizationId,
   OrganizationSettings,
+  PersonalDataExport,
   PersonId,
   PersonNotFound,
   PersonWasRemoved,
@@ -457,10 +458,20 @@ export class NotesApiGroup extends HttpApiGroup.make("notes")
   )
   .prefix("/api") {}
 
+export class MeApiGroup extends HttpApiGroup.make("me")
+  .add(
+    HttpApiEndpoint.get("exportData", "/me/data-export", {
+      success: PersonalDataExport,
+      error: [Unauthenticated, Forbidden, AuthUnavailable],
+    }),
+  )
+  .prefix("/api") {}
+
 export class SurveyBeatApi extends HttpApi.make("surveybeat")
   .add(AuthApiGroup)
   .add(DirectoryApiGroup)
   .add(PulsesApiGroup)
   .add(RoundsApiGroup)
   .add(ActionsApiGroup)
-  .add(NotesApiGroup) {}
+  .add(NotesApiGroup)
+  .add(MeApiGroup) {}

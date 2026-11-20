@@ -71,7 +71,7 @@ const setSessionCookie = (token: Redacted.Redacted) =>
     }).pipe(Effect.orDie),
   );
 
-const authenticated = Effect.gen(function* () {
+export const authenticated = Effect.gen(function* () {
   const cookie = yield* sessionCookie;
 
   if (Option.isNone(cookie)) {

@@ -3868,7 +3868,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
     }
 
     case "Privacy": {
-      screenContent = h.div([], privacyContent(h));
+      screenContent = h.div([], privacyContent(h, true));
       break;
     }
 

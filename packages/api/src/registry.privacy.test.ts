@@ -800,6 +800,33 @@ const historyViolations = (scenario: RoundResultScenario): readonly string[] => 
   return found;
 };
 
+describe("personal data export endpoint (GDPR 306)", () => {
+  it("takes no input, so a caller can only ask for their own data", () => {
+    const endpoints: HttpApiEndpoint.Top[] = [];
+    HttpApi.reflect(SurveyBeatApi, {
+      onGroup: () => {},
+      onEndpoint: ({ group, endpoint }) => {
+        if (group.identifier === "me" && endpoint.identifier === "exportData") {
+          endpoints.push(endpoint);
+        }
+      },
+    });
+    assert.strictEqual(endpoints.length, 1);
+    const [endpoint] = endpoints;
+    assert.strictEqual(endpoint?.method, "GET");
+    assert.strictEqual(endpoint?.path, "/api/me/data-export");
+    assert.notInclude(endpoint?.path ?? "", ":");
+    assert.strictEqual(endpoint?.params, undefined);
+    assert.strictEqual(endpoint?.query, undefined);
+    assert.strictEqual(endpoint?.headers, undefined);
+    assert.strictEqual(endpoint?.payload.size, 0);
+  });
+
+  it("is classified as returning no Result data", () => {
+    assert.strictEqual(privacyRegistry["me.exportData"]._tag, "NoResultData");
+  });
+});
+
 describe("member history endpoint (ADR 0017)", () => {
   it("takes no input: a GET with no path parameter, payload, params, query, or headers", () => {
     const endpoints: HttpApiEndpoint.Top[] = [];

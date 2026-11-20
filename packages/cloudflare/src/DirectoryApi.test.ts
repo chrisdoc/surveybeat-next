@@ -176,13 +176,13 @@ describe("an Organization admin", () => {
     expect(await roster(admin, teamId)).toEqual(["lead ada@example.com", "member grace@example.com"]);
   });
 
-  it("removes a Person: Memberships end, the index forgets them, the next request denies them", async () => {
+  it("removes a Person: Memberships end, sign-in drops them, the next request denies them", async () => {
     const { world, acme, admin, lead, member, teamId, personId } = await setup();
     const ada = personId("ada@example.com");
 
     expect((await admin.call("DELETE", `/api/organization/people/${ada}`)).status).toBe(204);
     expect(world.durable.person(acme.id, ada)?.removedAt).not.toBeNull();
-    expect(world.index.persons.has(`${acme.id}/${ada}`)).toBe(false);
+    expect(world.index.persons.get(`${acme.id}/${ada}`)?.removedAt).toEqual(expect.any(Number));
     // History stays: the Membership is ended, not deleted.
     const memberships = world.durable.organizations.get(acme.id)?.state.memberships ?? [];
     expect(memberships.filter((membership) => membership.personId === ada)).toEqual([
@@ -204,6 +204,7 @@ describe("an Organization admin", () => {
     expect(
       (await admin.call("POST", `/api/teams/${teamId}/members`, { email: "ada@example.com" })).status,
     ).toBe(204);
+    expect(world.index.persons.get(`${acme.id}/${ada}`)?.removedAt).toBeNull();
   });
 
   it("refuses to remove a Team's last Lead, revoke the last admin, or remove yourself", async () => {
