@@ -223,15 +223,15 @@ export const personalDataTransparency: Transparency = {
       legalBasis:
         "GDPR Art. 6(1)(b), to provide the service you use. Art. 6(1)(f), legitimate interests, for security and abuse prevention.",
       controller: "SurveyBeat",
-      retention: `A session for ${Policy.signIn.sessionDays} days, refreshed while you use the app. The sign-in record while you belong to an Organization, and until it is deleted after that.`,
+      retention: `A session lasts ${Policy.signIn.sessionDays} days and is refreshed while you use the app. Signing out deletes that session. An expired session row stays until something deletes it. Nothing deletes expired sessions on a schedule yet. The sign-in account stays, and erasing it is not available yet.`,
     },
     {
-      data: "People and Teams: email address, role, Team Membership, time zone and language, whether you turned off reminders for a Pulse, and the Invitations sent to you (stored as a hash, never the link).",
+      data: "People and Teams: email address, role, Team Membership, time zone and language, whether you turned off reminders for a Pulse, and the Invitations sent to you. A current Invitation token is stored as a hash. An older stored Invitation or reminder email can still hold the raw token.",
       purpose: "Run Teams and Pulses, send Invitations and reminders, and count how many people took part.",
       legalBasis: "GDPR Art. 6(1)(f), legitimate interests of your Organization.",
       controller: "Your Organization, with SurveyBeat as its processor",
       retention:
-        "While you are a Person in the Organization. Removing a Person ends their Membership, deletes their Participation records, and revokes their Invitations. The Person record and Membership history stay.",
+        "While you are a Person in the Organization. Removing a Person ends their Membership, deletes their Participation records and test sends, and revokes their Invitations. These stay: the Person record, Membership history, which Rounds included them, the revoked Invitations, which Pulses they turned reminders off for, Actions they own, and the delivery records of messages sent to them. The sign-in route to that Organization stays, so this export can include it, and sign-in no longer offers that Organization. Erasing the remaining records is not available yet.",
     },
     {
       data: "Participation records: that a Person answered a Round. They hold no Answers and no time.",
@@ -248,7 +248,7 @@ export const personalDataTransparency: Transparency = {
       retention: "While the Organization keeps the Pulse.",
     },
     {
-      data: "Email: the recipient address, the delivery state of the messages sent to you.",
+      data: "Email: the recipient address, the kind of message, and the delivery state. The stored record can also hold a structured payload for that message. This file includes the kind and the delivery state. It leaves out the payload, the message body, and any token.",
       purpose: "Deliver the message and show a Lead which sends failed and why.",
       legalBasis: "GDPR Art. 6(1)(f) for Invitations and notices. Art. 6(1)(b) for sign-in messages.",
       controller: "Your Organization for Invitations and notices. SurveyBeat for sign-in messages.",
@@ -270,22 +270,24 @@ export const personalDataTransparency: Transparency = {
     },
     {
       name: "Google Cloud (google-vertex/europe)",
-      purpose: "Runs the AI model for comment themes and discussion guides on a zero-retention endpoint.",
+      purpose:
+        "Runs the AI model for comment themes and discussion guides. SurveyBeat requests zero data retention (zdr: true) on this EU endpoint. The provider can still retain content flagged as child sexual abuse material, including on that request.",
       location: "European Union",
     },
     {
       name: "Amazon Web Services (amazon-bedrock/eu-west-1)",
-      purpose: "The second EU zero-retention endpoint for the same request.",
+      purpose:
+        "The second EU endpoint for the same request. SurveyBeat sends the same zero data retention request (zdr: true). The provider can still retain content flagged as child sexual abuse material, including on that request.",
       location: "Ireland, European Union",
     },
   ],
   notIncluded: [
     "Submissions and Answers are not in this file. A stored Submission and Answer has no Person column (ADR 0005), so SurveyBeat cannot tell which ones are yours. A comment that still identifies its author can be personal data. Ask your Organization or write to the privacy contact to have it found.",
     "Team Results and the personal data of any other Person are not in this file.",
-    "Secrets are not in this file: no session token, sign-in code, password, Invitation link or token, token hash, or passkey credential.",
+    "Secrets are not in this file: no session token, sign-in code, password, Invitation link or token, token hash, Edit key hash, or passkey credential. An older stored Invitation or reminder can still hold a raw token. That token and every email body are left out of this file.",
   ],
   browserLocalData:
-    "Answers kept in this browser, and the Edit keys of Submissions made from it, are stored only in your browser, never on SurveyBeat's servers. View or clear them on /history (ADR 0017).",
+    "Answers kept in this browser (sb_answers_) stay only in this browser. View or clear them on /history. Edit keys (sb_edit_) also stay only in this browser. /history does not show them or clear them. They remain until you clear this site's data. SurveyBeat's servers store a SHA-256 hash of an Edit key, and never the Edit key itself (ADR 0017).",
   yourRights: `You can ask for correction, erasure, restriction or objection by writing to ${Legal.privacyEmail}. SurveyBeat answers within ${Legal.responseDays} days. Requests about data held for an Organization are passed to that Organization.`,
 };
 

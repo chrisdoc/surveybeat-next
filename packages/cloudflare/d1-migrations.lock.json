@@ -8,5 +8,6 @@
   "0007_test_invitations.sql": "46b701b762327f2525633034677370143aded5f776054e50b687721bd17505a6",
   "0008_better_auth.sql": "7e437e238ff3fa4f688f6a8bec48f75c095de818b3f1d61c7cdfa62e0671a062",
   "0009_better_auth_plugins.sql": "1ff4dc99be7639d715230a76436ea3ae013f0abc3f926346fbf30a627550d5e0",
-  "0010_rename_workos_index_columns.sql": "bde94d48d5402c82825b61d79aee341c5d6cd84a0e7f115313e457c518b43b87"
+  "0010_rename_workos_index_columns.sql": "bde94d48d5402c82825b61d79aee341c5d6cd84a0e7f115313e457c518b43b87",
+  "0011_person_index_removed_at.sql": "9e98e3e152691f3a34fa9a4781b5a7eb5f50cb8d7429fe72fff1c83289bfbd08"
 }

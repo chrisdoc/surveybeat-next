@@ -72,7 +72,7 @@ export const d1PeopleIndex = (db: Cloudflare.D1.QueryDatabaseClient) =>
           all(
             `SELECT p.organization_id, o.name, p.person_id, 1 AS linked
                FROM person_index p JOIN organization_index o ON o.organization_id = p.organization_id
-              WHERE p.auth_user_id = ?
+              WHERE p.auth_user_id = ? AND p.removed_at IS NULL
               ORDER BY p.organization_id`,
             userId,
           ).pipe(Effect.flatMap(decodeRows(CandidateRow))),
@@ -83,7 +83,7 @@ export const d1PeopleIndex = (db: Cloudflare.D1.QueryDatabaseClient) =>
           all(
             `SELECT p.organization_id, o.name, p.person_id, 0 AS linked
                FROM person_index p JOIN organization_index o ON o.organization_id = p.organization_id
-              WHERE p.email = ? AND p.auth_user_id IS NULL
+              WHERE p.email = ? AND p.auth_user_id IS NULL AND p.removed_at IS NULL
               ORDER BY p.organization_id`,
             normaliseEmail(email),
           ).pipe(Effect.flatMap(decodeRows(CandidateRow))),
@@ -101,7 +101,8 @@ export const d1PeopleIndex = (db: Cloudflare.D1.QueryDatabaseClient) =>
         write(
           `INSERT INTO person_index (organization_id, person_id, email, auth_user_id) VALUES (?, ?, ?, ?)
            ON CONFLICT (organization_id, person_id) DO UPDATE SET
-             auth_user_id = coalesce(auth_user_id, excluded.auth_user_id)`,
+             auth_user_id = coalesce(auth_user_id, excluded.auth_user_id),
+             removed_at = NULL`,
           person.organizationId,
           person.personId,
           EmailAddress.make(normaliseEmail(person.email)),
@@ -110,7 +111,8 @@ export const d1PeopleIndex = (db: Cloudflare.D1.QueryDatabaseClient) =>
 
       removePerson: (organizationId, personId) =>
         write(
-          "DELETE FROM person_index WHERE organization_id = ? AND person_id = ?",
+          `UPDATE person_index SET removed_at = unixepoch() * 1000
+            WHERE organization_id = ? AND person_id = ? AND removed_at IS NULL`,
           organizationId,
           personId,
         ),
@@ -118,7 +120,7 @@ export const d1PeopleIndex = (db: Cloudflare.D1.QueryDatabaseClient) =>
       linkPerson: (organizationId, personId, userId) =>
         write(
           `UPDATE person_index SET auth_user_id = ?
-            WHERE organization_id = ? AND person_id = ? AND auth_user_id IS NULL`,
+            WHERE organization_id = ? AND person_id = ? AND auth_user_id IS NULL AND removed_at IS NULL`,
           userId,
           organizationId,
           personId,

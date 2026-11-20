@@ -215,10 +215,18 @@ export class FakeSessions {
 }
 
 export class MemoryIndex {
+  private removedAtTick = 0;
+
   readonly organizations = new Map<OrganizationId, { name: string }>();
   readonly persons = new Map<
     string,
-    { organizationId: OrganizationId; personId: PersonId; email: string; userId: AuthUserId | null }
+    {
+      organizationId: OrganizationId;
+      personId: PersonId;
+      email: string;
+      userId: AuthUserId | null;
+      removedAt: number | null;
+    }
   >();
   readonly claims = new Map<AuthUserId, ClaimStatus>();
 
@@ -232,13 +240,15 @@ export class MemoryIndex {
     linkedPersons: (userId) =>
       Effect.sync(() =>
         [...this.persons.values()].flatMap((person) =>
-          person.userId === userId ? [this.candidate(person.organizationId, person.personId, true)] : [],
+          person.userId === userId && person.removedAt === null
+            ? [this.candidate(person.organizationId, person.personId, true)]
+            : [],
         ),
       ),
     unlinkedPersons: (email) =>
       Effect.sync(() =>
         [...this.persons.values()].flatMap((person) =>
-          person.userId === null && person.email === normaliseEmail(email)
+          person.userId === null && person.removedAt === null && person.email === normaliseEmail(email)
             ? [this.candidate(person.organizationId, person.personId, false)]
             : [],
         ),
@@ -256,17 +266,23 @@ export class MemoryIndex {
           personId: person.personId,
           email: normaliseEmail(person.email),
           userId: existing?.userId ?? Option.getOrNull(person.userId),
+          removedAt: null,
         });
       }),
     removePerson: (organizationId, personId) =>
       Effect.sync(() => {
-        this.persons.delete(`${organizationId}/${personId}`);
+        const person = this.persons.get(`${organizationId}/${personId}`);
+
+        if (person !== undefined && person.removedAt === null) {
+          this.removedAtTick += 1;
+          person.removedAt = this.removedAtTick;
+        }
       }),
     linkPerson: (organizationId, personId, userId) =>
       Effect.sync(() => {
         const person = this.persons.get(`${organizationId}/${personId}`);
 
-        if (person !== undefined && person.userId === null) {
+        if (person !== undefined && person.userId === null && person.removedAt === null) {
           person.userId = userId;
         }
       }),
@@ -1012,6 +1028,7 @@ export class SignInWorld {
       personId,
       email: normalised,
       userId: null,
+      removedAt: null,
     });
 
     return personId;

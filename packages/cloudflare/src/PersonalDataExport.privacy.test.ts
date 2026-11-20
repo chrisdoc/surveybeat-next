@@ -123,7 +123,8 @@ const seedOrganization = (
 const seedD1 = () => {
   const sqlite = d1();
   sqlite.exec(`
-    INSERT INTO organization_index (organization_id, name) VALUES ('acme', 'Acme'), ('globex', 'Globex');
+    INSERT INTO organization_index (organization_id, name) VALUES
+      ('acme', 'Acme'), ('globex', 'Globex'), ('nimbus', 'Nimbus');
     INSERT INTO auth_user (id, name, email, emailVerified, createdAt, updatedAt) VALUES
       ('user_ada', 'Ada', 'ada@example.com', 1, '2026-01-01T00:00:00.000Z', '2026-02-01T00:00:00.000Z'),
       ('user_bob', 'Bob', 'bob@example.com', 1, '2026-01-01T00:00:00.000Z', '2026-02-01T00:00:00.000Z'),
@@ -140,6 +141,8 @@ const seedD1 = () => {
       ('acme', 'acme-ada', 'ada@example.com', 'user_ada'),
       ('globex', 'globex-ada', 'ada@example.com', 'user_ada'),
       ('acme', 'acme-bob', 'bob@example.com', 'user_bob');
+    INSERT INTO person_index (organization_id, person_id, email, auth_user_id, removed_at) VALUES
+      ('nimbus', 'nimbus-ada', 'ada@example.com', 'user_ada', 1700000000000);
     INSERT INTO organization_claim (auth_user_id, organization_id, name, admin_person_id, completed_at) VALUES
       ('user_ada', 'acme', 'Acme', 'acme-ada', 1700000000000);
   `);
@@ -153,6 +156,10 @@ interface World {
 }
 
 const world = (): World => {
+  const nimbus = seedOrganization("nimbus", "Nimbus", [["nimbus-ada", "ada@example.com", "user_ada"]]);
+  nimbus.prepare("UPDATE person SET removed_at = 1700000000000 WHERE id = ?").run("nimbus-ada");
+  nimbus.prepare("UPDATE membership SET ended_at = 1700000000000 WHERE person_id = ?").run("nimbus-ada");
+
   const databases = new Map([
     [
       "acme",
@@ -162,6 +169,7 @@ const world = (): World => {
       ]),
     ],
     ["globex", seedOrganization("globex", "Globex", [["globex-ada", "ada@example.com", "user_ada"]])],
+    ["nimbus", nimbus],
   ]);
 
   const queried: string[] = [];
@@ -211,6 +219,9 @@ const SECRETS = [
   "test-hash-acme-ada",
   "raw-token-acme-ada",
   "edit-key-hash-1",
+  "token-hash-nimbus-ada",
+  "raw-token-nimbus-ada",
+  "test-hash-nimbus-ada",
 ];
 
 describe("personal data export privacy", () => {
@@ -238,6 +249,7 @@ describe("personal data export privacy", () => {
         "s-ada-live",
         "203.0.113.7",
         "Action of acme-ada",
+        "nimbus",
       ]) {
         assert.notInclude(bob, marker);
       }
@@ -272,9 +284,25 @@ describe("personal data export privacy", () => {
     Effect.gen(function* () {
       const stranger = yield* exportOf("user_nobody");
 
-      for (const marker of ["ada@example.com", "bob@example.com", "acme-ada", "acme-bob", "Acme"]) {
+      for (const marker of ["ada@example.com", "bob@example.com", "acme-ada", "acme-bob", "Acme", "Nimbus"]) {
         assert.notInclude(stranger, marker);
       }
+    }),
+  );
+
+  it.effect("includes an Organization that removed the caller, without a claim row", () =>
+    Effect.gen(function* () {
+      const { gathered, queried } = yield* run("user_ada");
+      const nimbus = gathered.organizations.find((organization) => organization.organization.id === "nimbus");
+
+      assert.strictEqual(nimbus?.person.id, "nimbus-ada");
+      assert.notStrictEqual(nimbus?.person.removedAt, null);
+      assert.strictEqual(nimbus?.person.email, "ada@example.com");
+      assert.isTrue(queried.includes("nimbus"));
+      assert.strictEqual(
+        gathered.account.organizationClaims.some((claim) => claim.organizationId === "nimbus"),
+        false,
+      );
     }),
   );
 
@@ -287,7 +315,14 @@ describe("personal data export privacy", () => {
         assert.notInclude(ada, secret);
       }
 
-      for (const planted of ["acme-submission", "globex-submission", "a comment", "results", "Body text"]) {
+      for (const planted of [
+        "acme-submission",
+        "globex-submission",
+        "nimbus-submission",
+        "a comment",
+        "results",
+        "Body text",
+      ]) {
         assert.notInclude(ada, planted);
       }
 
