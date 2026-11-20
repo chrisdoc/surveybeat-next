@@ -67,7 +67,7 @@ export const legalAgreementsCatalog = {
     "SurveyBeat processes personal data to run Pulses for the Organization: storing People and Teams, sending Invitations and reminders by email, collecting Submissions, working out Results and, if an admin turns it on, writing comment themes and discussion guides. The processing lasts as long as the Organization uses SurveyBeat and ends as clause 8 says.",
   "legal.dpa.s02.title": "Data and people concerned",
   "legal.dpa.s02.p1":
-    "The data subjects are the Organization's People: members, Leads and admins. The data is their email address, role, Team Membership, time zone and language, Invitation and reminder settings and delivery records, Participation records, and the comment text they enter. Anonymous Submissions hold no Person and no time and are not personal data. We do not process special categories of data on purpose. Comments are free text, and the Organization should tell People not to put such data in them.",
+    "The data subjects are the Organization's People: members, viewers, Leads and admins. The data is their email address, role, Team Membership, time zone and language, Invitation and reminder settings and delivery records, Participation records, and the comment text they enter. Anonymous Submissions hold no Person and no time. A comment that still identifies its author is personal data. We do not process special categories of data on purpose. Comments are free text, and the Organization should tell People not to put such data in them.",
   "legal.dpa.s03.title": "Instructions",
   "legal.dpa.s03.p1":
     "SurveyBeat processes personal data only on the Organization's documented instructions, which are these terms and the settings the Organization chooses in the product. If the law requires other processing, SurveyBeat tells the Organization first unless the law forbids it. SurveyBeat tells the Organization at once if it believes an instruction breaks data protection law.",
@@ -86,7 +86,8 @@ export const legalAgreementsCatalog = {
     "the Worker that receives anonymous answers keeps no logs, traces or analytics, and a test checks it",
   "legal.dpa.s05.li5":
     "comments are redacted when stored, and nothing is shown below the minimum group size, including by subtraction between groups",
-  "legal.dpa.s05.li6": "every request is checked against the session, with access rules defined in one place",
+  "legal.dpa.s05.li6":
+    "signed-in app requests are checked against the session, with access rules defined in one place. Answer and submit requests use an Invitation token or an Edit key",
   "legal.dpa.s05.li7":
     "traffic is encrypted in transit and storage is encrypted at rest. Only named operators can start a restore, and backups are kept for {restoreDays} days",
   "legal.dpa.s05.li8": "privacy tests that prove these properties must pass before a change is released",
@@ -104,7 +105,7 @@ export const legalAgreementsCatalog = {
     "SurveyBeat gives the Organization the information needed to show compliance with this agreement, and allows audits by the Organization or an auditor it names, with reasonable notice, normally once a year and again after a breach. The audit may not disclose other Organizations' data.",
   "legal.dpa.s08.title": "Return and deletion",
   "legal.dpa.s08.p1":
-    "When the services end, SurveyBeat returns the Organization's personal data on request in a common machine-readable format and then deletes it, unless the law requires it to keep a copy. Copies in backups are overwritten as the {restoreDays}-day restore window passes. Anonymous Submissions are not personal data. Automatic deletion at the end of the retention period is not in place yet. Cancelling a Round deletes that Round's Answers, Submissions and Participation records.",
+    "When the services end, SurveyBeat returns the Organization's personal data on request in a common machine-readable format and then deletes it, unless the law requires it to keep a copy. Copies in backups are overwritten as the {restoreDays}-day restore window passes. A stored Submission has no Person column. A comment that still identifies its author is personal data. Automatic deletion at the end of the retention period is not in place yet. Cancelling a Round deletes that Round's Answers, Submissions and Participation records.",
   "legal.dpa.s09.title": "Transfers",
   "legal.dpa.s09.p1":
     "A transfer of personal data outside the EU and EEA takes place only under an adequacy decision, the EU Standard Contractual Clauses or another safeguard Chapter V of the GDPR allows. Comment text for AI processing goes only to endpoints in the EU.",
@@ -138,7 +139,7 @@ export const legalAgreementsCatalog = {
     "Standard Contractual Clauses in OpenRouter's data processing terms for its own data. Comment text goes to the EU only.",
   "legal.subprocessors.s01.tgoogle.name": "Google Cloud (google-vertex/europe)",
   "legal.subprocessors.s01.tgoogle.purpose":
-    "Runs the AI model for comment themes and discussion guides on a zero-retention endpoint. A request can include Question text, each Question's dimension, Question and Dimension scores and changes, whether a change is larger than usual, redacted comment text tied to a Question position, and redacted titles of open Actions. It does not include a name, a Person, a Team, a Round or a time.",
+    "Runs the AI model for comment themes and discussion guides on a zero-retention endpoint. A request can include Question text, each Question's dimension, Question and Dimension scores and changes, whether a change is larger than usual, redacted comment text tied to a Question position, and redacted titles of open Actions. The request has no dedicated field for a name, a Person, a Team, a Round or a time. Question text is sent as written and is not redacted, so a name, an email address, or a Team or Organization name in a Question is included.",
   "legal.subprocessors.s01.tgoogle.location": "European Union",
   "legal.subprocessors.s01.tgoogle.basis": "Stays in the EU, so no transfer.",
   "legal.subprocessors.s01.taws.name": "Amazon Web Services (amazon-bedrock/eu-west-1)",

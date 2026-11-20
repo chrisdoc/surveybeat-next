@@ -34,14 +34,14 @@ export const legalPrivacyCatalog = {
     "Run Teams and Pulses, send Invitations and reminders, and count how many people took part.",
   "legal.privacy.s03.tpeople.basis": "Point f, legitimate interests of your Organization.",
   "legal.privacy.s03.tpeople.retention":
-    "While you are a Person in the Organization. When a Person is removed, their personal data is deleted on request, and the Organization's Teams keep their Results.",
+    "While you are a Person in the Organization. Removing a Person ends their Membership, deletes their Participation records, and revokes their Invitations. The Person record and Membership history stay, and erasing that record is not available yet. The Organization's Teams keep their Results.",
   "legal.privacy.s03.tparticipation.data":
     "Participation records: that a Person answered a Round. They hold no answers and no time. The Organization is the controller.",
   "legal.privacy.s03.tparticipation.purpose":
     "Count the response rate and stop a second Submission from the same Person.",
   "legal.privacy.s03.tparticipation.basis": "Point f, legitimate interests of your Organization.",
   "legal.privacy.s03.tparticipation.retention":
-    "While the Person exists. Deleting the Person deletes their Participation records.",
+    "While the Person is in the Organization. Removing the Person deletes their Participation records.",
   "legal.privacy.s03.tanswers.data":
     "Answers and comments in anonymous Submissions. They carry no Person and no time. Comments have names of People, email addresses, phone numbers, handles and links removed before they are stored.",
   "legal.privacy.s03.tanswers.purpose":
@@ -49,7 +49,7 @@ export const legalPrivacyCatalog = {
   "legal.privacy.s03.tanswers.basis":
     "Anonymous Submissions are not personal data (see the next section). Where a comment still identifies someone, point f applies.",
   "legal.privacy.s03.tanswers.retention":
-    "The policy default is {rawMonths} months for raw Answers and comments. A per-Organization period is not available yet. Automatic deletion on that schedule is not in place yet.  Until it is, they stay with the Pulse, except that cancelling a Round deletes that Round's Answers, Submissions and Participation records. Aggregated Results may be kept longer. Backups are kept for {restoreDays} days.",
+    "The policy default is {rawMonths} months for raw Answers and comments. A per-Organization period is not available yet. Automatic deletion on that schedule is not in place yet. Until it is, they stay with the Pulse, except that cancelling a Round deletes that Round's Answers, Submissions and Participation records. Aggregated Results may be kept longer. Backups are kept for {restoreDays} days.",
   "legal.privacy.s03.tresults.data":
     "Results, Lead's Notes and Actions: scores, response rates, comment themes, the Lead's Note and Actions with an owner and a due date. The Organization is the controller.",
   "legal.privacy.s03.tresults.purpose": "Let a Team talk about its Results and agree what to change.",
@@ -76,16 +76,16 @@ export const legalPrivacyCatalog = {
   "legal.privacy.s04.p1":
     "An anonymous Submission stores its Round, its Answers and a hash of an Edit key. It stores no Person, no Invitation and no time at all, not even the day. The Participation record, which says that a Person answered, is kept apart from it. We cannot match one to the other, and neither can your Lead or your Organization's admins.",
   "legal.privacy.s04.p2":
-    "Because no one can link such a Submission to a Person, it is anonymous data under Recital 26 of the GDPR and not personal data. For that reason it stays when a Person is deleted. Deleting you removes your Participation records and your other personal data. It does not remove the Submissions you gave.",
+    "A stored Submission has no column that names a Person, so the tables do not link it to you. Where the Answers and comments do not identify you, they are anonymous data under Recital 26 of the GDPR and not personal data. A comment that still identifies its author is personal data. Removing you deletes your Participation records. It does not erase the Person record or the Membership history, and that erasure is not available yet. It does not remove the Submissions you gave.",
   "legal.privacy.s04.p3":
-    "We do not claim to defend against everything. Database backups are kept for {restoreDays} days so that we can recover from a disaster. Restoring one replays every write, including the one transaction that writes a Participation record and a Submission together. Only named SurveyBeat operators can start a restore, and no Organization admin or Lead can. We also cannot read Cloudflare's own edge logs.",
+    "We do not claim to defend against everything. Database backups are kept for {restoreDays} days so that we can recover from a disaster. Restoring one replays every write, including the one transaction that writes a Participation record and a Submission together. Only named SurveyBeat operators can start a restore, and no Organization admin or Lead can. We also cannot read Cloudflare's own edge logs. An operator who changes the code to start logging is outside this claim too.",
   "legal.privacy.s04.p4":
     "Pulses run in anonymous mode only. If SurveyBeat offers a mode that stores a name with an answer, it will say so here and on the answer page before anyone can use it.",
   "legal.privacy.s05.title": "Comments and AI processing",
   "legal.privacy.s05.p1":
     "A comment is redacted when it is stored: names of People in the Organization, email addresses, phone numbers, handles and links are replaced with placeholders. The original text is not kept. Redaction follows patterns and cannot promise that free text never identifies anyone, so leave out anything that could identify you.",
   "legal.privacy.s05.p2":
-    "AI processing is off until an Organization admin turns it on. While it is on, a request can include the Question text, each Question's dimension, score, change and whether that change is larger than usual, the same figures for each Dimension, redacted comment text tied to a Question position, and the redacted titles of open Actions. It does not include a name, a Person, a Team, a Round or a time. The service runs in the EU, keeps no prompts or output, and cannot fall back to another provider. If it is unavailable, the request waits and is retried. The answer page and the Invitation tell members when AI processing is on. The AI service only summarises. Nothing about a Person is decided by it.",
+    "AI processing is off until an Organization admin turns it on. While it is on, a request can include the Question text, each Question's dimension, score, change and whether that change is larger than usual, the same figures for each Dimension, redacted comment text tied to a Question position, and the redacted titles of open Actions. The request has no dedicated field for a name, a Person, a Team, a Round or a time. Question text is sent as written and is not redacted, so a name, an email address, or a Team or Organization name in a Question is included. The service runs in the EU, keeps no prompts or output, and cannot fall back to another provider. If it is unavailable, the request waits and is retried. The answer page and the Invitation tell members when AI processing is on. The AI service only summarises. Nothing about a Person is decided by it.",
   "legal.privacy.s06.title": "Where the data comes from, and whether you must provide it",
   "legal.privacy.s06.p1":
     "Your email address and Team Membership come from your Organization, which added you, as Article 14 requires us to tell you. Everything you answer comes from you.",

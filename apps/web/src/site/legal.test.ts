@@ -74,6 +74,19 @@ describe("privacy notice content", () => {
     expect(text).toContain("30 days");
     expect(text).toContain("not published on this page yet");
     expect(text).toContain("redacted titles of open Actions");
+    expect(text).toContain("Question text is sent as written");
+    expect(text).toContain("erasing that record is not available yet");
+    expect(text).toContain("changes the code to start logging");
+  });
+});
+
+describe("data processing agreement", () => {
+  const text = visibleText(renderLegalPage("en", siteHtml, "dpa"));
+
+  it("names viewers and limits the session check to signed-in app requests", () => {
+    expect(text).toContain("viewers");
+    expect(text).toContain("Answer and submit requests use an Invitation token or an Edit key");
+    expect(text).not.toContain("every request is checked against the session");
   });
 });
 
