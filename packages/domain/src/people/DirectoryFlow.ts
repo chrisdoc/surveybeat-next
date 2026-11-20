@@ -6,7 +6,7 @@ import type { DirectoryCommand, DirectoryRejection, FollowUp, ResendResult, View
 import type { PersonId } from "./Identity.ts";
 import type { OrganizationId } from "./Organization.ts";
 import { Forbidden } from "./SignIn.ts";
-import type { Member } from "./SignInFlow.ts";
+import type { CheckedSession, Member } from "./SignInFlow.ts";
 import { PeopleIndex } from "./SignInPorts.ts";
 import {
   ErasureNotConfirmed,
@@ -18,6 +18,8 @@ import {
   TeamNotFound,
 } from "./Team.ts";
 import type { OrganizationSettings, TeamDetail, TeamId, TeamSummary } from "./Team.ts";
+import { OrganizationOffboarding } from "./Offboarding.ts";
+import type { OrganizationOffboardingExport } from "./Offboarding.ts";
 
 export type CommandResult =
   | { readonly _tag: "Rejected"; readonly rejection: DirectoryRejection }
@@ -61,6 +63,18 @@ export interface OrganizationDirectoryShape {
     actorId: PersonId,
     sendId: SendId,
   ) => Effect.Effect<Viewed<FailedEmailStatus>>;
+
+  readonly offboardingExport: (
+    organizationId: OrganizationId,
+    actorId: PersonId,
+    now: number,
+  ) => Effect.Effect<Viewed<OrganizationOffboardingExport>>;
+
+  readonly confirmOffboarding: (
+    organizationId: OrganizationId,
+    actorId: PersonId,
+    confirmation: string,
+  ) => Effect.Effect<Viewed<null>>;
 
   readonly clearPersonErasure: (organizationId: OrganizationId, personId: PersonId) => Effect.Effect<void>;
 }
@@ -222,3 +236,62 @@ export const viewEmailStatus = (member: Member, sendId: SendId) =>
   Effect.flatMap(OrganizationDirectory, (directory) =>
     Effect.flatMap(directory.emailStatus(member.organization.id, member.personId, sendId), viewed),
   );
+
+export const viewOffboardingExport = (member: Member) =>
+  Effect.gen(function* () {
+    const directory = yield* OrganizationDirectory;
+
+    return yield* viewed(
+      yield* directory.offboardingExport(
+        member.organization.id,
+        member.personId,
+        yield* Clock.currentTimeMillis,
+      ),
+    );
+  });
+
+export const offboardOrganization = Effect.fnUntraced(function* (
+  checked: CheckedSession,
+  confirmation: string,
+) {
+  const offboarding = yield* OrganizationOffboarding;
+  const userId = checked.session.identity.userId;
+  const pending = yield* offboarding.pending(userId);
+
+  const organizationId = Option.isSome(pending)
+    ? pending.value
+    : yield* Option.match(checked.member, {
+        onSome: (member) =>
+          Effect.gen(function* () {
+            const directory = yield* OrganizationDirectory;
+
+            const confirmed = yield* directory.confirmOffboarding(
+              member.organization.id,
+              member.personId,
+              confirmation,
+            );
+
+            if (confirmed._tag === "Rejected") {
+              return yield* fail(confirmed.rejection);
+            }
+
+            const owned = yield* offboarding.begin(
+              member.organization.id,
+              userId,
+              yield* Clock.currentTimeMillis,
+            );
+
+            return owned ? member.organization.id : yield* new Forbidden();
+          }),
+        onNone: () => Effect.fail(new Forbidden()),
+      });
+
+  yield* offboarding.revokeAccess(organizationId);
+  yield* offboarding.wipe(organizationId);
+
+  const index = yield* PeopleIndex;
+
+  for (const accountId of yield* offboarding.removeIndex(organizationId)) {
+    yield* index.eraseAccount(accountId);
+  }
+});

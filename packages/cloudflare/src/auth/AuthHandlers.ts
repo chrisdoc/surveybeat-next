@@ -71,6 +71,20 @@ const setSessionCookie = (token: Redacted.Redacted) =>
     }).pipe(Effect.orDie),
   );
 
+export const signedInSession = Effect.gen(function* () {
+  const cookie = yield* sessionCookie;
+
+  if (Option.isNone(cookie)) {
+    return yield* new Unauthenticated();
+  }
+
+  const sessions = yield* SessionIdentityProvider;
+
+  return yield* sessions
+    .authenticate(cookie.value)
+    .pipe(Effect.tapError((error) => (error._tag === "Unauthenticated" ? expireSessionCookie : Effect.void)));
+});
+
 export const authenticated = Effect.gen(function* () {
   const cookie = yield* sessionCookie;
 

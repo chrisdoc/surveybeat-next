@@ -21,3 +21,5 @@ export * from "./DirectoryFlow.ts";
 export * from "./Locale.ts";
 
 export * from "./PersonalData.ts";
+
+export * from "./Offboarding.ts";

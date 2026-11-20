@@ -6,6 +6,7 @@ import { makeEmailOutbox } from "./organization/EmailOutbox.ts";
 import { organizationEmailVisibility } from "./organization/EmailVisibility.ts";
 import { failureSummary } from "./organization/JobFailure.ts";
 import { organizationNotes } from "./organization/Notes.ts";
+import { activePersonUnlessWiped, organizationOffboarding } from "./organization/Offboarding.ts";
 import { organizationPersonalData } from "./organization/PersonalData.ts";
 import { organizationResults } from "./organization/Results.ts";
 import { organizationRoundCommands } from "./organization/RoundCommands.ts";
@@ -230,6 +231,10 @@ const organizationObject = Effect.gen(function* () {
         return { _tag: "Accepted", sendId, email: person.email } satisfies TestSendResult;
       });
 
+    let storageWiped = false;
+
+    const directoryApi = organizationDirectory({ sql, rounds, directory });
+
     return {
       alarm: () =>
         Effect.gen(function* () {
@@ -353,11 +358,24 @@ const organizationObject = Effect.gen(function* () {
 
       ...organizationSubmissions({ rounds, directory, pulses, actions }),
 
-      ...organizationDirectory({ sql, rounds, directory }),
+      ...directoryApi,
 
       ...organizationPersonalData(sql),
 
+      ...organizationOffboarding({
+        sql,
+        directory,
+        pulses,
+        storage: state.raw.storage,
+        onWipe: () => {
+          storageWiped = true;
+        },
+      }),
+
       ...organizationSends(sql, sends),
+
+      activePerson: (authUserId: string) =>
+        activePersonUnlessWiped(storageWiped, directoryApi.activePerson(authUserId)),
     };
   });
 });

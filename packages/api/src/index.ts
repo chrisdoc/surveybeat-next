@@ -11,6 +11,7 @@ import {
   NewPulseQuestion,
   OrderMismatch,
   OrganizationId,
+  OrganizationOffboardingExport,
   OrganizationSettings,
   PersonalDataExport,
   PersonId,
@@ -118,6 +119,8 @@ export class AuthApiGroup extends HttpApiGroup.make("auth")
   .prefix("/auth") {}
 
 const ErasureConfirmation = Schema.Struct({ confirmation: EmailAddress });
+
+const OffboardingConfirmation = Schema.Struct({ confirmation: Schema.String });
 
 const directoryErrors = [
   Unauthenticated,
@@ -240,6 +243,14 @@ export class DirectoryApiGroup extends HttpApiGroup.make("directory")
     HttpApiEndpoint.post("erasePerson", "/organization/people/:personId/erasure", {
       params: { personId: PersonId },
       payload: ErasureConfirmation,
+      error: directoryErrors,
+    }),
+    HttpApiEndpoint.get("exportOffboarding", "/organization/offboarding-export", {
+      success: OrganizationOffboardingExport,
+      error: directoryErrors,
+    }),
+    HttpApiEndpoint.post("offboardOrganization", "/organization/offboarding", {
+      payload: OffboardingConfirmation,
       error: directoryErrors,
     }),
   )

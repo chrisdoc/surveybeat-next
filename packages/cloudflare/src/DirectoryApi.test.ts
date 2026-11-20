@@ -817,3 +817,145 @@ describe("resending a failed email (issue 159)", () => {
     });
   });
 });
+
+describe("offboarding an Organization (GDPR 308)", () => {
+  const exportPath = "/api/organization/offboarding-export";
+
+  const offboard = (browser: Browser, confirmation: string) =>
+    browser.call("POST", "/api/organization/offboarding", { confirmation });
+
+  it("downloads the export for an admin as a file with no Results in it", async () => {
+    const { admin } = await setup();
+
+    const response = await admin.get(exportPath);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-disposition")).toContain("surveybeat-organization.json");
+
+    const exported = JSON.parse(await response.text());
+
+    expect(exported).toMatchObject({
+      organization: { name: "Acme" },
+      teams: [{ name: "Platform" }],
+      people: expect.arrayContaining([expect.objectContaining({ email: "ada@example.com" })]),
+    });
+    expect(Object.keys(exported).sort()).toEqual([
+      "exportedAt",
+      "memberships",
+      "organization",
+      "people",
+      "pulses",
+      "schemaVersion",
+      "teams",
+    ]);
+  });
+
+  it("refuses the export to a Lead and a member", async () => {
+    const { lead, member } = await setup();
+
+    const leadResponse = await lead.get(exportPath);
+    const memberResponse = await member.get(exportPath);
+
+    expect(leadResponse.status).toBe(403);
+    expect(memberResponse.status).toBe(403);
+    expect(leadResponse.headers.get("content-disposition")).toBeNull();
+    expect(memberResponse.headers.get("content-disposition")).toBeNull();
+  });
+
+  it("refuses to delete for a Lead and a member, and changes nothing", async () => {
+    const { world, acme, lead, member } = await setup();
+
+    expect((await offboard(lead, "Acme")).status).toBe(403);
+    expect((await offboard(member, "Acme")).status).toBe(403);
+    expect(world.durable.organizations.has(acme.id)).toBe(true);
+    expect(world.offboardings.size).toBe(0);
+  });
+
+  it("refuses a wrong Organization name with 422 and changes nothing", async () => {
+    const { world, acme, admin } = await setup();
+
+    for (const wrong of ["", "acme", "Acme ", "Globex"]) {
+      expect(await offboard(admin, wrong)).toMatchObject({
+        status: 422,
+        body: { _tag: "ErasureNotConfirmed" },
+      });
+    }
+
+    expect(world.durable.organizations.has(acme.id)).toBe(true);
+    expect(world.index.organizations.has(acme.id)).toBe(true);
+    expect(world.offboardings.size).toBe(0);
+    expect((await admin.session()).body).toMatchObject({ _tag: "SignedIn" });
+  });
+
+  it("refuses a request from another origin", async () => {
+    const { world, acme, admin } = await setup();
+
+    const response = await admin.post(
+      "/api/organization/offboarding",
+      { confirmation: "Acme" },
+      "https://evil.example",
+    );
+
+    expect(response.status).toBe(403);
+    expect(world.durable.organizations.has(acme.id)).toBe(true);
+  });
+
+  it("deletes the Organization for its admin once the name is typed", async () => {
+    const { world, acme, admin } = await setup();
+
+    expect((await offboard(admin, "Acme")).status).toBe(204);
+
+    expect(world.durable.organizations.has(acme.id)).toBe(false);
+    expect(world.index.organizations.has(acme.id)).toBe(false);
+    expect([...world.index.persons.values()].some((person) => person.organizationId === acme.id)).toBe(false);
+  });
+
+  it("finishes a wiped Organization without reading it again", async () => {
+    const { world, acme, admin } = await setup();
+
+    const userId = world.sessions.userIdOf("admin@example.com");
+    world.offboardings.set(acme.id, userId);
+    world.durable.organizations.delete(acme.id);
+
+    expect((await offboard(admin, "")).status).toBe(204);
+    expect(world.index.organizations.has(acme.id)).toBe(false);
+    expect([...world.index.persons.values()].some((person) => person.organizationId === acme.id)).toBe(false);
+  });
+
+  it("finishes the pending Organization when the session is in another one with the same name", async () => {
+    const { world, acme, admin } = await setup();
+
+    const globex = world.addOrganization("Acme");
+    const userId = world.sessions.userIdOf("admin@example.com");
+    const personId = world.addPerson(globex.id, "admin@example.com", true);
+    world.durable.update(globex.id, personId, { authUserId: userId });
+
+    const indexed = world.index.persons.get(`${globex.id}/${personId}`);
+
+    if (indexed === undefined) {
+      throw new Error("globex person missing");
+    }
+
+    indexed.userId = userId;
+    world.offboardings.set(acme.id, userId);
+
+    const session = [...world.sessions.sessions.values()].find((each) => each.userId === userId);
+
+    if (session === undefined) {
+      throw new Error("no session");
+    }
+
+    world.sessions.chosen.set(session.sessionId, globex.id);
+
+    expect((await admin.session()).body).toMatchObject({
+      _tag: "SignedIn",
+      organization: { id: globex.id },
+    });
+    expect((await offboard(admin, "Acme")).status).toBe(204);
+    expect(world.durable.organizations.has(globex.id)).toBe(true);
+    expect(world.index.organizations.has(globex.id)).toBe(true);
+    expect(world.durable.organizations.has(acme.id)).toBe(false);
+    expect(world.index.organizations.has(acme.id)).toBe(false);
+    expect(world.offboardings.has(globex.id)).toBe(false);
+  });
+});

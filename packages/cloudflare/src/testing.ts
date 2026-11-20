@@ -31,6 +31,10 @@ import {
   EmailAddress,
   MembershipId,
   OrganizationDirectory,
+  OrganizationOffboarding,
+  offboardingAccess,
+  offboardingConfirmation,
+  offboardingExportOf,
   SendId,
   settingsView,
   TeamId,
@@ -479,20 +483,26 @@ export class MemoryOrganizations {
         return this.person(organizationId, personId)?.authUserId === userId;
       }),
     activePerson: (organizationId, userId) =>
-      Effect.sync(() => {
+      Effect.suspend(() => {
+        if (!this.organizations.has(organizationId)) {
+          return Effect.die(new Error("no such table: person"));
+        }
+
         const found = this.organization(organizationId).state.people.find(
           (person) => person.authUserId === userId && person.removedAt === null,
         );
 
         const organizationLocale = this.organization(organizationId).state.defaultLocale;
 
-        return Option.map(Option.fromNullishOr(found), (person) => ({
-          personId: person.id,
-          organizationAdmin: person.organizationAdmin,
-          locale: person.locale,
-          detectedLocale: person.detectedLocale,
-          organizationLocale,
-        }));
+        return Effect.succeed(
+          Option.map(Option.fromNullishOr(found), (person) => ({
+            personId: person.id,
+            organizationAdmin: person.organizationAdmin,
+            locale: person.locale,
+            detectedLocale: person.detectedLocale,
+            organizationLocale,
+          })),
+        );
       }),
   });
 
@@ -630,6 +640,28 @@ export class MemoryOrganizations {
           send === undefined ? null : { sendId, state: progressOf(send.state) },
         );
       }),
+    offboardingExport: (organizationId, actorId, now) =>
+      Effect.sync(() => {
+        const organization = this.organization(organizationId);
+        const access = offboardingAccess(organization.state, actorId);
+
+        return access._tag === "Rejected"
+          ? access
+          : {
+              _tag: "Viewed" as const,
+              value: offboardingExportOf({
+                organizationId,
+                state: organization.state,
+                timeZones: new Map(),
+                pulses: organization.pulses,
+                now,
+              }),
+            };
+      }),
+    confirmOffboarding: (organizationId, actorId, confirmation) =>
+      Effect.sync(() =>
+        offboardingConfirmation(this.organization(organizationId).state, actorId, confirmation),
+      ),
     clearPersonErasure: () => Effect.void,
   });
 
@@ -1151,11 +1183,53 @@ export class SignInWorld {
       }),
   });
 
+  readonly offboardings = new Map<OrganizationId, AuthUserId>();
+
+  readonly offboarding = OrganizationOffboarding.of({
+    begin: (organizationId, userId) =>
+      Effect.sync(() => {
+        if (!this.offboardings.has(organizationId)) {
+          this.offboardings.set(organizationId, userId);
+        }
+
+        return this.offboardings.get(organizationId) === userId;
+      }),
+    pending: (userId) =>
+      Effect.sync(() =>
+        Option.fromNullishOr([...this.offboardings].find(([, actor]) => actor === userId)?.[0]),
+      ),
+    revokeAccess: () => Effect.void,
+    wipe: (organizationId) =>
+      Effect.sync(() => {
+        this.durable.organizations.delete(organizationId);
+      }),
+    removeIndex: (organizationId) =>
+      Effect.sync(() => {
+        const accounts = new Set<AuthUserId>();
+
+        for (const [key, person] of this.index.persons) {
+          if (person.organizationId === organizationId) {
+            if (person.userId !== null) {
+              accounts.add(person.userId);
+            }
+
+            this.index.persons.delete(key);
+          }
+        }
+
+        this.index.organizations.delete(organizationId);
+        this.offboardings.delete(organizationId);
+
+        return [...accounts];
+      }),
+  });
+
   readonly handler = (): ((request: Request) => Promise<Response>) => {
     const services = Context.make(SessionIdentityProvider, this.sessions.service).pipe(
       Context.add(PeopleIndex, this.index.service),
       Context.add(OrganizationPeople, this.durable.service),
       Context.add(OrganizationDirectory, this.durable.directory),
+      Context.add(OrganizationOffboarding, this.offboarding),
       Context.add(OrganizationPulses, this.durable.pulses),
       Context.add(OrganizationRounds, this.durable.rounds),
       Context.add(OrganizationActions, this.durable.actions),
