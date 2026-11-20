@@ -1,0 +1,47 @@
+{
+  "cli_version": "0.13.4",
+  "checkpoint_id": "01M7VVWJC7BV2D5SCAWPQ2HA56",
+  "session_id": "b6ba9a44-9143-4cdf-b6cd-3d684d633fe3",
+  "strategy": "manual-commit",
+  "created_at": "2026-11-20T06:56:46.470225162Z",
+  "branch": "t3/gdpr-compliance-issues",
+  "checkpoints_count": 1,
+  "save_step_count": 1,
+  "files_touched": [
+    "skills-lock.json"
+  ],
+  "agent": "Antigravity",
+  "model": "gemini-4-neon-high",
+  "turn_id": "400c95512bc5",
+  "token_usage": {
+    "input_tokens": 404006,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 2227861,
+    "output_tokens": 29350,
+    "api_call_count": 18
+  },
+  "session_token_usage": {
+    "input_tokens": 404006,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 2227861,
+    "output_tokens": 29350,
+    "api_call_count": 18
+  },
+  "redaction": {
+    "replacements": 0,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  },
+  "session_metrics": {
+    "turn_count": 1
+  }
+}
