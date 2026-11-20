@@ -47,7 +47,7 @@ The first job, `select`, decides what the revision needs before any stage work s
   - `stage` is off only when every changed file is prose or agent tooling: under `docs/`, any `*.md`, the agent instruction directories, `.githooks/`, `skills-lock.json`, or the root `scripts/`. An empty list, a mixed list or any other path deploys a stage.
   - `canary` is on when the PR touches `packages/cloudflare`, `infra`, `scripts/ci`, the answer entry (`apps/web/answer.html`, `src/answer`, `src/messages`, `vite.config.ts`), the dependency pins or this workflow.
   - `lighthouse` is on when the PR touches the answer entry, `infra/scripts/lighthouse` or `infra/package.json`.
-- If the changed files cannot be read, or the compare endpoint lists 3000 or more files, all three gates are on.
+- If the changed files cannot be read, or the compare endpoint returns 300 files (its cap; the file list is not paginated), all three gates are on.
 
 After the deploy, two jobs run against the stage. Both are skipped when `stage` is off:
 

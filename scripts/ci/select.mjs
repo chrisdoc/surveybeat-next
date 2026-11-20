@@ -1,4 +1,4 @@
-import { appendFileSync } from "node:fs";
+import { appendFileSync, readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 const CANARY =
@@ -38,6 +38,65 @@ export const classify = (paths) => {
   return { stage: !proseOnly || canary || lighthouse, canary, lighthouse };
 };
 
+export const COMPARE_FILE_CAP = 300;
+
+const ALL_GATES = { stage: true, canary: true, lighthouse: true };
+
+/**
+ * @param {unknown} value
+ * @returns {value is Record<string, unknown>}
+ */
+const isRecord = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
+
+/**
+ * @param {unknown} payload
+ * @returns {{ kind: "paths", paths: string[] } | { kind: "incomplete" }}
+ */
+const readCompareFiles = (payload) => {
+  if (!isRecord(payload) || !Array.isArray(payload.files)) {
+    return { kind: "incomplete" };
+  }
+
+  if (payload.files.length >= COMPARE_FILE_CAP) {
+    return { kind: "incomplete" };
+  }
+
+  /** @type {string[]} */
+  const paths = [];
+
+  for (const file of payload.files) {
+    if (!isRecord(file) || typeof file.filename !== "string") {
+      return { kind: "incomplete" };
+    }
+
+    paths.push(file.filename);
+
+    if (file.previous_filename !== undefined && file.previous_filename !== null) {
+      if (typeof file.previous_filename !== "string") {
+        return { kind: "incomplete" };
+      }
+
+      paths.push(file.previous_filename);
+    }
+  }
+
+  return { kind: "paths", paths };
+};
+
+/**
+ * @param {unknown} payload
+ * @returns {{ stage: boolean, canary: boolean, lighthouse: boolean }}
+ */
+export const gatesFromCompare = (payload) => {
+  const read = readCompareFiles(payload);
+
+  if (read.kind === "incomplete") {
+    return ALL_GATES;
+  }
+
+  return classify(read.paths);
+};
+
 const readStdin = async () => {
   let input = "";
 
@@ -48,10 +107,11 @@ const readStdin = async () => {
   return input;
 };
 
-export const main = async () => {
-  const paths = (await readStdin()).split("\n").map((line) => line.replace(/\r$/, ""));
-  const result = classify(paths);
-
+/**
+ * @param {{ stage: boolean, canary: boolean, lighthouse: boolean }} result
+ * @param {string[]} paths
+ */
+const writeGates = (result, paths) => {
   for (const path of paths) {
     if (path !== "") {
       console.log(path);
@@ -67,6 +127,72 @@ export const main = async () => {
       `stage=${result.stage}\ncanary=${result.canary}\nlighthouse=${result.lighthouse}\n`,
     );
   }
+};
+
+/**
+ * @param {string[]} argv
+ * @returns {{ compare?: string, unread: boolean }}
+ */
+export const parseSelectArgs = (argv) => {
+  /** @type {{ compare?: string, unread: boolean }} */
+  const options = { unread: false };
+
+  for (let index = 0; index < argv.length; index += 1) {
+    const flag = argv[index];
+
+    if (flag === "--unread") {
+      options.unread = true;
+    } else if (flag === "--compare") {
+      const value = argv[index + 1];
+      index += 1;
+
+      if (value === undefined || value.startsWith("--")) {
+        throw new Error("--compare needs a file path.");
+      }
+
+      options.compare = value;
+    } else {
+      throw new Error(`Unknown flag ${flag ?? ""}.`);
+    }
+  }
+
+  if (options.unread && options.compare !== undefined) {
+    throw new Error("Pass either --compare or --unread.");
+  }
+
+  return options;
+};
+
+export const main = async () => {
+  const args = parseSelectArgs(process.argv.slice(2));
+
+  if (args.unread) {
+    writeGates(ALL_GATES, []);
+
+    return;
+  }
+
+  if (args.compare !== undefined) {
+    /** @type {unknown} */
+    let payload;
+
+    try {
+      payload = JSON.parse(readFileSync(args.compare, "utf8"));
+    } catch {
+      writeGates(ALL_GATES, []);
+
+      return;
+    }
+
+    const read = readCompareFiles(payload);
+
+    writeGates(gatesFromCompare(payload), read.kind === "paths" ? read.paths : []);
+
+    return;
+  }
+
+  const paths = (await readStdin()).split("\n").map((line) => line.replace(/\r$/, ""));
+  writeGates(classify(paths), paths);
 };
 
 const entry = process.argv[1];

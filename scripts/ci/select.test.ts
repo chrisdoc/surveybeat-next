@@ -1,10 +1,10 @@
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { classify } from "./select.mjs";
+import { classify, COMPARE_FILE_CAP, gatesFromCompare } from "./select.mjs";
 
 const SELECT = fileURLToPath(new URL("select.mjs", import.meta.url));
 
@@ -159,5 +159,147 @@ describe("the command line", () => {
     const result = spawnSync(process.execPath, [SELECT], { input: "docs/a.md\n", encoding: "utf8", env });
     expect(result.status).toBe(0);
     expect(result.stdout).toContain("stage=false canary=false lighthouse=false");
+  });
+});
+
+const proseFiles = (count: number) =>
+  Array.from({ length: count }, (_, index) => ({ filename: `docs/note-${index}.md` }));
+
+describe("a compare payload", () => {
+  it("skips the stage for prose under the compare cap", () => {
+    expect(gatesFromCompare({ files: proseFiles(COMPARE_FILE_CAP - 1) })).toEqual({
+      stage: false,
+      canary: false,
+      lighthouse: false,
+    });
+  });
+
+  it("keeps every gate at the 300-file cap, even when every returned file is prose", () => {
+    expect(gatesFromCompare({ files: proseFiles(COMPARE_FILE_CAP) })).toEqual({
+      stage: true,
+      canary: true,
+      lighthouse: true,
+    });
+  });
+
+  it("keeps the canary when a rename's old name is on the Submission path", () => {
+    expect(
+      gatesFromCompare({
+        files: [{ filename: "docs/moved.md", previous_filename: "packages/cloudflare/src/submit.ts" }],
+      }),
+    ).toEqual({ stage: true, canary: true, lighthouse: false });
+  });
+
+  it("counts compare files, not expanded rename paths, against the cap", () => {
+    const files = Array.from({ length: 150 }, (_, index) => ({
+      filename: `docs/new-${index}.md`,
+      previous_filename: `docs/old-${index}.md`,
+    }));
+
+    expect(gatesFromCompare({ files })).toEqual({ stage: false, canary: false, lighthouse: false });
+  });
+
+  it("deploys the stage and no other gate for an empty file list", () => {
+    expect(gatesFromCompare({ files: [] })).toEqual({
+      stage: true,
+      canary: false,
+      lighthouse: false,
+    });
+  });
+
+  it("ignores a null previous name", () => {
+    expect(gatesFromCompare({ files: [{ filename: "docs/a.md", previous_filename: null }] })).toEqual({
+      stage: false,
+      canary: false,
+      lighthouse: false,
+    });
+  });
+
+  it("keeps every gate when the payload has no file list", () => {
+    expect(gatesFromCompare({})).toEqual({ stage: true, canary: true, lighthouse: true });
+    expect(gatesFromCompare({ files: null })).toEqual({ stage: true, canary: true, lighthouse: true });
+  });
+
+  it("keeps every gate when a file entry is not a path", () => {
+    expect(gatesFromCompare({ files: [{ filename: 1 }] })).toEqual({
+      stage: true,
+      canary: true,
+      lighthouse: true,
+    });
+    expect(gatesFromCompare({ files: [{ filename: "docs/a.md", previous_filename: 1 }] })).toEqual({
+      stage: true,
+      canary: true,
+      lighthouse: true,
+    });
+  });
+});
+
+describe("the compare command", () => {
+  const outputFile = () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "select-"));
+
+    return { dir, output: path.join(dir, "github-output") };
+  };
+
+  it("writes the gates for a compare file", () => {
+    const { dir, output } = outputFile();
+    const compare = path.join(dir, "compare.json");
+    writeFileSync(compare, JSON.stringify({ files: [{ filename: "docs/a.md" }] }));
+
+    const result = spawnSync(process.execPath, [SELECT, "--compare", compare], {
+      encoding: "utf8",
+      env: { ...process.env, GITHUB_OUTPUT: output },
+    });
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("docs/a.md");
+    expect(result.stdout).toContain("stage=false canary=false lighthouse=false");
+    expect(readFileSync(output, "utf8")).toBe("stage=false\ncanary=false\nlighthouse=false\n");
+  });
+
+  it("writes every gate when the compare file is not JSON", () => {
+    const { dir, output } = outputFile();
+    const compare = path.join(dir, "compare.json");
+    writeFileSync(compare, "{not json");
+
+    const result = spawnSync(process.execPath, [SELECT, "--compare", compare], {
+      encoding: "utf8",
+      env: { ...process.env, GITHUB_OUTPUT: output },
+    });
+
+    expect(result.status).toBe(0);
+    expect(readFileSync(output, "utf8")).toBe("stage=true\ncanary=true\nlighthouse=true\n");
+  });
+
+  it("writes every gate when the compare file cannot be read", () => {
+    const { dir, output } = outputFile();
+
+    const result = spawnSync(process.execPath, [SELECT, "--compare", path.join(dir, "missing.json")], {
+      encoding: "utf8",
+      env: { ...process.env, GITHUB_OUTPUT: output },
+    });
+
+    expect(result.status).toBe(0);
+    expect(readFileSync(output, "utf8")).toBe("stage=true\ncanary=true\nlighthouse=true\n");
+  });
+
+  it("writes every gate for an unreadable revision", () => {
+    const { output } = outputFile();
+
+    const result = spawnSync(process.execPath, [SELECT, "--unread"], {
+      encoding: "utf8",
+      env: { ...process.env, GITHUB_OUTPUT: output },
+    });
+
+    expect(result.status).toBe(0);
+    expect(readFileSync(output, "utf8")).toBe("stage=true\ncanary=true\nlighthouse=true\n");
+  });
+
+  it("leaves the file cap to select.mjs", () => {
+    const workflow = readFileSync(new URL("../../.github/workflows/preview.yml", import.meta.url), "utf8");
+
+    expect(workflow).toContain('node scripts/ci/select.mjs --compare "$RUNNER_TEMP/compare.json"');
+    expect(workflow).toContain("node scripts/ci/select.mjs --unread");
+    expect(workflow).not.toContain("3000");
   });
 });
