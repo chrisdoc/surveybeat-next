@@ -1,0 +1,26 @@
+[T3 Code: the agent in T3 thread "21f5518c-c5d4-4b47-a316-a65f2211559d" sent this message, not the user.]
+
+Act as the implementation sub-agent for this task.
+
+Implement GitHub issue 306 in chrisdoc/surveybeat-next and open a pull request. Do not merge, do not enable auto-merge, and do not spawn subagents.
+
+Fetch origin and branch from origin/main. The parent checkout is not main. Branch name: gdpr-306-personal-data-export. One commit subject: GDPR 306: export a Person's personal data. Open the PR with gh pr create --base main. The title is that same subject. The body closes #306. Use --repo chrisdoc/surveybeat-next if gh cannot see the remote. Never pass --no-verify. Never mention or change core.hooksPath. The pre-commit fence runs typecheck, ledger, comments, format, lint, unit, and privacy. Fix failures and commit again.
+
+Read gh issue view 306 --repo chrisdoc/surveybeat-next, SPEC.md §5.3, AGENTS.md, and the live migrations before writing code. Copy Effect 4 import style, HttpApi shape, and PrivacyRegistry entries from neighboring files.
+
+Build a signed-in self-service export, GET /api/me/data-export, that downloads a versioned JSON file. Classify it in packages/api/src/PrivacyRegistry.ts as NoResultData: it returns only the caller's own personal records, never another Person's data, never Team Results, and never anonymous Submissions or Answers.
+
+Include, and nothing secret:
+- D1: auth_user (id, name, email, emailVerified, createdAt, updatedAt), active auth_session metadata with no raw token, auth_account provider links with no tokens or secrets, auth_passkey metadata (name, deviceType, createdAt) with no credential material, person_index entries, organization_claim rows.
+- Every Organization Durable Object the human belongs to: person (id, email, time_zone, locale, detected_locale, organization_admin, removed_at), membership (Team name and id, role, started_at, ended_at), participation (Round id and date, Pulse name, the fact of participating, no Answers), round_member (eligible Rounds, send_at, time_zone), invitation (status, resend_count, created_at, updated_at, never the raw token or its hash), pulse_reminder_opt_out, action rows whose owner_id is this Person, email_send rows for this Person (id, kind, status, timestamps only; no body and no token), test_send rows for this Person.
+Confirm every column against the current SQL. If a listed column does not exist, omit it. Do not add captured_email.
+
+Embed Art. 15 transparency in the file: export timestamp, schema version, processing purposes, legal bases, retention, and sub-processors, taken from code and the existing legal copy. Say Submissions and Answers are not in the export because those rows have no Person column (ADR 0005). Do not say every stored comment is non-personal. Say browser-local kept answers can be viewed or cleared on /history (ADR 0017). Do not invent a company name, a personal name, a street address, or a change to governing law.
+
+Add a Download my personal data action in the signed-in account or privacy area. It must work for a Person who is not an Organization admin and for a signed-in human in NotInOrganization who still has an auth_user row. All visible text comes from apps/web/src/messages/catalog.ts. Glossary: Pulse, Person, Round, Submission, Answer, Invitation, Organization, Team, Lead. Do not use User, Response, or Respondent.
+
+Tests: unit or adapter coverage that the export gathers D1 plus more than one Organization. A file named *.privacy.test.ts must show that caller A cannot receive Person B's data, and that the JSON contains no submission row, no answer row, no raw Invitation token, no Edit key hash, and no Team Results.
+
+Do not implement erasure, rectification, retention jobs, or audit log. Those are issues 307–312.
+
+Report the PR URL and the commit SHA. If a check fails and you cannot fix it, push the branch and say what failed.

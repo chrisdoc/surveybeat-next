@@ -1,0 +1,42 @@
+{
+  "cli_version": "0.13.4",
+  "checkpoint_id": "01M7WN526GZ20958Q1GMPZ72TT",
+  "strategy": "manual-commit",
+  "branch": "gdpr-306-personal-data-export",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "packages/cloudflare/src/auth/PersonalDataSource.ts",
+    "packages/cloudflare/src/organization/PersonalData.ts",
+    "packages/domain/src/people/PersonalData.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 141,
+    "cache_creation_tokens": 275025,
+    "cache_read_tokens": 13196492,
+    "output_tokens": 61483,
+    "api_call_count": 71
+  },
+  "redaction": {
+    "replacements": 7,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 6,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 1,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
