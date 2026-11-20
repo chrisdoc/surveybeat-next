@@ -1,0 +1,81 @@
+{
+  "cli_version": "0.13.4",
+  "checkpoint_id": "01M7VQS2HMFM0X0P3YB7XMPY01",
+  "strategy": "manual-commit",
+  "branch": "t3/issue-216-batch-5",
+  "checkpoints_count": 5,
+  "files_touched": [
+    "apps/web/src/answer/budget.test.ts",
+    "apps/web/src/app/App.ts",
+    "apps/web/src/app/session.ts",
+    "apps/web/vite.config.ts",
+    "apps/web/vite.site.config.ts",
+    "docs/agents/lint-scope.md",
+    "infra/orgCreationAllowlist.test.ts",
+    "infra/scripts/lighthouse-gate.ts",
+    "oxlint.config.ts",
+    "packages/api/src/registry.privacy.test.ts",
+    "packages/cloudflare/src/ResultsStorage.test.ts",
+    "packages/cloudflare/src/RoundThemesStorage.test.ts",
+    "packages/cloudflare/src/SubmissionRoutes.privacy.test.ts",
+    "packages/cloudflare/src/Submissions.privacy.test.ts",
+    "packages/cloudflare/src/auth/D1Auth.test.ts",
+    "packages/domain/src/email/EmailTemplates.test.ts",
+    "packages/domain/src/email/EmailTemplates.ts",
+    "packages/domain/src/email/FailedEmails.ts",
+    "packages/domain/src/people/Directory.ts",
+    "packages/domain/src/privacy/Redaction.privacy.test.ts",
+    "packages/domain/src/pulses/Editor.test.ts",
+    "packages/domain/src/pulses/Editor.ts",
+    "packages/domain/src/rounds/Results.test.ts",
+    "packages/domain/src/rounds/TestInvitation.test.ts",
+    "scripts/ci/select.test.ts",
+    "scripts/fence/gate.mjs",
+    "scripts/fence/post-commit.mjs",
+    "scripts/fence/vcs-command-policy.mjs",
+    "scripts/ledger/comment-debt.mjs",
+    "scripts/ledger/diagnostics-ledger.mjs",
+    "scripts/typecheck/bump.mjs",
+    "scripts/typecheck/checkers.mjs",
+    "scripts/typecheck/parity.mjs",
+    "scripts/typecheck/run.mjs"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 130,
+    "cache_creation_tokens": 128836,
+    "cache_read_tokens": 10971941,
+    "output_tokens": 27003,
+    "api_call_count": 58,
+    "subagent_tokens": {
+      "input_tokens": 110,
+      "cache_creation_tokens": 168634,
+      "cache_read_tokens": 4042557,
+      "output_tokens": 64880,
+      "api_call_count": 55
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 16,
+    "layers": {
+      "betterleaks": 2,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 6,
+      "credentialed_uri": 0,
+      "entropy": 2,
+      "key_context": 6,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
