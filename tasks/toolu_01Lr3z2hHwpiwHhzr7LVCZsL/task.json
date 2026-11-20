@@ -1,0 +1,18 @@
+{
+  "tool_use_id": "toolu_01Lr3z2hHwpiwHhzr7LVCZsL",
+  "agent_id": "afad023da2535453b",
+  "subagent_type": "general-purpose",
+  "task_description": "Research MCP auth on MainWorker",
+  "files": [
+    "docs/research/r3-mcp-auth-and-transport.md"
+  ],
+  "token_usage": {
+    "input_tokens": 224,
+    "cache_creation_tokens": 1090535,
+    "cache_read_tokens": 19179248,
+    "output_tokens": 52266,
+    "api_call_count": 108
+  },
+  "started_at": "2026-11-20T07:18:54.759328208Z",
+  "completed_at": "2026-11-20T07:51:35.048365144Z"
+}

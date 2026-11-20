@@ -1,0 +1,58 @@
+lets get release 3 issues in a state where they can be worked on
+
+---
+
+go ahead and
+
+---
+
+<task-notification>
+<task-id>afad023da2535453b</task-id>
+<tool-use-id>toolu_01Lr3z2hHwpiwHhzr7LVCZsL</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-5e60faea-a303266796f5fc79/dba2b190-64f3-449a-a3dc-dcea08811970/tasks/afad023da2535453b.output</output-file>
+<status>completed</status>
+<summary>Agent "Research MCP auth on MainWorker" is waiting on its own background work</summary>
+<note>This agent stopped with background work of its own still running. It may resume on its own when that work completes or reports, and the same task-id notifies again if it does; the result below may be interim.</note>
+<result>Waiting for the pre-commit hook to finish.</result>
+<usage><subagent_tokens>280445</subagent_tokens><tool_uses>96</tool_uses><duration_ms>1968726</duration_ms></usage>
+<worktree><worktreePath>/home/ubuntu/surveybeat-next/.claude/worktrees/agent-afad023da2535453b</worktreePath><worktreeBranch>worktree-agent-afad023da2535453b</worktreeBranch></worktree>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>afad023da2535453b</task-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-5e60faea-a303266796f5fc79/dba2b190-64f3-449a-a3dc-dcea08811970/tasks/afad023da2535453b.output</output-file>
+<status>completed</status>
+<summary>Agent "Research MCP auth on MainWorker" is waiting on its own background work</summary>
+<note>This agent stopped with background work of its own still running. It may resume on its own when that work completes or reports, and the same task-id notifies again if it does; the result below may be interim.</note>
+<result>The suite is running in the background. I'll wait for it to finish.</result>
+<usage><subagent_tokens>283077</subagent_tokens><tool_uses>100</tool_uses><duration_ms>2513987</duration_ms></usage>
+<worktree><worktreePath>/home/ubuntu/surveybeat-next/.claude/worktrees/agent-afad023da2535453b</worktreePath><worktreeBranch>worktree-agent-afad023da2535453b</worktreeBranch></worktree>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>afad023da2535453b</task-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-5e60faea-a303266796f5fc79/dba2b190-64f3-449a-a3dc-dcea08811970/tasks/afad023da2535453b.output</output-file>
+<status>completed</status>
+<summary>Agent "Research MCP auth on MainWorker" is waiting on its own background work</summary>
+<note>This agent stopped with background work of its own still running. It may resume on its own when that work completes or reports, and the same task-id notifies again if it does; the result below may be interim.</note>
+<result>The commit hook is running in the background. I'll wait for it to finish.</result>
+<usage><subagent_tokens>285236</subagent_tokens><tool_uses>103</tool_uses><duration_ms>2772304</duration_ms></usage>
+<worktree><worktreePath>/home/ubuntu/surveybeat-next/.claude/worktrees/agent-afad023da2535453b</worktreePath><worktreeBranch>worktree-agent-afad023da2535453b</worktreeBranch></worktree>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>afad023da2535453b</task-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-5e60faea-a303266796f5fc79/dba2b190-64f3-449a-a3dc-dcea08811970/tasks/afad023da2535453b.output</output-file>
+<status>completed</status>
+<summary>Agent "Research MCP auth on MainWorker" is waiting on its own background work</summary>
+<note>This agent stopped with background work of its own still running. It may resume on its own when that work completes or reports, and the same task-id notifies again if it does; the result below may be interim.</note>
+<result>I'll wait for the commit attempt to finish.</result>
+<usage><subagent_tokens>287759</subagent_tokens><tool_uses>106</tool_uses><duration_ms>3228995</duration_ms></usage>
+<worktree><worktreePath>/home/ubuntu/surveybeat-next/.claude/worktrees/agent-afad023da2535453b</worktreePath><worktreeBranch>worktree-agent-afad023da2535453b</worktreeBranch></worktree>
+</task-notification>
