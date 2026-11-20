@@ -29,7 +29,7 @@ Incident detection relies on the following concrete mechanisms built into Survey
    - Executed automatically in `.github/workflows/preview.yml` (`preview-privacy`) and `.github/workflows/deploy.yml` (`staging-privacy` blocking `production` deploy).
 2. **Worker & Durable Object Operator Alerts (`[OPERATOR_ALERT]`):**
    - `Organization.ts` (`ALARM_FAILED`) and `organization/RoundJobs.ts` (`ROUND_JOB_FAILED`, results computation failures) emit `[OPERATOR_ALERT]` structured `Effect.logError` events to Cloudflare Workers Logs (`MainWorker`).
-   - `JobsDlq` is consumed in `MainWorker.ts` and logs `JOB_DEAD_LETTERED`. `EmailDlq` is consumed from `MainWorker.ts` and `handleDeadLetter` logs `EMAIL_DEAD_LETTERED` in `EmailDelivery.ts` (error code and `sendId` only, never the message body).
+   - `JobsDlq` is consumed in `MainWorker.ts` and logs `JOB_DEAD_LETTERED`. `EmailDlq` is consumed from `MainWorker.ts` and `handleDeadLetter` logs `EMAIL_DEAD_LETTERED` in `EmailDelivery.ts` with `sendId` and `state` (the send state tag, or null), or with no fields if the message is malformed. It does not log an error code or the message body. `logOutcome` logs `reason` and `code` on `EMAIL_SEND_FAILED`.
 3. **Cloudflare Platform & Audit Monitoring:**
    - Cloudflare Account Audit Logs (API token usage, `alchemy deploy` changes, D1 and Durable Object access, manual PITR restore triggers—restricted to named operators per ADR 0005). SPEC §6.2 names R2 backups. No R2 bucket is declared in `infra/alchemy.run.ts`.
    - Cloudflare Workers/D1/DO error-rate alerts and Email Sending bounce/complaint spikes (`EmailEvents` queue).

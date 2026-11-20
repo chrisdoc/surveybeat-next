@@ -43,7 +43,7 @@ Under GDPR Article 35(1) and the EDPB/WP29 DPIA criteria (WP248 rev.01), a DPIA 
   - `Redaction` strips direct identifiers before disk write (ADR 0009).
 - **Transparency & Member Controls:**
   - An `Invitation` states the `Minimum group size` and that the name is not stored with the answers (`packages/emails/src/messages/catalog.ts` `invitation.anonymity`). It mentions `Redaction` and AI only when `ai_processing` is on (`privacy.aiNotice`). The answer page states the `Minimum group size` (`answer.anonymity`), what comment `Redaction` removes and what it leaves (`answer.comment.disclosure` in `apps/web/src/messages/answer.ts`), and the AI notice when AI is on (`answer.aiNotice`). The 30-day backup window is on the in-app Privacy page only (`catalog.ts` `privacy.restore`).
-  - `Team` members can opt out of reminders per `Pulse` (`pulse_reminder_opt_out`, RFC 8058 `GET /api/reminders/unsubscribe`) and clear browser-local history (`clearKeptAnswers`).
+  - `Team` members can opt out of reminders per `Pulse` (`pulse_reminder_opt_out`). `GET /api/reminders/unsubscribe` only shows the confirmation page. The opt-out write is `POST /api/reminders/unsubscribe` (RFC 8058 `List-Unsubscribe-Post`). They can also clear browser-local history (`clearKeptAnswers`).
 
 ---
 
