@@ -204,7 +204,7 @@ const world = () =>
 
     const ada = yield* signIn("ada@example.com");
     const bob = yield* signIn("bob@example.com");
-    yield* signIn("stranger@example.com");
+    const stranger = yield* signIn("stranger@example.com");
 
     const idOf = (email: string) => {
       const found = sqlite.prepare("SELECT id FROM auth_user WHERE email = ?").get(email)?.id;
@@ -409,6 +409,7 @@ const world = () =>
       organizations,
       ada,
       bob,
+      stranger,
       adaId,
       bobId,
       strangerId,
@@ -541,6 +542,50 @@ describe("rectifying a Person's email (GDPR 309)", () => {
       assert.strictEqual(w.pendingRows(), 0);
       assert.notInclude(dump(w.sqlite), "moved@example.com");
       assert.notInclude(dump(w.sqlite), "stranger@example.com");
+    }),
+  );
+
+  it.effect("deletes the change-email code Better Auth stored when the account is erased", () =>
+    Effect.gen(function* () {
+      const w = yield* world();
+      const next = "moved@example.com";
+      const asked = yield* w.request(w.stranger, next);
+
+      assert.strictEqual(failureTag(asked), "Success");
+
+      const code = w.changeCodes.get(next) ?? "";
+
+      const identifiers = () =>
+        w.sqlite
+          .prepare(
+            "SELECT identifier FROM auth_verification WHERE identifier LIKE 'change-email-otp-%' ORDER BY identifier",
+          )
+          .all()
+          .map((row) => String(row.identifier));
+
+      const stored = `change-email-otp-${w.strangerId}:${next}`;
+      const longerAccount = `change-email-otp-${w.strangerId}x:${next}`;
+      const addressShaped = `change-email-otp-stranger@example.com-${next}`;
+
+      assert.deepStrictEqual(identifiers(), [stored]);
+      assert.include(dump(w.sqlite), code);
+
+      w.sqlite
+        .prepare(
+          `INSERT INTO auth_verification (id, identifier, value, expiresAt, createdAt, updatedAt)
+           VALUES (?, ?, 'kept-longer-account', '2099-01-01T00:00:00.000Z', '2026-11-20T00:00:00.000Z', '2026-11-20T00:00:00.000Z'),
+                  (?, ?, 'kept-address-shaped', '2099-01-01T00:00:00.000Z', '2026-11-20T00:00:00.000Z', '2026-11-20T00:00:00.000Z')`,
+        )
+        .run("v-longer", longerAccount, "v-shaped", addressShaped);
+
+      w.sqlite.prepare("UPDATE auth_user SET email = ? WHERE id = ?").run(next, w.strangerId);
+
+      const erased = yield* w.run(PeopleIndex.use((index) => index.eraseAccount(w.strangerId)));
+
+      assert.isTrue(erased);
+      assert.deepStrictEqual(identifiers(), [addressShaped, longerAccount].sort());
+      assert.notInclude(dump(w.sqlite), code);
+      assert.notInclude(dump(w.sqlite), stored);
     }),
   );
 
