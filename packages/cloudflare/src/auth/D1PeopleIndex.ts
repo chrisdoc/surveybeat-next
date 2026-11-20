@@ -83,8 +83,18 @@ export const d1PeopleIndex = (db: Cloudflare.D1.QueryDatabaseClient) =>
     const accountStatements: readonly (readonly [string, number])[] = [
       ["DELETE FROM captured_email WHERE recipient = (SELECT email FROM auth_user WHERE id = ?)", 1],
       [
-        "DELETE FROM auth_verification WHERE instr(identifier, (SELECT email FROM auth_user WHERE id = ?)) > 0",
-        1,
+        `DELETE FROM auth_verification
+          WHERE identifier IN (
+            SELECT 'sign-in-otp-' || email FROM auth_user WHERE id = ?
+            UNION ALL
+            SELECT 'forget-password-otp-' || email FROM auth_user WHERE id = ?
+            UNION ALL
+            SELECT 'email-verification-otp-' || email FROM auth_user WHERE id = ?
+            UNION ALL
+            SELECT 'change-email-otp-' || id || ':' || email FROM auth_user WHERE id = ?
+          )
+          OR substr(identifier, 1, length('change-email-otp-' || ? || ':')) = 'change-email-otp-' || ? || ':'`,
+        6,
       ],
       [
         "DELETE FROM auth_session_organization WHERE session_id IN (SELECT id FROM auth_session WHERE userId = ?)",

@@ -53,6 +53,7 @@ export const meHandlers = <R>(services: Effect.Effect<Context.Context<MeServices
 
             yield* runDirectoryCommand(member, {
               _tag: "ErasePerson",
+              authority: "self",
               personId: member.personId,
               confirmation: payload.confirmation,
             });

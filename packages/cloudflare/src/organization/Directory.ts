@@ -130,6 +130,9 @@ export const organizationDirectory = ({
           }),
         )
         .pipe(Effect.orDie),
+
+    clearPersonErasure: (personId: PersonId) =>
+      sql`DELETE FROM person_erasure WHERE person_id = ${personId}`.pipe(Effect.asVoid, Effect.orDie),
     viewTeams: (actorId: PersonId) =>
       Effect.gen(function* () {
         const view = teamsView(yield* directory.load, actorId);

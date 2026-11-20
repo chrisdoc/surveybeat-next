@@ -281,18 +281,30 @@ const world = (options: { readonly adaInGlobex?: boolean } = {}) => {
         now,
       ) => durable.runDirectoryCommand(actorId, command, now);
 
+      const clearPersonErasure: OrganizationDirectory["Service"]["clearPersonErasure"] = (
+        _organizationId,
+        personId,
+      ) => sql`DELETE FROM person_erasure WHERE person_id = ${personId}`.pipe(Effect.asVoid, Effect.orDie);
+
       return yield* effect.pipe(
         Effect.provideService(OrganizationDirectory, {
           run: directoryRun,
+          clearPersonErasure,
         } as unknown as OrganizationDirectory["Service"]),
         Effect.provideService(PeopleIndex, people),
       );
     }).pipe(Effect.provideService(RuntimeContext, {} as RuntimeContext["Service"]));
 
-  const erase = (actor: PersonId, target: PersonId, confirmation: string) =>
+  const erase = (
+    actor: PersonId,
+    target: PersonId,
+    confirmation: string,
+    authority: "admin" | "self" = "admin",
+  ) =>
     run(
       runDirectoryCommand(memberOf(actor), {
         _tag: "ErasePerson",
+        authority,
         personId: target,
         confirmation: EmailAddress.make(confirmation),
       }).pipe(Effect.exit),
@@ -352,6 +364,7 @@ describe("erasing a Person leaves no personal data behind (GDPR 307)", () => {
         );
         assert.strictEqual(tableOf(index, "submission_index"), indexBefore);
         assert.include(durable, "erased-acme-ada@erased.invalid");
+        assert.strictEqual(organization.prepare("SELECT count(*) AS n FROM person_erasure").get()?.n, 0);
       }),
   );
 
@@ -433,7 +446,7 @@ describe("erasing a Person leaves no personal data behind (GDPR 307)", () => {
     Effect.gen(function* () {
       const { organization, erase } = world();
 
-      yield* erase(ADA, ADA, "ada@example.com");
+      yield* erase(ADA, ADA, "ada@example.com", "self");
 
       const content = String(
         organization.prepare("SELECT content FROM email_send WHERE id = 'bob-added'").get()?.content,
@@ -518,14 +531,17 @@ describe("erasing a Person leaves no personal data behind (GDPR 307)", () => {
     }),
   );
 
-  it.effect("does not let a stranger or a member erase someone else", () =>
+  it.effect("does not let a member erase someone else, or themselves, on the organization command", () =>
     Effect.gen(function* () {
       const { organization, index, erase } = world();
       const before = [dump(organization), dump(index)];
 
-      const exit = yield* erase(BOB, ADA, "ada@example.com");
+      const someoneElse = yield* erase(BOB, ADA, "ada@example.com", "admin");
 
-      assert.strictEqual(exit._tag, "Failure");
+      const ownRow = yield* erase(BOB, BOB, "bob@example.com", "admin");
+
+      assert.strictEqual(someoneElse._tag, "Failure");
+      assert.strictEqual(ownRow._tag, "Failure");
       assert.deepStrictEqual([dump(organization), dump(index)], before);
     }),
   );
@@ -584,6 +600,216 @@ describe("erasing a Person leaves no personal data behind (GDPR 307)", () => {
       assert.include(after, "user_bob");
 
       assert.isTrue(yield* attempt("user_stranger"));
+    }),
+  );
+
+  it.effect("finishes D1 after the Durable Object committed and the Worker stopped", () =>
+    Effect.gen(function* () {
+      const { organization, index, run, erase } = world({ adaInGlobex: true });
+
+      const committed = yield* run(
+        Effect.gen(function* () {
+          const directory = yield* OrganizationDirectory;
+
+          return yield* directory.run(
+            ACME,
+            ADMIN,
+            {
+              _tag: "ErasePerson",
+              authority: "admin",
+              personId: ADA,
+              confirmation: EmailAddress.make("ada@example.com"),
+            },
+            1,
+          );
+        }),
+      );
+
+      assert.strictEqual(committed._tag, "Accepted");
+
+      if (committed._tag !== "Accepted") {
+        return;
+      }
+
+      const step = committed.followUps[0];
+
+      assert.strictEqual(step?._tag, "ErasePersonIndex");
+
+      if (step?._tag !== "ErasePersonIndex") {
+        return;
+      }
+
+      assert.strictEqual(step.person.authUserId, "user_ada");
+      assert.deepStrictEqual([...step.sendIds].sort(), ["acme-ada-send", "ada-pending"]);
+      assert.deepStrictEqual(step.testTokenHashes, ["test-hash-acme-ada"]);
+      assert.strictEqual(
+        index.prepare("SELECT count(*) AS n FROM captured_email WHERE message_id = 'captured-acme-ada'").get()
+          ?.n,
+        1,
+      );
+      assert.strictEqual(
+        index.prepare("SELECT count(*) AS n FROM email_message WHERE send_id = 'acme-ada-send'").get()?.n,
+        1,
+      );
+      assert.strictEqual(
+        index
+          .prepare("SELECT count(*) AS n FROM test_invitation_index WHERE token_hash = 'test-hash-acme-ada'")
+          .get()?.n,
+        1,
+      );
+      assert.strictEqual(organization.prepare("SELECT count(*) AS n FROM person_erasure").get()?.n, 1);
+
+      const again = yield* erase(ADMIN, ADA, "not-the-address@example.com");
+
+      assert.strictEqual(again._tag, "Success");
+      assert.strictEqual(
+        index.prepare("SELECT count(*) AS n FROM auth_user WHERE id = 'user_ada'").get()?.n,
+        1,
+      );
+      assert.strictEqual(
+        index.prepare("SELECT count(*) AS n FROM person_index WHERE person_id = 'globex-ada'").get()?.n,
+        1,
+      );
+      assert.strictEqual(
+        index.prepare("SELECT count(*) AS n FROM person_index WHERE person_id = 'acme-ada'").get()?.n,
+        0,
+      );
+      assert.strictEqual(
+        index.prepare("SELECT count(*) AS n FROM captured_email WHERE message_id = 'captured-acme-ada'").get()
+          ?.n,
+        0,
+      );
+      assert.strictEqual(
+        index.prepare("SELECT count(*) AS n FROM email_message WHERE send_id = 'acme-ada-send'").get()?.n,
+        0,
+      );
+      assert.strictEqual(
+        index
+          .prepare("SELECT count(*) AS n FROM test_invitation_index WHERE token_hash = 'test-hash-acme-ada'")
+          .get()?.n,
+        0,
+      );
+      assert.strictEqual(
+        index.prepare("SELECT count(*) AS n FROM invitation_index WHERE person_id = 'acme-ada'").get()?.n,
+        0,
+      );
+      assert.strictEqual(
+        index.prepare("SELECT count(*) AS n FROM organization_claim WHERE auth_user_id = 'user_ada'").get()
+          ?.n,
+        0,
+      );
+      assert.strictEqual(organization.prepare("SELECT count(*) AS n FROM person_erasure").get()?.n, 0);
+      assert.notInclude(dump(organization), "ada@example.com");
+      assert.notInclude(dump(index), "captured-acme-ada");
+      assert.include(dump(index), "secret-session-token-ada");
+    }),
+  );
+
+  it.effect("finishes the account delete when the index row is already gone", () =>
+    Effect.gen(function* () {
+      const { organization, index, run, erase } = world();
+
+      yield* run(
+        Effect.gen(function* () {
+          const directory = yield* OrganizationDirectory;
+
+          return yield* directory.run(
+            ACME,
+            ADMIN,
+            {
+              _tag: "ErasePerson",
+              authority: "admin",
+              personId: ADA,
+              confirmation: EmailAddress.make("ada@example.com"),
+            },
+            1,
+          );
+        }),
+      );
+
+      index
+        .prepare("DELETE FROM person_index WHERE organization_id = 'acme' AND person_id = 'acme-ada'")
+        .run();
+      assert.strictEqual(
+        index.prepare("SELECT count(*) AS n FROM captured_email WHERE message_id = 'captured-acme-ada'").get()
+          ?.n,
+        1,
+      );
+      assert.strictEqual(
+        index.prepare("SELECT count(*) AS n FROM auth_user WHERE id = 'user_ada'").get()?.n,
+        1,
+      );
+
+      const again = yield* erase(ADMIN, ADA, "not-the-address@example.com");
+
+      assert.strictEqual(again._tag, "Success");
+
+      const global = dump(index);
+
+      for (const marker of FORBIDDEN) {
+        assert.notInclude(global, marker, marker);
+        assert.notInclude(dump(organization), marker, marker);
+      }
+
+      assert.strictEqual(organization.prepare("SELECT count(*) AS n FROM person_erasure").get()?.n, 0);
+      assert.include(global, "user_bob");
+    }),
+  );
+
+  it.effect("keeps the sign-in account while another Organization still has a removed Person", () =>
+    Effect.gen(function* () {
+      const { index, erase } = world({ adaInGlobex: true });
+      index.prepare("UPDATE person_index SET removed_at = 1 WHERE organization_id = 'globex'").run();
+
+      assert.strictEqual((yield* erase(ADMIN, ADA, "ada@example.com"))._tag, "Success");
+      assert.strictEqual(
+        index.prepare("SELECT count(*) AS n FROM auth_user WHERE id = 'user_ada'").get()?.n,
+        1,
+      );
+      assert.strictEqual(
+        index.prepare("SELECT count(*) AS n FROM person_index WHERE person_id = 'globex-ada'").get()?.n,
+        1,
+      );
+      assert.strictEqual(
+        index.prepare("SELECT count(*) AS n FROM person_index WHERE person_id = 'acme-ada'").get()?.n,
+        0,
+      );
+      assert.strictEqual(
+        index.prepare("SELECT count(*) AS n FROM captured_email WHERE message_id = 'captured-acme-ada'").get()
+          ?.n,
+        0,
+      );
+      assert.include(dump(index), "secret-session-token-ada");
+      assert.include(dump(index), "globex-ada");
+    }),
+  );
+
+  it.effect("deletes this account's verification rows without matching a longer address", () =>
+    Effect.gen(function* () {
+      const { index, erase } = world();
+      index.exec(`
+        INSERT INTO auth_verification (id, identifier, value, expiresAt, createdAt, updatedAt) VALUES
+          ('v-neighbor', 'sign-in-otp-nada@example.com', 'kept-otp-neighbor', '${FUTURE}', '2026-11-19T00:00:00.000Z', '2026-11-19T00:00:00.000Z'),
+          ('v-suffix', 'sign-in-otp-ada@example.com.au', 'kept-otp-suffix', '${FUTURE}', '2026-11-19T00:00:00.000Z', '2026-11-19T00:00:00.000Z'),
+          ('v-bob-change', 'change-email-otp-user_bob:ada@example.com', 'kept-otp-bob-change', '${FUTURE}', '2026-11-19T00:00:00.000Z', '2026-11-19T00:00:00.000Z'),
+          ('v-ada-change', 'change-email-otp-user_ada:next@example.com', 'pending-change-for-ada', '${FUTURE}', '2026-11-19T00:00:00.000Z', '2026-11-19T00:00:00.000Z');
+      `);
+
+      assert.strictEqual((yield* erase(ADMIN, ADA, "ada@example.com"))._tag, "Success");
+
+      const identifiers = index
+        .prepare("SELECT identifier FROM auth_verification ORDER BY identifier")
+        .all()
+        .map((row) => String(row.identifier));
+
+      assert.deepStrictEqual(identifiers, [
+        "change-email-otp-user_bob:ada@example.com",
+        "sign-in-otp-ada@example.com.au",
+        "sign-in-otp-bob@example.com",
+        "sign-in-otp-nada@example.com",
+      ]);
+      assert.notInclude(dump(index), "pending-change-for-ada");
+      assert.notInclude(dump(index), "secret-otp-ada");
     }),
   );
 });

@@ -197,6 +197,7 @@ export const directoryHandlers = <R>(
           change(() =>
             Effect.succeed({
               _tag: "ErasePerson",
+              authority: "admin",
               personId: params.personId,
               confirmation: payload.confirmation,
             }),

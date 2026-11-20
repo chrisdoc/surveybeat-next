@@ -47,6 +47,8 @@ export const durableObjectDirectory = (organizations: Organizations) =>
   OrganizationDirectory.of({
     run: (organizationId, actorId, command, now) =>
       organizations.getByName(organizationId).runDirectoryCommand(actorId, command, now),
+    clearPersonErasure: (organizationId, personId) =>
+      organizations.getByName(organizationId).clearPersonErasure(personId),
     teams: (organizationId, actorId) => organizations.getByName(organizationId).viewTeams(actorId),
     team: (organizationId, actorId, teamId) =>
       organizations.getByName(organizationId).viewTeam(actorId, teamId),

@@ -733,8 +733,19 @@ describe("languages (ADR 0018)", () => {
   });
 
   describe("erasing a Person (GDPR 307)", () => {
-    const erase = (world: World, actor: PersonId, personId: PersonId, email: string) =>
-      world.run(actor, { _tag: "ErasePerson", personId, confirmation: EmailAddress.make(email) });
+    const erase = (
+      world: World,
+      actor: PersonId,
+      personId: PersonId,
+      email: string,
+      authority: "admin" | "self" = "admin",
+    ) =>
+      world.run(actor, {
+        _tag: "ErasePerson",
+        authority,
+        personId,
+        confirmation: EmailAddress.make(email),
+      });
 
     const setup = () => {
       const world = new World();
@@ -750,6 +761,7 @@ describe("languages (ADR 0018)", () => {
 
       const erased = world.ok(ADMIN, {
         _tag: "ErasePerson",
+        authority: "admin",
         personId: ada,
         confirmation: EmailAddress.make("ada@example.com"),
       });
@@ -779,12 +791,14 @@ describe("languages (ADR 0018)", () => {
       ]);
     });
 
-    it("lets a Person erase themselves, and nobody but an admin erase someone else", () => {
+    it("lets a Person erase themselves only on the self command", () => {
       const { world, ada } = setup();
       const grace = world.personWith("grace@example.com");
 
       expect(rejection(erase(world, grace, ada, "ada@example.com"))).toBe("Forbidden");
-      expect(rejection(erase(world, ada, ada, "ada@example.com"))).toBe("Accepted");
+      expect(rejection(erase(world, ada, ada, "ada@example.com", "admin"))).toBe("Forbidden");
+      expect(rejection(erase(world, ada, grace, "grace@example.com", "self"))).toBe("Forbidden");
+      expect(rejection(erase(world, ada, ada, "ada@example.com", "self"))).toBe("Accepted");
     });
 
     it("needs the exact address, in any case, and changes nothing otherwise", () => {
@@ -834,12 +848,14 @@ describe("languages (ADR 0018)", () => {
       const { world, ada } = setup();
       world.ok(ADMIN, {
         _tag: "ErasePerson",
+        authority: "admin",
         personId: ada,
         confirmation: EmailAddress.make("ada@example.com"),
       });
 
       const again = world.ok(ADMIN, {
         _tag: "ErasePerson",
+        authority: "admin",
         personId: ada,
         confirmation: EmailAddress.make("x@example.com"),
       });
@@ -852,6 +868,7 @@ describe("languages (ADR 0018)", () => {
       const { world, platform, ada } = setup();
       world.ok(ADMIN, {
         _tag: "ErasePerson",
+        authority: "admin",
         personId: ada,
         confirmation: EmailAddress.make("ada@example.com"),
       });

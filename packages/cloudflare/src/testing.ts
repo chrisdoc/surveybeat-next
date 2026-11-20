@@ -630,6 +630,7 @@ export class MemoryOrganizations {
           send === undefined ? null : { sendId, state: progressOf(send.state) },
         );
       }),
+    clearPersonErasure: () => Effect.void,
   });
 
   readonly pulses = OrganizationPulses.of({

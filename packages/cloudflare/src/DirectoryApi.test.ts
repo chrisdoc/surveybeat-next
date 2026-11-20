@@ -514,11 +514,17 @@ describe("erasing a Person (GDPR 307)", () => {
     expect(listed.body).toMatchObject({ actions: [{ ownerId: ada, ownerEmail: null }] });
   });
 
-  it("only lets an admin erase someone else", async () => {
-    const { lead, member, personId } = await setup();
+  it("only lets an Organization admin use the organization route, including for their own Person", async () => {
+    const { world, acme, lead, member, personId } = await setup();
+    const ada = personId("ada@example.com");
+    const grace = personId("grace@example.com");
 
-    expect((await erase(lead, personId("ada@example.com"), "ada@example.com")).status).toBe(403);
-    expect((await erase(member, personId("grace@example.com"), "grace@example.com")).status).toBe(403);
+    expect((await erase(lead, ada, "ada@example.com")).status).toBe(403);
+    expect((await erase(member, grace, "grace@example.com")).status).toBe(403);
+    expect((await erase(member, ada, "ada@example.com")).status).toBe(403);
+    expect((await erase(lead, grace, "grace@example.com")).status).toBe(403);
+    expect(world.durable.person(acme.id, ada)?.erasedAt).toBeNull();
+    expect(world.durable.person(acme.id, grace)?.erasedAt).toBeNull();
   });
 
   it("answers 404 for a Person who does not exist", async () => {

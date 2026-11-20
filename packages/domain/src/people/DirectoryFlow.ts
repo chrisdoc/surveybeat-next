@@ -61,6 +61,8 @@ export interface OrganizationDirectoryShape {
     actorId: PersonId,
     sendId: SendId,
   ) => Effect.Effect<Viewed<FailedEmailStatus>>;
+
+  readonly clearPersonErasure: (organizationId: OrganizationId, personId: PersonId) => Effect.Effect<void>;
 }
 
 export class OrganizationDirectory extends Context.Service<
@@ -145,13 +147,15 @@ const followUp = Effect.fnUntraced(function* (organizationId: OrganizationId, st
     }
 
     case "ErasePersonIndex": {
-      return yield* index.erasePerson({
+      yield* index.erasePerson({
         organizationId,
         personId: step.person.id,
         userId: Option.fromNullishOr(step.person.authUserId),
         sendIds: step.sendIds,
         testTokenHashes: step.testTokenHashes,
       });
+
+      return yield* (yield* OrganizationDirectory).clearPersonErasure(organizationId, step.person.id);
     }
   }
 });

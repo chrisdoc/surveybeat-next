@@ -100,6 +100,7 @@ export type DirectoryCommand =
   | { readonly _tag: "RemovePerson"; readonly personId: PersonId }
   | {
       readonly _tag: "ErasePerson";
+      readonly authority: "admin" | "self";
       readonly personId: PersonId;
       readonly confirmation: EmailAddress;
     }
@@ -544,7 +545,11 @@ export const decide = (
     case "ErasePerson": {
       const person = state.people.find((each) => each.id === command.personId);
 
-      if (command.personId !== actorId && !can(allowed, "organization.removePerson", organization)) {
+      if (command.authority === "admin") {
+        if (!can(allowed, "organization.removePerson", organization)) {
+          return forbidden;
+        }
+      } else if (command.personId !== actorId) {
         return forbidden;
       }
 
