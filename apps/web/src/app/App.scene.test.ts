@@ -247,6 +247,24 @@ describe("App Scenes", () => {
       );
     });
 
+    it("finishes a deletion that was already confirmed from outside an Organization", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(makeUrl("https://app.surveybeat.com/"), []),
+          session: { _tag: "NotInOrganization" },
+        }),
+        Scene.click(Scene.role("button", { name: "Finish that deletion" })),
+        Scene.Command.expectHas(OffboardOrganization({ confirmation: "" })),
+        Scene.Command.resolve(
+          OffboardOrganization,
+          Message.OffboardedOrganization({ outcome: { _tag: "Success" } }),
+        ),
+        Scene.Command.expectHas(LeaveAfterErasureCmd),
+        Scene.Command.resolve(LeaveAfterErasureCmd, Message.LeftAfterErasure()),
+      );
+    });
+
     it("renders choose organization screen and picks an organization", () => {
       const orgA = { id: decodeOrgId("org-a"), name: "Org Alpha" };
       const orgB = { id: decodeOrgId("org-b"), name: "Org Beta" };

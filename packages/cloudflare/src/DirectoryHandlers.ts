@@ -3,6 +3,7 @@ import {
   NewIds,
   OFFBOARDING_EXPORT_FILENAME,
   offboardOrganization,
+  OrganizationOffboarding,
   resendFailedEmail,
   runDirectoryCommand,
   viewEmailStatus,
@@ -13,19 +14,26 @@ import {
   viewTeams,
 } from "@surveybeat/domain";
 import type {
+  CheckedSession,
   DirectoryCommand,
   EmailAddress,
   Member,
   NewMember,
   OrganizationDirectory,
-  OrganizationOffboarding,
 } from "@surveybeat/domain";
 import type * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
+import * as Option from "effect/Option";
 import * as HttpEffect from "effect/http/HttpEffect";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
-import { authenticated, currentMember, requestOrigin, requireSameOrigin } from "./auth/AuthHandlers.ts";
+import {
+  authenticated,
+  currentMember,
+  requestOrigin,
+  requireSameOrigin,
+  signedInSession,
+} from "./auth/AuthHandlers.ts";
 import type { AuthServices } from "./auth/AuthHandlers.ts";
 
 export type DirectoryServices = AuthServices | OrganizationDirectory | OrganizationOffboarding;
@@ -212,9 +220,10 @@ export const directoryHandlers = <R>(
           Effect.gen(function* () {
             yield* requireSameOrigin;
             const member = yield* currentMember;
+            const body = yield* viewOffboardingExport(member);
             yield* downloadHeaders;
 
-            return yield* viewOffboardingExport(member);
+            return body;
           }),
         ),
       )
@@ -222,8 +231,14 @@ export const directoryHandlers = <R>(
         provide(
           Effect.gen(function* () {
             yield* requireSameOrigin;
+            const session = yield* signedInSession;
+            const pending = yield* (yield* OrganizationOffboarding).pending(session.identity.userId);
 
-            yield* offboardOrganization(yield* authenticated, payload.confirmation);
+            const checked: CheckedSession = Option.isSome(pending)
+              ? { session, member: Option.none() }
+              : yield* authenticated;
+
+            yield* offboardOrganization(checked, payload.confirmation);
           }),
         ),
       )

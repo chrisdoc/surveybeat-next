@@ -444,6 +444,7 @@ export const Message = defineMessageUnion({
   OffboardingConfirmationChanged: { value: Schema.String },
   OffboardingDismissed: {},
   OffboardingSubmitted: {},
+  FinishPendingOffboarding: {},
   OffboardedOrganization: { outcome: OutcomeVoid },
 
   GotPulses: { outcome: OutcomePulses },
@@ -2875,6 +2876,20 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       };
     }
 
+    case "FinishPendingOffboarding": {
+      if (
+        model.offboarding.busy ||
+        (model.session._tag !== "NotInOrganization" && model.session._tag !== "ChooseOrganization")
+      ) {
+        return { model };
+      }
+
+      return {
+        model: { ...model, offboarding: { ...model.offboarding, busy: true, failure: Option.none() } },
+        commands: [OffboardOrganization({ confirmation: "" })],
+      };
+    }
+
     case "OffboardedOrganization": {
       if (message.outcome._tag === "Success") {
         return { model, commands: [LeaveAfterErasureCmd()] };
@@ -4107,10 +4122,16 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
     };
   }
 
+  const pendingOffboarding = {
+    busy: model.offboarding.busy,
+    failure: Option.getOrUndefined(model.offboarding.failure),
+    onFinish: Message.FinishPendingOffboarding(),
+  };
+
   if (model.session._tag === "NotInOrganization") {
     return {
       title: message("title.session", { screen: message("notInOrganization.title") }),
-      body: notInOrganizationView(h),
+      body: notInOrganizationView(pendingOffboarding, h),
     };
   }
 
@@ -4121,6 +4142,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
         model.session.organizations,
         model.session.busy,
         (id) => Message.ChooseOrgClicked({ organizationId: id }),
+        pendingOffboarding,
         h,
       ),
     };

@@ -5,8 +5,8 @@ import { FetchHttpClient } from "effect/http";
 import type { Html, HtmlBuilder } from "foldkit/html";
 import { defineTaggedUnion } from "foldkit/schema";
 import { message } from "../messages/locale.ts";
-import { clientEffect } from "./api.ts";
-import type { ApiClient } from "./api.ts";
+import { clientEffect, failureMessage } from "./api.ts";
+import type { ApiClient, Failure } from "./api.ts";
 import { privacyHref } from "./routes.ts";
 import {
   alertView,
@@ -262,11 +262,44 @@ export const createOrganizationView = <Message>(
     h,
   );
 
-export const notInOrganizationView = <Message>(h: HtmlBuilder<Message>): Html =>
+export interface PendingOffboardingControl<Message> {
+  readonly busy: boolean;
+  readonly failure: Failure | undefined;
+  readonly onFinish: Message;
+}
+
+const finishOffboardingView = <Message>(
+  finish: PendingOffboardingControl<Message>,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [h.Class("mt-8")],
+    [
+      h.p([h.Class("text-muted")], [message("offboarding.resume.body")]),
+      ...(finish.failure === undefined
+        ? []
+        : [h.div([h.Class("mt-4")], [alertView(failureMessage(finish.failure), h)])]),
+      appButton(
+        {
+          text: message("offboarding.resume.action"),
+          isDisabled: finish.busy,
+          onClick: finish.onFinish,
+          className: `mt-4 ${secondaryButtonClass}`,
+        },
+        h,
+      ),
+    ],
+  );
+
+export const notInOrganizationView = <Message>(
+  finish: PendingOffboardingControl<Message>,
+  h: HtmlBuilder<Message>,
+): Html =>
   screenView(
     message("notInOrganization.title"),
     [
       h.p([h.Class("mt-4 text-lg text-muted")], [message("notInOrganization.intro")]),
+      finishOffboardingView(finish, h),
       downloadPersonalDataView(h),
       signOutView(h),
     ],
@@ -277,6 +310,7 @@ export const chooseOrganizationView = <Message>(
   organizations: readonly OrganizationSummary[],
   busy: boolean,
   onChoose: (id: OrganizationId) => Message,
+  finish: PendingOffboardingControl<Message>,
   h: HtmlBuilder<Message>,
 ): Html =>
   screenView(
@@ -303,6 +337,7 @@ export const chooseOrganizationView = <Message>(
           ),
         ),
       ),
+      finishOffboardingView(finish, h),
       downloadPersonalDataView(h),
       signOutView(h),
     ],

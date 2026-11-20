@@ -733,6 +733,29 @@ describe("App Stories", () => {
         Story.Command.resolve(LoadSession, Message.GotSession({ result: { _tag: "NotInOrganization" } })),
       );
     });
+
+    it("finishes a confirmed deletion from the screen with no Organization, without a name", () => {
+      Story.story(
+        update,
+        Story.given({
+          ...initialModel(makeUrl("https://app.surveybeat.com/"), []),
+          session: { _tag: "NotInOrganization" },
+        }),
+        Story.message(Message.FinishPendingOffboarding()),
+        Story.Command.expectHas(OffboardOrganization({ confirmation: "" })),
+        Story.model((m) => {
+          expect(m.offboarding.busy).toBe(true);
+        }),
+        Story.Command.resolve(
+          OffboardOrganization,
+          Message.OffboardedOrganization({ outcome: { _tag: "Failure", failure: "Forbidden" } }),
+        ),
+        Story.model((m) => {
+          expect(m.offboarding.busy).toBe(false);
+          expect(Option.getOrNull(m.offboarding.failure)).toBe("Forbidden");
+        }),
+      );
+    });
   });
 
   describe("Erasing personal data (GDPR 307)", () => {

@@ -284,6 +284,9 @@ export const catalog = {
   "offboarding.confirm.body":
     "Deleting cannot be undone. Backups keep a copy of the Organization for up to {days} days, then they expire. You are signed out afterwards.",
   "offboarding.confirm.action": "Delete permanently",
+  "offboarding.resume.body":
+    "If you already confirmed deleting an Organization, finish that deletion. It removes only the Organization you confirmed. Another Organization you belong to stays.",
+  "offboarding.resume.action": "Finish that deletion",
   "settings.failedEmails.resend": "Resend",
   "settings.failedEmails.resending": "Resending…",
   "settings.failedEmails.status.queued": "Queued…",

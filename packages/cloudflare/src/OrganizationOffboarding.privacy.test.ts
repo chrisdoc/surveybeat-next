@@ -26,7 +26,7 @@ import * as Schema from "effect/Schema";
 import * as Scope from "effect/Scope";
 import { d1OrganizationOffboarding } from "./auth/D1OrganizationOffboarding.ts";
 import { d1PeopleIndex } from "./auth/D1PeopleIndex.ts";
-import { organizationOffboarding } from "./organization/Offboarding.ts";
+import { activePersonUnlessWiped, organizationOffboarding } from "./organization/Offboarding.ts";
 import { makeSqlDirectory } from "./SqlDirectory.ts";
 import { makeSqlPulses } from "./SqlPulses.ts";
 import { makeSqlSendRepository } from "./SqlSendRepository.ts";
@@ -280,13 +280,14 @@ const checkedAs = (userId: AuthUserId, member: Option.Option<Member>): CheckedSe
 });
 
 interface StorageCall {
-  readonly name: "deleteAlarm" | "deleteAll";
+  readonly name: "markWiped" | "deleteAlarm" | "deleteAll";
 }
 
 const world = (options: { readonly adaRemovedInGlobex?: boolean } = {}) => {
   const organization = seedOrganization();
   const index = seedD1({ adaRemovedInGlobex: options.adaRemovedInGlobex ?? false });
   const calls: StorageCall[] = [];
+  const confirmations: string[] = [];
 
   const storage = {
     deleteAlarm: () => {
@@ -310,6 +311,9 @@ const world = (options: { readonly adaRemovedInGlobex?: boolean } = {}) => {
       directory: makeSqlDirectory(sql, sends),
       pulses: makeSqlPulses(sql),
       storage,
+      onWipe: () => {
+        calls.push({ name: "markWiped" });
+      },
     });
   });
 
@@ -324,8 +328,11 @@ const world = (options: { readonly adaRemovedInGlobex?: boolean } = {}) => {
       const offboarding = yield* durable;
 
       const directory = {
-        confirmOffboarding: (_organizationId: OrganizationId, actorId: PersonId, confirmation: string) =>
-          offboarding.confirmOffboarding(actorId, confirmation),
+        confirmOffboarding: (_organizationId: OrganizationId, actorId: PersonId, confirmation: string) => {
+          confirmations.push(confirmation);
+
+          return offboarding.confirmOffboarding(actorId, confirmation);
+        },
         offboardingExport: (_organizationId: OrganizationId, actorId: PersonId, now: number) =>
           offboarding.viewOffboardingExport(actorId, now),
       } as unknown as OrganizationDirectory["Service"];
@@ -346,7 +353,7 @@ const world = (options: { readonly adaRemovedInGlobex?: boolean } = {}) => {
   const offboard = (checked: CheckedSession, confirmation: string) =>
     run(offboardOrganization(checked, confirmation).pipe(Effect.exit));
 
-  return { organization, index, calls, run, durable, offboard };
+  return { organization, index, calls, confirmations, run, durable, offboard };
 };
 
 const FORBIDDEN_IN_EXPORT = [
@@ -449,7 +456,7 @@ describe("offboarding an Organization removes it everywhere and nothing else (GD
       assert.strictEqual(rowsOf(index, "captured_email", "message_id", "captured-sign-in"), 1);
       assert.deepStrictEqual(
         calls.map((call) => call.name),
-        ["deleteAlarm", "deleteAll"],
+        ["markWiped", "deleteAlarm", "deleteAll"],
       );
     }),
   );
@@ -626,6 +633,47 @@ describe("offboarding an Organization removes it everywhere and nothing else (GD
     }),
   );
 
+  it.effect(
+    "finishes the pending Organization when the session is a member of another one with the same name",
+    () =>
+      Effect.gen(function* () {
+        const { index, confirmations, run, offboard } = world();
+
+        yield* run(
+          Effect.gen(function* () {
+            yield* (yield* OrganizationOffboarding).begin(ACME, USER_ADMIN, 1);
+          }),
+        );
+
+        const exit = yield* offboard(
+          {
+            ...checkedAs(USER_ADMIN, Option.none()),
+            member: Option.some({
+              organization: { id: OrganizationId.make("globex"), name: ORGANIZATION_NAME },
+              personId: ADMIN,
+              organizationAdmin: true,
+              locale: null,
+              detectedLocale: null,
+              organizationLocale: "en",
+            }),
+          },
+          ORGANIZATION_NAME,
+        );
+
+        assert.strictEqual(exit._tag, "Success");
+        assert.deepStrictEqual(confirmations, []);
+
+        for (const [table, column] of ORGANIZATION_TABLES) {
+          assert.strictEqual(rowsOf(index, table, column, "acme"), 0, table);
+        }
+
+        assert.strictEqual(rowsOf(index, "person_index", "organization_id", "globex"), 2);
+        assert.strictEqual(rowsOf(index, "organization_index", "organization_id", "globex"), 1);
+        assert.strictEqual(rowsOf(index, "invitation_index", "organization_id", "globex"), 1);
+        assert.strictEqual(rowsOf(index, "submission_index", "organization_id", "globex"), 1);
+      }),
+  );
+
   it.effect("finds no pending offboarding and writes nothing for an account that never confirmed", () =>
     Effect.gen(function* () {
       const { organization, index, run } = world();
@@ -675,8 +723,30 @@ describe("wiping the Durable Object", () => {
 
       assert.deepStrictEqual(
         calls.map((call) => call.name),
-        ["deleteAlarm", "deleteAll", "deleteAlarm", "deleteAll"],
+        ["markWiped", "deleteAlarm", "deleteAll", "markWiped", "deleteAlarm", "deleteAll"],
       );
+    }),
+  );
+
+  it.effect("returns no Person and does not read storage after the wipe has started", () =>
+    Effect.gen(function* () {
+      let reads = 0;
+
+      const absent = yield* activePersonUnlessWiped(
+        true,
+        Effect.sync(() => {
+          reads += 1;
+
+          return { id: "still-there" };
+        }),
+      );
+
+      assert.isNull(absent);
+      assert.strictEqual(reads, 0);
+
+      const kept = yield* activePersonUnlessWiped(false, Effect.succeed({ id: "kept" }));
+
+      assert.deepStrictEqual(kept, { id: "kept" });
     }),
   );
 });

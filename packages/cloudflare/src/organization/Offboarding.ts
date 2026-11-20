@@ -19,16 +19,23 @@ export interface OrganizationStorage {
   readonly deleteAll: () => Promise<void>;
 }
 
+export const activePersonUnlessWiped = <A, E, R>(
+  wiped: boolean,
+  load: Effect.Effect<A, E, R>,
+): Effect.Effect<A | null, E, R> => (wiped ? Effect.succeed(null) : load);
+
 export const organizationOffboarding = ({
   sql,
   directory,
   pulses,
   storage,
+  onWipe,
 }: {
   readonly sql: SqliteClient.SqliteClient;
   readonly directory: { readonly load: Effect.Effect<DirectoryState> };
   readonly pulses: { readonly load: Effect.Effect<PulseState> };
   readonly storage: OrganizationStorage;
+  readonly onWipe: () => void;
 }) => ({
   viewOffboardingExport: (actorId: PersonId, now: number) =>
     Effect.gen(function* () {
@@ -67,7 +74,8 @@ export const organizationOffboarding = ({
     directory.load.pipe(Effect.map((state) => offboardingConfirmation(state, actorId, confirmation))),
 
   wipeOrganization: () =>
-    Effect.promise(() => storage.deleteAlarm()).pipe(
+    Effect.sync(onWipe).pipe(
+      Effect.andThen(Effect.promise(() => storage.deleteAlarm())),
       Effect.andThen(Effect.promise(() => storage.deleteAll())),
     ),
 });

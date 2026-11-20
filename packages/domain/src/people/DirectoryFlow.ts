@@ -256,39 +256,35 @@ export const offboardOrganization = Effect.fnUntraced(function* (
 ) {
   const offboarding = yield* OrganizationOffboarding;
   const userId = checked.session.identity.userId;
+  const pending = yield* offboarding.pending(userId);
 
-  const organizationId = yield* Option.match(checked.member, {
-    onSome: (member) =>
-      Effect.gen(function* () {
-        const directory = yield* OrganizationDirectory;
+  const organizationId = Option.isSome(pending)
+    ? pending.value
+    : yield* Option.match(checked.member, {
+        onSome: (member) =>
+          Effect.gen(function* () {
+            const directory = yield* OrganizationDirectory;
 
-        const confirmed = yield* directory.confirmOffboarding(
-          member.organization.id,
-          member.personId,
-          confirmation,
-        );
+            const confirmed = yield* directory.confirmOffboarding(
+              member.organization.id,
+              member.personId,
+              confirmation,
+            );
 
-        if (confirmed._tag === "Rejected") {
-          return yield* fail(confirmed.rejection);
-        }
+            if (confirmed._tag === "Rejected") {
+              return yield* fail(confirmed.rejection);
+            }
 
-        const owned = yield* offboarding.begin(
-          member.organization.id,
-          userId,
-          yield* Clock.currentTimeMillis,
-        );
+            const owned = yield* offboarding.begin(
+              member.organization.id,
+              userId,
+              yield* Clock.currentTimeMillis,
+            );
 
-        return owned ? member.organization.id : yield* new Forbidden();
-      }),
-    onNone: () =>
-      Effect.flatMap(
-        offboarding.pending(userId),
-        Option.match({
-          onNone: () => Effect.fail(new Forbidden()),
-          onSome: Effect.succeed,
-        }),
-      ),
-  });
+            return owned ? member.organization.id : yield* new Forbidden();
+          }),
+        onNone: () => Effect.fail(new Forbidden()),
+      });
 
   yield* offboarding.revokeAccess(organizationId);
   yield* offboarding.wipe(organizationId);

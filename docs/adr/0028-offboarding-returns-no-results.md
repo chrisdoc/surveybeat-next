@@ -14,12 +14,12 @@ It holds no Result, comment, theme, Action, Note, Submission, Answer, participat
 **Deleting** (`POST /api/organization/offboarding` with `{ confirmation }`) is irreversible and needs `organization.offboard`, granted only to the admin. A Lead or member gets 403, and the caller's own Person is no substitute. The typed confirmation must equal the Organization's stored name exactly; a wrong name is `ErasureNotConfirmed` (422) and changes nothing. The sole Organization admin may delete: it is neither `LastAdmin` nor `LastLead`. The route needs the same origin, like erasure.
 
 **Crash order.** The Durable Object is the system of record and D1 holds the global index, so the two stores are deleted in a fixed order that a retry can finish:
-1. The handler resolves the session and the Organization the way `currentMember` does.
-2. If the Durable Object still has this Person as an Organization admin, the typed name is required and `organization_offboarding` (migration `0012_organization_offboarding.sql`: `organization_id`, `actor_user_id`, `confirmed_at`) gets a row for the sign-in account. An existing row must belong to the same account.
-3. If the Durable Object no longer has the Person, the handler continues only when `organization_offboarding.actor_user_id` is the session's account, and does not ask for the name again.
-4. Anyone else is `Forbidden`. A wrong name writes no row and deletes nothing.
+1. The handler authenticates the session cookie. When `organization_offboarding` already has a row for that account, that row's Organization is the one to finish. The handler does not resolve a Member and does not read the Organization Durable Object to find one, including when the session is also a Member of a different Organization.
+2. Otherwise the handler resolves the Member the way `currentMember` does. If the Durable Object still has this Person as an Organization admin, the typed name is required and `organization_offboarding` (migration `0012_organization_offboarding.sql`: `organization_id`, `actor_user_id`, `confirmed_at`) gets a row for the sign-in account. An existing row must belong to the same account.
+3. A pending row is finished without asking for the name again. The typed name is ignored, so an Organization with the same name cannot be selected in its place.
+4. Anyone else is `Forbidden`. A wrong name on a first confirmation writes no row and deletes nothing.
 5. D1 loses this Organization's `invitation_index`, `test_invitation_index`, `test_submission_index`, `submission_index` and `auth_session_organization` rows, so Invitation tokens and Edit keys fail closed in `PageRoutes` and `SubmissionRoutes`.
-6. The Organization Durable Object runs `deleteAlarm()` and then `deleteAll()` and nothing after it, so a table added later cannot be missed. The call is safe on empty storage.
+6. The Organization Durable Object runs `deleteAlarm()` and then `deleteAll()` and nothing after it, so a table added later cannot be missed. The call is safe on empty storage. Before the storage calls, the live isolate records that it is wiped, and `activePerson` then returns no Person without reading SQLite. A later isolate applies migrations to empty storage and also finds no Person. `GET /auth/session` shows the account as not in an Organization, and the same account finishes from that screen or from the Organization picker. Choosing the wiped Organization is refused.
 7. D1 reads `person_index.auth_user_id` for the Organization, then in one batch (all or nothing) deletes the `captured_email` rows whose `message_id` is among the Organization's `email_message` rows (never by recipient), then `email_message`, `person_index`, `organization_claim`, `organization_offboarding` and `organization_index`.
 8. For each collected account the existing `eraseAccount` path runs. It keeps the account while any `person_index` row remains, including one with `removed_at` set, in another Organization.
 
@@ -36,7 +36,7 @@ It holds no Result, comment, theme, Action, Note, Submission, Answer, participat
 
 ## Consequences
 
-- `OrganizationDirectory` gains `offboardingExport` and `confirmOffboarding`; a new `OrganizationOffboarding` service owns the D1 side. The Organization class gains `viewOffboardingExport`, `confirmOffboarding` and `wipeOrganization`.
+- `OrganizationDirectory` gains `offboardingExport` and `confirmOffboarding`; a new `OrganizationOffboarding` service owns the D1 side. The Organization class gains `viewOffboardingExport`, `confirmOffboarding` and `wipeOrganization`. A pending offboarding is finished before any other Organization is considered. The screens for no Organization and for choosing an Organization can finish a deletion that was already confirmed.
 - Two endpoints join `PrivacyRegistry` as `NoResultData`.
 - A sign-in account that had a Person only in the deleted Organization is erased with it. Accounts collected in step 7 are lost if the Worker stops between steps 7 and 8; such a human erases the account through `me.eraseAccount`.
 - The shipped legal pages are not changed by this decision.

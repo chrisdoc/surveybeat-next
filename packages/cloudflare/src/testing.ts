@@ -483,20 +483,26 @@ export class MemoryOrganizations {
         return this.person(organizationId, personId)?.authUserId === userId;
       }),
     activePerson: (organizationId, userId) =>
-      Effect.sync(() => {
+      Effect.suspend(() => {
+        if (!this.organizations.has(organizationId)) {
+          return Effect.die(new Error("no such table: person"));
+        }
+
         const found = this.organization(organizationId).state.people.find(
           (person) => person.authUserId === userId && person.removedAt === null,
         );
 
         const organizationLocale = this.organization(organizationId).state.defaultLocale;
 
-        return Option.map(Option.fromNullishOr(found), (person) => ({
-          personId: person.id,
-          organizationAdmin: person.organizationAdmin,
-          locale: person.locale,
-          detectedLocale: person.detectedLocale,
-          organizationLocale,
-        }));
+        return Effect.succeed(
+          Option.map(Option.fromNullishOr(found), (person) => ({
+            personId: person.id,
+            organizationAdmin: person.organizationAdmin,
+            locale: person.locale,
+            detectedLocale: person.detectedLocale,
+            organizationLocale,
+          })),
+        );
       }),
   });
 

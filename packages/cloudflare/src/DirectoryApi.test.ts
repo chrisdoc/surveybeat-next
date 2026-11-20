@@ -853,8 +853,13 @@ describe("offboarding an Organization (GDPR 308)", () => {
   it("refuses the export to a Lead and a member", async () => {
     const { lead, member } = await setup();
 
-    expect((await lead.call("GET", exportPath)).status).toBe(403);
-    expect((await member.call("GET", exportPath)).status).toBe(403);
+    const leadResponse = await lead.get(exportPath);
+    const memberResponse = await member.get(exportPath);
+
+    expect(leadResponse.status).toBe(403);
+    expect(memberResponse.status).toBe(403);
+    expect(leadResponse.headers.get("content-disposition")).toBeNull();
+    expect(memberResponse.headers.get("content-disposition")).toBeNull();
   });
 
   it("refuses to delete for a Lead and a member, and changes nothing", async () => {
@@ -903,5 +908,54 @@ describe("offboarding an Organization (GDPR 308)", () => {
     expect(world.durable.organizations.has(acme.id)).toBe(false);
     expect(world.index.organizations.has(acme.id)).toBe(false);
     expect([...world.index.persons.values()].some((person) => person.organizationId === acme.id)).toBe(false);
+  });
+
+  it("finishes a wiped Organization without reading it again", async () => {
+    const { world, acme, admin } = await setup();
+
+    const userId = world.sessions.userIdOf("admin@example.com");
+    world.offboardings.set(acme.id, userId);
+    world.durable.organizations.delete(acme.id);
+
+    expect((await offboard(admin, "")).status).toBe(204);
+    expect(world.index.organizations.has(acme.id)).toBe(false);
+    expect([...world.index.persons.values()].some((person) => person.organizationId === acme.id)).toBe(false);
+  });
+
+  it("finishes the pending Organization when the session is in another one with the same name", async () => {
+    const { world, acme, admin } = await setup();
+
+    const globex = world.addOrganization("Acme");
+    const userId = world.sessions.userIdOf("admin@example.com");
+    const personId = world.addPerson(globex.id, "admin@example.com", true);
+    world.durable.update(globex.id, personId, { authUserId: userId });
+
+    const indexed = world.index.persons.get(`${globex.id}/${personId}`);
+
+    if (indexed === undefined) {
+      throw new Error("globex person missing");
+    }
+
+    indexed.userId = userId;
+    world.offboardings.set(acme.id, userId);
+
+    const session = [...world.sessions.sessions.values()].find((each) => each.userId === userId);
+
+    if (session === undefined) {
+      throw new Error("no session");
+    }
+
+    world.sessions.chosen.set(session.sessionId, globex.id);
+
+    expect((await admin.session()).body).toMatchObject({
+      _tag: "SignedIn",
+      organization: { id: globex.id },
+    });
+    expect((await offboard(admin, "Acme")).status).toBe(204);
+    expect(world.durable.organizations.has(globex.id)).toBe(true);
+    expect(world.index.organizations.has(globex.id)).toBe(true);
+    expect(world.durable.organizations.has(acme.id)).toBe(false);
+    expect(world.index.organizations.has(acme.id)).toBe(false);
+    expect(world.offboardings.has(globex.id)).toBe(false);
   });
 });
