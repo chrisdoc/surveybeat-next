@@ -16,7 +16,7 @@ catalog:
   "@better-auth/passkey": 1.7.25
   "@effect/sql-sqlite-do": 4.1.4
   effect: 4.1.4
-  xstate: 6.0.0-beta.2
+  xstate: 6.0.0-beta.3
   "@xstate/effect": 1.0.0-beta.1
   "@effect/platform-node": 4.1.4
   "@effect/vitest": 4.1.4
