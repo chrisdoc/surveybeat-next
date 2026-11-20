@@ -1,0 +1,43 @@
+{
+  "cli_version": "0.13.4",
+  "checkpoint_id": "01M7WNWKJR74SX4WNVA8CNQR8S",
+  "strategy": "manual-commit",
+  "branch": "t3/streampipe-turbot-cloudflare-compliance",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "infra/alchemy.run.ts",
+    "infra/compliance/controls/transport_tls.pp",
+    "packages/cloudflare/src/ZoneSecurity.test.ts",
+    "packages/cloudflare/src/ZoneSecurity.ts",
+    "packages/cloudflare/src/index.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 189894,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 6278838,
+    "output_tokens": 37364,
+    "api_call_count": 41
+  },
+  "redaction": {
+    "replacements": 189,
+    "layers": {
+      "betterleaks": 7,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 19,
+      "credentialed_uri": 0,
+      "entropy": 178,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
