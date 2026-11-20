@@ -66,7 +66,10 @@ describe("privacy notice content", () => {
 
   it("states the retention periods from the code and the policy", () => {
     expect(text).toContain("24 months");
+    expect(text).toContain("not in place yet");
     expect(text).toContain("30 days");
+    expect(text).toContain("not published on this page yet");
+    expect(text).toContain("redacted titles of open Actions");
   });
 });
 

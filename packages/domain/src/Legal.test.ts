@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "@effect/vitest";
 import { Legal, legalPages, legalUrl } from "./Legal.ts";
 
 describe("Legal", () => {

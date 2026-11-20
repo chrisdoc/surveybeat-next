@@ -6,7 +6,7 @@ export const legalPrivacyCatalog = {
     "This notice is the information that GDPR Articles 13 and 14 require. It applies to the SurveyBeat website, the app and the answer page. Effective {effective}.",
   "legal.privacy.s01.title": "Who is responsible",
   "legal.privacy.s01.p1":
-    "SurveyBeat runs surveybeat.app. For anything about privacy, including requests under the GDPR, write to {email}.",
+    "SurveyBeat runs surveybeat.app. The legal name and postal address of the operator are not published on this page yet. For anything about privacy, including requests under the GDPR, write to {email}.",
   "legal.privacy.s01.p2":
     "SurveyBeat has two roles, and they decide who answers your request. The next section explains them.",
   "legal.privacy.s02.title": "Two roles: processor and controller",
@@ -49,7 +49,7 @@ export const legalPrivacyCatalog = {
   "legal.privacy.s03.tanswers.basis":
     "Anonymous Submissions are not personal data (see the next section). Where a comment still identifies someone, point f applies.",
   "legal.privacy.s03.tanswers.retention":
-    "Raw answers and comments for {rawMonths} months unless the Organization sets another period. Aggregated Results may be kept longer. Backups for {restoreDays} days.",
+    "The policy is {rawMonths} months for raw Answers and comments, unless the Organization sets another period. Automatic deletion on that schedule is not in place yet, so they stay with the Pulse until it is. Aggregated Results may be kept longer. Backups are kept for {restoreDays} days.",
   "legal.privacy.s03.tresults.data":
     "Results, Lead's Notes and Actions: scores, response rates, comment themes, the Lead's Note and Actions with an owner and a due date. The Organization is the controller.",
   "legal.privacy.s03.tresults.purpose": "Let a Team talk about its Results and agree what to change.",
@@ -85,7 +85,7 @@ export const legalPrivacyCatalog = {
   "legal.privacy.s05.p1":
     "A comment is redacted when it is stored: names of People in the Organization, email addresses, phone numbers, handles and links are replaced with placeholders. The original text is not kept. Redaction follows patterns and cannot promise that free text never identifies anyone, so leave out anything that could identify you.",
   "legal.privacy.s05.p2":
-    "AI processing is off until an Organization admin turns it on. While it is on, the redacted comments and the Question text are sent to an AI service to write comment themes and the AI part of a discussion guide. Nothing else is sent: no name, no Person, no Team, no Round, no time. The service runs in the EU, keeps no prompts or output, and cannot fall back to another provider. If it is unavailable, the request waits and is retried. The answer page and the Invitation tell members when AI processing is on. The AI service only summarises. Nothing about a Person is decided by it.",
+    "AI processing is off until an Organization admin turns it on. While it is on, a request can include the Question text, each Question's dimension, score, change and whether that change is larger than usual, the same figures for each Dimension, redacted comment text tied to a Question position, and the redacted titles of open Actions. It does not include a name, a Person, a Team, a Round or a time. The service runs in the EU, keeps no prompts or output, and cannot fall back to another provider. If it is unavailable, the request waits and is retried. The answer page and the Invitation tell members when AI processing is on. The AI service only summarises. Nothing about a Person is decided by it.",
   "legal.privacy.s06.title": "Where the data comes from, and whether you must provide it",
   "legal.privacy.s06.p1":
     "Your email address and Team Membership come from your Organization, which added you, as Article 14 requires us to tell you. Everything you answer comes from you.",

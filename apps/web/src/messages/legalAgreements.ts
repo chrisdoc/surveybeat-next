@@ -6,7 +6,7 @@ export const legalAgreementsCatalog = {
     "These terms apply when you use SurveyBeat for an Organization. They include the Data Processing Agreement and the Privacy Notice. Effective {effective}.",
   "legal.terms.s01.title": "Who these terms are between",
   "legal.terms.s01.p1":
-    "The terms are between SurveyBeat and the Organization that uses it. An Organization admin who signs in and creates the Organization accepts the terms for it and confirms that they may do so. People who only answer a Pulse do not agree to a contract. Their rights are in the Privacy Notice.",
+    "The terms are between SurveyBeat and the Organization that uses it. The legal name and postal address of the operator are not published on this page yet. An Organization admin who signs in and creates the Organization accepts the terms for it and confirms that they may do so. People who only answer a Pulse do not agree to a contract. Their rights are in the Privacy Notice.",
   "legal.terms.s02.title": "The service",
   "legal.terms.s02.p1":
     "SurveyBeat lets an Organization run Pulses for its Teams: short recurring Questions sent by email, combined Results, comment themes, discussion guides and Actions. SurveyBeat is built for businesses and is not offered to consumers.",
@@ -61,7 +61,7 @@ export const legalAgreementsCatalog = {
   "legal.dpa.description":
     "The Article 28 agreement between an Organization and SurveyBeat: instructions, security measures, sub-processors, breach notice and return or deletion of data.",
   "legal.dpa.lede":
-    "This agreement applies between an Organization, the controller, and SurveyBeat, the processor, whenever SurveyBeat processes personal data for the Organization. It is part of the Terms of Service and meets GDPR Article 28(3). Effective {effective}.",
+    "This agreement applies between an Organization, the controller, and SurveyBeat, the processor, whenever SurveyBeat processes personal data for the Organization. The legal name and postal address of the operator are not published on this page yet. It is part of the Terms of Service and meets GDPR Article 28(3). Effective {effective}.",
   "legal.dpa.s01.title": "Subject matter, duration and nature",
   "legal.dpa.s01.p1":
     "SurveyBeat processes personal data to run Pulses for the Organization: storing People and Teams, sending Invitations and reminders by email, collecting Submissions, working out Results and, if an admin turns it on, writing comment themes and discussion guides. The processing lasts as long as the Organization uses SurveyBeat and ends as clause 8 says.",
@@ -104,7 +104,7 @@ export const legalAgreementsCatalog = {
     "SurveyBeat gives the Organization the information needed to show compliance with this agreement, and allows audits by the Organization or an auditor it names, with reasonable notice, normally once a year and again after a breach. The audit may not disclose other Organizations' data.",
   "legal.dpa.s08.title": "Return and deletion",
   "legal.dpa.s08.p1":
-    "When the services end, SurveyBeat returns the Organization's personal data on request in a common machine-readable format and then deletes it, unless the law requires it to keep a copy. Copies in backups are overwritten as the {restoreDays}-day restore window passes. Anonymous Submissions are not personal data. They are deleted when the Organization's retention period for them ends, or when the Organization is deleted.",
+    "When the services end, SurveyBeat returns the Organization's personal data on request in a common machine-readable format and then deletes it, unless the law requires it to keep a copy. Copies in backups are overwritten as the {restoreDays}-day restore window passes. Anonymous Submissions are not personal data. Automatic deletion at the end of the retention period is not in place yet. They are deleted when the Organization is deleted.",
   "legal.dpa.s09.title": "Transfers",
   "legal.dpa.s09.p1":
     "A transfer of personal data outside the EU and EEA takes place only under an adequacy decision, the EU Standard Contractual Clauses or another safeguard Chapter V of the GDPR allows. Comment text for AI processing goes only to endpoints in the EU.",
@@ -138,12 +138,12 @@ export const legalAgreementsCatalog = {
     "Standard Contractual Clauses in OpenRouter's data processing terms for its own data. Comment text goes to the EU only.",
   "legal.subprocessors.s01.tgoogle.name": "Google Cloud (google-vertex/europe)",
   "legal.subprocessors.s01.tgoogle.purpose":
-    "Runs the AI model for comment themes and discussion guides on a zero-retention endpoint. Receives only redacted comment text and Question text.",
+    "Runs the AI model for comment themes and discussion guides on a zero-retention endpoint. A request can include Question text, Question and Dimension scores and changes, whether a change is larger than usual, redacted comment text tied to a Question position, and redacted titles of open Actions. It does not include a name, a Person, a Team, a Round or a time.",
   "legal.subprocessors.s01.tgoogle.location": "European Union",
   "legal.subprocessors.s01.tgoogle.basis": "Stays in the EU, so no transfer.",
   "legal.subprocessors.s01.taws.name": "Amazon Web Services (amazon-bedrock/eu-west-1)",
   "legal.subprocessors.s01.taws.purpose":
-    "The second EU zero-retention endpoint for the same model. Used only when the first cannot serve the request.",
+    "The second EU zero-retention endpoint for the same request. Used only when the first cannot serve it.",
   "legal.subprocessors.s01.taws.location": "Ireland, European Union",
   "legal.subprocessors.s01.taws.basis": "Stays in the EU, so no transfer.",
   "legal.subprocessors.s02.title": "How AI processing is limited",
