@@ -161,13 +161,13 @@ describe("D1 PeopleIndex", () => {
       sqlite.exec(readFileSync(new URL(file, migrations), "utf8"));
     }
 
-    assert.throws(() =>
+    assert.throws(() => {
       sqlite
         .prepare(
           "INSERT INTO person_index (organization_id, person_id, email) VALUES ('a', 'p', 'Ada@x.com')",
         )
-        .run(),
-    );
+        .run();
+    });
   });
 });
 

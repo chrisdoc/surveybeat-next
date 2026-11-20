@@ -1,10 +1,10 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import path from "node:path";
 
 const here = import.meta.dirname;
 
-const baselinePath = join(here, "diagnostics-ledger.json");
+const baselinePath = path.join(here, "diagnostics-ledger.json");
 
 const sourceFile = /\.(?:[cm]?[jt]sx?)$/;
 

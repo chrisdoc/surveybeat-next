@@ -2,19 +2,19 @@
 
 import tailwindcss from "@tailwindcss/vite";
 import { readFileSync, rmSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
+import path from "node:path";
 import { defineConfig } from "vite";
 import type { Plugin } from "vite";
 import { renderSitePage } from "./src/site/render.ts";
 
-const outDir = resolve(import.meta.dirname, "dist-site");
+const outDir = path.resolve(import.meta.dirname, "dist-site");
 
 const prerenderSite = (): Plugin => ({
   name: "prerender-site",
   closeBundle() {
-    const shellPath = resolve(outDir, "site.html");
+    const shellPath = path.resolve(outDir, "site.html");
     const shell = readFileSync(shellPath, "utf8");
-    writeFileSync(resolve(outDir, "index.html"), renderSitePage("en", shell));
+    writeFileSync(path.resolve(outDir, "index.html"), renderSitePage("en", shell));
     rmSync(shellPath);
   },
 });

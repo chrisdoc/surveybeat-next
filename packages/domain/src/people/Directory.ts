@@ -577,79 +577,88 @@ export const decide = (
   }
 };
 
-export const applyChanges = (state: DirectoryState, changes: readonly DirectoryChange[]): DirectoryState =>
-  changes.reduce<DirectoryState>((current, change) => {
-    const updatePerson = (personId: PersonId, update: (person: PersonRecord) => PersonRecord) => ({
-      ...current,
-      people: current.people.map((person) => (person.id === personId ? update(person) : person)),
-    });
+const applyChange = (state: DirectoryState, change: DirectoryChange): DirectoryState => {
+  const updatePerson = (personId: PersonId, update: (person: PersonRecord) => PersonRecord) => ({
+    ...state,
+    people: state.people.map((person) => (person.id === personId ? update(person) : person)),
+  });
 
-    switch (change._tag) {
-      case "PersonAdded": {
-        return { ...current, people: [...current.people, change.person] };
-      }
-
-      case "PersonRestored": {
-        return updatePerson(change.personId, (person) => ({ ...person, removedAt: null }));
-      }
-
-      case "PersonRemoved": {
-        return updatePerson(change.personId, (person) => ({ ...person, removedAt: change.at }));
-      }
-
-      case "AdminSet": {
-        return updatePerson(change.personId, (person) => ({
-          ...person,
-          organizationAdmin: change.organizationAdmin,
-        }));
-      }
-
-      case "TeamAdded": {
-        return { ...current, teams: [...current.teams, change.team] };
-      }
-
-      case "TeamUpdated": {
-        return {
-          ...current,
-          teams: current.teams.map((team) => (team.id === change.team.id ? change.team : team)),
-        };
-      }
-
-      case "MembershipStarted": {
-        return { ...current, memberships: [...current.memberships, change.membership] };
-      }
-
-      case "MembershipEnded": {
-        return {
-          ...current,
-          memberships: current.memberships.map((membership) =>
-            membership.id === change.membershipId ? { ...membership, endedAt: change.at } : membership,
-          ),
-        };
-      }
-
-      case "SettingsUpdated": {
-        return {
-          ...current,
-          minimumGroupSize: change.minimumGroupSize,
-          aiProcessing: change.aiProcessing,
-          defaultLocale: change.defaultLocale,
-        };
-      }
-
-      case "PersonLanguageSet": {
-        return updatePerson(change.personId, (person) => ({
-          ...person,
-          locale: change.locale,
-          detectedLocale: change.detectedLocale,
-        }));
-      }
-
-      case "EmailRequested": {
-        return current;
-      }
+  switch (change._tag) {
+    case "PersonAdded": {
+      return { ...state, people: [...state.people, change.person] };
     }
-  }, state);
+
+    case "PersonRestored": {
+      return updatePerson(change.personId, (person) => ({ ...person, removedAt: null }));
+    }
+
+    case "PersonRemoved": {
+      return updatePerson(change.personId, (person) => ({ ...person, removedAt: change.at }));
+    }
+
+    case "AdminSet": {
+      return updatePerson(change.personId, (person) => ({
+        ...person,
+        organizationAdmin: change.organizationAdmin,
+      }));
+    }
+
+    case "TeamAdded": {
+      return { ...state, teams: [...state.teams, change.team] };
+    }
+
+    case "TeamUpdated": {
+      return {
+        ...state,
+        teams: state.teams.map((team) => (team.id === change.team.id ? change.team : team)),
+      };
+    }
+
+    case "MembershipStarted": {
+      return { ...state, memberships: [...state.memberships, change.membership] };
+    }
+
+    case "MembershipEnded": {
+      return {
+        ...state,
+        memberships: state.memberships.map((membership) =>
+          membership.id === change.membershipId ? { ...membership, endedAt: change.at } : membership,
+        ),
+      };
+    }
+
+    case "SettingsUpdated": {
+      return {
+        ...state,
+        minimumGroupSize: change.minimumGroupSize,
+        aiProcessing: change.aiProcessing,
+        defaultLocale: change.defaultLocale,
+      };
+    }
+
+    case "PersonLanguageSet": {
+      return updatePerson(change.personId, (person) => ({
+        ...person,
+        locale: change.locale,
+        detectedLocale: change.detectedLocale,
+      }));
+    }
+
+    case "EmailRequested": {
+      return state;
+    }
+  }
+};
+
+export const applyChanges = (state: DirectoryState, changes: readonly DirectoryChange[]): DirectoryState => {
+  let current = state;
+
+  for (const change of changes) {
+    current = applyChange(current, change);
+  }
+
+  return current;
+};
 
 export const teamSummaryOf = (team: TeamRecord, actor: Actor, memberCount?: number): TeamSummary => ({
   id: team.id,

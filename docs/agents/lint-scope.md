@@ -1,6 +1,6 @@
 # Lint scope
 
-`oxlint.config.ts` replaces the old `.oxlintrc.json`. It extends `ultracite/oxlint/core` 8.3.0, the config the rat-stack reference uses, and loads the plugins #205 names: `surveybeat`, `no-comments`, `foldkit` (scoped to the Foldkit app), `anti-slop`, `anti-slop-effect`, `effect-tests`, `patterns`, and `xstate-effect` (from `@xstate/effect/oxlint`), plus Ultracite's opt-in `ultracite/oxlint/landmines` preset (`@interfere/landmines`). 429 rules run at `error`; the ones that are not at `error` are listed below by name.
+`oxlint.config.ts` replaces the old `.oxlintrc.json`. It extends `ultracite/oxlint/core` 8.3.0, the config the rat-stack reference uses, and loads the plugins #205 names: `surveybeat`, `no-comments`, `foldkit` (scoped to the Foldkit app), `anti-slop`, `anti-slop-effect`, `effect-tests`, `patterns`, and `xstate-effect` (from `@xstate/effect/oxlint`), plus Ultracite's opt-in `ultracite/oxlint/landmines` preset (`@interfere/landmines`). 465 rules run at `error` across the base config and its overrides; the ones that are not at `error` are listed below by name.
 
 ## Adopted surface
 
@@ -25,7 +25,7 @@ Each is an `overrides` entry that names the rule and the files it cannot apply t
 
 Adopting the reference's surface verbatim would have meant rewriting this tree: Ultracite core alone produced 6,713 findings here and the plugin set another 6,431. #205's rule is "`error` when clean, otherwise a counted baseline". Rather than carry a 14k baseline, the rules that need a repo-wide restyle are off by name in `restyleExceptionsOff`, with the count each one produced on 2026-11-14. The follow-up restyle is issue #216; as it lands, delete the rule's line from `restyleExceptionsOff` so it runs again at its reference severity.
 
-5617 findings across 69 rules are excepted, by namespace: `anti-slop` 9, `anti-slop-effect` 4, `eslint` 18, `foldkit` 5, `jsdoc` 2, `landmines-types` 1, `oxc` 2, `promise` 1, `typescript` 13, `unicorn` 14.
+5567 findings across 62 rules are excepted, by namespace: `anti-slop` 9, `anti-slop-effect` 4, `eslint` 17, `foldkit` 5, `jsdoc` 2, `landmines-types` 1, `oxc` 1, `promise` 1, `typescript` 11, `unicorn` 11.
 
 | Rule | Findings on adoption |
 | --- | ---: |
@@ -42,7 +42,6 @@ Adopting the reference's surface verbatim would have meant rewriting this tree: 
 | `anti-slop-effect/no-manual-tagged-construction` | 1389 |
 | `anti-slop-effect/no-service-constructor-imports` | 26 |
 | `anti-slop-effect/prefer-effect-match` | 16 |
-| `eslint/array-callback-return` | 4 |
 | `eslint/complexity` | 24 |
 | `eslint/default-case` | 47 |
 | `eslint/func-names` | 321 |
@@ -68,7 +67,6 @@ Adopting the reference's surface verbatim would have meant rewriting this tree: 
 | `jsdoc/require-param-description` | 45 |
 | `jsdoc/require-returns-description` | 16 |
 | `landmines-types/no-explicit-return-types` (adopted 2026-11-18) | 748 |
-| `oxc/no-accumulating-spread` | 9 |
 | `oxc/no-barrel-file` | 8 |
 | `promise/avoid-new` | 3 |
 | `typescript/consistent-return` | 50 |
@@ -82,20 +80,15 @@ Adopting the reference's surface verbatim would have meant rewriting this tree: 
 | `typescript/no-unsafe-type-assertion` | 125 |
 | `typescript/promise-function-async` | 113 |
 | `typescript/strict-boolean-expressions` | 40 |
-| `typescript/strict-void-return` | 15 |
-| `typescript/switch-exhaustiveness-check` | 4 |
 | `unicorn/consistent-function-scoping` | 66 |
 | `unicorn/filename-case` | 165 |
-| `unicorn/import-style` | 13 |
 | `unicorn/no-array-for-each` | 23 |
 | `unicorn/no-array-method-this-argument` | 48 |
-| `unicorn/no-array-reduce` | 3 |
 | `unicorn/no-array-sort` | 52 |
 | `unicorn/no-await-expression-member` | 140 |
 | `unicorn/no-negated-condition` | 49 |
 | `unicorn/prefer-number-coercion` | 29 |
 | `unicorn/prefer-query-selector` | 20 |
-| `unicorn/prefer-structured-clone` | 2 |
 | `unicorn/text-encoding-identifier-case` | 45 |
 | `unicorn/throw-new-error` | 33 |
 

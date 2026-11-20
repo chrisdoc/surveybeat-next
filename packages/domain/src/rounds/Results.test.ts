@@ -810,7 +810,7 @@ describe("RoundResult anonymity mode (issue #79)", () => {
   });
 
   it("refuses an anonymity mode Release 1 does not know", () => {
-    assert.throws(() =>
+    assert.throws(() => {
       Schema.decodeUnknownSync(RoundResult)({
         roundId: "round-1",
         pulseId: "pulse-1",
@@ -828,8 +828,8 @@ describe("RoundResult anonymity mode (issue #79)", () => {
         questions: [],
         dimensions: [],
         comments: [],
-      }),
-    );
+      });
+    });
   });
 });
 

@@ -151,7 +151,9 @@ describe("RoundResult storage and performance (Issue #45, ADR 0004)", () => {
     assert.isTrue(sql.includes("WITHOUT ROWID"), "round_result must be WITHOUT ROWID");
     assert.isTrue(sql.includes("PRIMARY KEY"), "round_result must have PRIMARY KEY");
 
-    assert.throws(() => db.prepare("SELECT rowid FROM round_result").all(), /no such column: rowid/);
+    assert.throws(() => {
+      db.prepare("SELECT rowid FROM round_result").all();
+    }, /no such column: rowid/);
   });
 
   it("round_result cascades on round deletion", () => {
@@ -264,7 +266,7 @@ describe("RoundResult storage and performance (Issue #45, ADR 0004)", () => {
       pastRoundsHistory: [],
     });
 
-    const legacy: unknown = JSON.parse(JSON.stringify(result));
+    const legacy: unknown = structuredClone(result);
     const dimensions = (legacy as { dimensions: Record<string, unknown>[] }).dimensions;
     const first = dimensions[0];
 

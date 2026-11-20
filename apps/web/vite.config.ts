@@ -3,7 +3,7 @@
 import { foldkit } from "@foldkit/vite-plugin";
 import tailwindcss from "@tailwindcss/vite";
 import { copyFileSync, mkdirSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import path from "node:path";
 import { defineConfig } from "vite";
 import type { Plugin } from "vite";
 import { answerCatalog } from "./src/messages/answer.ts";
@@ -15,14 +15,14 @@ const prerenderAnswer = (): Plugin => {
   return {
     name: "prerender-answer",
     configResolved(config) {
-      outDir = resolve(config.root, config.build.outDir);
+      outDir = path.resolve(config.root, config.build.outDir);
     },
     transformIndexHtml(html, ctx) {
       if (!ctx.path.endsWith("answer.html") && !html.includes("<!--PRERENDER_STYLE-->")) {
         return html;
       }
 
-      const rawCss = readFileSync(resolve(import.meta.dirname, "src/answer/style.css"), "utf8");
+      const rawCss = readFileSync(path.resolve(import.meta.dirname, "src/answer/style.css"), "utf8");
 
       const minCss = rawCss
         .replaceAll(/\/\*[\s\S]*?\*\//g, "")
@@ -120,11 +120,11 @@ const prerenderAnswer = (): Plugin => {
         .replace("<!--PRERENDER_BODY-->", body);
     },
     closeBundle() {
-      const answerHtmlPath = resolve(outDir, "answer.html");
-      const aDir = resolve(outDir, "a");
+      const answerHtmlPath = path.resolve(outDir, "answer.html");
+      const aDir = path.resolve(outDir, "a");
       mkdirSync(aDir, { recursive: true });
-      copyFileSync(answerHtmlPath, resolve(aDir, "index.html"));
-      copyFileSync(answerHtmlPath, resolve(outDir, "a.html"));
+      copyFileSync(answerHtmlPath, path.resolve(aDir, "index.html"));
+      copyFileSync(answerHtmlPath, path.resolve(outDir, "a.html"));
     },
   };
 };

@@ -36,7 +36,9 @@ const declaredEndpoints = (): readonly string[] => {
   const keys: string[] = [];
   HttpApi.reflect(SurveyBeatApi, {
     onGroup: () => {},
-    onEndpoint: ({ group, endpoint }) => keys.push(`${group.identifier}.${endpoint.identifier}`),
+    onEndpoint: ({ group, endpoint }) => {
+      keys.push(`${group.identifier}.${endpoint.identifier}`);
+    },
   });
 
   return keys;

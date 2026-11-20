@@ -80,8 +80,12 @@ describe("Submissions privacy invariants (SPEC §7, ADR 0005)", () => {
       "participation table must be WITHOUT ROWID",
     );
 
-    assert.throws(() => db.prepare("SELECT rowid FROM submission").all(), /no such column: rowid/);
-    assert.throws(() => db.prepare("SELECT rowid FROM answer").all(), /no such column: rowid/);
+    assert.throws(() => {
+      db.prepare("SELECT rowid FROM submission").all();
+    }, /no such column: rowid/);
+    assert.throws(() => {
+      db.prepare("SELECT rowid FROM answer").all();
+    }, /no such column: rowid/);
   });
 
   it("A2: No anonymous table shares a key or has person, invitation, or time columns", () => {

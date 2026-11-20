@@ -1,12 +1,12 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import path from "node:path";
 
 const here = import.meta.dirname;
 
-const ledgerPath = join(here, "comment-debt.json");
+const ledgerPath = path.join(here, "comment-debt.json");
 
-const configPath = join(here, "comment-debt.oxlintrc.json");
+const configPath = path.join(here, "comment-debt.oxlintrc.json");
 
 const RULE = "no-comments(";
 

@@ -164,7 +164,8 @@ const bodyText = (response: HttpServerResponse.HttpServerResponse): string => {
       return JSON.stringify(body.body);
     }
 
-    default: {
+    case "FormData":
+    case "Stream": {
       throw new Error(`unexpected response body ${body._tag}`);
     }
   }

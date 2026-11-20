@@ -1,19 +1,19 @@
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import path from "node:path";
 
 const here = import.meta.dirname;
 
-const root = join(here, "..", "..");
+const root = path.join(here, "..", "..");
 
 /** @typedef {{ references?: { path: string }[] }} RootConfig */
 
 /** @param {RootConfig} config */
 const projectConfigs = (config) =>
-  (config.references ?? []).map((reference) => join(root, reference.path, "tsconfig.json"));
+  (config.references ?? []).map((reference) => path.join(root, reference.path, "tsconfig.json"));
 
 export const readProjects = () =>
-  projectConfigs(JSON.parse(readFileSync(join(root, "tsconfig.json"), "utf8")));
+  projectConfigs(JSON.parse(readFileSync(path.join(root, "tsconfig.json"), "utf8")));
 
 /**
  * @param {string} command

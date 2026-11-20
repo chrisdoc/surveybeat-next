@@ -1,6 +1,6 @@
 import { Locale, OrganizationSummary } from "@surveybeat/domain";
 import type { SessionState as DomainSessionState, OrganizationId } from "@surveybeat/domain";
-import { Effect, Predicate, Schema } from "effect";
+import { Effect, Match, Predicate, Schema } from "effect";
 import { FetchHttpClient } from "effect/http";
 import type { Html, HtmlBuilder } from "foldkit/html";
 import { defineTaggedUnion } from "foldkit/schema";
@@ -73,32 +73,24 @@ export const runSessionCall = <E>(
 ): Effect.Effect<SessionResult> =>
   clientEffect.pipe(
     Effect.flatMap(call),
-    Effect.map((state): SessionResult => {
-      switch (state._tag) {
-        case "SignedIn": {
-          return {
-            _tag: "SignedIn",
-            organization: state.organization,
-            organizationAdmin: state.organizationAdmin,
-            locale: state.locale,
-            detectedLocale: state.detectedLocale,
-            organizationLocale: state.organizationLocale,
-          };
-        }
-
-        case "CreateOrganization": {
-          return { _tag: "CreateOrganization" };
-        }
-
-        case "NotInOrganization": {
-          return { _tag: "NotInOrganization" };
-        }
-
-        case "ChooseOrganization": {
-          return { _tag: "ChooseOrganization", organizations: state.organizations };
-        }
-      }
-    }),
+    Effect.map((state) =>
+      Match.valueTags(state, {
+        SignedIn: (signedIn): SessionResult => ({
+          _tag: "SignedIn",
+          organization: signedIn.organization,
+          organizationAdmin: signedIn.organizationAdmin,
+          locale: signedIn.locale,
+          detectedLocale: signedIn.detectedLocale,
+          organizationLocale: signedIn.organizationLocale,
+        }),
+        CreateOrganization: (): SessionResult => ({ _tag: "CreateOrganization" }),
+        NotInOrganization: (): SessionResult => ({ _tag: "NotInOrganization" }),
+        ChooseOrganization: (chooser): SessionResult => ({
+          _tag: "ChooseOrganization",
+          organizations: chooser.organizations,
+        }),
+      }),
+    ),
     Effect.catch(recoverSession),
     Effect.provide(FetchHttpClient.layer),
   );

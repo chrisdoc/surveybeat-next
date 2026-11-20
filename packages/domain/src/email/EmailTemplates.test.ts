@@ -129,7 +129,7 @@ describe("stored email schemas", () => {
   });
 
   it("decode a stored email written before languages existed as English", () => {
-    const stored = JSON.parse(JSON.stringify(invitationEmail)) as Record<string, unknown>;
+    const stored: Record<string, unknown> = { ...invitationEmail };
     delete stored.locale;
     expect(decodeStored(stored)).toMatchObject({ _tag: "InvitationEmail", locale: "en" });
     const added = { _tag: "AddedToTeam", teamName: "Platform", leadName: "Grace", signInUrl: base.baseUrl };
