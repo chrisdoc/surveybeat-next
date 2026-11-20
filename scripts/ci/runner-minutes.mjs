@@ -11,6 +11,23 @@ const DEFAULT_DAYS = 7;
 
 const DEFAULT_PRICE = 0.008;
 
+export const RUN_SEARCH_CAP = 1000;
+
+/**
+ * @param {string} repo
+ * @param {number} runId
+ */
+export const jobsQuery = (repo, runId) => `repos/${repo}/actions/runs/${runId}/jobs?per_page=100&filter=all`;
+
+/** @param {number} count */
+export const requireCompleteRunSearch = (count) => {
+  if (count >= RUN_SEARCH_CAP) {
+    throw new Error(
+      `GitHub returned ${count} workflow runs, which is the cap on a filtered run search. Narrow --days.`,
+    );
+  }
+};
+
 /**
  * @typedef {{ id: number, name: string }} Run
  * @typedef {{ run_id: number, name: string, conclusion: string | null, started_at: string | null, completed_at: string | null }} Job
@@ -195,10 +212,10 @@ export const main = () => {
     gh(["api", "--paginate", `repos/${repo}/actions/runs?${query}`, "--jq", ".workflow_runs[]"]),
   ).map((run) => ({ id: run.id, name: workflowLabel(run) }));
 
+  requireCompleteRunSearch(runs.length);
+
   const jobs = runs.flatMap((run) =>
-    jsonLines(
-      gh(["api", "--paginate", `repos/${repo}/actions/runs/${run.id}/jobs?per_page=100`, "--jq", ".jobs[]"]),
-    ),
+    jsonLines(gh(["api", "--paginate", jobsQuery(repo, run.id), "--jq", ".jobs[]"])),
   );
 
   const summary = summarize(runs, jobs, { days: options.days, price: options.price });

@@ -68,17 +68,17 @@ jobs:
           REPO: ${{ github.repository }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        # The compare endpoint is addressed by commit, so the list cannot be stale after a push. It matches the
-        # old `git diff BASE...HEAD` and includes the old name of a rename. It caps at 3000 files, so a list that
-        # long may be cut short and keeps every gate.
+        # The compare endpoint is addressed by commit, so the list cannot be stale after a push. It matches
+        # `git diff BASE...HEAD` and includes the old name of a rename. The file list stops at 300, on the
+        # first page only. select.mjs keeps every gate at that cap, and when this read fails. gh colors
+        # JSON when CLICOLOR_FORCE is set, and colored JSON is not a payload, so that variable is unset.
         run: |
-          if gh api --paginate "repos/$REPO/compare/$BASE_SHA...$HEAD_SHA" \
-              --jq '.files[] | .filename, (.previous_filename // empty)' > "$RUNNER_TEMP/changed.txt" \
-            && [ "$(wc -l < "$RUNNER_TEMP/changed.txt")" -lt 3000 ]; then
-            node scripts/ci/select.mjs < "$RUNNER_TEMP/changed.txt"
+          if env -u CLICOLOR_FORCE -u FORCE_COLOR gh api "repos/$REPO/compare/$BASE_SHA...$HEAD_SHA" \
+              --jq '{files: [.files[] | {filename, previous_filename}]}' > "$RUNNER_TEMP/compare.json"; then
+            node scripts/ci/select.mjs --compare "$RUNNER_TEMP/compare.json"
           else
-            echo "The changed files could not be read in full: every stage gate is required."
-            printf 'stage=true\ncanary=true\nlighthouse=true\n' >> "$GITHUB_OUTPUT"
+            echo "The changed files could not be read: every stage gate is required."
+            node scripts/ci/select.mjs --unread
           fi
 
   deploy:

@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   jobMinutes,
+  jobsQuery,
   parseArgs,
+  requireCompleteRunSearch,
+  RUN_SEARCH_CAP,
   summarize,
   toMarkdown,
   windowStart,
@@ -148,5 +151,16 @@ describe("parseArgs", () => {
     expect(() => parseArgs(["--days"])).toThrow("Missing value");
     expect(() => parseArgs(["--bogus", "1"])).toThrow("Unknown flag");
     expect(() => parseArgs(["--days", "0"])).toThrow("--days must be a positive number");
+  });
+});
+
+describe("the Actions queries", () => {
+  it("asks for every attempt of a job, including a rerun", () => {
+    expect(jobsQuery("owner/name", 42)).toBe("repos/owner/name/actions/runs/42/jobs?per_page=100&filter=all");
+  });
+
+  it("refuses a run list that has reached the filtered-search cap", () => {
+    expect(() => requireCompleteRunSearch(RUN_SEARCH_CAP)).toThrow(/cap/);
+    expect(() => requireCompleteRunSearch(RUN_SEARCH_CAP - 1)).not.toThrow();
   });
 });
