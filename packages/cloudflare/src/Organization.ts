@@ -8,6 +8,7 @@ import { failureSummary } from "./organization/JobFailure.ts";
 import { organizationNotes } from "./organization/Notes.ts";
 import { organizationResults } from "./organization/Results.ts";
 import { organizationRoundCommands } from "./organization/RoundCommands.ts";
+import { renameLegacyPersonColumn } from "./organization/LegacySchema.ts";
 import { repairRoundPlannedOpenDates } from "./organization/RoundDateRepair.ts";
 import { firstRatingQuestionOf, makeRoundJobs } from "./organization/RoundJobs.ts";
 import { organizationRoundViews } from "./organization/RoundViews.ts";
@@ -107,6 +108,8 @@ const organizationObject = Effect.gen(function* () {
     );
 
     yield* migrations.apply().pipe(Effect.orDie);
+
+    yield* renameLegacyPersonColumn(sql).pipe(Effect.orDie);
 
     const rounds = makeSqlRounds(sql, secureRandomBytes);
     const outbox = makeEmailOutbox(sql, emailQueue);
