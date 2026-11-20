@@ -11,3 +11,5 @@ In Release 1, a sign-in never creates or joins an Organization on its own. Creat
 ## Consequences
 
 The global index needs an email → Organizations lookup for Persons with no WorkOS user yet. A sign-in with an unverified email never links. Two Organizations for one company can exist and cannot be merged until a later release decides how.
+
+> Note (2026-11-20, #296): Enterprise Organizations (including SSO and JIT domain joining) moved to Release 4 in SPEC §8.

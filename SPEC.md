@@ -251,14 +251,14 @@ Sign-in with an email code, plus organization and team setup by hand. Pulses fro
 **Release 2. Insight.**
 Comment redaction and themes. Discussion guide. Team health overview with action markers. Delayed sharing. The member's private history page. German translation, deferred: English only for now (ADR 0025).
 
-**Release 3. Organizations.**
+**Release 3. Reach and close the loop.**
+Channel-agnostic delivery across email and Slack. Question rotation (a core set plus a rotating set). One-time questions for Action follow-ups and Comment theme deep-dives. A privacy-enforced remote MCP server. Microsoft Teams is deferred past this release.
+
+**Release 4. Enterprise Organizations.**
 Enterprise SSO and Directory Sync. Nested teams and leadership roll-ups with subtraction-safe thresholds. Standard questions and cross-team comparison. Confidential mode. Audit log. Exports.
 
-**Release 4. Where people already work.**
-Slack app. Microsoft Teams app. Question rotation. Action follow-up questions.
-
 **Release 5. Open up.**
-Public API, webhooks, and the MCP server. "Ask your results". Issue tracker sync for actions.
+Public API and webhooks. "Ask your results". Issue tracker sync for actions.
 
 ## 9. Out of scope
 
@@ -275,5 +275,5 @@ These need a decision from the product owner. Each one has a default you can bui
 2. What is the default minimum group size? Default is 4, with 3 as the floor.
 3. Is self-serve sign-up for small teams wanted, or is the product sold to organizations only? Default is self-serve, with an organization created at first sign-in.
 4. Which AI models are acceptable for comment processing, given data residency? Default is Workers AI models only, through AI Gateway with logging of prompts turned off.
-5. What is the target market's main chat tool, Slack or Microsoft Teams? This decides which one ships first in release 4. Default is Slack.
+5. What is the target market's main chat tool, Slack or Microsoft Teams? Release 3 ships Slack. Microsoft Teams is deferred past Release 3 (#295).
 6. Is the "surveybeat.com" domain still owned and pointed at Cloudflare? The old Terraform config assumed so.
