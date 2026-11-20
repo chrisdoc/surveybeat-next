@@ -4,8 +4,14 @@ import { createHash } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 
-export const migratedDatabase = (migrationsDirectory: URL): DatabaseSync => {
-  const db = new DatabaseSync(":memory:");
+export const migratedDatabase = (
+  migrationsDirectory: URL,
+  options: { readonly doubleQuotedStringLiterals?: boolean } = {},
+): DatabaseSync => {
+  const db = new DatabaseSync(":memory:", {
+    enableDoubleQuotedStringLiterals: options.doubleQuotedStringLiterals ?? false,
+  });
+
   db.exec("PRAGMA foreign_keys = ON");
 
   for (const file of readdirSync(migrationsDirectory)
