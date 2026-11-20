@@ -36,7 +36,7 @@ Inspecting `better-auth@1.7.25` (`dist/plugins/index.d.mts`) confirms that **`be
 | **Existing Better Auth sessions** | Native integration: `/oauth2/authorize` reads the existing `__Host-surveybeat-session` cookie via `getSessionFromCtx`. | Requires custom `/authorize` glue to verify the Better Auth session cookie and call `completeAuthorization()`. |
 | **OAuth 2.1 + PKCE + Consent** | Authorization Code + PKCE (`S256` enforced for public clients, no implicit grant), signed `loginPage` / `consentPage` / `postLogin` redirects, persisted `oauthConsent`. | Authorization Code + PKCE (`S256` enforced for public clients), custom `/authorize` consent HTML + `completeAuthorization()`. |
 | **Client registration** | Pre-registered clients, optional RFC 7591 DCR, and `@better-auth/cimd` (`draft-00`). | Pre-registered clients, optional DCR, and built-in CIMD (`clientIdMetadataDocumentEnabled: true`). |
-| **Immediate revocation** | Immediate when configured with `disableJwtPlugin: true` (opaque tokens in D1) plus our D1 grant/session check. Default JWT mode is **not** immediately revocable (see traps below). | Immediate via KV revocation/deletion (subject to KV eventual consistency if written and read across colos). |
+| **Immediate revocation** | Immediate when configured with `disableJwtPlugin: true` (opaque tokens in D1) plus our D1 grant/session check. Default JWT mode is **not** immediately revocable (see traps below). | Not immediate across locations. A KV delete is eventually consistent when the write and a later read land in different colos. |
 | **`MainWorker` fit** | Composes into `MainWorker`'s existing `authInstance.fetch` and Effect router. | Combined `OAuthProvider` wraps the entire Worker `fetch` (`apiRoute` vs `defaultHandler`), fighting Effect `HttpApiBuilder` / `HttpRouter`. |
 | **SPEC / ADR alignment** | Single D1 auth store; respects ADR 0022 & ADR 0023. | Introduces KV for revocable auth grants (contrary to SPEC §6.2 and ADR 0022). |
 
@@ -78,9 +78,10 @@ SurveyBeat's domain model separates the global auth user (`AuthUserId` = `auth_u
 ```text
 Bearer Token ──▶ [D1 Auth Check on MainWorker]
                     ├─ Hash token ─▶ auth_oauth_access_token (active, unrevoked, unexpired)
-                    ├─ Grant check ─▶ auth_oauth_consent exists for (clientId, userId, referenceId)
+                    ├─ Grant check ─▶ consent exists, and token.resources includes the MCP resource
+                    ├─ Sender check ─▶ reject a stored DPoP confirmation (no DPoP on this slice)
                     ├─ Client check ─▶ auth_oauth_client.disabled = 0
-                    ├─ Session check ─▶ if sessionId != null, auth_session exists & unexpired
+                    ├─ Session check ─▶ live auth_session when sessionId is set, and also when offline_access was not granted
                     └─ Ban check ────▶ auth_user.banned = 0 (or expired banExpires)
                           │
                           ▼ yields (authUserId, organizationId = referenceId, scopes)
@@ -104,23 +105,27 @@ Bearer Token ──▶ [D1 Auth Check on MainWorker]
    - Compute the stored token digest matching Better Auth's `storeTokens` hash and execute a single D1 lookup joining `auth_oauth_access_token`, `auth_oauth_client`, `auth_oauth_consent`, `auth_user`, and (left join) `auth_session`:
      - Token row exists, `revoked IS NULL`, and `expiresAt > now`.
      - `auth_oauth_client` exists and `disabled = 0`.
-     - **`auth_oauth_consent` row exists** matching `(clientId, userId, referenceId)` and covers the token's scopes/resources.
-     - If `sessionId IS NOT NULL` (or if `offline_access` was not granted), the `auth_session` row still exists and `expiresAt > now`.
-     - **`auth_user.banned` check (ADR 0024)**: reject immediately if `banned = 1` and (`banExpires IS NULL` or `banExpires > now`). Also enforce the same `banned` check in `oauthProvider` hooks before `/oauth2/authorize`, `/oauth2/consent`, and `/oauth2/token` (`refresh_token` grant) so banned accounts cannot obtain or refresh tokens.
+     - **`auth_oauth_consent` row exists** matching `(clientId, userId, referenceId)` and covers the token's scopes. Consent coverage is not the audience check.
+     - The token row's stored `resources` include the canonical MCP resource identifier. Better Auth 1.7.25 allows authorization with no resource (`packages/oauth-provider/src/oauth.ts` at that tag), so a token can have a valid consent and still not have been issued for `/mcp`.
+     - If the token row's `confirmation` has a DPoP `jkt`, reject the request. `createOpaqueAccessToken` in `@better-auth/oauth-provider@1.7.25` stores that key, and `confirmationTokenType` presents it as `DPoP`, not `Bearer`. This slice does not validate DPoP proofs or their replay cache. Do not advertise `dpop_bound_access_tokens` for the `/mcp` resource, and do not accept a sender-constrained token on the Bearer path.
+     - If `sessionId IS NOT NULL`, or if `offline_access` was not granted, the `auth_session` row still exists and `expiresAt > now`. Sign-out sets `sessionId` to NULL (see Revocation below), so the `offline_access` clause is what rejects a non-offline token after sign-out. Do not implement this check as "`sessionId IS NOT NULL`" alone. The refresh path needs the same rule.
+     - **`auth_user.banned` check (ADR 0024)**: reject immediately if `banned = 1` and (`banExpires IS NULL` or `banExpires > now`). Also enforce the same `banned` check in `oauthProvider` hooks before `/oauth2/authorize`, `/oauth2/consent`, and `/oauth2/token` (`refresh_token` grant) so banned accounts cannot obtain or refresh tokens. ADR 0024 covers Better Auth's own web endpoints. A `/mcp` ban check is a new surface, so issue #302 should record it in its own ADR if the slice adopts it.
      - Verify `referenceId` is a non-empty `OrganizationId` (and check optional `person_index` existence).
 3. **Per-request Organization DO verification (tenant & `Actor` plane)**:
-   - Call the `Organization` Durable Object identified by `organizationId` (`referenceId`) to resolve the active `Person` and `Actor` (`organizationDirectory.activePerson(authUserId)` / `actorOf(directoryState, personId)` in `packages/domain/src/people/Directory.ts`).
+   - Call the `Organization` Durable Object identified by `organizationId` (`referenceId`) to resolve the active `Person` and `Actor`. The port is `OrganizationPeople.activePerson(organizationId, userId)` in `packages/domain/src/people/SignInPorts.ts`. The Durable Object implements `activePerson(authUserId)` in `packages/cloudflare/src/organization/Directory.ts`. Only `actorOf(directoryState, personId)` lives in `packages/domain/src/people/Directory.ts`.
    - The DO checks `person.auth_user_id = authUserId AND person.removed_at IS NULL` and computes `Actor { personId, organizationAdmin, roles }` from active `membership` rows (`ended_at IS NULL`).
    - If the `Person` was removed (`removed_at IS NOT NULL`) or deactivated, `activePerson` / `actorOf` returns `None`, and `/mcp` immediately fails the request (`401` / `403`).
    - Every MCP tool passes `Actor` (or `actorId` + DO enforcement) through the existing domain permission function `can(actor, action, resource)` and privacy rules (minimum group size, subtraction-safe roll-ups, comment redaction, Lead-only discussion guides, review windows).
+   - The same call also requires the token's stored scopes to include the scope mapped to that tool. `can` in `packages/domain/src/people/Permissions.ts` does not see OAuth scopes. A read-only token must fail a write even when the `Person` is an Organization admin.
 
 ### Revocation Semantics (ADR 0023)
 
 - **No deny list**: Consistent with ADR 0023 (which deleted `revoked_session`), revocation deletes the grant/token rows directly in D1; no deny-list table is added.
 - **Immediate failure on next request**:
-  - **User revokes an MCP client grant** (from SurveyBeat settings or `/oauth2/delete-consent`): delete the `auth_oauth_consent` row **and** delete matching `auth_oauth_access_token` and `auth_oauth_refresh_token` rows in one `database.batch([...])` call. Because the `/mcp` verifier requires both the `auth_oauth_access_token` row and the `auth_oauth_consent` row, the very next `/mcp` request fails with `401 invalid_token`.
+  - **User revokes an MCP client grant**: delete the `auth_oauth_consent` row **and** the matching `auth_oauth_access_token` and `auth_oauth_refresh_token` rows for `(clientId, userId, referenceId)` in one `database.batch([...])` call. The stock `deleteConsentEndpoint` in `@better-auth/oauth-provider@1.7.25` (`oauthConsent/endpoints.ts`) deletes only the consent row. Do not mount that endpoint unchanged. A later grant for the same client and Organization inserts a new consent row, and an unexpired old token would pass the consent join. Because the `/mcp` verifier requires both the access-token row and the consent row, deleting both makes the next request fail with `401 invalid_token`.
   - **OAuth client calls `/oauth2/revoke`**: `revokeOpaqueAccessToken` deletes the `auth_oauth_access_token` row immediately; `revokeRefreshToken` marks `revoked` on `auth_oauth_refresh_token` and deletes linked `auth_oauth_access_token` rows.
   - **Admin bans a user (`banUser`) or removes a Person (`RemovePerson`)**: `auth_user.banned = 1` and `person.removed_at != NULL` both fail the very next `/mcp` request immediately, and the workflow should also delete matching `auth_oauth_consent`, `auth_oauth_access_token`, and `auth_oauth_refresh_token` rows in D1 (`userId` / `(userId, referenceId)`) so no stale refresh grant lingers.
+  - **Browser sign-out does not revoke MCP tokens**: `SessionIdentityProvider.deleteSession` in `packages/cloudflare/src/MainWorker.ts` runs `DELETE FROM auth_session WHERE id = ?`. That skips Better Auth's `session.delete` hooks, so `prepareBackchannelLogoutPlan` never runs and no refresh token is revoked, `offline_access` or not. The `sessionId` foreign key on the access-token and refresh-token rows then sets `sessionId` to NULL. Issue #302's `/mcp` verifier and refresh path have to rely on the live-session check above: a token without `offline_access` fails once its session row is gone.
 
 ---
 
@@ -130,7 +135,7 @@ Bearer Token ──▶ [D1 Auth Check on MainWorker]
 
 D1 remains strictly the global auth/routing index—**no survey content** (no Pulses, Rounds, Submissions, Answers, Results, Themes, Actions, or Notes) is ever stored in D1.
 
-With `disableJwtPlugin: true`, `@better-auth/oauth-provider@1.7.25` needs six `auth_`-prefixed tables (mapped in `AUTH_TABLES` in `packages/auth/src/options.ts`, no `jwks` table needed):
+With `disableJwtPlugin: true`, `@better-auth/oauth-provider@1.7.25` needs six `auth_`-prefixed tables, plus one optional table (`auth_oauth_client_assertion`, only if CIMD `private_key_jwt` clients are enabled). Map them in `AUTH_TABLES` in `packages/auth/src/options.ts`. No `jwks` table is needed:
 
 | Table | Purpose | Notes |
 | --- | --- | --- |
@@ -139,7 +144,7 @@ With `disableJwtPlugin: true`, `@better-auth/oauth-provider@1.7.25` needs six `a
 | `auth_oauth_client_resource` | Client-to-resource allow mapping | `(clientId, resourceId)` unique pair with `ON DELETE CASCADE` |
 | `auth_oauth_consent` | Active user-per-Organization grants | `(clientId, userId, referenceId)` where `referenceId` stores SurveyBeat `OrganizationId`; deleting this row revokes the grant |
 | `auth_oauth_refresh_token` | Hashed refresh tokens (`offline_access`) | `token` (unique), `clientId`, `userId`, `sessionId` (`ON DELETE SET NULL`), `referenceId`, `scopes`, `resources`, `revoked`, `expiresAt` |
-| `auth_oauth_access_token` | Hashed opaque access tokens | `token` (unique), `clientId`, `userId`, `sessionId` (`ON DELETE SET NULL`), `referenceId`, `refreshId`, `scopes`, `resources`, `revoked`, `expiresAt` |
+| `auth_oauth_access_token` | Hashed opaque access tokens | `token` (unique), `clientId`, `userId`, `sessionId` (`ON DELETE SET NULL`), `referenceId`, `refreshId`, `scopes`, `resources`, `confirmation` (reject a DPoP `jkt` on the Bearer path), `revoked`, `expiresAt` |
 | `auth_oauth_client_assertion` | Optional `private_key_jwt` `jti` replay guard | Only needed if CIMD `private_key_jwt` clients are enabled (`id`, `expiresAt`) |
 
 Note on D1 batching: `@effect/sql-d1` / Cloudflare D1 has no SQL `BEGIN`/`COMMIT` transactions (`docs/research/effect-on-workers.md`), so multi-table grant deletion uses `database.batch([...])`.
