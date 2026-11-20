@@ -161,6 +161,10 @@ export const privacyRegistry: Readonly<Record<EndpointKey<typeof SurveyBeatApi>,
     _tag: "NoResultData",
     why: "irreversibly scrubs one Person's personal data in this Organization on an Organization admin's request; returns no content",
   },
+  "directory.correctPersonEmail": {
+    _tag: "NoResultData",
+    why: "an Organization admin corrects the address of a Person who has not signed in; returns no content, and never reads a Result, Submission or Answer",
+  },
   "directory.exportOffboarding": {
     _tag: "NoResultData",
     why: "returns, for Organization admins, the Organization's settings, Teams, People, Memberships, Pulses and Questions; no Results, Submissions or Answers",
@@ -172,6 +176,14 @@ export const privacyRegistry: Readonly<Record<EndpointKey<typeof SurveyBeatApi>,
   "me.erasePerson": {
     _tag: "NoResultData",
     why: "irreversibly scrubs the caller's own Person in the chosen Organization; returns no content",
+  },
+  "me.requestEmailChange": {
+    _tag: "NoResultData",
+    why: "sends a one-time code to the caller's new address; returns no content",
+  },
+  "me.confirmEmailChange": {
+    _tag: "NoResultData",
+    why: "moves the caller's account, index rows and Persons to the new address once the code is right; returns no content",
   },
   "me.eraseAccount": {
     _tag: "NoResultData",

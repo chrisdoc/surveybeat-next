@@ -53,6 +53,8 @@ export const durableObjectDirectory = (organizations: Organizations) =>
       organizations.getByName(organizationId).confirmOffboarding(actorId, confirmation),
     clearPersonErasure: (organizationId, personId) =>
       organizations.getByName(organizationId).clearPersonErasure(personId),
+    rectifyEmail: (organizationId, userId, email) =>
+      organizations.getByName(organizationId).rectifyEmail(userId, email),
     teams: (organizationId, actorId) => organizations.getByName(organizationId).viewTeams(actorId),
     team: (organizationId, actorId, teamId) =>
       organizations.getByName(organizationId).viewTeam(actorId, teamId),

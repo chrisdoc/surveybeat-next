@@ -13,6 +13,7 @@ export type OrganizationAction =
   | "organization.updateSettings"
   | "organization.setAdmin"
   | "organization.removePerson"
+  | "organization.correctEmail"
   | "organization.offboard"
   | "organization.listTeams"
   | "organization.createTeam";
@@ -52,6 +53,7 @@ export const PERMISSIONS: Readonly<Record<Action, readonly Grantee[]>> = {
   "organization.updateSettings": ["admin"],
   "organization.setAdmin": ["admin"],
   "organization.removePerson": ["admin"],
+  "organization.correctEmail": ["admin"],
   "organization.offboard": ["admin"],
   "organization.listTeams": ["admin"],
   "organization.createTeam": ["admin"],

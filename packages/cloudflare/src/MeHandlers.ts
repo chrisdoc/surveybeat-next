@@ -1,21 +1,31 @@
 import { SurveyBeatApi } from "@surveybeat/api";
 import {
+  confirmEmailChange,
   eraseAccount,
   PERSONAL_DATA_EXPORT_FILENAME,
   PersonalDataSource,
+  requestEmailChange,
   runDirectoryCommand,
 } from "@surveybeat/domain";
-import type { OrganizationDirectory } from "@surveybeat/domain";
+import type { OrganizationDirectory, EmailRectification } from "@surveybeat/domain";
 import type * as Context from "effect/Context";
 import * as Clock from "effect/Clock";
 import * as Effect from "effect/Effect";
+import * as Option from "effect/Option";
+import * as Redacted from "effect/Redacted";
 import * as HttpEffect from "effect/http/HttpEffect";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
-import { authenticated, currentMember, requireSameOrigin } from "./auth/AuthHandlers.ts";
+import {
+  authenticated,
+  currentMember,
+  requireSameOrigin,
+  setSessionCookie,
+  signedInWithCookie,
+} from "./auth/AuthHandlers.ts";
 import type { AuthServices } from "./auth/AuthHandlers.ts";
 
-export type MeServices = AuthServices | PersonalDataSource | OrganizationDirectory;
+export type MeServices = AuthServices | PersonalDataSource | OrganizationDirectory | EmailRectification;
 
 const downloadHeaders = HttpEffect.appendPreResponseHandler((_request, response) =>
   Effect.succeed(
@@ -57,6 +67,29 @@ export const meHandlers = <R>(services: Effect.Effect<Context.Context<MeServices
               personId: member.personId,
               confirmation: payload.confirmation,
             });
+          }),
+        ),
+      )
+      .handle("requestEmailChange", ({ payload }) =>
+        provide(
+          Effect.gen(function* () {
+            yield* requireSameOrigin;
+            const { cookie, session } = yield* signedInWithCookie;
+
+            yield* requestEmailChange(cookie, session, payload.email);
+          }),
+        ),
+      )
+      .handle("confirmEmailChange", ({ payload }) =>
+        provide(
+          Effect.gen(function* () {
+            yield* requireSameOrigin;
+            const { cookie, session } = yield* signedInWithCookie;
+            const token = yield* confirmEmailChange(cookie, session, payload.email, payload.otp);
+
+            if (Option.isSome(token)) {
+              yield* setSessionCookie(Redacted.make(token.value));
+            }
           }),
         ),
       )

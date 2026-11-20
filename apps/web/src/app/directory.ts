@@ -45,6 +45,8 @@ import {
   textField,
 } from "./components.ts";
 import type { Child } from "./components.ts";
+import { adminCorrectEmailView } from "./emailChange.ts";
+import type { CorrectEmailState } from "./emailChange.ts";
 import { adminErasureView } from "./erasure.ts";
 import { historyHref, pulsesHref, settingsHref, teamHref, teamsHref } from "./routes.ts";
 import { failureReasonText } from "./pulses.ts";
@@ -1208,6 +1210,7 @@ export const settingsScreenView = <Message>(
     readonly pendingRemovePerson: { readonly personId: PersonId; readonly email: string } | undefined;
     readonly pendingErasePerson: { readonly personId: PersonId; readonly email: string } | undefined;
     readonly erasePersonConfirmation: string;
+    readonly correctEmail: CorrectEmailState;
     readonly offboardingDownloaded: boolean;
     readonly offboarding: OffboardingForm;
   },
@@ -1230,6 +1233,10 @@ export const settingsScreenView = <Message>(
     readonly onErasePersonConfirmationChange: (value: string) => Message;
     readonly onConfirmErasePerson: Message;
     readonly onCancelErasePerson: Message;
+    readonly onCorrectEmail: (personId: PersonId) => Message;
+    readonly onCorrectEmailChange: (value: string) => Message;
+    readonly onSubmitCorrectEmail: Message;
+    readonly onCancelCorrectEmail: Message;
     readonly onResendFailedEmail: (sendId: SendId) => Message;
   },
   h: HtmlBuilder<Message>,
@@ -1372,6 +1379,17 @@ export const settingsScreenView = <Message>(
                   },
                   h,
                 ),
+                person.linked
+                  ? null
+                  : appButton(
+                      {
+                        text: message("settings.correctEmail"),
+                        isDisabled: state.peopleBusy,
+                        className: linkButton,
+                        onClick: actions.onCorrectEmail(person.personId),
+                      },
+                      h,
+                    ),
                 Option.isSome(personId) && state.pendingRemovePerson?.personId !== person.personId
                   ? appButton(
                       {
@@ -1427,14 +1445,30 @@ export const settingsScreenView = <Message>(
         [message("settings.people.email"), message("settings.people.actions")],
         settings.removedPeople.map((person) => [
           emailAddress({ email: person.email }, h),
-          appButton(
-            {
-              text: message("settings.erasePerson"),
-              isDisabled: state.peopleBusy,
-              className: dangerLinkButton,
-              onClick: actions.onErasePerson(person.personId),
-            },
-            h,
+          h.div(
+            [h.Class("flex flex-wrap items-center gap-x-4")],
+            [
+              person.linked
+                ? null
+                : appButton(
+                    {
+                      text: message("settings.correctEmail"),
+                      isDisabled: state.peopleBusy,
+                      className: linkButton,
+                      onClick: actions.onCorrectEmail(person.personId),
+                    },
+                    h,
+                  ),
+              appButton(
+                {
+                  text: message("settings.erasePerson"),
+                  isDisabled: state.peopleBusy,
+                  className: dangerLinkButton,
+                  onClick: actions.onErasePerson(person.personId),
+                },
+                h,
+              ),
+            ].filter(Predicate.isNotNull),
           ),
         ]),
         h,
@@ -1460,6 +1494,21 @@ export const settingsScreenView = <Message>(
           onConfirmationChange: actions.onErasePersonConfirmationChange,
           onSubmit: actions.onConfirmErasePerson,
           onCancel: actions.onCancelErasePerson,
+        },
+        h,
+      ),
+    );
+  }
+
+  if (state.correctEmail.pending !== undefined) {
+    children.push(
+      adminCorrectEmailView(
+        state.correctEmail.pending,
+        state.correctEmail,
+        {
+          onChange: actions.onCorrectEmailChange,
+          onSubmit: actions.onSubmitCorrectEmail,
+          onCancel: actions.onCancelCorrectEmail,
         },
         h,
       ),

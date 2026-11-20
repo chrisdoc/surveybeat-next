@@ -1,5 +1,7 @@
 import { Context } from "effect";
 import type { Effect, Option, Redacted } from "effect";
+import type { EmailAddress } from "../email/Email.ts";
+import type { SignInAgainRequired, WrongEmailCode } from "./EmailErrors.ts";
 import type { Identity, SessionId } from "./Identity.ts";
 import type { OrganizationId } from "./Organization.ts";
 import type { AuthUnavailable, Unauthenticated } from "./SignIn.ts";
@@ -29,6 +31,17 @@ export interface SessionIdentityProviderShape {
     email: string,
     code: string,
   ) => Effect.Effect<Option.Option<string>, AuthUnavailable>;
+
+  readonly requestEmailChange: (
+    cookie: Redacted.Redacted,
+    email: EmailAddress,
+  ) => Effect.Effect<void, SignInAgainRequired | AuthUnavailable>;
+
+  readonly confirmEmailChange: (
+    cookie: Redacted.Redacted,
+    email: EmailAddress,
+    code: string,
+  ) => Effect.Effect<Option.Option<string>, SignInAgainRequired | WrongEmailCode | AuthUnavailable>;
 
   readonly revokeSession: (sessionId: SessionId) => Effect.Effect<void, AuthUnavailable>;
 }

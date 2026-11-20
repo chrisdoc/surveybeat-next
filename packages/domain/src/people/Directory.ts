@@ -104,6 +104,7 @@ export type DirectoryCommand =
       readonly personId: PersonId;
       readonly confirmation: EmailAddress;
     }
+  | { readonly _tag: "CorrectEmail"; readonly personId: PersonId; readonly email: EmailAddress }
   | { readonly _tag: "SetAdmin"; readonly personId: PersonId; readonly organizationAdmin: boolean }
   | {
       readonly _tag: "UpdateSettings";
@@ -123,6 +124,7 @@ export type DirectoryChange =
   | { readonly _tag: "PersonRemoved"; readonly personId: PersonId; readonly at: number }
   | { readonly _tag: "PersonErased"; readonly personId: PersonId; readonly at: number }
   | { readonly _tag: "AdminSet"; readonly personId: PersonId; readonly organizationAdmin: boolean }
+  | { readonly _tag: "EmailCorrected"; readonly personId: PersonId; readonly email: EmailAddress }
   | { readonly _tag: "TeamAdded"; readonly team: TeamRecord }
   | { readonly _tag: "TeamUpdated"; readonly team: TeamRecord }
   | { readonly _tag: "MembershipStarted"; readonly membership: MembershipRecord }
@@ -161,6 +163,7 @@ export interface ErasedPersonFacts {
 export type FollowUp =
   | { readonly _tag: "IndexPerson"; readonly person: PersonRef }
   | { readonly _tag: "UnindexPerson"; readonly personId: PersonId }
+  | { readonly _tag: "CorrectIndexEmail"; readonly person: PersonRef }
   | ({ readonly _tag: "ErasePersonIndex" } & ErasedPersonFacts);
 
 export type DirectoryRejection =
@@ -168,6 +171,8 @@ export type DirectoryRejection =
   | { readonly _tag: "TeamNotFound" }
   | { readonly _tag: "PersonNotFound" }
   | { readonly _tag: "PersonWasRemoved" }
+  | { readonly _tag: "PersonHasAccount" }
+  | { readonly _tag: "EmailTaken" }
   | { readonly _tag: "LastLead"; readonly teamId: TeamId }
   | { readonly _tag: "LastAdmin" }
   | { readonly _tag: "ErasureNotConfirmed" }
@@ -603,6 +608,39 @@ export const decide = (
       );
     }
 
+    case "CorrectEmail": {
+      if (!can(allowed, "organization.correctEmail", organization)) {
+        return forbidden;
+      }
+
+      const person = state.people.find((each) => each.id === command.personId);
+
+      if (person === undefined || person.erasedAt !== null) {
+        return reject({ _tag: "PersonNotFound" });
+      }
+
+      if (person.authUserId !== null) {
+        return reject({ _tag: "PersonHasAccount" });
+      }
+
+      const corrected: PersonRef = { id: person.id, email: command.email, authUserId: null };
+      const followUps: FollowUp[] = [{ _tag: "CorrectIndexEmail", person: corrected }];
+
+      if (person.email === command.email) {
+        return accept([], followUps);
+      }
+
+      const taken = state.people.some(
+        (each) => each.id !== person.id && each.erasedAt === null && each.email === command.email,
+      );
+
+      if (taken) {
+        return reject({ _tag: "EmailTaken" });
+      }
+
+      return accept([{ _tag: "EmailCorrected", personId: person.id, email: command.email }], followUps);
+    }
+
     case "SetAdmin": {
       if (!can(allowed, "organization.setAdmin", organization)) {
         return forbidden;
@@ -696,6 +734,10 @@ const applyChange = (state: DirectoryState, change: DirectoryChange): DirectoryS
         ...person,
         organizationAdmin: change.organizationAdmin,
       }));
+    }
+
+    case "EmailCorrected": {
+      return updatePerson(change.personId, (person) => ({ ...person, email: change.email }));
     }
 
     case "TeamAdded": {
@@ -869,7 +911,7 @@ export const settingsView = (state: DirectoryState, actorId: PersonId): Viewed<O
         .sort((a, b) => a.email.localeCompare(b.email, "en")),
       removedPeople: state.people
         .filter((person) => person.removedAt !== null && person.erasedAt === null)
-        .map((person) => ({ personId: person.id, email: person.email }))
+        .map((person) => ({ personId: person.id, email: person.email, linked: person.authUserId !== null }))
         .sort((a, b) => a.email.localeCompare(b.email, "en")),
     },
   };

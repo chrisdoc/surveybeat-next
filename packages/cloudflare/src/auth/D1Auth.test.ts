@@ -339,6 +339,7 @@ describe("Better Auth sessions in D1", () => {
           Effect.sync(() => {
             codes.push(otp);
           }),
+        sendEmailChangeCode: () => Effect.void,
         sendMagicLink: () => Effect.void,
       };
 
@@ -392,6 +393,7 @@ describe("Better Auth identity provider over D1", () => {
           Effect.sync(() => {
             codes.push(otp);
           }),
+        sendEmailChangeCode: () => Effect.void,
         sendMagicLink: () => Effect.void,
       };
 
@@ -478,6 +480,7 @@ describe("Better Auth plugin tables in D1", () => {
 
       const delivery = {
         sendSignInCode: () => Effect.void,
+        sendEmailChangeCode: () => Effect.void,
         sendMagicLink: ({ url }: { readonly email: string; readonly url: string }) =>
           Effect.sync(() => {
             links.push(url);

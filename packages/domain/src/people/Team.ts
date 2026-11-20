@@ -109,6 +109,8 @@ export type PersonSummary = typeof PersonSummary.Type;
 export const RemovedPersonSummary = Schema.Struct({
   personId: PersonId,
   email: EmailAddress,
+
+  linked: Schema.Boolean,
 });
 
 export type RemovedPersonSummary = typeof RemovedPersonSummary.Type;

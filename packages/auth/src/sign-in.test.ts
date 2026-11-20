@@ -15,6 +15,7 @@ const harness = () => {
       Effect.sync(() => {
         codes.push(otp);
       }),
+    sendEmailChangeCode: () => Effect.void,
     sendMagicLink: ({ url }) =>
       Effect.sync(() => {
         links.push(url);

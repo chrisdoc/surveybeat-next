@@ -5,7 +5,9 @@ import {
   identityOf,
   SessionId,
   SessionIdentityProvider,
+  SignInAgainRequired,
   Unauthenticated,
+  WrongEmailCode,
 } from "@surveybeat/domain";
 import type { OrganizationId } from "@surveybeat/domain";
 import type { Auth } from "better-auth";
@@ -15,10 +17,14 @@ import * as Redacted from "effect/Redacted";
 
 const authOrigin = "http://localhost:5173";
 
-const authRequest = (path: string, body: unknown) =>
+const authRequest = (path: string, body: unknown, cookie?: Redacted.Redacted) =>
   new Request(`${authOrigin}${path}`, {
     method: "POST",
-    headers: { "content-type": "application/json", origin: authOrigin },
+    headers: {
+      "content-type": "application/json",
+      origin: authOrigin,
+      ...(cookie === undefined ? {} : { cookie: `${SESSION_COOKIE}=${Redacted.value(cookie)}` }),
+    },
     body: JSON.stringify(body),
   });
 
@@ -27,6 +33,48 @@ const sessionTokenFromCookie = (header: string): string => {
 
   return Option.getOrElse(Option.fromNullishOr(pair.split("=").slice(1).join("=")), () => "");
 };
+
+const WRONG_CODE_ERRORS = new Set(["INVALID_OTP", "OTP_EXPIRED", "TOO_MANY_ATTEMPTS"]);
+
+const SIGN_IN_AGAIN_ERRORS = new Set(["SESSION_NOT_FRESH", "SESSION_EXPIRED", "UNAUTHORIZED"]);
+
+const refusalCode = (response: Response): Effect.Effect<unknown> =>
+  Effect.tryPromise({
+    try: () => response.json(),
+    catch: () => new AuthUnavailable(),
+  }).pipe(
+    Effect.map((body) => (typeof body === "object" && body !== null && "code" in body ? body.code : null)),
+    Effect.orElseSucceed(() => null),
+  );
+
+const refusalOf = (code: unknown): SignInAgainRequired | WrongEmailCode | AuthUnavailable => {
+  if (typeof code !== "string") {
+    return new AuthUnavailable();
+  }
+
+  if (SIGN_IN_AGAIN_ERRORS.has(code)) {
+    return new SignInAgainRequired();
+  }
+
+  return WRONG_CODE_ERRORS.has(code) ? new WrongEmailCode() : new AuthUnavailable();
+};
+
+const emailChange = (
+  auth: Pick<Auth, "handler">,
+  path: string,
+  body: unknown,
+  cookie: Redacted.Redacted,
+): Effect.Effect<Response, SignInAgainRequired | WrongEmailCode | AuthUnavailable> =>
+  Effect.tryPromise({
+    try: () => auth.handler(authRequest(path, body, cookie)),
+    catch: () => new AuthUnavailable(),
+  }).pipe(
+    Effect.flatMap((response) =>
+      response.ok
+        ? Effect.succeed(response)
+        : refusalCode(response).pipe(Effect.flatMap((code) => Effect.fail(refusalOf(code)))),
+    ),
+  );
 
 export const betterAuthIdentityProvider = (params: {
   readonly auth: Pick<Auth, "api" | "handler">;
@@ -93,6 +141,19 @@ export const betterAuthIdentityProvider = (params: {
             ),
         catch: () => new AuthUnavailable(),
       }),
+
+    requestEmailChange: (cookie, email) =>
+      emailChange(params.auth, "/auth/email-otp/request-email-change", { newEmail: email }, cookie).pipe(
+        Effect.mapError((refused) => (refused._tag === "WrongEmailCode" ? new AuthUnavailable() : refused)),
+        Effect.asVoid,
+      ),
+
+    confirmEmailChange: (cookie, email, code) =>
+      emailChange(params.auth, "/auth/email-otp/change-email", { newEmail: email, otp: code }, cookie).pipe(
+        Effect.map((response) =>
+          Option.map(Option.fromNullishOr(response.headers.get("set-cookie")), sessionTokenFromCookie),
+        ),
+      ),
 
     revokeSession: (sessionId) => params.deleteSession(sessionId),
   });

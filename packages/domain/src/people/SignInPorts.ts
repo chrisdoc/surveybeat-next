@@ -39,6 +39,12 @@ export interface PeopleIndexShape {
     userId: AuthUserId,
   ) => Effect.Effect<void>;
 
+  readonly correctEmail: (
+    organizationId: OrganizationId,
+    personId: PersonId,
+    email: EmailAddress,
+  ) => Effect.Effect<void>;
+
   readonly erasePerson: (erased: {
     readonly organizationId: OrganizationId;
     readonly personId: PersonId;

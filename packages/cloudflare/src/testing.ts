@@ -29,6 +29,7 @@ import {
   decide,
   DEFAULT_MINIMUM_GROUP_SIZE,
   EmailAddress,
+  EmailRectification,
   MembershipId,
   OrganizationDirectory,
   OrganizationOffboarding,
@@ -50,7 +51,9 @@ import {
   PersonId,
   SessionId,
   SessionIdentityProvider,
+  SignInAgainRequired,
   Unauthenticated,
+  WrongEmailCode,
   AuthUserId,
   ActionId,
   OrganizationActions,
@@ -72,6 +75,7 @@ import type {
   ClaimStatus,
   CommandResult,
   DirectoryState,
+  PendingEmailChange,
   PersonRecord,
   TransactionalEmail,
   OrganizationSummary,
@@ -119,6 +123,8 @@ export class FakeSessions {
   readonly sessions = new Map<string, FakeSession>();
   readonly chosen = new Map<SessionId, OrganizationId>();
   readonly codes = new Map<string, string>();
+  readonly changeCodes = new Map<string, EmailAddress>();
+  staleSession = false;
   readonly revocations: SessionId[] = [];
   readonly revoked = new Set<string>();
   failRevoke = false;
@@ -199,6 +205,41 @@ export class FakeSessions {
 
         return Option.some(this.issue(user.id));
       }),
+    requestEmailChange: (_cookie, email) =>
+      Effect.suspend(() => {
+        if (this.staleSession) {
+          return Effect.fail(new SignInAgainRequired());
+        }
+
+        this.changeCodes.set(`change_${++this.counter}`, email);
+
+        return Effect.void;
+      }),
+    confirmEmailChange: (cookie, email, code) =>
+      Effect.suspend(
+        (): Effect.Effect<Option.Option<string>, SignInAgainRequired | WrongEmailCode | AuthUnavailable> => {
+          const token = Redacted.value(cookie);
+          const session = this.sessions.get(token);
+          const user = session === undefined ? undefined : this.users.get(session.userId);
+
+          if (session === undefined || user === undefined) {
+            return Effect.fail(new AuthUnavailable());
+          }
+
+          if (this.staleSession) {
+            return Effect.fail(new SignInAgainRequired());
+          }
+
+          if (this.changeCodes.get(code) !== email) {
+            return Effect.fail(new WrongEmailCode());
+          }
+
+          this.changeCodes.delete(code);
+          this.users.set(user.id, { ...user, email, emailVerified: true });
+
+          return Effect.succeedSome(token);
+        },
+      ),
     revokeSession: (sessionId) =>
       Effect.suspend(() => {
         if (this.failRevoke) {
@@ -289,6 +330,14 @@ export class MemoryIndex {
 
         if (person !== undefined && person.userId === null && person.removedAt === null) {
           person.userId = userId;
+        }
+      }),
+    correctEmail: (organizationId, personId, email) =>
+      Effect.sync(() => {
+        const person = this.persons.get(`${organizationId}/${personId}`);
+
+        if (person !== undefined && person.userId === null) {
+          person.email = normaliseEmail(email);
         }
       }),
     erasePerson: (erased) =>
@@ -552,6 +601,19 @@ export class MemoryOrganizations {
         }
 
         return { _tag: "Accepted", followUps: decision.followUps };
+      }),
+    rectifyEmail: (organizationId, userId, email) =>
+      Effect.sync(() => {
+        const organization = this.organizations.get(organizationId);
+
+        if (organization !== undefined) {
+          organization.state = {
+            ...organization.state,
+            people: organization.state.people.map((person) =>
+              person.authUserId === userId && person.erasedAt === null ? { ...person, email } : person,
+            ),
+          };
+        }
       }),
     teams: (organizationId, actorId) =>
       Effect.sync(() => {
@@ -1183,6 +1245,58 @@ export class SignInWorld {
       }),
   });
 
+  readonly pendingEmailChanges = new Map<AuthUserId, PendingEmailChange>();
+
+  private takenBy(email: EmailAddress, owner: (userId: AuthUserId | null) => boolean): boolean {
+    const account = [...this.sessions.users.values()].some(
+      (user) => normaliseEmail(user.email) === email && owner(user.id),
+    );
+
+    return (
+      account ||
+      [...this.index.persons.values()].some((person) => person.email === email && owner(person.userId))
+    );
+  }
+
+  readonly emailRectification = EmailRectification.of({
+    takenByAnotherAccount: (userId, email) =>
+      Effect.sync(() => this.takenBy(email, (owner) => owner !== userId)),
+    takenByAnyAccount: (email) =>
+      Effect.sync(
+        () =>
+          [...this.sessions.users.values()].some((user) => normaliseEmail(user.email) === email) ||
+          [...this.index.persons.values()].some((person) => person.email === email && person.userId !== null),
+      ),
+    pending: (userId) => Effect.sync(() => Option.fromNullishOr(this.pendingEmailChanges.get(userId))),
+    begin: (userId, change) =>
+      Effect.sync(() => {
+        this.pendingEmailChanges.set(userId, change);
+      }),
+    abandon: (userId, newEmail) =>
+      Effect.sync(() => {
+        if (this.pendingEmailChanges.get(userId)?.newEmail === newEmail) {
+          this.pendingEmailChanges.delete(userId);
+        }
+      }),
+    moveIndex: (userId, email) =>
+      Effect.sync(() => {
+        const organizations = new Set<OrganizationId>();
+
+        for (const person of this.index.persons.values()) {
+          if (person.userId === userId) {
+            person.email = email;
+            organizations.add(person.organizationId);
+          }
+        }
+
+        return [...organizations].toSorted();
+      }),
+    finish: (userId) =>
+      Effect.sync(() => {
+        this.pendingEmailChanges.delete(userId);
+      }),
+  });
+
   readonly offboardings = new Map<OrganizationId, AuthUserId>();
 
   readonly offboarding = OrganizationOffboarding.of({
@@ -1230,6 +1344,7 @@ export class SignInWorld {
       Context.add(OrganizationPeople, this.durable.service),
       Context.add(OrganizationDirectory, this.durable.directory),
       Context.add(OrganizationOffboarding, this.offboarding),
+      Context.add(EmailRectification, this.emailRectification),
       Context.add(OrganizationPulses, this.durable.pulses),
       Context.add(OrganizationRounds, this.durable.rounds),
       Context.add(OrganizationActions, this.durable.actions),

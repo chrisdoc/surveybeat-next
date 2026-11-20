@@ -38,6 +38,17 @@ export const catalog = {
   "erasure.admin.body":
     "Erasing is permanent and cannot be undone. It removes their email address, language and time zone, Memberships, Participation records, Invitations and the emails sent to them. Submissions and Answers carry no Person, so they stay in the Results. Actions they owned show a former member. A Lead or admin who is the only one left must hand over the role first.",
   "erasure.admin.confirmLabel": "Type {email} to confirm",
+  "emailChange.title": "Change your email address",
+  "emailChange.body":
+    "Your sign-in and your Person in each of your Organizations move to the new address. Emails already sent stay as they were. We send a code to the new address to check that it is yours.",
+  "emailChange.start": "Change my email address",
+  "emailChange.address": "New email address",
+  "emailChange.sendCode": "Send code",
+  "emailChange.sent": "We sent a {digits}-digit code to {email}. It expires in {minutes} minutes.",
+  "emailChange.code": "Code",
+  "emailChange.confirm": "Confirm new address",
+  "emailChange.otherAddress": "Use another address",
+  "emailChange.done": "Your email address is now {email}.",
   "createOrganization.title": "Create an Organization",
   "createOrganization.intro": "Your Organization holds your Teams and People. You become its admin.",
   "createOrganization.name": "Organization name",
@@ -263,6 +274,12 @@ export const catalog = {
   "settings.revokeAdmin": "Remove admin role",
   "settings.removePerson": "Remove from Organization",
   "settings.erasePerson": "Erase personal data",
+  "settings.correctEmail": "Correct email",
+  "correctEmail.title": "Correct the email address of {email}",
+  "correctEmail.body":
+    "{email} has not signed in yet, so you can fix the address here. After they sign in, they change it themselves. Emails already sent stay as they were.",
+  "correctEmail.label": "Correct email address",
+  "correctEmail.save": "Save address",
   "settings.removedPeople.title": "Removed People",
   "settings.removedPeople.body":
     "These People were removed from the Organization. Their email address and other personal data stay until you erase them.",
@@ -483,6 +500,14 @@ export const catalog = {
   "error.TeamNameTaken": "A Team with that name already exists.",
   "error.ErasureNotConfirmed": "That is not the email address. Type it exactly to confirm.",
   "error.OrganizationNotConfirmed": "That is not the Organization name. Type it exactly to confirm.",
+  "error.EmailTaken": "That address already belongs to someone else. Use a different one.",
+  "error.EmailUnusable": "Use an address with only letters, digits and the usual symbols, without accents.",
+  "error.EmailUnchanged": "That is already the address.",
+  "error.EmailChangePending":
+    "An earlier change is not finished. Confirm that same address again to finish it.",
+  "error.WrongEmailCode": "That code is wrong or has expired. Check it, or ask for a new one.",
+  "error.SignInAgainRequired": "Sign in again to change your email address, then try once more.",
+  "error.PersonHasAccount": "This person has signed in, so only they can change their email address.",
   "error.AccountStillInUse":
     "Your sign-in still belongs to a Person in an Organization. Erase your personal data there first.",
   "error.PersonWasRemoved": "This person was removed from the Organization. Ask an admin.",

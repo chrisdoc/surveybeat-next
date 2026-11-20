@@ -2,6 +2,7 @@ import { assert, describe, it } from "@effect/vitest";
 import { PersonalDataExport } from "@surveybeat/domain";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
+import { SESSION_COOKIE } from "./auth/AuthHandlers.ts";
 import { Browser, SignInWorld } from "./testing.ts";
 
 const setup = () => {
@@ -234,6 +235,138 @@ describe("erasing your own personal data (GDPR 307)", () => {
       assert.strictEqual(response.status, 409);
       assert.deepStrictEqual(response.body, { _tag: "AccountStillInUse" });
       assert.strictEqual(world.index.erasedAccounts.size, 0);
+    }),
+  );
+});
+
+describe("changing your own email address (GDPR 309)", () => {
+  const withAda = () => {
+    const { world, as } = setup();
+    const acme = [...world.durable.organizations.keys()][0]!;
+    const ada = world.addPerson(acme, "ada@example.com", false);
+
+    return { world, as, acme, ada };
+  };
+
+  const codeFor = (world: SignInWorld, address: string): string =>
+    [...world.sessions.changeCodes].find(([, email]) => email === address)?.[0] ?? "";
+
+  it.effect("refuses a caller who is not signed in", () =>
+    Effect.gen(function* () {
+      const { world } = setup();
+      const browser = new Browser(world.handler());
+
+      const asked = yield* Effect.promise(() =>
+        browser.call("POST", "/api/me/email-change", { email: "new@example.com" }),
+      );
+
+      const confirmed = yield* Effect.promise(() =>
+        browser.call("POST", "/api/me/email-change/confirm", { email: "new@example.com", otp: "1" }),
+      );
+
+      assert.strictEqual(asked.status, 401);
+      assert.strictEqual(confirmed.status, 401);
+    }),
+  );
+
+  it.effect("refuses a request from another origin", () =>
+    Effect.gen(function* () {
+      const { world, as } = withAda();
+      const browser = yield* as("ada@example.com");
+
+      const response = yield* Effect.promise(() =>
+        browser.post("/api/me/email-change", { email: "new@example.com" }, "https://evil.example"),
+      );
+
+      assert.strictEqual(response.status, 403);
+      assert.strictEqual(world.sessions.changeCodes.size, 0);
+    }),
+  );
+
+  it.effect(
+    "sends a code, then moves the account, the index and the Person, keeping the Person signed in",
+    () =>
+      Effect.gen(function* () {
+        const { world, as, acme, ada } = withAda();
+        const browser = yield* as("ada@example.com");
+
+        const asked = yield* Effect.promise(() =>
+          browser.call("POST", "/api/me/email-change", { email: " New@Example.com " }),
+        );
+
+        assert.strictEqual(asked.status, 204);
+
+        const response = yield* Effect.promise(() =>
+          browser.post("/api/me/email-change/confirm", {
+            email: "new@example.com",
+            otp: codeFor(world, "new@example.com"),
+          }),
+        );
+
+        assert.strictEqual(response.status, 204);
+        assert.isTrue(
+          response.headers.getSetCookie().some((cookie) => cookie.startsWith(`${SESSION_COOKIE}=`)),
+        );
+        assert.strictEqual(world.durable.person(acme, ada)?.email, "new@example.com");
+        assert.strictEqual(world.index.persons.get(`${acme}/${ada}`)?.email, "new@example.com");
+        assert.strictEqual(
+          world.sessions.users.get(world.sessions.userIdOf("new@example.com"))?.email,
+          "new@example.com",
+        );
+        assert.strictEqual(world.pendingEmailChanges.size, 0);
+
+        const after = yield* Effect.promise(() => browser.session());
+
+        assert.strictEqual(after.status, 200);
+        assert.deepStrictEqual(after.body, { ...(after.body as object), _tag: "SignedIn" });
+      }),
+  );
+
+  it.effect("answers with a typed error for a taken address, a wrong code and an unusable address", () =>
+    Effect.gen(function* () {
+      const { world, as, acme, ada } = withAda();
+      const browser = yield* as("ada@example.com");
+
+      const taken = yield* Effect.promise(() =>
+        browser.call("POST", "/api/me/email-change", { email: "admin@example.com" }),
+      );
+
+      const same = yield* Effect.promise(() =>
+        browser.call("POST", "/api/me/email-change", { email: "ada@example.com" }),
+      );
+
+      const unusable = yield* Effect.promise(() =>
+        browser.call("POST", "/api/me/email-change", { email: "äda@example.com" }),
+      );
+
+      assert.deepStrictEqual(taken, { status: 409, body: { _tag: "EmailTaken" } });
+      assert.deepStrictEqual(same, { status: 422, body: { _tag: "EmailUnchanged" } });
+      assert.deepStrictEqual(unusable, { status: 422, body: { _tag: "EmailUnusable" } });
+      assert.strictEqual(world.sessions.changeCodes.size, 0);
+
+      yield* Effect.promise(() => browser.call("POST", "/api/me/email-change", { email: "new@example.com" }));
+
+      const wrong = yield* Effect.promise(() =>
+        browser.call("POST", "/api/me/email-change/confirm", { email: "new@example.com", otp: "nope" }),
+      );
+
+      assert.deepStrictEqual(wrong, { status: 422, body: { _tag: "WrongEmailCode" } });
+      assert.strictEqual(world.pendingEmailChanges.size, 0);
+      assert.strictEqual(world.durable.person(acme, ada)?.email, "ada@example.com");
+    }),
+  );
+
+  it.effect("asks the Person to sign in again when the session is no longer accepted", () =>
+    Effect.gen(function* () {
+      const { world, as } = withAda();
+      const browser = yield* as("ada@example.com");
+      world.sessions.staleSession = true;
+
+      const response = yield* Effect.promise(() =>
+        browser.call("POST", "/api/me/email-change", { email: "new@example.com" }),
+      );
+
+      assert.deepStrictEqual(response, { status: 403, body: { _tag: "SignInAgainRequired" } });
     }),
   );
 });

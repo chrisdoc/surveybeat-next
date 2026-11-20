@@ -44,7 +44,9 @@ import {
   CancelRoundCmd,
   ClearKeptAnswersCmd,
   CloseRoundEarlyCmd,
+  ConfirmEmailChange,
   CopyGuideTextCmd,
+  CorrectPersonEmail,
   CreateTeam,
   GetRoundDetailCmd,
   GetResultsCmd,
@@ -64,6 +66,7 @@ import {
   PausePulseCmd,
   RemoveMember,
   RemoveQuestionCmd,
+  RequestEmailChange,
   ResendFailedEmailCmd,
   ResendInvitationCmd,
   ResumePulseCmd,
@@ -1316,6 +1319,118 @@ describe("App Scenes", () => {
             },
           }),
         ),
+      );
+    });
+  });
+
+  describe("Correcting a Person's email (GDPR 309)", () => {
+    const personId = decodePersonId("person-1");
+
+    const settingsOf = (
+      people: readonly { readonly linked: boolean }[],
+      removedPeople: readonly { readonly linked: boolean }[],
+    ) => ({
+      name: "Acme",
+      minimumGroupSize: decodeSize(4),
+      aiProcessing: false,
+      defaultLocale: "en" as const,
+      people: people.map(({ linked }) => ({
+        personId,
+        email: decodeEmail("pat@acme.com"),
+        organizationAdmin: false,
+        linked,
+      })),
+      removedPeople: removedPeople.map(({ linked }) => ({
+        personId,
+        email: decodeEmail("ghost@acme.com"),
+        linked,
+      })),
+    });
+
+    const settingsModel = (settings: ReturnType<typeof settingsOf>) => ({
+      ...initialModel(makeUrl("https://app.surveybeat.com/settings"), []),
+      session: signedInAdmin,
+      settings: { _tag: "Loaded" as const, settings },
+      size: "4",
+    });
+
+    it("gives a Person who has not signed in a Correct email control, and no one else", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given(settingsModel(settingsOf([{ linked: false }], []))),
+        Scene.expect(Scene.role("button", { name: "Correct email" })).toExist(),
+      );
+      Scene.scene(
+        { update, view },
+        Scene.given(settingsModel(settingsOf([{ linked: true }], []))),
+        Scene.expect(Scene.role("button", { name: "Correct email" })).toBeAbsent(),
+      );
+      Scene.scene(
+        { update, view },
+        Scene.given(settingsModel(settingsOf([], [{ linked: false }]))),
+        Scene.expect(Scene.role("button", { name: "Correct email" })).toExist(),
+      );
+      Scene.scene(
+        { update, view },
+        Scene.given(settingsModel(settingsOf([], [{ linked: true }]))),
+        Scene.expect(Scene.role("button", { name: "Correct email" })).toBeAbsent(),
+      );
+    });
+
+    it("sends the corrected address and reloads the People", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given(settingsModel(settingsOf([{ linked: false }], []))),
+        Scene.click(Scene.role("button", { name: "Correct email" })),
+        Scene.expect(Scene.role("heading", { name: "Correct the email address of pat@acme.com" })).toExist(),
+        Scene.expect(Scene.role("button", { name: "Save address" })).toBeDisabled(),
+        Scene.type(Scene.label("Correct email address"), " pat.new@acme.com "),
+        Scene.click(Scene.role("button", { name: "Save address" })),
+        Scene.Command.expectHas(CorrectPersonEmail({ personId, email: "pat.new@acme.com" })),
+        Scene.Command.resolve(CorrectPersonEmail, Message.CorrectedEmail({ outcome: { _tag: "Success" } })),
+        Scene.expect(Scene.label("Correct email address")).toBeAbsent(),
+        Scene.Command.expectHas(GetSettings),
+        Scene.Command.resolve(
+          GetSettings,
+          Message.GotSettings({
+            outcome: {
+              _tag: "Success",
+              settings: {
+                ...settingsOf([{ linked: false }], []),
+                people: [
+                  {
+                    personId,
+                    email: decodeEmail("pat.new@acme.com"),
+                    organizationAdmin: false,
+                    linked: false,
+                  },
+                ],
+              },
+            },
+          }),
+        ),
+        Scene.expect(Scene.text("pat.new@acme.com")).toExist(),
+        Scene.expect(Scene.text("pat@acme.com")).toBeAbsent(),
+      );
+    });
+
+    it("keeps the form open and says why when the address is refused", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given(settingsModel(settingsOf([{ linked: false }], []))),
+        Scene.click(Scene.role("button", { name: "Correct email" })),
+        Scene.type(Scene.label("Correct email address"), "bob@acme.com"),
+        Scene.click(Scene.role("button", { name: "Save address" })),
+        Scene.Command.resolve(
+          CorrectPersonEmail,
+          Message.CorrectedEmail({ outcome: { _tag: "Failure", failure: "EmailTaken" } }),
+        ),
+        Scene.expect(
+          Scene.text("That address already belongs to someone else. Use a different one."),
+        ).toExist(),
+        Scene.expect(Scene.label("Correct email address")).toExist(),
+        Scene.click(Scene.role("button", { name: "Cancel" })),
+        Scene.expect(Scene.label("Correct email address")).toBeAbsent(),
       );
     });
   });
@@ -3952,6 +4067,135 @@ describe("App Scenes", () => {
         }),
         Scene.expect(Scene.role("heading", { name: "Erase your personal data" })).toExist(),
         Scene.expect(Scene.role("button", { name: "Erase my personal data" })).toExist(),
+      );
+    });
+
+    it("offers an email change next to the export and the erasure, and sends nothing on the first click", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(makeUrl("https://app.surveybeat.com/privacy"), []),
+          session: signedInAdmin,
+        }),
+        Scene.expect(Scene.role("heading", { name: "Change your email address" })).toExist(),
+        Scene.expect(Scene.role("button", { name: "Send code" })).toBeAbsent(),
+        Scene.click(Scene.role("button", { name: "Change my email address" })),
+        Scene.expect(Scene.label("New email address")).toExist(),
+        Scene.expect(Scene.role("button", { name: "Send code" })).toBeDisabled(),
+        Scene.type(Scene.label("New email address"), "alice.new@acme.com"),
+        Scene.expect(Scene.role("button", { name: "Send code" })).toBeEnabled(),
+        Scene.click(Scene.role("button", { name: "Cancel" })),
+        Scene.expect(Scene.role("button", { name: "Send code" })).toBeAbsent(),
+        Scene.Command.expectNone(),
+      );
+    });
+
+    it("asks for the code after sending it, then confirms the new address", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(makeUrl("https://app.surveybeat.com/privacy"), []),
+          session: signedInAdmin,
+        }),
+        Scene.click(Scene.role("button", { name: "Change my email address" })),
+        Scene.type(Scene.label("New email address"), " alice.new@acme.com "),
+        Scene.click(Scene.role("button", { name: "Send code" })),
+        Scene.Command.expectHas(RequestEmailChange({ email: "alice.new@acme.com" })),
+        Scene.Command.resolve(
+          RequestEmailChange,
+          Message.EmailChangeCodeSent({ outcome: { _tag: "Success" } }),
+        ),
+        Scene.expect(
+          Scene.text("We sent a 6-digit code to alice.new@acme.com. It expires in 10 minutes."),
+        ).toExist(),
+        Scene.expect(Scene.role("button", { name: "Confirm new address" })).toBeDisabled(),
+        Scene.type(Scene.label("Code"), "123456"),
+        Scene.click(Scene.role("button", { name: "Confirm new address" })),
+        Scene.Command.expectHas(ConfirmEmailChange({ email: "alice.new@acme.com", otp: "123456" })),
+        Scene.Command.resolve(
+          ConfirmEmailChange,
+          Message.EmailChangeFinished({ outcome: { _tag: "Success" } }),
+        ),
+        Scene.expect(Scene.text("Your email address is now alice.new@acme.com.")).toExist(),
+        Scene.expect(Scene.label("Code")).toBeAbsent(),
+      );
+    });
+
+    it("shows why a code, an address or an old session was refused, and keeps the form", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(makeUrl("https://app.surveybeat.com/privacy"), []),
+          session: signedInAdmin,
+        }),
+        Scene.click(Scene.role("button", { name: "Change my email address" })),
+        Scene.type(Scene.label("New email address"), "bob@acme.com"),
+        Scene.click(Scene.role("button", { name: "Send code" })),
+        Scene.Command.resolve(
+          RequestEmailChange,
+          Message.EmailChangeCodeSent({ outcome: { _tag: "Failure", failure: "EmailTaken" } }),
+        ),
+        Scene.expect(
+          Scene.text("That address already belongs to someone else. Use a different one."),
+        ).toExist(),
+        Scene.expect(Scene.label("New email address")).toExist(),
+        Scene.type(Scene.label("New email address"), "alice.new@acme.com"),
+        Scene.expect(
+          Scene.text("That address already belongs to someone else. Use a different one."),
+        ).toBeAbsent(),
+        Scene.click(Scene.role("button", { name: "Send code" })),
+        Scene.Command.resolve(
+          RequestEmailChange,
+          Message.EmailChangeCodeSent({ outcome: { _tag: "Success" } }),
+        ),
+        Scene.type(Scene.label("Code"), "000000"),
+        Scene.click(Scene.role("button", { name: "Confirm new address" })),
+        Scene.Command.resolve(
+          ConfirmEmailChange,
+          Message.EmailChangeFinished({ outcome: { _tag: "Failure", failure: "WrongEmailCode" } }),
+        ),
+        Scene.expect(
+          Scene.text("That code is wrong or has expired. Check it, or ask for a new one."),
+        ).toExist(),
+        Scene.click(Scene.role("button", { name: "Confirm new address" })),
+        Scene.Command.resolve(
+          ConfirmEmailChange,
+          Message.EmailChangeFinished({ outcome: { _tag: "Failure", failure: "SignInAgainRequired" } }),
+        ),
+        Scene.expect(Scene.text("Sign in again to change your email address, then try once more.")).toExist(),
+        Scene.click(Scene.role("button", { name: "Use another address" })),
+        Scene.expect(Scene.label("New email address")).toExist(),
+      );
+    });
+
+    it("offers the email change to someone who is in no Organization", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(makeUrl("https://app.surveybeat.com/privacy"), []),
+          session: { _tag: "NotInOrganization" },
+        }),
+        Scene.expect(Scene.role("heading", { name: "Change your email address" })).toExist(),
+        Scene.expect(Scene.role("button", { name: "Change my email address" })).toExist(),
+      );
+    });
+
+    it("keeps the email change out of the public privacy page", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(makeUrl("https://app.surveybeat.com/privacy"), []),
+          session: {
+            _tag: "SignedOut",
+            failed: false,
+            stage: "email",
+            email: "",
+            code: "",
+            busy: false,
+            notice: null,
+          },
+        }),
+        Scene.expect(Scene.role("heading", { name: "Change your email address" })).toBeAbsent(),
       );
     });
 
