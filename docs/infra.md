@@ -151,4 +151,4 @@ No stage other than `production` can send real mail. To try real sending elsewhe
 
 ## The site Worker
 
-`SiteWorker` serves the prerendered landing page from `apps/web/dist-site` (ADR 0020) with `htmlHandling: "auto-trailing-slash"`. `/app` and `/app/` answer a 302 to the app origin on a GET, and anything the assets do not match answers 404. Production serves the apex only while `APEX_SERVED_BY_SITE` is on, with `www` redirecting to it; staging and PR stages get `<stage>.surveybeat.app`. `EmailConfig.test.ts` pins the redirect rule and both asset directories.
+`SiteWorker` serves the prerendered landing page and the legal pages `/privacy`, `/terms`, `/dpa` and `/subprocessors` (issue #305) from `apps/web/dist-site` (ADR 0020) with `htmlHandling: "auto-trailing-slash"`. `/app` and `/app/` answer a 302 to the app origin on a GET, and anything the assets do not match answers 404. Production serves the apex only while `APEX_SERVED_BY_SITE` is on, with `www` redirecting to it; staging and PR stages get `<stage>.surveybeat.app`. `EmailConfig.test.ts` pins the redirect rule and both asset directories.

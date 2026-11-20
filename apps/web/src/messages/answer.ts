@@ -29,6 +29,11 @@ export const answerCatalog = {
   "answer.state.alreadyAnswered": "You've already answered this check-in.",
   "answer.state.otherBrowser":
     "You answered this check-in in another browser. Your answers are anonymous and can only be changed from the browser you used to submit them.",
+  "answer.legal.label": "Legal",
+  "answer.legal.privacy": "Privacy Notice",
+  "answer.legal.terms": "Terms",
+  "answer.legal.dpa": "DPA",
+  "answer.legal.subprocessors": "Sub-processors",
   "answer.noscript": "JavaScript is required to answer this check-in anonymously.",
 } as const;
 

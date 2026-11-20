@@ -5,6 +5,8 @@ import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { defineConfig } from "vite";
 import type { Plugin } from "vite";
+import { legalPages } from "@surveybeat/domain";
+import { renderLegalPage } from "./src/site/legal.ts";
 import { renderSitePage } from "./src/site/render.ts";
 
 const outDir = path.resolve(import.meta.dirname, "dist-site");
@@ -15,6 +17,11 @@ const prerenderSite = (): Plugin => ({
     const shellPath = path.resolve(outDir, "site.html");
     const shell = readFileSync(shellPath, "utf8");
     writeFileSync(path.resolve(outDir, "index.html"), renderSitePage("en", shell));
+
+    for (const page of legalPages) {
+      writeFileSync(path.resolve(outDir, `${page}.html`), renderLegalPage("en", shell, page));
+    }
+
     rmSync(shellPath);
   },
 });

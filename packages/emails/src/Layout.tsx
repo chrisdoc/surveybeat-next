@@ -1,5 +1,6 @@
+import { legalPages, legalUrl } from "@surveybeat/domain";
 import type { ReactNode } from "react";
-import { Body, Container, Head, Hr, Html, Preview, Section, Text } from "react-email";
+import { Body, Container, Head, Hr, Html, Link, Preview, Section, Text } from "react-email";
 import type { Messages } from "./messages/index.ts";
 import { colors, darkColors, fonts, radius } from "./theme.ts";
 
@@ -84,6 +85,21 @@ export function Layout({
           >
             {messages.message("layout.signature")}
           </Text>
+          <Text
+            className="sb-muted"
+            style={{ color: colors.muted, fontSize: "12px", lineHeight: "18px", margin: "4px 0 0" }}
+          >
+            {legalPages.map((page) => (
+              <Link
+                key={page}
+                className="sb-link"
+                href={legalUrl(page)}
+                style={{ color: colors.muted, textDecoration: "underline", marginRight: "12px" }}
+              >
+                {messages.message(`layout.legal.${page}`)}
+              </Link>
+            ))}
+          </Text>
         </Container>
       </Body>
     </Html>
@@ -91,4 +107,12 @@ export function Layout({
 }
 
 export const textLayout = (messages: Messages, body: readonly string[], reason: string): string =>
-  [...body, "", "--", reason, messages.message("layout.signature"), ""].join("\n");
+  [
+    ...body,
+    "",
+    "--",
+    reason,
+    messages.message("layout.signature"),
+    ...legalPages.map((page) => `${messages.message(`layout.legal.${page}`)}: ${legalUrl(page)}`),
+    "",
+  ].join("\n");

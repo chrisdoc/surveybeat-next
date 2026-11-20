@@ -102,3 +102,11 @@
     transition: none !important;
   }
 }
+
+.legal-sections {
+  counter-reset: legal-section;
+}
+.legal-section > h2::before {
+  counter-increment: legal-section;
+  content: counter(legal-section) ". ";
+}

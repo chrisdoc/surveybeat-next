@@ -4,6 +4,8 @@ export * from "./ai/index.ts";
 
 export * from "./email/index.ts";
 
+export * from "./Legal.ts";
+
 export * from "./notes/index.ts";
 
 export * from "./people/index.ts";

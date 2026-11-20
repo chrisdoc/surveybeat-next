@@ -1,6 +1,7 @@
 // @effect-diagnostics nodeBuiltinImport:off -- this file reads the repository from disk or spawns a process outside a Worker; the Effect FileSystem and ChildProcess services do not exist there.
 
 import { foldkit } from "@foldkit/vite-plugin";
+import { legalPages, legalUrl } from "@surveybeat/domain";
 import tailwindcss from "@tailwindcss/vite";
 import { copyFileSync, mkdirSync, readFileSync } from "node:fs";
 import path from "node:path";
@@ -29,7 +30,7 @@ const prerenderAnswer = (): Plugin => {
         .replaceAll(/\s*([{};:,])\s*/g, "$1")
         .replaceAll(/\n\s*/g, "");
 
-      const bootstrapScript = `<script>
+      const bootstrapSource = `<script>
 (function() {
   try {
     var hash = location.hash;
@@ -78,6 +79,8 @@ const prerenderAnswer = (): Plugin => {
 })();
 </script>`;
 
+      const bootstrapScript = bootstrapSource.replaceAll(/\s*\n\s*/g, "");
+
       const message = answerMessages(answerCatalog);
 
       const scale = [1, 2, 3, 4, 5]
@@ -86,6 +89,13 @@ const prerenderAnswer = (): Plugin => {
 
           return `<label><input type="radio" name="q1" value="${value}"><span${id}>${value}</span></label>`;
         })
+        .join("");
+
+      const legalLinks = legalPages
+        .map(
+          (page) =>
+            `<a href="${legalUrl(page)}" target="_blank" rel="noopener noreferrer">${message(`answer.legal.${page}`)}</a>`,
+        )
         .join("");
 
       const body = `<main>
@@ -111,13 +121,14 @@ const prerenderAnswer = (): Plugin => {
     <p id="thanks-body">${message("answer.thanks.body")}</p>
     <ul class="actions" id="actions"></ul>
   </section>
-</main>`;
+</main>
+<footer><nav aria-label="${message("answer.legal.label")}">${legalLinks}</nav></footer>`;
 
       return html
         .replace("<title></title>", `<title>${message("answer.title")}</title>`)
         .replace("<!--PRERENDER_STYLE-->", `<style>${minCss}</style>`)
         .replace("<!--HEAD_BOOTSTRAP-->", bootstrapScript)
-        .replace("<!--PRERENDER_BODY-->", body);
+        .replace("<!--PRERENDER_BODY-->", body.replaceAll(/>\s*\n\s*</g, "><"));
     },
     closeBundle() {
       const answerHtmlPath = path.resolve(outDir, "answer.html");
