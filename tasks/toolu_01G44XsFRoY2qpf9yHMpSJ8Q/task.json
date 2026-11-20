@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01G44XsFRoY2qpf9yHMpSJ8Q",
+  "agent_id": "ac241897b492395ce",
+  "subagent_type": "shipper",
+  "task_description": "Commit, push, open PR 308",
+  "token_usage": {
+    "input_tokens": 20,
+    "cache_creation_tokens": 29518,
+    "cache_read_tokens": 220314,
+    "output_tokens": 5912,
+    "api_call_count": 10
+  },
+  "started_at": "2026-11-20T17:54:06.56766618Z",
+  "completed_at": "2026-11-20T17:58:26.635887042Z"
+}
