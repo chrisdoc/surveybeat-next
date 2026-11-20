@@ -106,12 +106,20 @@ export const PersonSummary = Schema.Struct({
 
 export type PersonSummary = typeof PersonSummary.Type;
 
+export const RemovedPersonSummary = Schema.Struct({
+  personId: PersonId,
+  email: EmailAddress,
+});
+
+export type RemovedPersonSummary = typeof RemovedPersonSummary.Type;
+
 export const OrganizationSettings = Schema.Struct({
   name: Schema.String,
   minimumGroupSize: MinimumGroupSize,
   aiProcessing: Schema.Boolean,
   defaultLocale: Locale,
   people: Schema.Array(PersonSummary),
+  removedPeople: Schema.Array(RemovedPersonSummary),
 });
 
 export type OrganizationSettings = typeof OrganizationSettings.Type;
@@ -139,6 +147,16 @@ export class LastAdmin extends Schema.TaggedError<LastAdmin, { readonly brand: u
   {},
   { httpApiStatus: 409 },
 ) {}
+
+export class ErasureNotConfirmed extends Schema.TaggedError<
+  ErasureNotConfirmed,
+  { readonly brand: unique symbol }
+>()("ErasureNotConfirmed", {}, { httpApiStatus: 422 }) {}
+
+export class AccountStillInUse extends Schema.TaggedError<
+  AccountStillInUse,
+  { readonly brand: unique symbol }
+>()("AccountStillInUse", {}, { httpApiStatus: 409 }) {}
 
 export class TeamNameTaken extends Schema.TaggedError<TeamNameTaken, { readonly brand: unique symbol }>()(
   "TeamNameTaken",

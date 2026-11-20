@@ -191,6 +191,17 @@ export const directoryHandlers = <R>(
       )
       .handle("removePerson", ({ params }) =>
         provide(change(() => Effect.succeed({ _tag: "RemovePerson", personId: params.personId }))),
+      )
+      .handle("erasePerson", ({ params, payload }) =>
+        provide(
+          change(() =>
+            Effect.succeed({
+              _tag: "ErasePerson",
+              personId: params.personId,
+              confirmation: payload.confirmation,
+            }),
+          ),
+        ),
       ),
   );
 };

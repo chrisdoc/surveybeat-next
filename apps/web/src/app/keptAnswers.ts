@@ -64,6 +64,26 @@ export const clearKeptAnswers = (storage: Pick<Storage, "length" | "key" | "remo
   } catch {}
 };
 
+const editKeyPrefix = "sb_edit_";
+
+export const clearOwnBrowserData = (storage: Pick<Storage, "length" | "key" | "removeItem">): void => {
+  try {
+    const keys: string[] = [];
+
+    for (let index = 0; index < storage.length; index++) {
+      const key = storage.key(index);
+
+      if (key !== null && (key.startsWith(keptAnswersPrefix) || key.startsWith(editKeyPrefix))) {
+        keys.push(key);
+      }
+    }
+
+    for (const key of keys) {
+      storage.removeItem(key);
+    }
+  } catch {}
+};
+
 export const browserStorage = (): Storage | null => {
   try {
     return window.localStorage;

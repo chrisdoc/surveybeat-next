@@ -27,6 +27,8 @@ export interface PersonRecord {
 
   readonly removedAt: number | null;
 
+  readonly erasedAt: number | null;
+
   readonly locale: Locale | null;
 
   readonly detectedLocale: Locale | null;
@@ -96,6 +98,11 @@ export type DirectoryCommand =
       readonly membershipId: MembershipId;
     }
   | { readonly _tag: "RemovePerson"; readonly personId: PersonId }
+  | {
+      readonly _tag: "ErasePerson";
+      readonly personId: PersonId;
+      readonly confirmation: EmailAddress;
+    }
   | { readonly _tag: "SetAdmin"; readonly personId: PersonId; readonly organizationAdmin: boolean }
   | {
       readonly _tag: "UpdateSettings";
@@ -113,6 +120,7 @@ export type DirectoryChange =
   | { readonly _tag: "PersonAdded"; readonly person: PersonRecord }
   | { readonly _tag: "PersonRestored"; readonly personId: PersonId }
   | { readonly _tag: "PersonRemoved"; readonly personId: PersonId; readonly at: number }
+  | { readonly _tag: "PersonErased"; readonly personId: PersonId; readonly at: number }
   | { readonly _tag: "AdminSet"; readonly personId: PersonId; readonly organizationAdmin: boolean }
   | { readonly _tag: "TeamAdded"; readonly team: TeamRecord }
   | { readonly _tag: "TeamUpdated"; readonly team: TeamRecord }
@@ -143,9 +151,16 @@ export interface PersonRef {
   readonly authUserId: AuthUserId | null;
 }
 
+export interface ErasedPersonFacts {
+  readonly person: PersonRef;
+  readonly sendIds: readonly SendId[];
+  readonly testTokenHashes: readonly string[];
+}
+
 export type FollowUp =
   | { readonly _tag: "IndexPerson"; readonly person: PersonRef }
-  | { readonly _tag: "UnindexPerson"; readonly personId: PersonId };
+  | { readonly _tag: "UnindexPerson"; readonly personId: PersonId }
+  | ({ readonly _tag: "ErasePersonIndex" } & ErasedPersonFacts);
 
 export type DirectoryRejection =
   | { readonly _tag: "Forbidden" }
@@ -154,6 +169,7 @@ export type DirectoryRejection =
   | { readonly _tag: "PersonWasRemoved" }
   | { readonly _tag: "LastLead"; readonly teamId: TeamId }
   | { readonly _tag: "LastAdmin" }
+  | { readonly _tag: "ErasureNotConfirmed" }
   | { readonly _tag: "TeamNameTaken" }
   | { readonly _tag: "FailedEmailNotFound" }
   | { readonly _tag: "EmailNotResendable" };
@@ -188,6 +204,9 @@ const accept = (changes: readonly DirectoryChange[], followUps: readonly FollowU
   changes,
   followUps,
 });
+
+export const erasedEmailOf = (personId: PersonId): EmailAddress =>
+  EmailAddress.make(`erased-${personId}@erased.invalid`.toLowerCase());
 
 export const addedEmailSendId = (membershipId: MembershipId): SendId => SendId.make(`added-${membershipId}`);
 
@@ -270,6 +289,7 @@ const putInTeam = (
     authUserId: null,
     organizationAdmin: false,
     removedAt: null,
+    erasedAt: null,
     locale: null,
     detectedLocale: null,
   };
@@ -521,6 +541,63 @@ export const decide = (
       return accept(changes, followUps);
     }
 
+    case "ErasePerson": {
+      const person = state.people.find((each) => each.id === command.personId);
+
+      if (command.personId !== actorId && !can(allowed, "organization.removePerson", organization)) {
+        return forbidden;
+      }
+
+      if (person === undefined) {
+        return reject({ _tag: "PersonNotFound" });
+      }
+
+      const followUp: FollowUp = {
+        _tag: "ErasePersonIndex",
+        person: refOf(person),
+        sendIds: [],
+        testTokenHashes: [],
+      };
+
+      if (person.erasedAt !== null) {
+        return accept([], [followUp]);
+      }
+
+      if (normaliseEmail(command.confirmation) !== person.email) {
+        return reject({ _tag: "ErasureNotConfirmed" });
+      }
+
+      const memberships = state.memberships.filter(
+        (membership) => membership.personId === person.id && isActive(membership),
+      );
+
+      for (const membership of memberships) {
+        if (membership.role === "lead" && leadsOf(state, membership.teamId).length <= 1) {
+          return reject({ _tag: "LastLead", teamId: membership.teamId });
+        }
+      }
+
+      if (
+        person.removedAt === null &&
+        person.organizationAdmin &&
+        activePeople(state).filter((each) => each.organizationAdmin).length <= 1
+      ) {
+        return reject({ _tag: "LastAdmin" });
+      }
+
+      return accept(
+        [
+          ...memberships.map((membership): DirectoryChange => ({
+            _tag: "MembershipEnded",
+            membershipId: membership.id,
+            at: now,
+          })),
+          { _tag: "PersonErased", personId: person.id, at: now },
+        ],
+        [followUp],
+      );
+    }
+
     case "SetAdmin": {
       if (!can(allowed, "organization.setAdmin", organization)) {
         return forbidden;
@@ -594,6 +671,19 @@ const applyChange = (state: DirectoryState, change: DirectoryChange): DirectoryS
 
     case "PersonRemoved": {
       return updatePerson(change.personId, (person) => ({ ...person, removedAt: change.at }));
+    }
+
+    case "PersonErased": {
+      return updatePerson(change.personId, (person) => ({
+        ...person,
+        email: erasedEmailOf(person.id),
+        authUserId: null,
+        organizationAdmin: false,
+        removedAt: person.removedAt ?? change.at,
+        erasedAt: change.at,
+        locale: null,
+        detectedLocale: null,
+      }));
     }
 
     case "AdminSet": {
@@ -771,6 +861,10 @@ export const settingsView = (state: DirectoryState, actorId: PersonId): Viewed<O
           organizationAdmin: person.organizationAdmin,
           linked: person.authUserId !== null,
         }))
+        .sort((a, b) => a.email.localeCompare(b.email, "en")),
+      removedPeople: state.people
+        .filter((person) => person.removedAt !== null && person.erasedAt === null)
+        .map((person) => ({ personId: person.id, email: person.email }))
         .sort((a, b) => a.email.localeCompare(b.email, "en")),
     },
   };

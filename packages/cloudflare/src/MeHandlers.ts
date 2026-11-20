@@ -1,15 +1,21 @@
 import { SurveyBeatApi } from "@surveybeat/api";
-import { PERSONAL_DATA_EXPORT_FILENAME, PersonalDataSource } from "@surveybeat/domain";
+import {
+  eraseAccount,
+  PERSONAL_DATA_EXPORT_FILENAME,
+  PersonalDataSource,
+  runDirectoryCommand,
+} from "@surveybeat/domain";
+import type { OrganizationDirectory } from "@surveybeat/domain";
 import type * as Context from "effect/Context";
 import * as Clock from "effect/Clock";
 import * as Effect from "effect/Effect";
 import * as HttpEffect from "effect/http/HttpEffect";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
-import { authenticated, requireSameOrigin } from "./auth/AuthHandlers.ts";
+import { authenticated, currentMember, requireSameOrigin } from "./auth/AuthHandlers.ts";
 import type { AuthServices } from "./auth/AuthHandlers.ts";
 
-export type MeServices = AuthServices | PersonalDataSource;
+export type MeServices = AuthServices | PersonalDataSource | OrganizationDirectory;
 
 const downloadHeaders = HttpEffect.appendPreResponseHandler((_request, response) =>
   Effect.succeed(
@@ -25,18 +31,43 @@ export const meHandlers = <R>(services: Effect.Effect<Context.Context<MeServices
     Effect.flatMap(services, (context) => Effect.provideContext(effect, context));
 
   return HttpApiBuilder.group(SurveyBeatApi, "me", (handlers) =>
-    handlers.handle("exportData", () =>
-      provide(
-        Effect.gen(function* () {
-          yield* requireSameOrigin;
-          const checked = yield* authenticated;
-          const source = yield* PersonalDataSource;
-          const now = yield* Clock.currentTimeMillis;
-          yield* downloadHeaders;
+    handlers
+      .handle("exportData", () =>
+        provide(
+          Effect.gen(function* () {
+            yield* requireSameOrigin;
+            const checked = yield* authenticated;
+            const source = yield* PersonalDataSource;
+            const now = yield* Clock.currentTimeMillis;
+            yield* downloadHeaders;
 
-          return yield* source.gather(checked.session.identity.userId, now);
-        }),
+            return yield* source.gather(checked.session.identity.userId, now);
+          }),
+        ),
+      )
+      .handle("erasePerson", ({ payload }) =>
+        provide(
+          Effect.gen(function* () {
+            yield* requireSameOrigin;
+            const member = yield* currentMember;
+
+            yield* runDirectoryCommand(member, {
+              _tag: "ErasePerson",
+              personId: member.personId,
+              confirmation: payload.confirmation,
+            });
+          }),
+        ),
+      )
+      .handle("eraseAccount", ({ payload }) =>
+        provide(
+          Effect.gen(function* () {
+            yield* requireSameOrigin;
+            const checked = yield* authenticated;
+
+            yield* eraseAccount(checked.session, payload.confirmation);
+          }),
+        ),
       ),
-    ),
   );
 };

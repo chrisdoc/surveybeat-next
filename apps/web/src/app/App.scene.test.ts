@@ -1260,6 +1260,7 @@ describe("App Scenes", () => {
             linked: true,
           },
         ],
+        removedPeople: [],
       };
 
       Scene.scene(
@@ -1306,6 +1307,7 @@ describe("App Scenes", () => {
       aiProcessing: false,
       defaultLocale: "en" as const,
       people: [],
+      removedPeople: [],
     };
 
     const failedAt = 1_800_000_000_000;
@@ -1601,6 +1603,7 @@ describe("App Scenes", () => {
             linked: true,
           },
         ],
+        removedPeople: [],
       };
 
       Scene.scene(
@@ -3820,6 +3823,57 @@ describe("App Scenes", () => {
       );
     });
 
+    it("offers erasure behind a confirmation next to the export, and clears nothing on the first click", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(makeUrl("https://app.surveybeat.com/privacy"), []),
+          session: signedInAdmin,
+        }),
+        Scene.expect(Scene.role("button", { name: "Download my personal data" })).toExist(),
+        Scene.expect(Scene.role("heading", { name: "Erase your personal data" })).toExist(),
+        Scene.expect(Scene.role("button", { name: "Erase permanently" })).toBeAbsent(),
+        Scene.click(Scene.role("button", { name: "Erase my personal data" })),
+        Scene.expect(Scene.label("Type your email address to confirm")).toExist(),
+        Scene.expect(Scene.role("button", { name: "Erase permanently" })).toBeDisabled(),
+        Scene.type(Scene.label("Type your email address to confirm"), "alice@acme.com"),
+        Scene.expect(Scene.role("button", { name: "Erase permanently" })).toBeEnabled(),
+        Scene.click(Scene.role("button", { name: "Cancel" })),
+        Scene.expect(Scene.role("button", { name: "Erase permanently" })).toBeAbsent(),
+      );
+    });
+
+    it("offers the sign-in account erasure to someone who is in no Organization", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(makeUrl("https://app.surveybeat.com/privacy"), []),
+          session: { _tag: "NotInOrganization" },
+        }),
+        Scene.expect(Scene.role("heading", { name: "Erase your personal data" })).toExist(),
+        Scene.expect(Scene.role("button", { name: "Erase my personal data" })).toExist(),
+      );
+    });
+
+    it("keeps the erasure out of the public privacy page", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(makeUrl("https://app.surveybeat.com/privacy"), []),
+          session: {
+            _tag: "SignedOut",
+            failed: false,
+            stage: "email",
+            email: "",
+            code: "",
+            busy: false,
+            notice: null,
+          },
+        }),
+        Scene.expect(Scene.role("heading", { name: "Erase your personal data" })).toBeAbsent(),
+      );
+    });
+
     it("keeps the app nav on the privacy page when signed in", () => {
       Scene.scene(
         { update, view },
@@ -3913,6 +3967,7 @@ describe("App Scenes", () => {
         aiProcessing: false,
         defaultLocale: "en" as const,
         people: [],
+        removedPeople: [],
       };
 
       Scene.scene(

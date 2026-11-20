@@ -264,6 +264,7 @@ describe("Results Privacy & Minimum Group Size Invariants (ADR 0004, Issue #3)",
       authUserId: null,
       organizationAdmin,
       removedAt,
+      erasedAt: null,
       locale: null,
       detectedLocale: null,
     });

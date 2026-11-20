@@ -642,7 +642,11 @@ export const signOutView = <Message>(h: HtmlBuilder<Message>, inMenu = false): H
     ],
   );
 
-export const privacyContent = <Message>(h: HtmlBuilder<Message>, signedIn = false): readonly Child[] => [
+export const privacyContent = <Message>(
+  h: HtmlBuilder<Message>,
+  signedIn = false,
+  erasure: readonly Child[] = [],
+): readonly Child[] => [
   pageTitle(message("privacy.title"), h),
   h.p([h.Class("mt-4")], [h.a([h.Href(teamsHref()), h.Class(linkClass)], [message("privacy.back")])]),
   h.p([h.Class("mt-4 leading-relaxed text-muted")], [message("legal.intro")]),
@@ -690,6 +694,7 @@ export const privacyContent = <Message>(h: HtmlBuilder<Message>, signedIn = fals
           h,
           "mt-6",
         ),
+        ...erasure,
       ]
     : []),
 ];

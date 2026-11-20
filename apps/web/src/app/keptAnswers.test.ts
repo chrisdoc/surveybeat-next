@@ -1,6 +1,6 @@
 import * as DateTime from "effect/DateTime";
 import { describe, expect, it } from "vitest";
-import { clearKeptAnswers, readKeptAnswers } from "./keptAnswers.ts";
+import { clearKeptAnswers, clearOwnBrowserData, readKeptAnswers } from "./keptAnswers.ts";
 
 const now = DateTime.toEpochMillis(DateTime.makeUnsafe("2026-11-10T12:00:00Z"));
 
@@ -126,5 +126,43 @@ describe("clearKeptAnswers", () => {
     };
 
     expect(() => clearKeptAnswers(storage)).not.toThrow();
+  });
+});
+
+describe("clearOwnBrowserData", () => {
+  it("clears kept answers and Edit keys but nothing else, which /history never does for Edit keys", () => {
+    const { storage, map } = fakeStorage({
+      sb_answers_round1: stored(now + 1000, { q1: { value: 4 } }),
+      sb_edit_round1: "edit-key",
+      sb_edit_round2: "another-edit-key",
+      unrelated: "keep",
+    });
+
+    clearOwnBrowserData(storage);
+
+    expect([...map.keys()]).toEqual(["unrelated"]);
+  });
+
+  it("leaves Edit keys alone when only kept answers are cleared", () => {
+    const { storage, map } = fakeStorage({
+      sb_answers_round1: stored(now + 1000, { q1: { value: 4 } }),
+      sb_edit_round1: "edit-key",
+    });
+
+    clearKeptAnswers(storage);
+
+    expect([...map.keys()]).toEqual(["sb_edit_round1"]);
+  });
+
+  it("does not throw when the browser refuses storage access", () => {
+    const storage = {
+      get length(): number {
+        throw new Error("blocked");
+      },
+      key: () => null,
+      removeItem: () => {},
+    };
+
+    expect(() => clearOwnBrowserData(storage)).not.toThrow();
   });
 });

@@ -26,6 +26,18 @@ export const catalog = {
   "personalData.title": "Your personal data",
   "personalData.body":
     "Download a JSON file with the personal data SurveyBeat holds about you: your sign-in record, your Person record in each of your Organizations, your Memberships, your Participation records, your Invitations, the Actions you own and the emails sent to you. It holds no Submissions or Answers, because those carry no Person, and it holds no sign-in codes, Invitation links or other secrets. Answers kept in this browser are on the My history page.",
+  "erasure.self.title": "Erase your personal data",
+  "erasure.self.bodyPerson":
+    "Erasing is permanent and cannot be undone. It removes your email address, your language and time zone, your Memberships, your Participation records, your Invitations and the emails sent to you from this Organization. Once you have no Person left in any Organization, your sign-in record goes too. Submissions and Answers carry no Person, so they stay in your Team's Results. Answers and Edit keys kept in this browser are cleared.",
+  "erasure.self.bodyAccount":
+    "Erasing is permanent and cannot be undone. It removes your sign-in record: your email address, your sessions and your passkeys. You are in no Organization, so nothing else is held about you.",
+  "erasure.self.start": "Erase my personal data",
+  "erasure.confirm.label": "Type your email address to confirm",
+  "erasure.confirm.action": "Erase permanently",
+  "erasure.admin.title": "Erase personal data of {email}?",
+  "erasure.admin.body":
+    "Erasing is permanent and cannot be undone. It removes their email address, language and time zone, Memberships, Participation records, Invitations and the emails sent to them. Submissions and Answers carry no Person, so they stay in the Results. Actions they owned show a former member. A Lead or admin who is the only one left must hand over the role first.",
+  "erasure.admin.confirmLabel": "Type {email} to confirm",
   "createOrganization.title": "Create an Organization",
   "createOrganization.intro": "Your Organization holds your Teams and People. You become its admin.",
   "createOrganization.name": "Organization name",
@@ -250,6 +262,10 @@ export const catalog = {
   "settings.makeAdmin": "Make admin",
   "settings.revokeAdmin": "Remove admin role",
   "settings.removePerson": "Remove from Organization",
+  "settings.erasePerson": "Erase personal data",
+  "settings.removedPeople.title": "Removed People",
+  "settings.removedPeople.body":
+    "These People were removed from the Organization. Their email address and other personal data stay until you erase them.",
   "settings.failedEmails.title": "Failed emails",
   "settings.failedEmails.empty": "Emails that can't be delivered show up here, so you can send them again.",
   "settings.failedEmails.kind": "Kind",
@@ -432,6 +448,7 @@ export const catalog = {
   "actions.drop": "Drop",
   "actions.reopen": "Reopen",
   "actions.ownerLabel": "Owner: {owner}",
+  "actions.formerMember": "Former member",
   "actions.dueLabel": "Due: {date}",
   "note.title": "Note from your Lead",
   "note.emptyLead": "After you talk with the Team, write down what you agreed. The Team sees it here.",
@@ -450,6 +467,9 @@ export const catalog = {
   "error.LastLead": "A Team needs at least one Lead. Assign another Lead first.",
   "error.LastAdmin": "The Organization needs at least one admin. Make someone else admin first.",
   "error.TeamNameTaken": "A Team with that name already exists.",
+  "error.ErasureNotConfirmed": "That is not the email address. Type it exactly to confirm.",
+  "error.AccountStillInUse":
+    "Your sign-in still belongs to a Person in an Organization. Erase your personal data there first.",
   "error.PersonWasRemoved": "This person was removed from the Organization. Ask an admin.",
   "error.QuestionAlreadyInPulse": "This Pulse already asks that Question.",
   "error.QuestionHasAnswers": "This Question has answers, so it can't be edited.",

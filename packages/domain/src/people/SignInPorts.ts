@@ -1,6 +1,6 @@
 import { Context } from "effect";
 import type { Effect, Option } from "effect";
-import type { EmailAddress } from "../email/Email.ts";
+import type { EmailAddress, SendId } from "../email/Email.ts";
 import type { AuthUserId, PersonId } from "./Identity.ts";
 import type { Locale } from "./Locale.ts";
 import type { OrganizationId } from "./Organization.ts";
@@ -38,6 +38,16 @@ export interface PeopleIndexShape {
     personId: PersonId,
     userId: AuthUserId,
   ) => Effect.Effect<void>;
+
+  readonly erasePerson: (erased: {
+    readonly organizationId: OrganizationId;
+    readonly personId: PersonId;
+    readonly userId: Option.Option<AuthUserId>;
+    readonly sendIds: readonly SendId[];
+    readonly testTokenHashes: readonly string[];
+  }) => Effect.Effect<void>;
+
+  readonly eraseAccount: (userId: AuthUserId) => Effect.Effect<boolean>;
 
   readonly claimOrganization: (userId: AuthUserId, proposed: OrganizationClaim) => Effect.Effect<ClaimStatus>;
   readonly claimOf: (userId: AuthUserId) => Effect.Effect<Option.Option<ClaimStatus>>;
