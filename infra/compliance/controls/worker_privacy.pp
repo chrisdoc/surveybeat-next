@@ -12,7 +12,8 @@ control "submission_worker_no_logpush" {
       from
         cloudflare_worker_script
       where
-        id ilike '%submission%'
+        id ilike $1 || '%'
+        and id ilike '%submission%'
     )
     select
       w.id as resource,
@@ -37,6 +38,10 @@ control "submission_worker_no_logpush" {
       not exists (select 1 from submission_workers);
   EOQ
 
+  param "worker_prefix" {
+    default = var.worker_prefix
+  }
+
   tags = merge(local.common_tags, {
     gdpr     = "true"
     soc2     = "true"
@@ -58,7 +63,8 @@ control "submission_worker_no_tail_consumers" {
       from
         cloudflare_worker_script
       where
-        id ilike '%submission%'
+        id ilike $1 || '%'
+        and id ilike '%submission%'
     )
     select
       w.id as resource,
@@ -84,6 +90,10 @@ control "submission_worker_no_tail_consumers" {
       not exists (select 1 from submission_workers);
   EOQ
 
+  param "worker_prefix" {
+    default = var.worker_prefix
+  }
+
   tags = merge(local.common_tags, {
     gdpr     = "true"
     soc2     = "true"
@@ -97,48 +107,77 @@ control "logpush_no_unfiltered_submission_pii" {
   severity    = "high"
 
   sql = <<-EOQ
-    with jobs as (
+    with account_jobs as (
       select
-        id::text as job_id,
-        coalesce(name, id::text) as job_name,
-        dataset,
-        enabled,
-        coalesce(logpull_options, '') as logpull_options,
-        coalesce(output_options::text, '') as output_options_text
+        a.id as scope_id,
+        a.name as scope_name,
+        j.id as job_id,
+        coalesce(j.name, j.id::text) as job_name,
+        j.dataset,
+        j.enabled,
+        coalesce(j.logpull_options, '') as logpull_options,
+        coalesce(j.output_options::text, '') as output_options_text
       from
-        cloudflare_logpush_job
+        cloudflare_account as a
+        left join lateral (
+          select id, name, dataset, enabled, logpull_options, output_options
+          from cloudflare_logpush_job
+          where account_id = a.id
+        ) as j on true
+    ),
+    zone_jobs as (
+      select
+        z.id as scope_id,
+        z.name as scope_name,
+        j.id as job_id,
+        coalesce(j.name, j.id::text) as job_name,
+        j.dataset,
+        j.enabled,
+        coalesce(j.logpull_options, '') as logpull_options,
+        coalesce(j.output_options::text, '') as output_options_text
+      from
+        cloudflare_zone as z
+        left join lateral (
+          select id, name, dataset, enabled, logpull_options, output_options
+          from cloudflare_logpush_job
+          where zone_id = z.id
+        ) as j on true
+      where
+        '*' = any($1::text[]) or z.name = any($1::text[])
+    ),
+    all_scopes as (
+      select * from account_jobs
+      union all
+      select * from zone_jobs
     )
     select
-      j.job_id as resource,
+      coalesce(job_id::text, scope_id) as resource,
       case
-        when not j.enabled then 'ok'
-        when j.dataset = 'workers_trace_events' then 'alarm'
-        when j.dataset = 'http_requests'
-          and (j.logpull_options ilike '%ClientIP%' or j.logpull_options ilike '%ClientRequestURI%' or j.output_options_text ilike '%ClientIP%' or j.output_options_text ilike '%ClientRequestURI%')
+        when job_id is null then 'ok'
+        when not enabled then 'ok'
+        when dataset = 'workers_trace_events' then 'alarm'
+        when dataset = 'http_requests'
+          and (logpull_options ilike '%ClientIP%' or logpull_options ilike '%ClientRequestURI%' or output_options_text ilike '%ClientIP%' or output_options_text ilike '%ClientRequestURI%')
           then 'alarm'
         else 'ok'
       end as status,
       case
-        when not j.enabled then 'Logpush job ' || j.job_name || ' (' || j.dataset || ') is disabled.'
-        when j.dataset = 'workers_trace_events'
-          then 'Enabled Logpush job ' || j.job_name || ' exports workers_trace_events; verify Submission Workers have logpush=false.'
-        when j.dataset = 'http_requests'
-          and (j.logpull_options ilike '%ClientIP%' or j.logpull_options ilike '%ClientRequestURI%' or j.output_options_text ilike '%ClientIP%' or j.output_options_text ilike '%ClientRequestURI%')
-          then 'Enabled http_requests Logpush job ' || j.job_name || ' includes ClientIP or ClientRequestURI; ensure submit.* host is filtered out or fields are omitted.'
-        else 'Enabled Logpush job ' || j.job_name || ' (' || j.dataset || ') does not export ClientIP/ClientRequestURI.'
+        when job_id is null then 'No Logpush jobs configured for ' || scope_name || '.'
+        when not enabled then 'Logpush job ' || job_name || ' (' || dataset || ') on ' || scope_name || ' is disabled.'
+        when dataset = 'workers_trace_events'
+          then 'Enabled Logpush job ' || job_name || ' exports workers_trace_events; verify Submission Workers have logpush=false.'
+        when dataset = 'http_requests'
+          and (logpull_options ilike '%ClientIP%' or logpull_options ilike '%ClientRequestURI%' or output_options_text ilike '%ClientIP%' or output_options_text ilike '%ClientRequestURI%')
+          then 'Enabled http_requests Logpush job ' || job_name || ' on ' || scope_name || ' includes ClientIP or ClientRequestURI.'
+        else 'Enabled Logpush job ' || job_name || ' (' || dataset || ') on ' || scope_name || ' does not export ClientIP/ClientRequestURI.'
       end as reason
     from
-      jobs as j
-    union all
-    select
-      a.id as resource,
-      'ok' as status,
-      'No Logpush jobs configured in account ' || a.name || '.' as reason
-    from
-      cloudflare_account as a
-    where
-      not exists (select 1 from jobs);
+      all_scopes;
   EOQ
+
+  param "target_zones" {
+    default = var.target_zones
+  }
 
   tags = merge(local.common_tags, {
     gdpr     = "true"

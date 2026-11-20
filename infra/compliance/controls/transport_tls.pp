@@ -14,8 +14,14 @@ control "zone_ssl_strict" {
     from
       cloudflare_zone as z
       left join cloudflare_zone_setting as s
-        on s.zone_id = z.id and s.id = 'ssl';
+        on s.zone_id = z.id and s.id = 'ssl'
+    where
+      '*' = any($1::text[]) or z.name = any($1::text[]);
   EOQ
+
+  param "target_zones" {
+    default = var.target_zones
+  }
 
   tags = merge(local.common_tags, {
     gdpr     = "true"
@@ -40,8 +46,14 @@ control "zone_min_tls_version" {
     from
       cloudflare_zone as z
       left join cloudflare_zone_setting as s
-        on s.zone_id = z.id and s.id = 'min_tls_version';
+        on s.zone_id = z.id and s.id = 'min_tls_version'
+    where
+      '*' = any($1::text[]) or z.name = any($1::text[]);
   EOQ
+
+  param "target_zones" {
+    default = var.target_zones
+  }
 
   tags = merge(local.common_tags, {
     gdpr     = "true"
@@ -66,8 +78,14 @@ control "zone_tls_1_3_enabled" {
     from
       cloudflare_zone as z
       left join cloudflare_zone_setting as s
-        on s.zone_id = z.id and s.id = 'tls_1_3';
+        on s.zone_id = z.id and s.id = 'tls_1_3'
+    where
+      '*' = any($1::text[]) or z.name = any($1::text[]);
   EOQ
+
+  param "target_zones" {
+    default = var.target_zones
+  }
 
   tags = merge(local.common_tags, {
     gdpr     = "true"
@@ -92,8 +110,14 @@ control "zone_always_use_https" {
     from
       cloudflare_zone as z
       left join cloudflare_zone_setting as s
-        on s.zone_id = z.id and s.id = 'always_use_https';
+        on s.zone_id = z.id and s.id = 'always_use_https'
+    where
+      '*' = any($1::text[]) or z.name = any($1::text[]);
   EOQ
+
+  param "target_zones" {
+    default = var.target_zones
+  }
 
   tags = merge(local.common_tags, {
     gdpr     = "true"
@@ -118,8 +142,14 @@ control "zone_automatic_https_rewrites" {
     from
       cloudflare_zone as z
       left join cloudflare_zone_setting as s
-        on s.zone_id = z.id and s.id = 'automatic_https_rewrites';
+        on s.zone_id = z.id and s.id = 'automatic_https_rewrites'
+    where
+      '*' = any($1::text[]) or z.name = any($1::text[]);
   EOQ
+
+  param "target_zones" {
+    default = var.target_zones
+  }
 
   tags = merge(local.common_tags, {
     gdpr     = "true"
@@ -146,6 +176,8 @@ control "zone_hsts_enabled" {
         cloudflare_zone as z
         left join cloudflare_zone_setting as s
           on s.zone_id = z.id and s.id = 'security_header'
+      where
+        '*' = any($1::text[]) or z.name = any($1::text[])
     )
     select
       id as resource,
@@ -168,6 +200,10 @@ control "zone_hsts_enabled" {
     from
       parsed;
   EOQ
+
+  param "target_zones" {
+    default = var.target_zones
+  }
 
   tags = merge(local.common_tags, {
     gdpr     = "true"

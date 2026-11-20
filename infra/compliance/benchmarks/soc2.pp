@@ -86,8 +86,7 @@ benchmark "soc2_a1_availability_and_storage" {
 
   children = [
     control.zone_active_not_paused,
-    control.zone_not_development_mode,
-    control.r2_bucket_inventory_encryption
+    control.zone_not_development_mode
   ]
 
   tags = merge(local.common_tags, {

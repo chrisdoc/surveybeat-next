@@ -12,8 +12,14 @@ control "zone_dnssec_enabled" {
       end as status,
       name || ' DNSSEC status is ' || coalesce(dnssec ->> 'status', 'disabled') || '.' as reason
     from
-      cloudflare_zone;
+      cloudflare_zone
+    where
+      '*' = any($1::text[]) or name = any($1::text[]);
   EOQ
+
+  param "target_zones" {
+    default = var.target_zones
+  }
 
   tags = merge(local.common_tags, {
     gdpr     = "true"
@@ -28,17 +34,6 @@ control "dns_caa_record_configured" {
   severity    = "medium"
 
   sql = <<-EOQ
-    with caa as (
-      select
-        zone_id,
-        count(*) as caa_count
-      from
-        cloudflare_dns_record
-      where
-        type = 'CAA'
-      group by
-        zone_id
-    )
     select
       z.id as resource,
       case
@@ -51,9 +46,18 @@ control "dns_caa_record_configured" {
       end as reason
     from
       cloudflare_zone as z
-      left join caa as c
-        on c.zone_id = z.id;
+      left join lateral (
+        select count(*) as caa_count
+        from cloudflare_dns_record
+        where zone_id = z.id and type = 'CAA'
+      ) as c on true
+    where
+      '*' = any($1::text[]) or z.name = any($1::text[]);
   EOQ
+
+  param "target_zones" {
+    default = var.target_zones
+  }
 
   tags = merge(local.common_tags, {
     soc2     = "true"
@@ -62,42 +66,44 @@ control "dns_caa_record_configured" {
 }
 
 control "dns_email_auth_records" {
-  title       = "Cloudflare zones should publish SPF and DMARC DNS records"
-  description = "GDPR Art. 32 and SOC 2 CC6.6: protects SurveyBeat invitation and email-code sign-in flows from domain spoofing."
+  title       = "Cloudflare zones should publish unique SPF and DMARC DNS records"
+  description = "GDPR Art. 32 and SOC 2 CC6.6: protects SurveyBeat invitation and email-code sign-in flows from domain spoofing and detects duplicate DMARC records."
   severity    = "high"
 
   sql = <<-EOQ
-    with txt as (
-      select
-        zone_id,
-        bool_or(name = zone_name and content ilike 'v=spf1%') as has_root_spf,
-        bool_or(name like '_dmarc.%' and content ilike 'v=DMARC1%') as has_root_dmarc,
-        bool_or(name like 'notify.%' and content ilike 'v=spf1%') as has_notify_spf,
-        bool_or(name like '_dmarc.notify.%' and content ilike 'v=DMARC1%') as has_notify_dmarc
-      from
-        cloudflare_dns_record
-      where
-        type = 'TXT'
-      group by
-        zone_id
-    )
     select
       z.id as resource,
       case
-        when coalesce(t.has_root_spf, false) and coalesce(t.has_root_dmarc, false) then 'ok'
+        when coalesce(t.has_root_spf, false)
+          and t.root_dmarc_count = 1
+          and coalesce(t.has_notify_spf, false)
+          and t.notify_dmarc_count = 1 then 'ok'
         else 'alarm'
       end as status,
       z.name
         || ' root SPF=' || coalesce(t.has_root_spf::text, 'false')
-        || ', root DMARC=' || coalesce(t.has_root_dmarc::text, 'false')
+        || ', root DMARC records=' || coalesce(t.root_dmarc_count, 0)
         || ', notify SPF=' || coalesce(t.has_notify_spf::text, 'false')
-        || ', notify DMARC=' || coalesce(t.has_notify_dmarc::text, 'false')
+        || ', notify DMARC records=' || coalesce(t.notify_dmarc_count, 0)
         || '.' as reason
     from
       cloudflare_zone as z
-      left join txt as t
-        on t.zone_id = z.id;
+      left join lateral (
+        select
+          bool_or(r.name = z.name and replace(r.content, '"', '') ilike 'v=spf1%') as has_root_spf,
+          count(*) filter (where r.name = '_dmarc.' || z.name and replace(r.content, '"', '') ilike 'v=DMARC1%') as root_dmarc_count,
+          bool_or((r.name = 'notify.' || z.name or r.name = 'cf-bounce.notify.' || z.name) and replace(r.content, '"', '') ilike 'v=spf1%') as has_notify_spf,
+          count(*) filter (where r.name = '_dmarc.notify.' || z.name and replace(r.content, '"', '') ilike 'v=DMARC1%') as notify_dmarc_count
+        from cloudflare_dns_record as r
+        where r.zone_id = z.id and r.type = 'TXT'
+      ) as t on true
+    where
+      '*' = any($1::text[]) or z.name = any($1::text[]);
   EOQ
+
+  param "target_zones" {
+    default = var.target_zones
+  }
 
   tags = merge(local.common_tags, {
     gdpr     = "true"
@@ -112,27 +118,37 @@ control "dns_sensitive_records_proxied" {
   severity    = "high"
 
   sql = <<-EOQ
-    with app_records as (
+    with target_zones as (
+      select id, name
+      from cloudflare_zone
+      where '*' = any($1::text[]) or name = any($1::text[])
+    ),
+    zone_records as (
+      select
+        z.name as zone_name,
+        r.id,
+        r.name,
+        r.type,
+        r.proxied,
+        r.proxiable
+      from
+        target_zones as z
+        join cloudflare_dns_record as r on r.zone_id = z.id
+      offset 0
+    ),
+    app_records as (
       select
         id,
         zone_name,
         name,
         type,
-        proxied,
-        proxiable
+        proxied
       from
-        cloudflare_dns_record
+        zone_records
       where
         type in ('A', 'AAAA', 'CNAME')
         and proxiable is true
-        and (
-          name = zone_name
-          or name like 'www.%'
-          or name like 'app.%'
-          or name like 'dashboard.%'
-          or name like 'submit.%'
-          or name like 'staging.%'
-        )
+        and name ~ ('^(www\.|app\.|dashboard\.|submit\.|staging\.|staging\.dashboard\.|staging\.submit\.|pr-[0-9]+\.|pr-[0-9]+\.dashboard\.|pr-[0-9]+\.submit\.)?' || replace(zone_name, '.', '\.') || '$')
     )
     select
       r.id as resource,
@@ -149,10 +165,14 @@ control "dns_sensitive_records_proxied" {
       'info' as status,
       'No proxiable app/submit A, AAAA, or CNAME DNS records found in zone ' || z.name || '.' as reason
     from
-      cloudflare_zone as z
+      target_zones as z
     where
-      not exists (select 1 from app_records);
+      not exists (select 1 from app_records as ar where ar.zone_name = z.name);
   EOQ
+
+  param "target_zones" {
+    default = var.target_zones
+  }
 
   tags = merge(local.common_tags, {
     gdpr     = "true"

@@ -162,9 +162,7 @@ export const main = () => {
     stdio: "inherit",
   });
 
-  if (ppResult.status !== 0) {
-    return ppResult.status ?? 1;
-  }
+  const ppExit = ppResult.status ?? 1;
 
   if (options.stage !== undefined && !options.dryRun) {
     const obsResult = spawnSync(process.execPath, [OBSERVABILITY_SCRIPT, "--stage", options.stage], {
@@ -177,7 +175,7 @@ export const main = () => {
     }
   }
 
-  return 0;
+  return ppExit;
 };
 
 const entry = process.argv[1];

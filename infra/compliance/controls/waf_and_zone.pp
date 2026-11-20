@@ -4,22 +4,6 @@ control "zone_waf_enabled" {
   severity    = "high"
 
   sql = <<-EOQ
-    with waf_rulesets as (
-      select
-        zone_id,
-        count(*) as ruleset_count
-      from
-        cloudflare_ruleset
-      where
-        zone_id is not null
-        and phase in (
-          'http_request_firewall_managed',
-          'http_request_firewall_custom',
-          'http_ratelimit'
-        )
-      group by
-        zone_id
-    )
     select
       z.id as resource,
       case
@@ -37,9 +21,26 @@ control "zone_waf_enabled" {
       cloudflare_zone as z
       left join cloudflare_zone_setting as s
         on s.zone_id = z.id and s.id = 'waf'
-      left join waf_rulesets as r
-        on r.zone_id = z.id;
+      left join lateral (
+        select
+          count(*) as ruleset_count
+        from
+          cloudflare_ruleset
+        where
+          zone_id = z.id
+          and phase in (
+            'http_request_firewall_managed',
+            'http_request_firewall_custom',
+            'http_ratelimit'
+          )
+      ) as r on true
+    where
+      '*' = any($1::text[]) or z.name = any($1::text[]);
   EOQ
+
+  param "target_zones" {
+    default = var.target_zones
+  }
 
   tags = merge(local.common_tags, {
     gdpr     = "true"
@@ -64,8 +65,14 @@ control "zone_browser_check_enabled" {
     from
       cloudflare_zone as z
       left join cloudflare_zone_setting as s
-        on s.zone_id = z.id and s.id = 'browser_check';
+        on s.zone_id = z.id and s.id = 'browser_check'
+    where
+      '*' = any($1::text[]) or z.name = any($1::text[]);
   EOQ
+
+  param "target_zones" {
+    default = var.target_zones
+  }
 
   tags = merge(local.common_tags, {
     soc2     = "true"
@@ -89,8 +96,14 @@ control "zone_security_level_appropriate" {
     from
       cloudflare_zone as z
       left join cloudflare_zone_setting as s
-        on s.zone_id = z.id and s.id = 'security_level';
+        on s.zone_id = z.id and s.id = 'security_level'
+    where
+      '*' = any($1::text[]) or z.name = any($1::text[]);
   EOQ
+
+  param "target_zones" {
+    default = var.target_zones
+  }
 
   tags = merge(local.common_tags, {
     soc2     = "true"
@@ -116,8 +129,14 @@ control "zone_leaked_credential_check" {
         else name || ' has Leaked Credential Check disabled (verify plan eligibility).'
       end as reason
     from
-      cloudflare_zone;
+      cloudflare_zone
+    where
+      '*' = any($1::text[]) or name = any($1::text[]);
   EOQ
+
+  param "target_zones" {
+    default = var.target_zones
+  }
 
   tags = merge(local.common_tags, {
     soc2     = "true"
@@ -143,8 +162,14 @@ control "zone_security_txt_configured" {
         else name || ' does not have security.txt enabled.'
       end as reason
     from
-      cloudflare_zone;
+      cloudflare_zone
+    where
+      '*' = any($1::text[]) or name = any($1::text[]);
   EOQ
+
+  param "target_zones" {
+    default = var.target_zones
+  }
 
   tags = merge(local.common_tags, {
     soc2     = "true"
@@ -166,8 +191,14 @@ control "zone_active_not_paused" {
       end as status,
       name || ' status is ' || coalesce(status, 'unknown') || ', paused=' || coalesce(paused::text, 'false') || '.' as reason
     from
-      cloudflare_zone;
+      cloudflare_zone
+    where
+      '*' = any($1::text[]) or name = any($1::text[]);
   EOQ
+
+  param "target_zones" {
+    default = var.target_zones
+  }
 
   tags = merge(local.common_tags, {
     soc2     = "true"
@@ -192,8 +223,14 @@ control "zone_not_development_mode" {
         else name || ' has Development Mode active (' || development_mode || 's remaining).'
       end as reason
     from
-      cloudflare_zone;
+      cloudflare_zone
+    where
+      '*' = any($1::text[]) or name = any($1::text[]);
   EOQ
+
+  param "target_zones" {
+    default = var.target_zones
+  }
 
   tags = merge(local.common_tags, {
     soc2     = "true"

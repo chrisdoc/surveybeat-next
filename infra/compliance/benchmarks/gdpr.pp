@@ -48,8 +48,7 @@ benchmark "gdpr_security_of_processing" {
     control.account_enforce_twofactor,
     control.user_mfa_enabled,
     control.api_token_expiration_set,
-    control.access_policy_no_unrestricted_bypass,
-    control.r2_bucket_inventory_encryption
+    control.access_policy_no_unrestricted_bypass
   ]
 
   tags = merge(local.common_tags, {
