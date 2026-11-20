@@ -50,6 +50,7 @@ const person = (id: PersonId, extra: Partial<PersonRecord> = {}): PersonRecord =
   authUserId: null,
   organizationAdmin: false,
   removedAt: null,
+  erasedAt: null,
   locale: null,
   detectedLocale: null,
   ...extra,

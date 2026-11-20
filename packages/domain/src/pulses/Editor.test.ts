@@ -44,6 +44,7 @@ const person = (id: PersonId, organizationAdmin = false) => ({
   authUserId: null,
   organizationAdmin,
   removedAt: null,
+  erasedAt: null,
   locale: null,
   detectedLocale: null,
 });

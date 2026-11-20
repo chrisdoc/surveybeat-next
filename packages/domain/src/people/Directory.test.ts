@@ -30,6 +30,7 @@ const initial: DirectoryState = {
       authUserId: AuthUserId.make("user_admin"),
       organizationAdmin: true,
       removedAt: null,
+      erasedAt: null,
       locale: null,
       detectedLocale: null,
     },
@@ -324,6 +325,7 @@ describe("removing", () => {
           authUserId: AuthUserId.make("user_ada"),
           organizationAdmin: false,
           removedAt: null,
+          erasedAt: null,
           locale: null,
           detectedLocale: null,
         },
@@ -631,6 +633,7 @@ describe("languages (ADR 0018)", () => {
       authUserId: null,
       organizationAdmin: false,
       removedAt: null,
+      erasedAt: null,
       locale,
       detectedLocale,
     });
@@ -727,5 +730,162 @@ describe("languages (ADR 0018)", () => {
     expect(addedEmailLocale(world, world.createTeam("Design", "linus@example.com"), "new@example.com")).toBe(
       "en",
     );
+  });
+
+  describe("erasing a Person (GDPR 307)", () => {
+    const erase = (
+      world: World,
+      actor: PersonId,
+      personId: PersonId,
+      email: string,
+      authority: "admin" | "self" = "admin",
+    ) =>
+      world.run(actor, {
+        _tag: "ErasePerson",
+        authority,
+        personId,
+        confirmation: EmailAddress.make(email),
+      });
+
+    const setup = () => {
+      const world = new World();
+      const platform = world.createTeam("Platform", "grace@example.com");
+      world.add(ADMIN, platform, "ada@example.com");
+
+      return { world, platform, ada: world.personWith("ada@example.com") };
+    };
+
+    it("scrubs the record, ends every Membership and asks sign-in to forget the Person", () => {
+      const { world, ada } = setup();
+      world.now += DAY;
+
+      const erased = world.ok(ADMIN, {
+        _tag: "ErasePerson",
+        authority: "admin",
+        personId: ada,
+        confirmation: EmailAddress.make("ada@example.com"),
+      });
+
+      expect(world.state.people.find((person) => person.id === ada)).toEqual({
+        id: ada,
+        email: `erased-${ada}@erased.invalid`,
+        authUserId: null,
+        organizationAdmin: false,
+        removedAt: 1001 * DAY,
+        erasedAt: 1001 * DAY,
+        locale: null,
+        detectedLocale: null,
+      });
+
+      expect(
+        world.state.memberships.filter((membership) => membership.personId === ada).map((m) => m.endedAt),
+      ).toEqual([1001 * DAY]);
+
+      expect(erased.followUps).toEqual([
+        {
+          _tag: "ErasePersonIndex",
+          person: { id: ada, email: "ada@example.com", authUserId: null },
+          sendIds: [],
+          testTokenHashes: [],
+        },
+      ]);
+    });
+
+    it("lets a Person erase themselves only on the self command", () => {
+      const { world, ada } = setup();
+      const grace = world.personWith("grace@example.com");
+
+      expect(rejection(erase(world, grace, ada, "ada@example.com"))).toBe("Forbidden");
+      expect(rejection(erase(world, ada, ada, "ada@example.com", "admin"))).toBe("Forbidden");
+      expect(rejection(erase(world, ada, grace, "grace@example.com", "self"))).toBe("Forbidden");
+      expect(rejection(erase(world, ada, ada, "ada@example.com", "self"))).toBe("Accepted");
+    });
+
+    it("needs the exact address, in any case, and changes nothing otherwise", () => {
+      const { world, ada } = setup();
+      const before = world.state;
+
+      expect(rejection(erase(world, ADMIN, ada, "grace@example.com"))).toBe("ErasureNotConfirmed");
+      expect(world.state).toBe(before);
+      expect(rejection(erase(world, ADMIN, ada, "ADA@Example.com"))).toBe("Accepted");
+    });
+
+    it("refuses the only Lead of a Team and the only Organization admin", () => {
+      const { world } = setup();
+      const grace = world.personWith("grace@example.com");
+
+      expect(rejection(erase(world, ADMIN, grace, "grace@example.com"))).toBe("LastLead");
+      expect(rejection(erase(world, ADMIN, ADMIN, "admin@example.com"))).toBe("LastAdmin");
+      expect(world.state.people.every((person) => person.erasedAt === null)).toBe(true);
+    });
+
+    it("erases a Lead once another Lead is in place, and an admin once another admin is", () => {
+      const { world, platform } = setup();
+      const grace = world.personWith("grace@example.com");
+      const ada = world.personWith("ada@example.com");
+
+      world.add(ADMIN, platform, "ada@example.com", "lead");
+      expect(rejection(erase(world, ADMIN, grace, "grace@example.com"))).toBe("Accepted");
+
+      world.ok(ADMIN, { _tag: "SetAdmin", personId: ada, organizationAdmin: true });
+      expect(rejection(erase(world, ada, ADMIN, "admin@example.com"))).toBe("Accepted");
+    });
+
+    it("erases a removed Person who never signed in, and shows them to an admin until then", () => {
+      const { world, ada } = setup();
+      world.ok(ADMIN, { _tag: "RemovePerson", personId: ada });
+
+      expect(settingsView(world.state, ADMIN)).toMatchObject({
+        value: { removedPeople: [{ personId: ada, email: "ada@example.com" }] },
+      });
+
+      expect(rejection(erase(world, ADMIN, ada, "ada@example.com"))).toBe("Accepted");
+
+      expect(settingsView(world.state, ADMIN)).toMatchObject({ value: { removedPeople: [] } });
+    });
+
+    it("repeats the follow-ups when an erased Person is erased again, without needing the old address", () => {
+      const { world, ada } = setup();
+      world.ok(ADMIN, {
+        _tag: "ErasePerson",
+        authority: "admin",
+        personId: ada,
+        confirmation: EmailAddress.make("ada@example.com"),
+      });
+
+      const again = world.ok(ADMIN, {
+        _tag: "ErasePerson",
+        authority: "admin",
+        personId: ada,
+        confirmation: EmailAddress.make("x@example.com"),
+      });
+
+      expect(again.changes).toEqual([]);
+      expect(again.followUps).toHaveLength(1);
+    });
+
+    it("never revives the tombstone: the same address added again is a new Person", () => {
+      const { world, platform, ada } = setup();
+      world.ok(ADMIN, {
+        _tag: "ErasePerson",
+        authority: "admin",
+        personId: ada,
+        confirmation: EmailAddress.make("ada@example.com"),
+      });
+
+      const added = world.add(ADMIN, platform, "ada@example.com");
+
+      expect(added._tag).toBe("Accepted");
+      const again = world.personWith("ada@example.com");
+      expect(again).not.toBe(ada);
+      expect(world.state.people.find((person) => person.id === ada)?.erasedAt).not.toBeNull();
+      expect(world.state.people.find((person) => person.id === again)?.erasedAt).toBeNull();
+    });
+
+    it("answers PersonNotFound for someone who is not in the Organization", () => {
+      const { world } = setup();
+
+      expect(rejection(erase(world, ADMIN, PersonId.make("nobody"), "x@example.com"))).toBe("PersonNotFound");
+    });
   });
 });

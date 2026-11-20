@@ -5,6 +5,7 @@ import {
   DEFAULT_LOCALE,
   DEFAULT_MINIMUM_GROUP_SIZE,
   EmailAddress,
+  erasedEmailOf,
   localeOr,
   localeOrNull,
   MembershipId,
@@ -31,6 +32,7 @@ const PersonRow = Schema.Struct({
   auth_user_id: Schema.NullOr(AuthUserId),
   organization_admin: Schema.Int,
   removed_at: Schema.NullOr(Schema.Int),
+  erased_at: Schema.NullOr(Schema.Int),
   locale: Schema.NullOr(Schema.String),
   detected_locale: Schema.NullOr(Schema.String),
 });
@@ -57,7 +59,7 @@ export const makeSqlDirectory = (sql: SqliteClient.SqliteClient, sends: SendStor
       );
 
     const people =
-      yield* sql`SELECT id, email, auth_user_id, organization_admin, removed_at, locale, detected_locale
+      yield* sql`SELECT id, email, auth_user_id, organization_admin, removed_at, erased_at, locale, detected_locale
         FROM person`.pipe(Effect.flatMap(rows(PersonRow)));
 
     const teams = yield* sql`SELECT id, name, time_zone FROM team`.pipe(Effect.flatMap(rows(TeamRow)));
@@ -78,6 +80,7 @@ export const makeSqlDirectory = (sql: SqliteClient.SqliteClient, sends: SendStor
         authUserId: row.auth_user_id,
         organizationAdmin: row.organization_admin === 1,
         removedAt: row.removed_at,
+        erasedAt: row.erased_at,
         locale: localeOrNull(row.locale),
         detectedLocale: localeOrNull(row.detected_locale),
       })),
@@ -109,6 +112,13 @@ export const makeSqlDirectory = (sql: SqliteClient.SqliteClient, sends: SendStor
 
       case "PersonRemoved": {
         return sql`UPDATE person SET removed_at = ${change.at} WHERE id = ${change.personId}`;
+      }
+
+      case "PersonErased": {
+        return sql`UPDATE person SET email = ${erasedEmailOf(change.personId)}, auth_user_id = NULL,
+          time_zone = NULL, locale = NULL, detected_locale = NULL, organization_admin = 0,
+          removed_at = coalesce(removed_at, ${change.at}), erased_at = ${change.at}
+          WHERE id = ${change.personId}`;
       }
 
       case "AdminSet": {

@@ -47,6 +47,7 @@ const adaRecord = {
   authUserId: null,
   organizationAdmin: false,
   removedAt: null,
+  erasedAt: null,
   locale: null,
   detectedLocale: null,
 };

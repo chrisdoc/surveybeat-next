@@ -8,9 +8,10 @@ import {
   teamsView,
   teamView,
 } from "@surveybeat/domain";
-import type { PersonId, TeamId, CommandResult, DirectoryCommand } from "@surveybeat/domain";
+import type { PersonId, TeamId, CommandResult, DirectoryCommand, FollowUp } from "@surveybeat/domain";
 import * as Effect from "effect/Effect";
 import type { makeSqlDirectory } from "../SqlDirectory.ts";
+import { erasePersonRows } from "./PersonErasure.ts";
 import type { makeSqlRounds } from "../SqlRounds.ts";
 
 export const organizationDirectory = ({
@@ -22,6 +23,11 @@ export const organizationDirectory = ({
   rounds: ReturnType<typeof makeSqlRounds>;
   directory: ReturnType<typeof makeSqlDirectory>;
 }) => {
+  const withErasedRows = (followUp: FollowUp): Effect.Effect<FollowUp> =>
+    followUp._tag === "ErasePersonIndex"
+      ? Effect.map(erasePersonRows(sql, followUp.person), (erased) => ({ ...followUp, ...erased }))
+      : Effect.succeed(followUp);
+
   const deleteTestSendsForPerson = (personId: PersonId) =>
     sql`DELETE FROM test_send WHERE person_id = ${personId}`.pipe(Effect.asVoid, Effect.orDie);
 
@@ -115,13 +121,18 @@ export const organizationDirectory = ({
               yield* deleteTestSendsForPerson(command.personId);
             }
 
+            const followUps = yield* Effect.forEach(decision.followUps, withErasedRows);
+
             return {
               _tag: "Accepted",
-              followUps: decision.followUps,
+              followUps,
             } satisfies CommandResult;
           }),
         )
         .pipe(Effect.orDie),
+
+    clearPersonErasure: (personId: PersonId) =>
+      sql`DELETE FROM person_erasure WHERE person_id = ${personId}`.pipe(Effect.asVoid, Effect.orDie),
     viewTeams: (actorId: PersonId) =>
       Effect.gen(function* () {
         const view = teamsView(yield* directory.load, actorId);

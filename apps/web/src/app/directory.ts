@@ -43,6 +43,7 @@ import {
   textField,
 } from "./components.ts";
 import type { Child } from "./components.ts";
+import { adminErasureView } from "./erasure.ts";
 import { historyHref, pulsesHref, settingsHref, teamHref, teamsHref } from "./routes.ts";
 import { failureReasonText } from "./pulses.ts";
 
@@ -1095,6 +1096,8 @@ export const settingsScreenView = <Message>(
     readonly peopleBusy: boolean;
     readonly peopleFailure?: Failure | undefined;
     readonly pendingRemovePerson: { readonly personId: PersonId; readonly email: string } | undefined;
+    readonly pendingErasePerson: { readonly personId: PersonId; readonly email: string } | undefined;
+    readonly erasePersonConfirmation: string;
   },
   actions: {
     readonly onSizeChange: (size: string) => Message;
@@ -1106,6 +1109,10 @@ export const settingsScreenView = <Message>(
     readonly onRemovePerson: (personId: PersonId) => Message;
     readonly onConfirmRemovePerson: Message;
     readonly onCancelRemovePerson: Message;
+    readonly onErasePerson: (personId: PersonId) => Message;
+    readonly onErasePersonConfirmationChange: (value: string) => Message;
+    readonly onConfirmErasePerson: Message;
+    readonly onCancelErasePerson: Message;
     readonly onResendFailedEmail: (sendId: SendId) => Message;
   },
   h: HtmlBuilder<Message>,
@@ -1259,6 +1266,15 @@ export const settingsScreenView = <Message>(
                       h,
                     )
                   : null,
+                appButton(
+                  {
+                    text: message("settings.erasePerson"),
+                    isDisabled: state.peopleBusy,
+                    className: dangerLinkButton,
+                    onClick: actions.onErasePerson(person.personId),
+                  },
+                  h,
+                ),
                 Option.isSome(personId) && state.pendingRemovePerson?.personId === person.personId
                   ? confirmDialog(
                       {
@@ -1286,8 +1302,51 @@ export const settingsScreenView = <Message>(
     ),
   );
 
-  if (state.peopleFailure) {
-    children.push(problemView(state.peopleFailure, h));
+  if (settings.removedPeople.length > 0) {
+    children.push(
+      h.div([h.Class("mt-8")], [subSectionTitle(message("settings.removedPeople.title"), h, 2)]),
+      h.p([h.Class("mt-1 leading-relaxed text-muted")], [message("settings.removedPeople.body")]),
+      dataTable(
+        [message("settings.people.email"), message("settings.people.actions")],
+        settings.removedPeople.map((person) => [
+          emailAddress({ email: person.email }, h),
+          appButton(
+            {
+              text: message("settings.erasePerson"),
+              isDisabled: state.peopleBusy,
+              className: dangerLinkButton,
+              onClick: actions.onErasePerson(person.personId),
+            },
+            h,
+          ),
+        ]),
+        h,
+        { stackOnPhone: true },
+      ),
+    );
+  }
+
+  if (state.pendingErasePerson === undefined) {
+    if (state.peopleFailure) {
+      children.push(problemView(state.peopleFailure, h));
+    }
+  } else {
+    children.push(
+      adminErasureView(
+        state.pendingErasePerson,
+        {
+          confirmation: state.erasePersonConfirmation,
+          busy: state.peopleBusy,
+          failure: state.peopleFailure,
+        },
+        {
+          onConfirmationChange: actions.onErasePersonConfirmationChange,
+          onSubmit: actions.onConfirmErasePerson,
+          onCancel: actions.onCancelErasePerson,
+        },
+        h,
+      ),
+    );
   }
 
   children.push(failedEmailsView(state, actions.onResendFailedEmail, h));

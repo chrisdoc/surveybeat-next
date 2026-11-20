@@ -1,5 +1,7 @@
 import { Clock, Effect, Option } from "effect";
 import type { Redacted } from "effect";
+import type { EmailAddress } from "../email/Email.ts";
+import { normaliseEmail } from "./Identity.ts";
 import type { OrganizationCreationAllowlist, PersonId } from "./Identity.ts";
 import type { Locale } from "./Locale.ts";
 import type { OrganizationId } from "./Organization.ts";
@@ -9,6 +11,7 @@ import { NewIds, OrganizationPeople, PeopleIndex } from "./SignInPorts.ts";
 import type { ClaimStatus, OrganizationClaim } from "./SignInPorts.ts";
 import { SessionIdentityProvider } from "./SessionIdentity.ts";
 import type { SignedInSession } from "./SessionIdentity.ts";
+import { AccountStillInUse, ErasureNotConfirmed } from "./Team.ts";
 
 export interface Member {
   readonly organization: OrganizationSummary;
@@ -291,4 +294,19 @@ export const signOut = Effect.fnUntraced(function* (cookie: Redacted.Redacted) {
   }
 
   yield* sessions.revokeSession(session.value.sessionId);
+});
+
+export const eraseAccount = Effect.fnUntraced(function* (
+  session: SignedInSession,
+  confirmation: EmailAddress,
+) {
+  if (normaliseEmail(confirmation) !== session.identity.email) {
+    return yield* new ErasureNotConfirmed();
+  }
+
+  const erased = yield* (yield* PeopleIndex).eraseAccount(session.identity.userId);
+
+  if (!erased) {
+    return yield* new AccountStillInUse();
+  }
 });

@@ -966,9 +966,14 @@ export const resultsScreenView = <Message>(
                         h.div(
                           [h.Class("flex flex-wrap items-center gap-3 text-sm text-mint-text")],
                           [
-                            action.ownerEmail.trim() !== ""
-                              ? h.span([], [message("actions.ownerLabel", { owner: action.ownerEmail })])
-                              : null,
+                            action.ownerEmail === null
+                              ? h.span(
+                                  [],
+                                  [message("actions.ownerLabel", { owner: message("actions.formerMember") })],
+                                )
+                              : action.ownerEmail.trim() !== ""
+                                ? h.span([], [message("actions.ownerLabel", { owner: action.ownerEmail })])
+                                : null,
                             action.dueDate !== null
                               ? h.span(
                                   [],

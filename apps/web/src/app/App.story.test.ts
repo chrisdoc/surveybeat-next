@@ -43,6 +43,10 @@ import {
   Navigate,
   RemoveMember,
   RemovePerson,
+  ErasePersonData,
+  EraseOwnPersonData,
+  EraseOwnAccountData,
+  LeaveAfterErasureCmd,
   RemoveQuestionCmd,
   ReorderQuestionsCmd,
   RevokeAdmin,
@@ -490,6 +494,7 @@ describe("App Stories", () => {
             linked: true,
           },
         ],
+        removedPeople: [],
       };
 
       Story.story(
@@ -579,6 +584,168 @@ describe("App Stories", () => {
             expect(m.settings.settings.people).toHaveLength(0);
           }
         }),
+      );
+    });
+  });
+
+  describe("Erasing personal data (GDPR 307)", () => {
+    const personId = decodePersonId("person-1");
+
+    const settings = {
+      name: "Acme",
+      minimumGroupSize: decodeSize(4),
+      aiProcessing: false,
+      defaultLocale: "en" as const,
+      people: [],
+      removedPeople: [{ personId, email: decodeEmail("ghost@acme.com") }],
+    };
+
+    const signedIn = Message.GotSession({
+      result: {
+        _tag: "SignedIn",
+        organization: { id: decodeOrgId("org-1"), name: "Acme" },
+        organizationAdmin: true,
+        locale: null,
+        detectedLocale: null,
+        organizationLocale: "en",
+      },
+    });
+
+    it("sends nothing until an admin types the address, then erases a removed Person", () => {
+      Story.story(
+        update,
+        Story.given(initialModel(makeUrl("https://app.surveybeat.com/settings"), [])),
+        Story.message(signedIn),
+        Story.Command.resolve(GetSettings, Message.GotSettings({ outcome: { _tag: "Success", settings } })),
+        Story.Command.resolve(
+          ListFailedEmails,
+          Message.GotFailedEmails({ outcome: { _tag: "Success", list: { emails: [] } } }),
+        ),
+        Story.message(Message.ErasePersonClicked({ personId })),
+        Story.model((m) => {
+          expect(Option.getOrNull(m.pendingErasePerson)).toEqual({ personId, email: "ghost@acme.com" });
+        }),
+        Story.message(Message.ConfirmErasePerson()),
+        Story.Command.expectNone(),
+        Story.model((m) => {
+          expect(Option.getOrNull(m.peopleFailure)).toBe("ErasureNotConfirmed");
+        }),
+        Story.message(Message.ErasePersonConfirmationChanged({ value: "ghost@acme.com" })),
+        Story.message(Message.ConfirmErasePerson()),
+        Story.Command.expectHas(ErasePersonData),
+        Story.Command.resolve(ErasePersonData, Message.ErasedPerson({ outcome: { _tag: "Success" } })),
+        Story.Command.resolve(
+          GetSettings,
+          Message.GotSettings({
+            outcome: { _tag: "Success", settings: { ...settings, removedPeople: [] } },
+          }),
+        ),
+        Story.model((m) => {
+          expect(Option.isNone(m.pendingErasePerson)).toBe(true);
+          expect(m.erasePersonConfirmation).toBe("");
+        }),
+      );
+    });
+
+    it("keeps the confirmation open and shows why when the server refuses", () => {
+      Story.story(
+        update,
+        Story.given(initialModel(makeUrl("https://app.surveybeat.com/settings"), [])),
+        Story.message(signedIn),
+        Story.Command.resolve(GetSettings, Message.GotSettings({ outcome: { _tag: "Success", settings } })),
+        Story.Command.resolve(
+          ListFailedEmails,
+          Message.GotFailedEmails({ outcome: { _tag: "Success", list: { emails: [] } } }),
+        ),
+        Story.message(Message.ErasePersonClicked({ personId })),
+        Story.message(Message.ErasePersonConfirmationChanged({ value: "ghost@acme.com" })),
+        Story.message(Message.ConfirmErasePerson()),
+        Story.Command.resolve(
+          ErasePersonData,
+          Message.ErasedPerson({ outcome: { _tag: "Failure", failure: "LastAdmin" } }),
+        ),
+        Story.model((m) => {
+          expect(Option.isSome(m.pendingErasePerson)).toBe(true);
+          expect(Option.getOrNull(m.peopleFailure)).toBe("LastAdmin");
+          expect(m.peopleBusy).toBe(false);
+        }),
+        Story.message(Message.DismissErasePerson()),
+        Story.model((m) => {
+          expect(Option.isNone(m.pendingErasePerson)).toBe(true);
+        }),
+      );
+    });
+
+    it("erases the signed-in Person only after the address is typed, then leaves the app", () => {
+      Story.story(
+        update,
+        Story.given({
+          ...initialModel(makeUrl("https://app.surveybeat.com/privacy"), []),
+          session: {
+            _tag: "SignedIn",
+            organization: { id: decodeOrgId("org-1"), name: "Acme" },
+            organizationAdmin: true,
+            locale: null,
+            detectedLocale: null,
+            organizationLocale: "en",
+          },
+        }),
+        Story.message(Message.SelfEraseOpened()),
+        Story.message(Message.SelfEraseSubmitted()),
+        Story.Command.expectNone(),
+        Story.model((m) => {
+          expect(Option.getOrNull(m.selfErase.failure)).toBe("ErasureNotConfirmed");
+        }),
+        Story.message(Message.SelfEraseConfirmationChanged({ value: "alice@acme.com" })),
+        Story.message(Message.SelfEraseSubmitted()),
+        Story.Command.expectHas(EraseOwnPersonData),
+        Story.Command.resolve(EraseOwnPersonData, Message.SelfErased({ outcome: { _tag: "Success" } })),
+        Story.Command.resolve(LeaveAfterErasureCmd, Message.LeftAfterErasure()),
+      );
+    });
+
+    it("shows the failure and lets the Person try again when the server refuses", () => {
+      Story.story(
+        update,
+        Story.given({
+          ...initialModel(makeUrl("https://app.surveybeat.com/privacy"), []),
+          session: {
+            _tag: "SignedIn",
+            organization: { id: decodeOrgId("org-1"), name: "Acme" },
+            organizationAdmin: true,
+            locale: null,
+            detectedLocale: null,
+            organizationLocale: "en",
+          },
+        }),
+        Story.message(Message.SelfEraseOpened()),
+        Story.message(Message.SelfEraseConfirmationChanged({ value: "alice@acme.com" })),
+        Story.message(Message.SelfEraseSubmitted()),
+        Story.Command.resolve(
+          EraseOwnPersonData,
+          Message.SelfErased({ outcome: { _tag: "Failure", failure: "LastLead" } }),
+        ),
+        Story.model((m) => {
+          expect(m.selfErase.busy).toBe(false);
+          expect(m.selfErase.open).toBe(true);
+          expect(Option.getOrNull(m.selfErase.failure)).toBe("LastLead");
+        }),
+      );
+    });
+
+    it("erases only the sign-in account for someone in no Organization", () => {
+      Story.story(
+        update,
+        Story.given({
+          ...initialModel(makeUrl("https://app.surveybeat.com/privacy"), []),
+          session: { _tag: "NotInOrganization" },
+        }),
+        Story.message(Message.SelfEraseOpened()),
+        Story.message(Message.SelfEraseConfirmationChanged({ value: "alice@acme.com" })),
+        Story.message(Message.SelfEraseSubmitted()),
+        Story.Command.expectHas(EraseOwnAccountData),
+        Story.Command.resolve(EraseOwnAccountData, Message.SelfErased({ outcome: { _tag: "Success" } })),
+        Story.Command.resolve(LeaveAfterErasureCmd, Message.LeftAfterErasure()),
       );
     });
   });

@@ -157,6 +157,18 @@ export const privacyRegistry: Readonly<Record<EndpointKey<typeof SurveyBeatApi>,
     _tag: "NoResultData",
     why: "removes a Person from the Organization; no content",
   },
+  "directory.erasePerson": {
+    _tag: "NoResultData",
+    why: "irreversibly scrubs one Person's personal data in this Organization on an Organization admin's request; returns no content",
+  },
+  "me.erasePerson": {
+    _tag: "NoResultData",
+    why: "irreversibly scrubs the caller's own Person in the chosen Organization; returns no content",
+  },
+  "me.eraseAccount": {
+    _tag: "NoResultData",
+    why: "deletes the caller's own sign-in account once no Person is left; returns no content",
+  },
   "pulses.listPulses": {
     _tag: "NoResultData",
     why: "returns a Team's Pulses: names, cadences, Question counts, and estimated answer times",

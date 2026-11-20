@@ -1,6 +1,8 @@
 import {
+  AccountStillInUse,
   AuthUnavailable,
   EmailAddress,
+  ErasureNotConfirmed,
   Locale,
   Forbidden,
   LastAdmin,
@@ -115,6 +117,8 @@ export class AuthApiGroup extends HttpApiGroup.make("auth")
   )
   .prefix("/auth") {}
 
+const ErasureConfirmation = Schema.Struct({ confirmation: EmailAddress });
+
 const directoryErrors = [
   Unauthenticated,
   Forbidden,
@@ -135,6 +139,7 @@ const directoryErrors = [
   QuestionNotFound,
   LastLead,
   LastAdmin,
+  ErasureNotConfirmed,
   TeamNameTaken,
   PersonWasRemoved,
   FailedEmailNotFound,
@@ -230,6 +235,11 @@ export class DirectoryApiGroup extends HttpApiGroup.make("directory")
     }),
     HttpApiEndpoint.delete("removePerson", "/organization/people/:personId", {
       params: { personId: PersonId },
+      error: directoryErrors,
+    }),
+    HttpApiEndpoint.post("erasePerson", "/organization/people/:personId/erasure", {
+      params: { personId: PersonId },
+      payload: ErasureConfirmation,
       error: directoryErrors,
     }),
   )
@@ -463,6 +473,14 @@ export class MeApiGroup extends HttpApiGroup.make("me")
     HttpApiEndpoint.get("exportData", "/me/data-export", {
       success: PersonalDataExport,
       error: [Unauthenticated, Forbidden, AuthUnavailable],
+    }),
+    HttpApiEndpoint.post("erasePerson", "/me/erasure", {
+      payload: ErasureConfirmation,
+      error: directoryErrors,
+    }),
+    HttpApiEndpoint.post("eraseAccount", "/me/account-erasure", {
+      payload: ErasureConfirmation,
+      error: [Unauthenticated, Forbidden, AuthUnavailable, ErasureNotConfirmed, AccountStillInUse],
     }),
   )
   .prefix("/api") {}

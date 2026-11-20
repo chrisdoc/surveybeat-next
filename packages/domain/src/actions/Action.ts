@@ -35,7 +35,7 @@ export const ActionItem = Schema.Struct({
   roundId: RoundId,
   title: Schema.String,
   ownerId: PersonId,
-  ownerEmail: EmailAddress,
+  ownerEmail: Schema.NullOr(EmailAddress),
   dueDate: Schema.NullOr(Schema.String),
   dimension: Schema.NullOr(Dimension),
   status: ActionStatus,

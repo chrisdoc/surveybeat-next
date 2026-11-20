@@ -9,6 +9,7 @@ import { Forbidden } from "./SignIn.ts";
 import type { Member } from "./SignInFlow.ts";
 import { PeopleIndex } from "./SignInPorts.ts";
 import {
+  ErasureNotConfirmed,
   LastAdmin,
   LastLead,
   PersonNotFound,
@@ -60,6 +61,8 @@ export interface OrganizationDirectoryShape {
     actorId: PersonId,
     sendId: SendId,
   ) => Effect.Effect<Viewed<FailedEmailStatus>>;
+
+  readonly clearPersonErasure: (organizationId: OrganizationId, personId: PersonId) => Effect.Effect<void>;
 }
 
 export class OrganizationDirectory extends Context.Service<
@@ -74,6 +77,7 @@ export type DirectoryError =
   | PersonWasRemoved
   | LastLead
   | LastAdmin
+  | ErasureNotConfirmed
   | TeamNameTaken
   | FailedEmailNotFound
   | EmailNotResendable;
@@ -102,6 +106,10 @@ const fail = (rejection: DirectoryRejection): Effect.Effect<never, DirectoryErro
 
     case "LastAdmin": {
       return Effect.fail(new LastAdmin());
+    }
+
+    case "ErasureNotConfirmed": {
+      return Effect.fail(new ErasureNotConfirmed());
     }
 
     case "TeamNameTaken": {
@@ -136,6 +144,18 @@ const followUp = Effect.fnUntraced(function* (organizationId: OrganizationId, st
 
     case "UnindexPerson": {
       return yield* index.removePerson(organizationId, step.personId);
+    }
+
+    case "ErasePersonIndex": {
+      yield* index.erasePerson({
+        organizationId,
+        personId: step.person.id,
+        userId: Option.fromNullishOr(step.person.authUserId),
+        sendIds: step.sendIds,
+        testTokenHashes: step.testTokenHashes,
+      });
+
+      return yield* (yield* OrganizationDirectory).clearPersonErasure(organizationId, step.person.id);
     }
   }
 });

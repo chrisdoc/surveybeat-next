@@ -402,6 +402,158 @@ describe("a member", () => {
   });
 });
 
+describe("erasing a Person (GDPR 307)", () => {
+  const erase = (browser: Browser, personId: PersonId, confirmation: string) =>
+    browser.call("POST", `/api/organization/people/${personId}/erasure`, { confirmation });
+
+  it("scrubs a Person for an admin once the address is typed, and sign-in no longer finds them", async () => {
+    const { world, acme, admin, member, teamId, personId } = await setup();
+    const ada = personId("ada@example.com");
+
+    expect((await erase(admin, ada, "ada@example.com")).status).toBe(204);
+
+    expect(world.durable.person(acme.id, ada)).toMatchObject({
+      email: `erased-${ada}@erased.invalid`,
+      authUserId: null,
+      organizationAdmin: false,
+      removedAt: expect.any(Number),
+      erasedAt: expect.any(Number),
+    });
+
+    expect(world.index.persons.has(`${acme.id}/${ada}`)).toBe(false);
+    expect(await roster(admin, teamId)).toEqual(["lead grace@example.com"]);
+    expect(await member.session()).toEqual({ status: 200, body: { _tag: "NotInOrganization" } });
+    expect(world.index.erasedAccounts.size).toBe(1);
+  });
+
+  it("refuses without the exact address, and changes nothing", async () => {
+    const { world, acme, admin, personId } = await setup();
+    const ada = personId("ada@example.com");
+
+    expect(await erase(admin, ada, "someone@example.com")).toMatchObject({
+      status: 422,
+      body: { _tag: "ErasureNotConfirmed" },
+    });
+
+    expect(world.durable.person(acme.id, ada)).toMatchObject({
+      email: "ada@example.com",
+      erasedAt: null,
+      removedAt: null,
+    });
+  });
+
+  it("accepts the address in any case", async () => {
+    const { world, acme, admin, personId } = await setup();
+    const ada = personId("ada@example.com");
+
+    expect((await erase(admin, ada, "ADA@Example.com")).status).toBe(204);
+    expect(world.durable.person(acme.id, ada)?.erasedAt).toEqual(expect.any(Number));
+  });
+
+  it("erases a removed Person who never signed in", async () => {
+    const { world, acme, admin, personId } = await setup();
+    const id = world.addPerson(acme.id, "ghost@example.com", false);
+    expect((await admin.call("DELETE", `/api/organization/people/${id}`)).status).toBe(204);
+
+    const settings = await admin.call("GET", "/api/organization");
+
+    expect(settings.body).toMatchObject({
+      removedPeople: [{ personId: id, email: "ghost@example.com" }],
+    });
+
+    expect((await erase(admin, id, "ghost@example.com")).status).toBe(204);
+    expect(world.durable.person(acme.id, id)?.email).toBe(`erased-${id}@erased.invalid`);
+    expect(world.index.persons.has(`${acme.id}/${id}`)).toBe(false);
+    expect(personId("admin@example.com")).not.toBe(id);
+
+    expect((await admin.call("GET", "/api/organization")).body).toMatchObject({ removedPeople: [] });
+  });
+
+  it("refuses the only Lead of a Team and the only Organization admin until the role is handed over", async () => {
+    const { world, acme, admin, adminId, personId, teamId } = await setup();
+    const grace = personId("grace@example.com");
+
+    expect(await erase(admin, grace, "grace@example.com")).toMatchObject({
+      status: 409,
+      body: { _tag: "LastLead" },
+    });
+
+    expect(await erase(admin, adminId, "admin@example.com")).toMatchObject({
+      status: 409,
+      body: { _tag: "LastAdmin" },
+    });
+
+    expect(world.durable.person(acme.id, grace)?.erasedAt).toBeNull();
+    expect(world.durable.person(acme.id, adminId)?.erasedAt).toBeNull();
+
+    expect(
+      (await admin.call("POST", `/api/teams/${teamId}/leads`, { email: "ada@example.com" })).status,
+    ).toBe(204);
+
+    expect((await erase(admin, grace, "grace@example.com")).status).toBe(204);
+  });
+
+  it("keeps an Action's owner as a former member without the tombstone address", async () => {
+    const { admin, lead, teamId, personId } = await setup();
+    const ada = personId("ada@example.com");
+
+    const created = await lead.call("POST", `/api/teams/${teamId}/actions`, {
+      roundId: "round-1",
+      title: "Fewer meetings",
+      ownerId: ada,
+      dueDate: null,
+      dimension: null,
+    });
+
+    expect(created.status).toBe(200);
+    expect((await erase(admin, ada, "ada@example.com")).status).toBe(204);
+
+    const listed = await lead.call("GET", `/api/teams/${teamId}/actions`);
+
+    expect(JSON.stringify(listed.body)).not.toContain("erased.invalid");
+    expect(listed.body).toMatchObject({ actions: [{ ownerId: ada, ownerEmail: null }] });
+  });
+
+  it("only lets an Organization admin use the organization route, including for their own Person", async () => {
+    const { world, acme, lead, member, personId } = await setup();
+    const ada = personId("ada@example.com");
+    const grace = personId("grace@example.com");
+
+    expect((await erase(lead, ada, "ada@example.com")).status).toBe(403);
+    expect((await erase(member, grace, "grace@example.com")).status).toBe(403);
+    expect((await erase(member, ada, "ada@example.com")).status).toBe(403);
+    expect((await erase(lead, grace, "grace@example.com")).status).toBe(403);
+    expect(world.durable.person(acme.id, ada)?.erasedAt).toBeNull();
+    expect(world.durable.person(acme.id, grace)?.erasedAt).toBeNull();
+  });
+
+  it("answers 404 for a Person who does not exist", async () => {
+    const { admin } = await setup();
+
+    expect(await erase(admin, "missing" as PersonId, "x@example.com")).toMatchObject({
+      status: 404,
+      body: { _tag: "PersonNotFound" },
+    });
+  });
+
+  it("starts a new Person, not the tombstone, when the same address is added again", async () => {
+    const { world, acme, admin, teamId, personId } = await setup();
+    const before = personId("ada@example.com");
+
+    expect((await erase(admin, before, "ada@example.com")).status).toBe(204);
+
+    expect(
+      (await admin.call("POST", `/api/teams/${teamId}/members`, { email: "ada@example.com" })).status,
+    ).toBe(204);
+
+    const after = personId("ada@example.com");
+
+    expect(after).not.toBe(before);
+    expect(world.durable.person(acme.id, before)?.erasedAt).toEqual(expect.any(Number));
+    expect(world.durable.person(acme.id, after)).toMatchObject({ erasedAt: null, removedAt: null });
+  });
+});
+
 describe("every directory endpoint", () => {
   const team = { name: "X", timeZone: "UTC", leadEmail: "x@example.com" };
   const email = { email: "x@example.com" };
@@ -424,6 +576,7 @@ describe("every directory endpoint", () => {
     ["PUT", "/api/organization/admins/p", undefined],
     ["DELETE", "/api/organization/admins/p", undefined],
     ["DELETE", "/api/organization/people/p", undefined],
+    ["POST", "/api/organization/people/p/erasure", { confirmation: "x@example.com" }],
   ];
 
   it.each(ENDPOINTS)("%s %s answers 401 without a session", async (method, path, body) => {

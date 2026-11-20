@@ -11,6 +11,8 @@ export const Failure = Schema.Literals([
   "NotFound",
   "LastLead",
   "LastAdmin",
+  "ErasureNotConfirmed",
+  "AccountStillInUse",
   "TeamNameTaken",
   "QuestionAlreadyInPulse",
   "QuestionHasAnswers",
@@ -45,6 +47,14 @@ export const failureMessage = (failure: Failure): string => {
 
     case "LastAdmin": {
       return message("error.LastAdmin");
+    }
+
+    case "ErasureNotConfirmed": {
+      return message("error.ErasureNotConfirmed");
+    }
+
+    case "AccountStillInUse": {
+      return message("error.AccountStillInUse");
     }
 
     case "TeamNameTaken": {
@@ -121,6 +131,14 @@ export const failureOf = (error: unknown): Failure => {
 
   if (Predicate.isTagged(error, "LastAdmin")) {
     return "LastAdmin";
+  }
+
+  if (Predicate.isTagged(error, "ErasureNotConfirmed")) {
+    return "ErasureNotConfirmed";
+  }
+
+  if (Predicate.isTagged(error, "AccountStillInUse")) {
+    return "AccountStillInUse";
   }
 
   if (Predicate.isTagged(error, "TeamNameTaken")) {

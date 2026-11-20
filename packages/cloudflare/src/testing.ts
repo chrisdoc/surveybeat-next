@@ -229,6 +229,7 @@ export class MemoryIndex {
     }
   >();
   readonly claims = new Map<AuthUserId, ClaimStatus>();
+  readonly erasedAccounts = new Set<AuthUserId>();
 
   private candidate(organizationId: OrganizationId, personId: PersonId, linked: boolean): PersonCandidate {
     const organization = this.organizations.get(organizationId);
@@ -286,6 +287,38 @@ export class MemoryIndex {
           person.userId = userId;
         }
       }),
+    erasePerson: (erased) =>
+      Effect.sync(() => {
+        const key = `${erased.organizationId}/${erased.personId}`;
+        const userId = Option.getOrNull(erased.userId) ?? this.persons.get(key)?.userId ?? null;
+        this.persons.delete(key);
+
+        if (userId === null) {
+          return;
+        }
+
+        const claim = this.claims.get(userId);
+
+        if (claim?.organization.id === erased.organizationId) {
+          this.claims.delete(userId);
+        }
+
+        if (![...this.persons.values()].some((person) => person.userId === userId)) {
+          this.claims.delete(userId);
+          this.erasedAccounts.add(userId);
+        }
+      }),
+    eraseAccount: (userId) =>
+      Effect.sync(() => {
+        if ([...this.persons.values()].some((person) => person.userId === userId)) {
+          return false;
+        }
+
+        this.claims.delete(userId);
+        this.erasedAccounts.add(userId);
+
+        return true;
+      }),
     claimOrganization: (userId, proposed) =>
       Effect.sync(() => {
         const existing = this.claims.get(userId);
@@ -310,6 +343,14 @@ export class MemoryIndex {
       }),
   });
 }
+
+const ownerEmailOf = (owner: PersonRecord | undefined): EmailAddress | null => {
+  if (owner === undefined) {
+    return EmailAddress.make("unknown@example.com");
+  }
+
+  return owner.erasedAt === null ? owner.email : null;
+};
 
 const fakeResendFacts = (
   organization: MemoryOrganization,
@@ -391,6 +432,7 @@ export class MemoryOrganizations {
                 authUserId: admin.userId,
                 organizationAdmin: true,
                 removedAt: null,
+                erasedAt: null,
                 locale: null,
                 detectedLocale: null,
               },
@@ -470,6 +512,24 @@ export class MemoryOrganizations {
         }
 
         organization.state = applyChanges(organization.state, decision.changes);
+
+        for (const followUp of decision.followUps) {
+          if (followUp._tag !== "ErasePersonIndex") {
+            continue;
+          }
+
+          for (const [sendId, send] of organization.sends) {
+            if (send.recipient === followUp.person.email) {
+              organization.sends.delete(sendId);
+            }
+          }
+
+          for (const [sendId, testSend] of organization.testSends) {
+            if (testSend.personId === followUp.person.id) {
+              organization.testSends.delete(sendId);
+            }
+          }
+        }
 
         for (const change of decision.changes) {
           if (change._tag === "EmailRequested" && !organization.sends.has(change.sendId)) {
@@ -570,6 +630,7 @@ export class MemoryOrganizations {
           send === undefined ? null : { sendId, state: progressOf(send.state) },
         );
       }),
+    clearPersonErasure: () => Effect.void,
   });
 
   readonly pulses = OrganizationPulses.of({
@@ -772,7 +833,7 @@ export class MemoryOrganizations {
               roundId: act.roundId,
               title: act.title,
               ownerId: act.ownerId,
-              ownerEmail: owner?.email ?? EmailAddress.make("unknown@example.com"),
+              ownerEmail: ownerEmailOf(owner),
               dueDate: act.dueDate,
               dimension: act.dimension,
               status: act.status,
@@ -840,7 +901,7 @@ export class MemoryOrganizations {
             roundId: record.roundId,
             title: record.title,
             ownerId: record.ownerId,
-            ownerEmail: owner?.email ?? EmailAddress.make("unknown@example.com"),
+            ownerEmail: ownerEmailOf(owner),
             dueDate: record.dueDate,
             dimension: record.dimension,
             status: record.status,
@@ -914,7 +975,7 @@ export class MemoryOrganizations {
             roundId: updated.roundId,
             title: updated.title,
             ownerId: updated.ownerId,
-            ownerEmail: owner?.email ?? EmailAddress.make("unknown@example.com"),
+            ownerEmail: ownerEmailOf(owner),
             dueDate: updated.dueDate,
             dimension: updated.dimension,
             status: updated.status,
@@ -1018,6 +1079,7 @@ export class SignInWorld {
           authUserId: null,
           organizationAdmin,
           removedAt: null,
+          erasedAt: null,
           locale: null,
           detectedLocale: null,
         },

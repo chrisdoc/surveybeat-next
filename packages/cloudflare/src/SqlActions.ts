@@ -33,7 +33,7 @@ const ActionItemRow = Schema.Struct({
   round_id: RoundId,
   title: Schema.String,
   owner_id: PersonId,
-  owner_email: EmailAddress,
+  owner_email: Schema.NullOr(EmailAddress),
   due_date: Schema.NullOr(Schema.String),
   dimension: Schema.NullOr(Dimension),
   status: ActionStatus,
@@ -87,7 +87,7 @@ export const makeSqlActions = (sql: SqliteClient.SqliteClient) => {
     );
 
   const getActionItem = (actionId: ActionId): Effect.Effect<ActionItem | null> =>
-    sql`SELECT a.id, a.team_id, a.round_id, a.title, a.owner_id, p.email AS owner_email,
+    sql`SELECT a.id, a.team_id, a.round_id, a.title, a.owner_id, CASE WHEN p.erased_at IS NULL THEN p.email ELSE NULL END AS owner_email,
                a.due_date, a.dimension, a.status, a.created_at, a.updated_at, a.done_at
         FROM action a
         JOIN person p ON p.id = a.owner_id
@@ -99,13 +99,13 @@ export const makeSqlActions = (sql: SqliteClient.SqliteClient) => {
 
   const getActionsForTeam = (teamId: TeamId, roundId?: RoundId): Effect.Effect<readonly ActionItem[]> =>
     (roundId !== undefined
-      ? sql`SELECT a.id, a.team_id, a.round_id, a.title, a.owner_id, p.email AS owner_email,
+      ? sql`SELECT a.id, a.team_id, a.round_id, a.title, a.owner_id, CASE WHEN p.erased_at IS NULL THEN p.email ELSE NULL END AS owner_email,
                    a.due_date, a.dimension, a.status, a.created_at, a.updated_at, a.done_at
             FROM action a
             JOIN person p ON p.id = a.owner_id
             WHERE a.team_id = ${teamId} AND a.round_id = ${roundId}
             ORDER BY a.created_at ASC`
-      : sql`SELECT a.id, a.team_id, a.round_id, a.title, a.owner_id, p.email AS owner_email,
+      : sql`SELECT a.id, a.team_id, a.round_id, a.title, a.owner_id, CASE WHEN p.erased_at IS NULL THEN p.email ELSE NULL END AS owner_email,
                    a.due_date, a.dimension, a.status, a.created_at, a.updated_at, a.done_at
             FROM action a
             JOIN person p ON p.id = a.owner_id

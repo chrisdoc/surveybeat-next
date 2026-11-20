@@ -50,7 +50,9 @@ import { defineMessageUnion } from "foldkit/message";
 import { Url } from "foldkit/url";
 import { message, message as translate, setLocale } from "../messages/locale.ts";
 import { Failure, runApi } from "./api.ts";
-import { privacyContent, privacyView, screenView } from "./components.ts";
+import { pageShell, privacyContent, privacyView, screenView } from "./components.ts";
+import type { Child } from "./components.ts";
+import { selfErasureView } from "./erasure.ts";
 import {
   decodeEmail,
   decodeName,
@@ -70,7 +72,13 @@ import {
 } from "./directory.ts";
 import type { NavSection, AttentionItem, ChecklistStep } from "./directory.ts";
 import { historyView, LoadedHistory } from "./history.ts";
-import { browserStorage, clearKeptAnswers, KeptAnswers, readKeptAnswers } from "./keptAnswers.ts";
+import {
+  browserStorage,
+  clearKeptAnswers,
+  clearOwnBrowserData,
+  KeptAnswers,
+  readKeptAnswers,
+} from "./keptAnswers.ts";
 import { LoadedOverview, teamOverviewView } from "./overview.ts";
 import {
   decodeContent,
@@ -152,6 +160,14 @@ export const Model = Schema.Struct({
     }),
   ),
   pendingRemovePerson: Schema.Option(Schema.Struct({ personId: PersonId, email: Schema.String })),
+  pendingErasePerson: Schema.Option(Schema.Struct({ personId: PersonId, email: Schema.String })),
+  erasePersonConfirmation: Schema.String,
+  selfErase: Schema.Struct({
+    open: Schema.Boolean,
+    confirmation: Schema.String,
+    busy: Schema.Boolean,
+    failure: Schema.Option(Failure),
+  }),
 
   settings: LoadedSettings,
   size: Schema.String,
@@ -405,6 +421,17 @@ export const Message = defineMessageUnion({
   ConfirmDropAction: {},
   DismissDropAction: {},
   RemovedPerson: { outcome: OutcomeVoid },
+  ErasePersonClicked: { personId: PersonId },
+  ErasePersonConfirmationChanged: { value: Schema.String },
+  ConfirmErasePerson: {},
+  DismissErasePerson: {},
+  ErasedPerson: { outcome: OutcomeVoid },
+  SelfEraseOpened: {},
+  SelfEraseConfirmationChanged: { value: Schema.String },
+  SelfEraseDismissed: {},
+  SelfEraseSubmitted: {},
+  SelfErased: { outcome: OutcomeVoid },
+  LeftAfterErasure: {},
 
   GotPulses: { outcome: OutcomePulses },
   CreatePulseClicked: {},
@@ -735,6 +762,54 @@ export const RemovePerson = Command.define("RemovePerson", {
       () => Message.RemovedPerson({ outcome: { _tag: "Success" } }),
       (failure) => Message.RemovedPerson({ outcome: { _tag: "Failure", failure } }),
     ),
+});
+
+export const ErasePersonData = Command.define("ErasePersonData", {
+  args: { personId: PersonId, confirmation: EmailAddress },
+  messages: [Message.ErasedPerson],
+  execute: ({ personId, confirmation }) =>
+    runApi(
+      (api) => api.directory.erasePerson({ params: { personId }, payload: { confirmation } }),
+      () => Message.ErasedPerson({ outcome: { _tag: "Success" } }),
+      (failure) => Message.ErasedPerson({ outcome: { _tag: "Failure", failure } }),
+    ),
+});
+
+export const EraseOwnPersonData = Command.define("EraseOwnPersonData", {
+  args: { confirmation: EmailAddress },
+  messages: [Message.SelfErased],
+  execute: ({ confirmation }) =>
+    runApi(
+      (api) => api.me.erasePerson({ payload: { confirmation } }),
+      () => Message.SelfErased({ outcome: { _tag: "Success" } }),
+      (failure) => Message.SelfErased({ outcome: { _tag: "Failure", failure } }),
+    ),
+});
+
+export const EraseOwnAccountData = Command.define("EraseOwnAccountData", {
+  args: { confirmation: EmailAddress },
+  messages: [Message.SelfErased],
+  execute: ({ confirmation }) =>
+    runApi(
+      (api) => api.me.eraseAccount({ payload: { confirmation } }),
+      () => Message.SelfErased({ outcome: { _tag: "Success" } }),
+      (failure) => Message.SelfErased({ outcome: { _tag: "Failure", failure } }),
+    ),
+});
+
+export const LeaveAfterErasureCmd = Command.define("LeaveAfterErasureCmd", {
+  messages: [Message.LeftAfterErasure],
+  execute: Effect.sync(() => {
+    const storage = browserStorage();
+
+    if (storage !== null) {
+      clearOwnBrowserData(storage);
+    }
+
+    window.location.assign("/");
+
+    return Message.LeftAfterErasure();
+  }),
 });
 
 export const ListPulses = Command.define("ListPulses", {
@@ -1170,6 +1245,9 @@ export const initialModel = (url: Url, languages: readonly string[]): Model => {
     assignLeadOpen: false,
     pendingRemove: Option.none(),
     pendingRemovePerson: Option.none(),
+    pendingErasePerson: Option.none(),
+    erasePersonConfirmation: "",
+    selfErase: { open: false, confirmation: "", busy: false, failure: Option.none() },
     settings: { _tag: "Loading" },
     size: "3",
     sizeSaved: false,
@@ -1310,7 +1388,7 @@ const attentionItems = (model: Model): readonly AttentionItem[] => {
         text: action.title,
         detail: message("home.attention.actionDetail", {
           team: team.name,
-          owner: action.ownerEmail,
+          owner: action.ownerEmail ?? message("actions.formerMember"),
         }),
         href: roundResultsHref(team.id, action.roundId),
       });
@@ -2574,6 +2652,146 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       };
     }
 
+    case "ErasePersonClicked": {
+      const loaded = model.settings._tag === "Loaded" ? model.settings.settings : undefined;
+
+      const person =
+        loaded?.people.find((row) => row.personId === message.personId) ??
+        loaded?.removedPeople.find((row) => row.personId === message.personId);
+
+      return {
+        model: {
+          ...model,
+          peopleFailure: Option.none(),
+          erasePersonConfirmation: "",
+          pendingErasePerson: Option.some({ personId: message.personId, email: person?.email ?? "" }),
+        },
+      };
+    }
+
+    case "ErasePersonConfirmationChanged": {
+      return { model: { ...model, erasePersonConfirmation: message.value, peopleFailure: Option.none() } };
+    }
+
+    case "DismissErasePerson": {
+      return {
+        model: {
+          ...model,
+          pendingErasePerson: Option.none(),
+          erasePersonConfirmation: "",
+          peopleFailure: Option.none(),
+        },
+      };
+    }
+
+    case "ConfirmErasePerson": {
+      if (Option.isNone(model.pendingErasePerson)) {
+        return { model };
+      }
+
+      const confirmation = decodeEmail(model.erasePersonConfirmation.trim());
+
+      if (Option.isNone(confirmation)) {
+        return { model: { ...model, peopleFailure: Option.some("ErasureNotConfirmed") } };
+      }
+
+      return {
+        model: { ...model, peopleBusy: true, peopleFailure: Option.none() },
+        commands: [
+          ErasePersonData({
+            personId: model.pendingErasePerson.value.personId,
+            confirmation: confirmation.value,
+          }),
+        ],
+      };
+    }
+
+    case "ErasedPerson": {
+      if (message.outcome._tag === "Success") {
+        return {
+          model: {
+            ...model,
+            peopleBusy: false,
+            pendingErasePerson: Option.none(),
+            erasePersonConfirmation: "",
+          },
+          commands: [GetSettings()],
+        };
+      }
+
+      if (message.outcome.failure === "Unauthenticated") {
+        return { model, commands: [LoadSession()] };
+      }
+
+      return {
+        model: { ...model, peopleBusy: false, peopleFailure: Option.some(message.outcome.failure) },
+      };
+    }
+
+    case "SelfEraseOpened": {
+      return {
+        model: { ...model, selfErase: { open: true, confirmation: "", busy: false, failure: Option.none() } },
+      };
+    }
+
+    case "SelfEraseConfirmationChanged": {
+      return {
+        model: {
+          ...model,
+          selfErase: { ...model.selfErase, confirmation: message.value, failure: Option.none() },
+        },
+      };
+    }
+
+    case "SelfEraseDismissed": {
+      return {
+        model: {
+          ...model,
+          selfErase: { open: false, confirmation: "", busy: false, failure: Option.none() },
+        },
+      };
+    }
+
+    case "SelfEraseSubmitted": {
+      const confirmation = decodeEmail(model.selfErase.confirmation.trim());
+
+      if (Option.isNone(confirmation)) {
+        return {
+          model: { ...model, selfErase: { ...model.selfErase, failure: Option.some("ErasureNotConfirmed") } },
+        };
+      }
+
+      return {
+        model: { ...model, selfErase: { ...model.selfErase, busy: true, failure: Option.none() } },
+        commands: [
+          model.session._tag === "SignedIn"
+            ? EraseOwnPersonData({ confirmation: confirmation.value })
+            : EraseOwnAccountData({ confirmation: confirmation.value }),
+        ],
+      };
+    }
+
+    case "SelfErased": {
+      if (message.outcome._tag === "Success") {
+        return { model, commands: [LeaveAfterErasureCmd()] };
+      }
+
+      if (message.outcome.failure === "Unauthenticated") {
+        return { model, commands: [LoadSession()] };
+      }
+
+      return {
+        model: {
+          ...model,
+          selfErase: { ...model.selfErase, busy: false, failure: Option.some(message.outcome.failure) },
+        },
+      };
+    }
+
+    case "LeftAfterErasure": {
+      return { model };
+    }
+
     case "GotPulses": {
       const { outcome } = message;
 
@@ -3697,8 +3915,40 @@ export const localeOf = (model: Model): Locale => {
   return Option.getOrElse(model.browserLocale, () => "en");
 };
 
+const selfErasureOf = (model: Model, kind: "person" | "account", h: HtmlBuilder<Message>): Child =>
+  selfErasureView(
+    {
+      open: model.selfErase.open,
+      confirmation: model.selfErase.confirmation,
+      busy: model.selfErase.busy,
+      failure: Option.getOrUndefined(model.selfErase.failure),
+    },
+    kind,
+    {
+      onOpen: Message.SelfEraseOpened(),
+      onConfirmationChange: (value) => Message.SelfEraseConfirmationChanged({ value }),
+      onSubmit: Message.SelfEraseSubmitted(),
+      onCancel: Message.SelfEraseDismissed(),
+    },
+    h,
+  );
+
 export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
   setLocale(localeOf(model));
+
+  if (
+    model.route._tag === "Privacy" &&
+    (model.session._tag === "CreateOrganization" || model.session._tag === "NotInOrganization")
+  ) {
+    return {
+      title: message("privacy.title"),
+      body: pageShell(
+        { privacyCurrent: true },
+        privacyContent(h, true, [selfErasureOf(model, "account", h)]),
+        h,
+      ),
+    };
+  }
 
   if (model.route._tag === "Privacy" && model.session._tag !== "SignedIn") {
     return {
@@ -3868,7 +4118,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
     }
 
     case "Privacy": {
-      screenContent = h.div([], privacyContent(h, true));
+      screenContent = h.div([], privacyContent(h, true, [selfErasureOf(model, "person", h)]));
       break;
     }
 
@@ -3913,6 +4163,8 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
               peopleBusy: model.peopleBusy,
               peopleFailure: Option.getOrUndefined(model.peopleFailure),
               pendingRemovePerson: Option.getOrUndefined(model.pendingRemovePerson),
+              pendingErasePerson: Option.getOrUndefined(model.pendingErasePerson),
+              erasePersonConfirmation: model.erasePersonConfirmation,
               failedEmails: model.failedEmails,
               failedEmailResends: model.failedEmailResends,
             },
@@ -3926,6 +4178,10 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
               onRemovePerson: (personId) => Message.RemovePersonClicked({ personId }),
               onConfirmRemovePerson: Message.ConfirmRemove(),
               onCancelRemovePerson: Message.DismissRemove(),
+              onErasePerson: (personId) => Message.ErasePersonClicked({ personId }),
+              onErasePersonConfirmationChange: (value) => Message.ErasePersonConfirmationChanged({ value }),
+              onConfirmErasePerson: Message.ConfirmErasePerson(),
+              onCancelErasePerson: Message.DismissErasePerson(),
               onResendFailedEmail: (sendId) => Message.ResendFailedEmailClicked({ sendId }),
             },
             h,

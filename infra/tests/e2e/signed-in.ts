@@ -57,6 +57,7 @@ const SETTINGS = {
     { personId: "person-2", email: "grace@example.com", organizationAdmin: true, linked: true },
     { personId: "person-3", email: "linus@example.com", organizationAdmin: false, linked: false },
   ],
+  removedPeople: [],
 };
 
 const SESSION = {
