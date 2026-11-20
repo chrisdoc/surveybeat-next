@@ -1,0 +1,62 @@
+Act as the implementation sub-agent for this task.
+
+Implement GitHub issue #305 in the SurveyBeat repo. You are already in an isolated checkout of origin/main (2a58b095). Do not create another checkout or worktree. Do not spawn subagents. Work only on #305.
+
+Issue: GDPR public legal pages (Privacy Notice, Terms, DPA, Sub-processors) and in-app transparency. Read the issue with `gh issue view 305` and follow it exactly. Also read AGENTS.md, GLOSSARY.md, SPEC.md §5.3 and §5.8, ADR 0005, ADR 0008, ADR 0015, ADR 0017, ADR 0020, and apps/web message-catalog rules before editing.
+
+Scope:
+- Prerender static zero-JS pages /privacy, /terms, /dpa, /subprocessors into apps/web/dist-site, served by SiteWorker (packages/cloudflare/src/SiteWorker.ts). All visible strings live in apps/web/src/messages/catalog.ts (no-literal-ui-text). HTML shells stay free of visible text.
+- Art. 13/14 privacy notice, terms, Art. 28 DPA, and the sub-processor list (Cloudflare, OpenRouter, Google Cloud google-vertex/europe, AWS amazon-bedrock/eu-west-1) must match the live code and ADR 0015.
+- Link them from the landing footer (apps/web/src/site/render.ts), the signed-in app (apps/web/src/app/App.ts) including sign-in and in-app /privacy, the answer page footer within the ADR 0008 budget (JS ≤ 10 KB gzip, HTML ≤ 8 KB, CSS ≤ 2 KB), and the transactional email footer (packages/emails/src/Layout.tsx).
+- Use glossary terms: Pulse, Person, Round, Submission. Do not use Survey, User, instance, or Response.
+- No prose comments (no-comments lint). No `as` type assertions outside tests. New API endpoints are not required; if you add one, classify it in packages/api/src/PrivacyRegistry.ts.
+- Do not implement other GDPR issues (#306–#313) or Release 3. Do not edit docs/compliance, SPEC §8, or docs/adr except a factual link if a legal page must cite an ADR.
+
+Version control: use GitButler (`but`), never git add/commit/push. Read the gitbutler skill if needed. Branch name: gdpr-305-legal-pages. Commit subject: `GDPR 305: public legal pages`. If `but commit -b gdpr-305-legal-pages` is refused because this is a linked worktree, commit on the checked-out branch with `but commit -m "..."` and report that branch name. The pre-commit hook runs `pnpm check` and `pnpm test`; let it run. Do not use --no-verify.
+
+Before opening the PR, run `pnpm typecheck`, `pnpm lint`, `pnpm test`, and `pnpm --filter @surveybeat/web build`. Fix failures that your change caused.
+
+Open the PR with `but pr new <branch>` (it pushes). Title: `GDPR 305: public legal pages`. Body must include `Closes #305` and a short summary of pages and link surfaces. Do not merge, do not enable auto-merge, and do not push main.
+
+Return: PR URL, head SHA, branch name, files changed, commands run and their results, and any acceptance criterion you did not meet.
+
+---
+
+<task-notification>
+<task-id>behok2v0w</task-id>
+<tool-use-id>toolu_014rEXqtwr1ozQswxFYJu68s</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-883e81f4-4e47a165a202d695/5d8db68d-d6a7-4bd8-8b8a-dca4a91bbf55/tasks/behok2v0w.output</output-file>
+<status>completed</status>
+<summary>Background command "python3 - &lt;&lt;'EOF'
+p='packages/emails/src/Layout.tsx'
+s=open(p).read()
+s=s.replace('''              &lt;span key={page}&gt;
+                {index === 0 ? "" : " · "}
+                &lt;Link
+                  className="sb-link"
+                  href={legalUrl(page)}
+                  style={{ color: colors.muted, textDecoration: "underline" }}
+                &gt;
+                  {messages.message(`layout.legal.${page}`)}
+                &lt;/Link&gt;
+              &lt;/span&gt;''','''          
+
+... [252 characters truncated] ...
+
+essage(`layout.legal.${page}`)}
+              &lt;/Link&gt;''')
+s=s.replace('legalPages.map((page, index) =&gt; (','legalPages.map((page) =&gt; (')
+open(p,'w').write(s)
+EOF
+pnpm typecheck 2&gt;&amp;1 | grep -B1 -A4 "FAIL\|error TS" | head -30; pnpm test packages/emails apps/web 2&gt;&amp;1 | tail -40" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>bl80jd9i9</task-id>
+<tool-use-id>toolu_01TWbYjUQTAedUEAr9SisQwX</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-883e81f4-4e47a165a202d695/5d8db68d-d6a7-4bd8-8b8a-dca4a91bbf55/tasks/bl80jd9i9.output</output-file>
+<status>completed</status>
+<summary>Background command "until grep -q "^EXIT" /tmp/claude-1001/test.log; do sleep 5; done; tail -12 /tmp/claude-1001/test.log" completed (exit code 0)</summary>
+</task-notification>
