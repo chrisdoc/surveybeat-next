@@ -97,3 +97,8 @@ CI runs `typecheck`, `check:ledger`, `check:comments`, `format:check`, `lint`, `
 - Non-production stages never send real email; sends are recorded in D1's `captured_email`. Only `production` sends.
 - The Submission Worker must keep every observability channel off. `pnpm check:observability --stage <stage>` reads the deployed settings back; the canary sweep proves no logs are kept. Stage scripts need `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
 - New SQL migrations: numbered files in `packages/cloudflare/migrations` (Durable Object) or `packages/cloudflare/d1-migrations` (D1). Never edit or delete one that is merged: the ledgers record migrations by name and never re-run them, so an edit reaches only fresh databases (#200 renamed `person.workos_user_id` inside `0003_person.sql`, and production's Round jobs failed on 2026-11-20). Put the change in a new file and add its SHA-256 to `migrations.lock.json` or `d1-migrations.lock.json`; `MigrationHistory.test.ts` fails otherwise and prints the line to add.
+
+<!-- entire-agent:begin -->
+Read .entire/agent-guide.md for this repository's workflow, source inspection, and verification guidance.
+@.entire/agent-guide.md
+<!-- entire-agent:end -->
