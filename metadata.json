@@ -1,0 +1,54 @@
+{
+  "cli_version": "0.13.4",
+  "checkpoint_id": "01M7WAG0FYKPRYFTWRAH6N7CDM",
+  "strategy": "manual-commit",
+  "branch": "gdpr-305-legal-pages",
+  "checkpoints_count": 1,
+  "files_touched": [
+    ".github/workflows/preview.yml",
+    "SPEC.md",
+    "docs/adr/0002-people-join-by-being-added.md",
+    "docs/adr/0003-organization-admin-sees-no-results.md",
+    "docs/adr/0026-preview-stage-gates.md",
+    "docs/compliance/breach-response-runbook.md",
+    "docs/compliance/dpia.md",
+    "docs/compliance/ropa.md",
+    "docs/compliance/vendor-dpa-register.md",
+    "docs/infra.md",
+    "docs/research/r3-mcp-auth.md",
+    "docs/research/r3-vercel-chat-adapters.md",
+    "scripts/ci/runner-minutes.mjs",
+    "scripts/ci/runner-minutes.test.ts",
+    "scripts/ci/select.mjs",
+    "scripts/ci/select.test.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 0,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 0,
+    "output_tokens": 0,
+    "api_call_count": 0
+  },
+  "redaction": {
+    "replacements": 33,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 27,
+      "credentialed_uri": 0,
+      "entropy": 6,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
