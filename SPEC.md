@@ -252,7 +252,7 @@ Sign-in with an email code, plus organization and team setup by hand. Pulses fro
 Comment redaction and themes. Discussion guide. Team health overview with action markers. Delayed sharing. The member's private history page. German translation, deferred: English only for now (ADR 0025).
 
 **Release 3. Reach and close the loop.**
-Channel-agnostic delivery across Email, Slack, and Microsoft Teams. Slack ships first; Microsoft Teams follows on the same port. Core and Rotating Questions. One-Round Questions for Action follow-ups and Comment theme deep-dives. A privacy-enforced remote MCP server.
+Channel-agnostic delivery across email, Slack, and Microsoft Teams. Slack ships first; Microsoft Teams follows on the same delivery path. Question rotation (a core set plus a rotating set). One-time questions for Action follow-ups and Comment theme deep-dives. A privacy-enforced remote MCP server.
 
 **Release 4. Enterprise Organizations.**
 Enterprise SSO and Directory Sync. Nested teams and leadership roll-ups with subtraction-safe thresholds. Standard questions and cross-team comparison. Confidential mode. Audit log. Exports.
