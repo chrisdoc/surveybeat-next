@@ -14,7 +14,11 @@ describe("personal data transparency", () => {
     expect(text).toContain("An older stored Invitation or reminder email can still hold the raw token");
     expect(text).toContain("leaves out the payload, the message body, and any token");
     expect(text).toContain("zdr: true");
-    expect(text).toContain("child sexual abuse material");
+    expect(text).toContain(
+      "OpenRouter may still retain content it flags as child sexual abuse material, including traffic sent with a zero data retention request (zdr: true).",
+    );
+    expect(text.match(/child sexual abuse material/g)?.length).toBe(1);
+    expect(text).not.toContain("The provider can still retain");
     expect(text).toContain("sb_answers_");
     expect(text).toContain("sb_edit_");
     expect(text).toContain("/history does not show them or clear them");

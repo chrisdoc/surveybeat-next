@@ -265,19 +265,19 @@ export const personalDataTransparency: Transparency = {
     {
       name: "OpenRouter, Inc.",
       purpose:
-        "Routes AI requests for comment themes and discussion guides. Used only when an Organization admin turns AI processing on.",
+        "Routes AI requests for comment themes and discussion guides. Used only when an Organization admin turns AI processing on. OpenRouter may still retain content it flags as child sexual abuse material, including traffic sent with a zero data retention request (zdr: true).",
       location: "United States for its account data. Comment text goes only to EU endpoints.",
     },
     {
       name: "Google Cloud (google-vertex/europe)",
       purpose:
-        "Runs the AI model for comment themes and discussion guides. SurveyBeat requests zero data retention (zdr: true) on this EU endpoint. The provider can still retain content flagged as child sexual abuse material, including on that request.",
+        "Runs the AI model for comment themes and discussion guides. SurveyBeat requests zero data retention (zdr: true) on this EU endpoint.",
       location: "European Union",
     },
     {
       name: "Amazon Web Services (amazon-bedrock/eu-west-1)",
       purpose:
-        "The second EU endpoint for the same request. SurveyBeat sends the same zero data retention request (zdr: true). The provider can still retain content flagged as child sexual abuse material, including on that request.",
+        "The second EU endpoint for the same request. SurveyBeat sends the same zero data retention request (zdr: true).",
       location: "Ireland, European Union",
     },
   ],
