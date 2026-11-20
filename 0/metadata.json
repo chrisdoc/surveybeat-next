@@ -1,0 +1,42 @@
+{
+  "cli_version": "0.13.4",
+  "checkpoint_id": "01M7XAY780XP10SPJS2JRFXXJW",
+  "session_id": "01a1f7c5-95eb-7cf2-9894-92b195ccc1df",
+  "strategy": "manual-commit",
+  "created_at": "2026-11-20T20:39:07.070531921Z",
+  "branch": "gdpr-309-email-rectification",
+  "checkpoints_count": 4,
+  "files_touched": [
+    "docs/adr/0029-email-rectification-follows-the-account.md",
+    "packages/cloudflare/src/EmailRectification.privacy.test.ts"
+  ],
+  "agent": "Claude Code",
+  "model": "",
+  "turn_id": "c25c45daf486",
+  "checkpoint_transcript_start": 7059,
+  "transcript_lines_at_start": 7059,
+  "token_usage": {
+    "input_tokens": 0,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 0,
+    "output_tokens": 0,
+    "api_call_count": 0
+  },
+  "redaction": {
+    "replacements": 73,
+    "layers": {
+      "betterleaks": 12,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 27,
+      "credentialed_uri": 0,
+      "entropy": 34,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  },
+  "session_metrics": {
+    "turn_count": 81
+  }
+}
