@@ -28,6 +28,7 @@ pnpm --filter @surveybeat/web build        # the Main Worker serves apps/web/dis
 pnpm infra:deploy --stage dev-yourname     # `alchemy deploy infra/alchemy.run.ts`
 pnpm infra:destroy --stage dev-yourname
 CLOUDFLARE_API_TOKEN=... CLOUDFLARE_ACCOUNT_ID=... pnpm check:observability --stage dev-yourname
+CLOUDFLARE_API_TOKEN=... pnpm check:compliance -- --stage production
 CLOUDFLARE_API_TOKEN=... CLOUDFLARE_ACCOUNT_ID=... pnpm test:preview-privacy --stage dev-yourname <main-url> <submission-url>
 pnpm test:e2e                              # local stage: builds the app, runs `alchemy dev` on infra/tests/e2e/stack.ts
 E2E_BASE_URL=<main-url> pnpm test:e2e      # the same specs against a deployed stage
@@ -101,6 +102,12 @@ Done on 2026-11-07: the existing store was v7 and was upgraded to v8.
 ## Deployed observability settings
 
 Alchemy turns observability on when the prop is omitted, so the Submission Worker sets every channel off. `check-observability.ts` reads the settings back from the Cloudflare API and fails if `observability.enabled`, `logs.enabled`, `traces.enabled` or `logpush` is on, or a tail consumer is attached. `logs.invocation_logs` and `persist` always read `true` while their channel is off, and no API call changes that (tested with the script-settings and Workers PATCH endpoints), so they count only when their channel is on.
+
+## Cloudflare compliance (Steampipe + Powerpipe)
+
+`infra/compliance/` defines a Powerpipe mod (`surveybeat_cloudflare_compliance`) backed by Steampipe's `turbot/cloudflare` plugin, with `gdpr`, `soc2`, and `all_compliance` benchmarks covering TLS/HSTS, WAF, DNSSEC/CAA/SPF/DMARC, account 2FA, API token expiry, Access policies, notification policies, audit logs, Logpush hygiene, and Submission Worker log isolation (`logpush = false`, empty `tail_consumers`).
+
+Because `turbot/cloudflare` does not expose Workers Observability (`observability.logs` / `traces` / `invocation_logs`), D1, Durable Objects, AI Gateway, or Email Sending, pass `--stage <stage>` to `pnpm check:compliance` (or run `pnpm check:observability --stage <stage>` alongside it) to cover the full privacy boundary.
 
 ## Email
 

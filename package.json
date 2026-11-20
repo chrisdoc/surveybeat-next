@@ -23,6 +23,7 @@
     "test:preview-privacy": "node infra/tests/privacy/canary-sweep.ts",
     "infra:deploy": "varlock run -- alchemy deploy infra/alchemy.run.ts",
     "infra:destroy": "alchemy destroy infra/alchemy.run.ts",
+    "check:compliance": "varlock run -- node scripts/compliance/check.mjs",
     "check:observability": "node infra/scripts/check-observability.ts",
     "prepare": "node scripts/fence/install.mjs && effect-tsgo patch --typescript",
     "typecheck:parity": "node scripts/typecheck/parity.mjs",
