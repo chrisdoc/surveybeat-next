@@ -95,7 +95,7 @@ export interface ResendFacts {
 }
 
 export const isResendable = (sendId: SendId, facts: ResendFacts): boolean => {
-  if (facts.reason === "complained") {
+  if (facts.reason === "complained" || facts.kind === null) {
     return false;
   }
 

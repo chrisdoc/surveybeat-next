@@ -460,47 +460,56 @@ export const decideTestSend = (
   return { _tag: "Allowed", person, pulse };
 };
 
-export const applyPulseChanges = (state: PulseState, changes: readonly PulseChange[]): PulseState =>
-  changes.reduce<PulseState>((current, change) => {
-    const updatePulse = (pulseId: PulseId, update: (pulse: PulseRecord) => PulseRecord) => ({
-      ...current,
-      pulses: current.pulses.map((pulse) => (pulse.id === pulseId ? update(pulse) : pulse)),
-    });
+const applyPulseChange = (state: PulseState, change: PulseChange): PulseState => {
+  const updatePulse = (pulseId: PulseId, update: (pulse: PulseRecord) => PulseRecord) => ({
+    ...state,
+    pulses: state.pulses.map((pulse) => (pulse.id === pulseId ? update(pulse) : pulse)),
+  });
 
-    switch (change._tag) {
-      case "PulseAdded": {
-        return { ...current, pulses: [...current.pulses, change.pulse] };
-      }
-
-      case "PulseSettingsUpdated": {
-        return updatePulse(change.pulseId, (pulse) => ({ ...pulse, settings: change.settings }));
-      }
-
-      case "QuestionAdded": {
-        return {
-          ...current,
-          questions: [...current.questions, change.question],
-          versions: [...current.versions, change.version],
-        };
-      }
-
-      case "QuestionRewritten": {
-        return {
-          ...current,
-          questions: current.questions.map((question) =>
-            question.id === change.questionId ? { ...question, templateKey: null } : question,
-          ),
-          versions: current.versions.map((version) =>
-            version.id === change.versionId ? { ...version, content: change.content } : version,
-          ),
-        };
-      }
-
-      case "PulseQuestionsSet": {
-        return updatePulse(change.pulseId, (pulse) => ({ ...pulse, questions: change.questions }));
-      }
+  switch (change._tag) {
+    case "PulseAdded": {
+      return { ...state, pulses: [...state.pulses, change.pulse] };
     }
-  }, state);
+
+    case "PulseSettingsUpdated": {
+      return updatePulse(change.pulseId, (pulse) => ({ ...pulse, settings: change.settings }));
+    }
+
+    case "QuestionAdded": {
+      return {
+        ...state,
+        questions: [...state.questions, change.question],
+        versions: [...state.versions, change.version],
+      };
+    }
+
+    case "QuestionRewritten": {
+      return {
+        ...state,
+        questions: state.questions.map((question) =>
+          question.id === change.questionId ? { ...question, templateKey: null } : question,
+        ),
+        versions: state.versions.map((version) =>
+          version.id === change.versionId ? { ...version, content: change.content } : version,
+        ),
+      };
+    }
+
+    case "PulseQuestionsSet": {
+      return updatePulse(change.pulseId, (pulse) => ({ ...pulse, questions: change.questions }));
+    }
+  }
+};
+
+export const applyPulseChanges = (state: PulseState, changes: readonly PulseChange[]): PulseState => {
+  let current = state;
+
+  for (const change of changes) {
+    current = applyPulseChange(current, change);
+  }
+
+  return current;
+};
 
 const questionsOf = (state: PulseState, pulse: PulseRecord): readonly PulseQuestion[] =>
   pulse.questions.flatMap((versionId) => {

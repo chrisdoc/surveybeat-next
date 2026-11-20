@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
-import { join } from "node:path";
+import path from "node:path";
 
 const steps = [
   { name: "typecheck", args: ["run", "typecheck"] },
@@ -30,5 +30,5 @@ const tree = git(["write-tree"]);
 const gitDir = git(["rev-parse", "--git-dir"]);
 
 if (tree.status === 0 && gitDir.status === 0) {
-  writeFileSync(join(gitDir.stdout.trim(), "surveybeat-fence"), `${tree.stdout.trim()}\n`);
+  writeFileSync(path.join(gitDir.stdout.trim(), "surveybeat-fence"), `${tree.stdout.trim()}\n`);
 }

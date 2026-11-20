@@ -92,14 +92,12 @@ describe("Comment themes storage (ADR 0016, ADR 0019)", () => {
       `INSERT INTO schedule_job (id, round_id, type, due_at, status, payload, created_at, completed_at)
          VALUES ('job-themes', 'round-1', 'themes', 6000, 'pending', NULL, 2000, NULL)`,
     ).run();
-    assert.throws(() =>
-      db
-        .prepare(
-          `INSERT INTO schedule_job (id, round_id, type, due_at, status, payload, created_at, completed_at)
+    assert.throws(() => {
+      db.prepare(
+        `INSERT INTO schedule_job (id, round_id, type, due_at, status, payload, created_at, completed_at)
              VALUES ('job-bogus', 'round-1', 'bogus', 6000, 'pending', NULL, 2000, NULL)`,
-        )
-        .run(),
-    );
+      ).run();
+    });
 
     const indexes = db
       .prepare(
@@ -132,14 +130,12 @@ describe("Comment themes storage (ADR 0016, ADR 0019)", () => {
       `INSERT INTO schedule_job (id, round_id, type, due_at, status, payload, created_at, completed_at)
          VALUES ('job-share', 'round-1', 'share', 6000, 'pending', NULL, 2000, NULL)`,
     ).run();
-    assert.throws(() =>
-      db
-        .prepare(
-          `INSERT INTO schedule_job (id, round_id, type, due_at, status, payload, created_at, completed_at)
+    assert.throws(() => {
+      db.prepare(
+        `INSERT INTO schedule_job (id, round_id, type, due_at, status, payload, created_at, completed_at)
              VALUES ('job-bogus', 'round-1', 'bogus', 6000, 'pending', NULL, 2000, NULL)`,
-        )
-        .run(),
-    );
+      ).run();
+    });
 
     const indexes = db
       .prepare(
@@ -155,7 +151,9 @@ describe("Comment themes storage (ADR 0016, ADR 0019)", () => {
       db.prepare("SELECT review_window_days FROM pulse WHERE id = 'pulse-1'").get()?.review_window_days,
       3,
     );
-    assert.throws(() => db.prepare("UPDATE pulse SET review_window_days = 8 WHERE id = 'pulse-1'").run());
+    assert.throws(() => {
+      db.prepare("UPDATE pulse SET review_window_days = 8 WHERE id = 'pulse-1'").run();
+    });
     // A Round closed before the migration has no Review window end: it is treated as already over.
     assert.strictEqual(
       db.prepare("SELECT review_ends_at FROM round WHERE id = 'round-1'").get()?.review_ends_at,

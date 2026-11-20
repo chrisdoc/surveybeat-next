@@ -47,7 +47,8 @@ export const withToken = (email: StoredEmail): Effect.Effect<RenderableEmail, ne
         return { ...rest, token };
       }
 
-      default: {
+      case "AddedToTeam":
+      case "ResultsReadyEmail": {
         return email;
       }
     }

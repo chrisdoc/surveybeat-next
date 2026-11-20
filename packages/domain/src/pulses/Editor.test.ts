@@ -80,16 +80,21 @@ const run = (
   by = lead,
   state = EMPTY_PULSE_STATE,
   dir: DirectoryState = directory,
-): PulseState =>
-  commands.reduce((current, command) => {
+): PulseState => {
+  let current = state;
+
+  for (const command of commands) {
     const decision = decidePulse(dir, current, by, command, 1);
 
     if (decision._tag === "Rejected") {
       throw new Error(`${command._tag}: ${decision.rejection._tag}`);
     }
 
-    return applyPulseChanges(current, decision.changes);
-  }, state);
+    current = applyPulseChanges(current, decision.changes);
+  }
+
+  return current;
+};
 
 const create: PulseCommand = { _tag: "CreatePulse", teamId: team, pulseId };
 

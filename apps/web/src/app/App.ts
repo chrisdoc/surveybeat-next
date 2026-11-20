@@ -43,6 +43,7 @@ import {
 } from "@surveybeat/domain";
 import type { QuestionType } from "@surveybeat/domain";
 import { Effect, Option, Schema } from "effect";
+import { absurd } from "effect/Function";
 import { Command, Navigation, Update } from "foldkit";
 import type { Document, HtmlBuilder } from "foldkit/html";
 import { defineMessageUnion } from "foldkit/message";
@@ -1657,7 +1658,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
           return { model: nextModel, commands: loadActiveRouteCommand(model.route) };
         }
 
-        default: {
+        case "NotInOrganization": {
           return {
             model: {
               ...model,
@@ -1666,6 +1667,8 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
           };
         }
       }
+
+      return absurd(sessionResult);
     }
 
     case "RetrySession": {

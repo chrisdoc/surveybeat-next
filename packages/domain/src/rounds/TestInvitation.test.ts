@@ -102,7 +102,9 @@ describe("SubmissionRoundContext test flag", () => {
   });
 
   it("refuses a test flag that is not true", () => {
-    assert.throws(() => Schema.decodeUnknownSync(SubmissionRoundContext)({ ...base, test: false }));
+    assert.throws(() => {
+      Schema.decodeUnknownSync(SubmissionRoundContext)({ ...base, test: false });
+    });
   });
 });
 

@@ -1,12 +1,12 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import path from "node:path";
 
-const root = join(import.meta.dirname, "..", "..");
+const root = path.join(import.meta.dirname, "..", "..");
 
-const workspacePath = join(root, "pnpm-workspace.yaml");
+const workspacePath = path.join(root, "pnpm-workspace.yaml");
 
-const revisionPath = join(root, "scripts", "typecheck", "tsrs-revision.json");
+const revisionPath = path.join(root, "scripts", "typecheck", "tsrs-revision.json");
 
 /**
  * @param {string} pkg

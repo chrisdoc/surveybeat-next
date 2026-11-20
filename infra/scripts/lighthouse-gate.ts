@@ -8,7 +8,7 @@ import { createServer } from "node:http";
 import type { IncomingMessage } from "node:http";
 import { setTimeout as sleep } from "node:timers/promises";
 import { readFileSync, existsSync, mkdirSync } from "node:fs";
-import { resolve } from "node:path";
+import path from "node:path";
 
 interface LighthouseAudit {
   numericValue: number;
@@ -35,7 +35,7 @@ interface LighthouseResult {
   };
 }
 
-const reportDir = resolve(import.meta.dirname, "../../test-results/lighthouse");
+const reportDir = path.resolve(import.meta.dirname, "../../test-results/lighthouse");
 
 const observedTimings = (report: LighthouseResult): string => {
   const observedFcp = report.audits.metrics?.details?.items?.[0]?.observedFirstContentfulPaint;
@@ -51,11 +51,11 @@ const observedTimings = (report: LighthouseResult): string => {
   const requestTimings = requests
     .filter((request) => !request.url.startsWith("data:"))
     .map((request) => {
-      const path = new URL(request.url).pathname.replace(/-[\w-]{8}\.js$/u, ".js");
+      const requestPath = new URL(request.url).pathname.replace(/-[\w-]{8}\.js$/u, ".js");
       const ended = request.networkEndTime ?? 0;
       const beforePaint = observedFcp !== undefined && ended <= observedFcp ? " before paint" : "";
 
-      return `${path} ${request.priority ?? "?"} ${fmt(request.networkRequestTime)}→${fmt(ended)}${beforePaint}`;
+      return `${requestPath} ${request.priority ?? "?"} ${fmt(request.networkRequestTime)}→${fmt(ended)}${beforePaint}`;
     })
     .join("; ");
 
@@ -95,9 +95,9 @@ async function main() {
 
   if (targetUrls.length === 0) {
     const port = 4173;
-    const distPath = resolve(import.meta.dirname, "../../apps/web/dist");
+    const distPath = path.resolve(import.meta.dirname, "../../apps/web/dist");
 
-    const builtHtml = readFileSync(resolve(distPath, "answer.html"), "utf8");
+    const builtHtml = readFileSync(path.resolve(distPath, "answer.html"), "utf8");
 
     const enHtml = plantRenderBlocking
       ? builtHtml.replace("</head>", `<link rel="stylesheet" href="${plantedStylesheet}"></head>`)
@@ -135,7 +135,7 @@ async function main() {
       }
 
       if (url.pathname.startsWith("/assets/")) {
-        const filePath = resolve(distPath, url.pathname.slice(1));
+        const filePath = path.resolve(distPath, url.pathname.slice(1));
 
         if (existsSync(filePath)) {
           const contentType = filePath.endsWith(".js")
@@ -175,28 +175,28 @@ async function main() {
     );
   }
 
-  const lighthouseBin = resolve(import.meta.dirname, "../node_modules/.bin/lighthouse");
+  const lighthouseBin = path.resolve(import.meta.dirname, "../node_modules/.bin/lighthouse");
 
   const findChrome = (): string | undefined => {
     if (process.env.CHROME_PATH) {
       return process.env.CHROME_PATH;
     }
 
-    const base = resolve(process.env.HOME ?? "/home/ubuntu", ".cache/ms-playwright");
+    const base = path.resolve(process.env.HOME ?? "/home/ubuntu", ".cache/ms-playwright");
 
     if (!existsSync(base)) {
       return undefined;
     }
 
     for (const entry of ["chromium_headless_shell-1248", "chromium-1248"]) {
-      const dir = resolve(base, entry);
+      const dir = path.resolve(base, entry);
 
       if (existsSync(dir)) {
         const match = [
-          resolve(dir, "chrome-headless-shell-linux-arm64/chrome-headless-shell"),
-          resolve(dir, "chrome-linux-arm64/chrome"),
-          resolve(dir, "chrome-linux/chrome"),
-          resolve(dir, "chrome-headless-shell-linux/chrome-headless-shell"),
+          path.resolve(dir, "chrome-headless-shell-linux-arm64/chrome-headless-shell"),
+          path.resolve(dir, "chrome-linux-arm64/chrome"),
+          path.resolve(dir, "chrome-linux/chrome"),
+          path.resolve(dir, "chrome-headless-shell-linux/chrome-headless-shell"),
         ].find(existsSync);
 
         if (match) {
@@ -211,7 +211,7 @@ async function main() {
   const chromePath = findChrome();
 
   const runLighthouse = (targetUrl: string, name: string): Promise<LighthouseResult> => {
-    const outputPath = resolve(reportDir, `${name}.json`);
+    const outputPath = path.resolve(reportDir, `${name}.json`);
 
     return new Promise((resolve, reject) => {
       const args = [

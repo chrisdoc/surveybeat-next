@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import path from "node:path";
 
 /** @param {string[]} args */
 const git = (args) => spawnSync("git", args, { encoding: "utf8" });
@@ -16,7 +16,7 @@ if (tree.status !== 0 || gitDir.status !== 0) {
 let gatedTree = "";
 
 try {
-  gatedTree = readFileSync(join(gitDir.stdout.trim(), "surveybeat-fence"), "utf8").trim();
+  gatedTree = readFileSync(path.join(gitDir.stdout.trim(), "surveybeat-fence"), "utf8").trim();
 } catch {
   gatedTree = "";
 }

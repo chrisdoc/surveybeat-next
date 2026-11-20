@@ -1,4 +1,4 @@
-import { dirname, relative } from "node:path";
+import path from "node:path";
 import { effectText, readProjects, run } from "./checkers.mjs";
 
 const fast = process.argv.includes("--fast");
@@ -9,7 +9,7 @@ let failed = false;
 
 for (const config of projects) {
   const result = fast ? run("pnpm", ["exec", "tsrs", "-p", config, "--noEmit"]) : effectText(config);
-  const name = relative(process.cwd(), dirname(config));
+  const name = path.relative(process.cwd(), path.dirname(config));
   const summary = fast ? "" : `  ${result.output.trim().split("\n").at(-1) ?? ""}`;
   console.log(`${result.status === 0 ? "ok  " : "FAIL"} ${name}${summary}`);
 

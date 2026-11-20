@@ -3,11 +3,11 @@
 
 import { execSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import path from "node:path";
 import { gzipSync } from "node:zlib";
 import { beforeAll, describe, expect, it } from "vitest";
 
-const distDir = resolve(import.meta.dirname, "../../dist");
+const distDir = path.resolve(import.meta.dirname, "../../dist");
 
 // One prerendered shell, English only (ADR 0025). A second locale adds a shell and its catalog here.
 const pages = [
@@ -22,11 +22,11 @@ const pages = [
 ] as const;
 
 beforeAll(() => {
-  const allBuilt = pages.every((page) => existsSync(resolve(distDir, page.html)));
+  const allBuilt = pages.every((page) => existsSync(path.resolve(distDir, page.html)));
 
   if (!allBuilt) {
     execSync("pnpm --filter @surveybeat/web build", {
-      cwd: resolve(import.meta.dirname, "../../../.."),
+      cwd: path.resolve(import.meta.dirname, "../../../.."),
       stdio: "ignore",
     });
   }
@@ -34,7 +34,7 @@ beforeAll(() => {
 
 describe.each(pages)("answer page performance budget ($name)", (page) => {
   it("satisfies HTML, CSS, and JS critical path budgets", () => {
-    const htmlPath = resolve(distDir, page.html);
+    const htmlPath = path.resolve(distDir, page.html);
     expect(existsSync(htmlPath), `apps/web/dist/${page.html} should exist`).toBe(true);
 
     const html = readFileSync(htmlPath, "utf8");
@@ -64,7 +64,7 @@ describe.each(pages)("answer page performance budget ($name)", (page) => {
     expect(scriptSrcMatches.length).toBeGreaterThan(0);
 
     // Count each entry script and every chunk it imports statically; dynamic import() is off the critical path.
-    const assetsDir = resolve(distDir, "assets");
+    const assetsDir = path.resolve(distDir, "assets");
     const counted = new Set<string>();
     const pending = scriptSrcMatches.map((src) => src.split("/").pop() ?? "");
     let criticalPathJsGz = 0;
@@ -73,12 +73,16 @@ describe.each(pages)("answer page performance budget ($name)", (page) => {
     while (pending.length > 0) {
       const fileName = pending.pop() ?? "";
 
-      if (!fileName.endsWith(".js") || counted.has(fileName) || !existsSync(resolve(assetsDir, fileName))) {
+      if (
+        !fileName.endsWith(".js") ||
+        counted.has(fileName) ||
+        !existsSync(path.resolve(assetsDir, fileName))
+      ) {
         continue;
       }
 
       counted.add(fileName);
-      const fileContent = readFileSync(resolve(assetsDir, fileName));
+      const fileContent = readFileSync(path.resolve(assetsDir, fileName));
       criticalPathJsGz += gzipSync(fileContent, { level: 9 }).length;
       const source = fileContent.toString("utf8");
       criticalPathSource += source;
@@ -130,7 +134,7 @@ describe.each(pages)("answer page performance budget ($name)", (page) => {
 
   it("writes the /a copies of the shell", () => {
     for (const copy of page.copies) {
-      expect(existsSync(resolve(distDir, copy)), `dist/${copy} should exist`).toBe(true);
+      expect(existsSync(path.resolve(distDir, copy)), `dist/${copy} should exist`).toBe(true);
     }
   });
 });

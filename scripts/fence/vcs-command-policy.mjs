@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { basename, join } from "node:path";
+import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 const SHELLS = new Set(["bash", "sh", "zsh", "dash", "ksh"]);
@@ -208,7 +208,7 @@ const withoutPrefixes = (words) => {
 
     const value = word.value;
 
-    if (!sawEnv && basename(value) === "env") {
+    if (!sawEnv && path.basename(value) === "env") {
       sawEnv = true;
       i += 1;
       continue;
@@ -252,7 +252,7 @@ const commandIndex = (words) => {
       break;
     }
 
-    if (!PREFIX_COMMANDS.has(basename(word.value))) {
+    if (!PREFIX_COMMANDS.has(path.basename(word.value))) {
       break;
     }
 
@@ -461,7 +461,7 @@ const evaluateSegment = (words, depth, gatePassed) => {
     return { decision: "allow" };
   }
 
-  const name = basename(command.value);
+  const name = path.basename(command.value);
 
   if (SHELLS.has(name)) {
     const payload = shellPayload(rest, index + 1);
@@ -541,7 +541,7 @@ export const gateHasPassed = () => {
   }
 
   try {
-    const recorded = readFileSync(join(gitDir.stdout.trim(), "surveybeat-fence"), "utf8").trim();
+    const recorded = readFileSync(path.join(gitDir.stdout.trim(), "surveybeat-fence"), "utf8").trim();
 
     return recorded === tree.stdout.trim();
   } catch {

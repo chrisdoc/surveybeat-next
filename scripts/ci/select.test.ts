@@ -1,16 +1,16 @@
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { classify } from "./select.mjs";
 
 const SELECT = fileURLToPath(new URL("select.mjs", import.meta.url));
 
-const canaryOnly = (path: string) => classify([path]).canary;
+const canaryOnly = (file: string) => classify([file]).canary;
 
-const lighthouseOnly = (path: string) => classify([path]).lighthouse;
+const lighthouseOnly = (file: string) => classify([file]).lighthouse;
 
 const stageOf = (paths: string[]) => classify(paths).stage;
 
@@ -28,8 +28,8 @@ describe("the canary rule (Submission path)", () => {
     ".github/workflows/preview.yml",
     "scripts/ci/select.mjs",
     "scripts/ci/select.test.ts",
-  ])("is required for %s", (path) => {
-    expect(canaryOnly(path)).toBe(true);
+  ])("is required for %s", (file) => {
+    expect(canaryOnly(file)).toBe(true);
   });
 
   it.each([
@@ -44,8 +44,8 @@ describe("the canary rule (Submission path)", () => {
     "docs/infra.md",
     "scripts/fence/gate.mjs",
     "scripts/cix/x.mjs",
-  ])("is not required for %s", (path) => {
-    expect(canaryOnly(path)).toBe(false);
+  ])("is not required for %s", (file) => {
+    expect(canaryOnly(file)).toBe(false);
   });
 });
 
@@ -57,8 +57,8 @@ describe("the Lighthouse rule (answer entry)", () => {
     "apps/web/src/messages/en.ts",
     "infra/scripts/lighthouse-gate.ts",
     "infra/package.json",
-  ])("is required for %s", (path) => {
-    expect(lighthouseOnly(path)).toBe(true);
+  ])("is required for %s", (file) => {
+    expect(lighthouseOnly(file)).toBe(true);
   });
 
   it.each([
@@ -67,8 +67,8 @@ describe("the Lighthouse rule (answer entry)", () => {
     "infra/scripts/smoke.ts",
     "infra/package-lock.json",
     "packages/cloudflare/src/submit.ts",
-  ])("is not required for %s", (path) => {
-    expect(lighthouseOnly(path)).toBe(false);
+  ])("is not required for %s", (file) => {
+    expect(lighthouseOnly(file)).toBe(false);
   });
 });
 
@@ -138,8 +138,8 @@ describe("the stage rule", () => {
 
 describe("the command line", () => {
   it("prints the paths and the result, and appends the outputs to GITHUB_OUTPUT", () => {
-    const dir = mkdtempSync(join(tmpdir(), "select-"));
-    const output = join(dir, "github-output");
+    const dir = mkdtempSync(path.join(tmpdir(), "select-"));
+    const output = path.join(dir, "github-output");
 
     const result = spawnSync(process.execPath, [SELECT], {
       input: "docs/infra.md\napps/web/answer.html\n",

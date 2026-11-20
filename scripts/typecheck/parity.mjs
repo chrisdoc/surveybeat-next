@@ -1,4 +1,4 @@
-import { dirname, relative } from "node:path";
+import path from "node:path";
 import {
   byCode,
   codesOf,
@@ -33,7 +33,7 @@ let mismatched = false;
 const projects = readProjects();
 
 for (const config of projects) {
-  const name = relative(process.cwd(), dirname(config));
+  const name = path.relative(process.cwd(), path.dirname(config));
   const effect = effectDiagnostics(config);
   const tsc = typeScriptCodes(config);
   const plain = plainCodes(config);

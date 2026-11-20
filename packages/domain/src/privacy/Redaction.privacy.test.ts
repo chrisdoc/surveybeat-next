@@ -1,5 +1,5 @@
 import { prop } from "@effect/vitest";
-import { Schema } from "effect";
+import { Match, Schema } from "effect";
 import { describe, expect, it } from "vitest";
 import { redact } from "./Redaction.ts";
 import type { Roster } from "./Redaction.ts";
@@ -163,27 +163,15 @@ describe("redact", () => {
         .map((part, position) => {
           const name = ROSTER_NAMES[Math.abs(part.index + position) % ROSTER_NAMES.length] ?? "Alice";
 
-          switch (part.kind) {
-            case "word": {
-              return part.word;
-            }
-
-            case "lower": {
-              return name.toLowerCase();
-            }
-
-            case "upper": {
-              return name.toUpperCase();
-            }
-
-            case "possessive": {
-              return `${name}'s`;
-            }
-
-            case "parenthesised": {
-              return `(${name})`;
-            }
-          }
+          return Match.value(part).pipe(
+            Match.discriminatorsExhaustive("kind")({
+              word: () => part.word,
+              lower: () => name.toLowerCase(),
+              upper: () => name.toUpperCase(),
+              possessive: () => `${name}'s`,
+              parenthesised: () => `(${name})`,
+            }),
+          );
         })
         .join(" ")}.`;
 
