@@ -1,0 +1,43 @@
+{
+  "cli_version": "0.13.4",
+  "checkpoint_id": "01M7W84N1JY40AFKVCFMT8EF7J",
+  "session_id": "01a1f7c5-95eb-7cf2-9894-92b195ccc1df",
+  "strategy": "manual-commit",
+  "created_at": "2026-11-20T10:30:55.13984447Z",
+  "branch": "t3/gdpr-313-compliance-pack",
+  "checkpoints_count": 6,
+  "files_touched": [
+    "docs/compliance/dpia.md",
+    "docs/compliance/ropa.md",
+    "docs/compliance/vendor-dpa-register.md"
+  ],
+  "agent": "Claude Code",
+  "model": "",
+  "turn_id": "dbd4b9475143",
+  "checkpoint_transcript_start": 2650,
+  "transcript_lines_at_start": 2650,
+  "token_usage": {
+    "input_tokens": 0,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 0,
+    "output_tokens": 0,
+    "api_call_count": 0
+  },
+  "redaction": {
+    "replacements": 33,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 27,
+      "credentialed_uri": 0,
+      "entropy": 6,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  },
+  "session_metrics": {
+    "turn_count": 45
+  }
+}
