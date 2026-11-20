@@ -1,0 +1,58 @@
+{
+  "cli_version": "0.13.4",
+  "checkpoint_id": "01M7WEDX50SRMKE3Y7J7XG2KMD",
+  "session_id": "a19b9e68-45c8-4ac2-b344-699aa4873884",
+  "strategy": "manual-commit",
+  "created_at": "2026-11-20T12:20:48.949498099Z",
+  "branch": "t3/streampipe-turbot-cloudflare-compliance",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/infra.md",
+    "infra/compliance/README.md",
+    "infra/compliance/benchmarks/all.pp",
+    "infra/compliance/benchmarks/gdpr.pp",
+    "infra/compliance/benchmarks/soc2.pp",
+    "infra/compliance/controls/dns_and_email.pp",
+    "infra/compliance/controls/identity_and_access.pp",
+    "infra/compliance/controls/monitoring_and_storage.pp",
+    "infra/compliance/controls/transport_tls.pp",
+    "infra/compliance/controls/waf_and_zone.pp",
+    "infra/compliance/controls/worker_privacy.pp",
+    "infra/compliance/locals.pp",
+    "infra/compliance/mod.pp",
+    "package.json",
+    "scripts/compliance/check.mjs",
+    "scripts/compliance/check.test.ts"
+  ],
+  "agent": "Antigravity",
+  "model": "gemini-4-hydrogen-high",
+  "turn_id": "186d6faffb04",
+  "token_usage": {
+    "input_tokens": 894283,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 9547003,
+    "output_tokens": 48116,
+    "api_call_count": 58
+  },
+  "session_token_usage": {
+    "input_tokens": 894283,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 9547003,
+    "output_tokens": 48116,
+    "api_call_count": 58
+  },
+  "redaction": {
+    "replacements": 107,
+    "layers": {
+      "betterleaks": 7,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 14,
+      "credentialed_uri": 0,
+      "entropy": 92,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
