@@ -606,6 +606,24 @@ export const checkboxField = <Message>(
     h,
   );
 
+export const downloadPersonalDataView = <Message>(h: HtmlBuilder<Message>, inMenu = false): Html =>
+  h.form(
+    [h.Method("get"), h.Action("/api/me/data-export"), ...(inMenu ? [] : [h.Class("mt-6")])],
+    [
+      Button.view(
+        {
+          type: "submit",
+          toView: ({ button }) =>
+            h.button(
+              [...button, h.Class(inMenu ? `${secondaryButtonClass} w-full` : secondaryButtonClass)],
+              [message("personalData.download")],
+            ),
+        },
+        h,
+      ),
+    ],
+  );
+
 export const signOutView = <Message>(h: HtmlBuilder<Message>, inMenu = false): Html =>
   h.form(
     [h.Method("post"), h.Action("/auth/logout"), ...(inMenu ? [] : [h.Class("mt-10")])],
@@ -624,7 +642,7 @@ export const signOutView = <Message>(h: HtmlBuilder<Message>, inMenu = false): H
     ],
   );
 
-export const privacyContent = <Message>(h: HtmlBuilder<Message>): readonly Child[] => [
+export const privacyContent = <Message>(h: HtmlBuilder<Message>, signedIn = false): readonly Child[] => [
   pageTitle(message("privacy.title"), h),
   h.p([h.Class("mt-4")], [h.a([h.Href(teamsHref()), h.Class(linkClass)], [message("privacy.back")])]),
   h.p([h.Class("mt-4 leading-relaxed text-muted")], [message("legal.intro")]),
@@ -661,6 +679,19 @@ export const privacyContent = <Message>(h: HtmlBuilder<Message>): readonly Child
     h,
     "mt-6",
   ),
+  ...(signedIn
+    ? [
+        panel(
+          [
+            subSectionTitle(message("personalData.title"), h, 2),
+            h.p([h.Class("mt-1 leading-relaxed text-muted")], [message("personalData.body")]),
+            downloadPersonalDataView(h),
+          ],
+          h,
+          "mt-6",
+        ),
+      ]
+    : []),
 ];
 
 export const privacyView = <Message>(h: HtmlBuilder<Message>): Html =>

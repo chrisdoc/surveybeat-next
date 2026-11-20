@@ -19,3 +19,5 @@ export * from "./Team.ts";
 export * from "./DirectoryFlow.ts";
 
 export * from "./Locale.ts";
+
+export * from "./PersonalData.ts";

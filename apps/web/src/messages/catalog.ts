@@ -22,6 +22,10 @@ export const catalog = {
   "signIn.sendFailed": "We could not send a code. Check your email address and try again.",
   "signIn.otherEmail": "Use another email",
   "signOut.action": "Sign out",
+  "personalData.download": "Download my personal data",
+  "personalData.title": "Your personal data",
+  "personalData.body":
+    "Download a JSON file with the personal data SurveyBeat holds about you: your sign-in record, your Person record in each of your Organizations, your Memberships, your Participation records, your Invitations, the Actions you own and the emails sent to you. It holds no Submissions or Answers, because those carry no Person, and it holds no sign-in codes, Invitation links or other secrets. Answers kept in this browser are on the My history page.",
   "createOrganization.title": "Create an Organization",
   "createOrganization.intro": "Your Organization holds your Teams and People. You become its admin.",
   "createOrganization.name": "Organization name",

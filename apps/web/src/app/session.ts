@@ -17,6 +17,7 @@ import {
   pageTitle,
   screenView,
   secondaryButtonClass,
+  downloadPersonalDataView,
   signOutView,
   textField,
 } from "./components.ts";
@@ -255,6 +256,7 @@ export const createOrganizationView = <Message>(
           ),
         ],
       ),
+      downloadPersonalDataView(h),
       signOutView(h),
     ],
     h,
@@ -263,7 +265,11 @@ export const createOrganizationView = <Message>(
 export const notInOrganizationView = <Message>(h: HtmlBuilder<Message>): Html =>
   screenView(
     message("notInOrganization.title"),
-    [h.p([h.Class("mt-4 text-lg text-muted")], [message("notInOrganization.intro")]), signOutView(h)],
+    [
+      h.p([h.Class("mt-4 text-lg text-muted")], [message("notInOrganization.intro")]),
+      downloadPersonalDataView(h),
+      signOutView(h),
+    ],
     h,
   );
 
@@ -297,6 +303,7 @@ export const chooseOrganizationView = <Message>(
           ),
         ),
       ),
+      downloadPersonalDataView(h),
       signOutView(h),
     ],
     h,

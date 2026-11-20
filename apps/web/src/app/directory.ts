@@ -36,6 +36,7 @@ import {
   secondaryButtonClass,
   selectField,
   timeZoneOptions,
+  downloadPersonalDataView,
   signOutView,
   checkboxField,
   subSectionTitle,
@@ -262,7 +263,7 @@ export const shellView = <Message>(
   const accountPanel = (attributes: readonly ChildAttribute[]): Html =>
     h.div(
       [...attributes, h.Class(menuPanelClass)],
-      [h.div([h.Class("flex flex-col gap-3")], [signOutView(h, true)])],
+      [h.div([h.Class("flex flex-col gap-3")], [downloadPersonalDataView(h, true), signOutView(h, true)])],
     );
 
   const menuButton = (attributes: readonly ChildAttribute[]): Html =>
@@ -288,6 +289,7 @@ export const shellView = <Message>(
           [h.Class("mt-4 flex flex-col gap-3 border-t border-line-soft pt-4")],
           [
             h.p([h.Class("break-words text-sm font-semibold text-muted")], [header.organizationName]),
+            downloadPersonalDataView(h, true),
             signOutView(h, true),
           ],
         ),

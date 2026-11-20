@@ -100,6 +100,10 @@ export const privacyRegistry: Readonly<Record<EndpointKey<typeof SurveyBeatApi>,
     _tag: "NoResultData",
     why: "returns the sign-in state in the chosen Organization",
   },
+  "me.exportData": {
+    _tag: "NoResultData",
+    why: "returns only the caller's own personal records; never another Person's data, Team Results, Submissions or Answers",
+  },
   "directory.listTeams": {
     _tag: "NoResultData",
     why: "returns Team ids, names, time zones, and the caller's role",
