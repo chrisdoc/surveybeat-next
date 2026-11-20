@@ -459,7 +459,6 @@ export const catalog = {
   ...answerCatalog,
   ...legalPrivacyCatalog,
   ...legalAgreementsCatalog,
-  "legal.nav.label": "Legal",
   "legal.link.privacy": "Privacy Notice",
   "legal.link.terms": "Terms",
   "legal.link.dpa": "Data Processing Agreement",
@@ -488,7 +487,7 @@ export const catalog = {
     "Database backups are kept for up to {days} days point-in-time strictly for disaster recovery. Backups are encrypted at rest and purged permanently after {days} days.",
   "privacy.editKey.title": "Changing your answers",
   "privacy.editKey.body":
-    "When you submit answers, an anonymous Edit key is stored solely in your local browser. Losing or clearing the Edit key means answers cannot be changed.",
+    "The Edit key stays in this browser. The first Answer sends only its hash. Later changes send the key over HTTPS, and SurveyBeat stores only the hash. Losing or clearing the Edit key means answers cannot be changed.",
   "privacy.restoreTrigger.title": "Who can trigger a restore",
   "privacy.restoreTrigger.body":
     "Only authorized infrastructure operators with verified credentials can initiate a disaster recovery restore. Organization admins and Leads cannot inspect raw backups or trigger restores.",

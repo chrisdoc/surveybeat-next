@@ -27,7 +27,7 @@ export const legalPrivacyCatalog = {
   "legal.privacy.s03.tsignin.basis":
     "Point b, to provide the service you use. Point f, legitimate interests, for security and abuse prevention.",
   "legal.privacy.s03.tsignin.retention":
-    "A code or link for {codeMinutes} minutes. A session for up to {sessionDays} days. The sign-in record while you belong to an Organization, and until it is deleted after that.",
+    "A code for {codeMinutes} minutes. A sign-in link for {magicLinkMinutes} minutes. A session for {sessionDays} days, refreshed while you use the app. The sign-in record while you belong to an Organization, and until it is deleted after that.",
   "legal.privacy.s03.tpeople.data":
     "People and Teams: email address, role, Team Membership, time zone and language, whether you turned off reminders for a Pulse, and the Invitations sent to you (stored as a hash, never the link). The Organization is the controller.",
   "legal.privacy.s03.tpeople.purpose":
@@ -49,7 +49,7 @@ export const legalPrivacyCatalog = {
   "legal.privacy.s03.tanswers.basis":
     "Anonymous Submissions are not personal data (see the next section). Where a comment still identifies someone, point f applies.",
   "legal.privacy.s03.tanswers.retention":
-    "The policy is {rawMonths} months for raw Answers and comments, unless the Organization sets another period. Automatic deletion on that schedule is not in place yet. Until it is, they stay with the Pulse, except that cancelling a Round deletes that Round's Answers, Submissions and Participation records. Aggregated Results may be kept longer. Backups are kept for {restoreDays} days.",
+    "The policy default is {rawMonths} months for raw Answers and comments. A per-Organization period is not available yet. Automatic deletion on that schedule is not in place yet.  Until it is, they stay with the Pulse, except that cancelling a Round deletes that Round's Answers, Submissions and Participation records. Aggregated Results may be kept longer. Backups are kept for {restoreDays} days.",
   "legal.privacy.s03.tresults.data":
     "Results, Lead's Notes and Actions: scores, response rates, comment themes, the Lead's Note and Actions with an owner and a due date. The Organization is the controller.",
   "legal.privacy.s03.tresults.purpose": "Let a Team talk about its Results and agree what to change.",
@@ -61,7 +61,7 @@ export const legalPrivacyCatalog = {
   "legal.privacy.s03.temail.purpose": "Deliver the message and show a Lead which sends failed and why.",
   "legal.privacy.s03.temail.basis": "Point f for Invitations and notices. Point b for sign-in messages.",
   "legal.privacy.s03.temail.retention":
-    "Delivery records while the Organization exists. Sign-in codes and links expire after {codeMinutes} minutes.",
+    "Delivery records while the Organization exists. Sign-in codes expire after {codeMinutes} minutes. Sign-in links expire after {magicLinkMinutes} minutes.",
   "legal.privacy.s03.tlogs.data":
     "Technical logs: IP address and request details seen by the app's Worker, in a sample Cloudflare keeps. The Submission Worker, which receives anonymous answers, keeps no logs at all. SurveyBeat is the controller.",
   "legal.privacy.s03.tlogs.purpose": "Keep the service running and secure.",
@@ -112,10 +112,11 @@ export const legalPrivacyCatalog = {
   "legal.privacy.s09.tsession.name": "__Host-surveybeat-session (cookie)",
   "legal.privacy.s09.tsession.what":
     "Keeps you signed in to the app. It is HttpOnly, Secure, SameSite=Lax and only for the app's own host.",
-  "legal.privacy.s09.tsession.kept": "Up to {sessionDays} days, or until you sign out.",
+  "legal.privacy.s09.tsession.kept":
+    "{sessionDays} days, refreshed while you use the app, or until you sign out.",
   "legal.privacy.s09.tedit.name": "sb_edit_… (browser local storage)",
   "legal.privacy.s09.tedit.what":
-    "Your Edit key for a Round, a random secret that lets you change your anonymous answers from this browser. It never leaves the browser except as a hash.",
+    "Your Edit key for a Round, a random secret kept in this browser so you can change your anonymous answers. The first Answer sends only a hash of it. Later Answers and edits send the Edit key to the Submission Worker over HTTPS. The server stores only the hash.",
   "legal.privacy.s09.tedit.kept":
     "Until you clear site data. If you lose it, your answers can no longer be changed.",
   "legal.privacy.s09.tkept.name": "sb_answers_… (browser local storage)",

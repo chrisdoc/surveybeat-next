@@ -66,6 +66,9 @@ describe("privacy notice content", () => {
 
   it("states the retention periods from the code and the policy", () => {
     expect(text).toContain("24 months");
+    expect(text).toContain("5 minutes");
+    expect(text).toContain("Later Answers");
+    expect(text).toContain("refreshed while you use the app");
     expect(text).toContain("not in place yet");
     expect(text).toContain("cancelling a Round deletes");
     expect(text).toContain("30 days");

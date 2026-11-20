@@ -28,6 +28,7 @@ const legalParams = {
   keptYears: Legal.keptAnswersYears,
   sessionDays: Policy.signIn.sessionDays,
   codeMinutes: Policy.signIn.codeMinutes,
+  magicLinkMinutes: Policy.signIn.magicLinkMinutes,
   restoreDays: Policy.backupRetentionDays,
   groupSize: Policy.groupSize.defaultValue,
   minimum: Policy.groupSize.minimum,

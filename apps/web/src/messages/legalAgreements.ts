@@ -81,7 +81,7 @@ export const legalAgreementsCatalog = {
   "legal.dpa.s05.li2":
     "an anonymous Submission holds no Person and no time, and its table has no Person column. Participation records are stored apart from answers",
   "legal.dpa.s05.li3":
-    "Invitation tokens travel in the part of the link after the hash, so the answer page request never sends one. They are stored only as hashes, as are Edit keys",
+    "Invitation tokens travel in the part of the link after the hash, so the answer page request never sends one. They are stored only as hashes. The first Answer sends only a hash of the Edit key. Later Answers and edits send the Edit key over HTTPS, and the server stores only that hash",
   "legal.dpa.s05.li4":
     "the Worker that receives anonymous answers keeps no logs, traces or analytics, and a test checks it",
   "legal.dpa.s05.li5":
@@ -138,7 +138,7 @@ export const legalAgreementsCatalog = {
     "Standard Contractual Clauses in OpenRouter's data processing terms for its own data. Comment text goes to the EU only.",
   "legal.subprocessors.s01.tgoogle.name": "Google Cloud (google-vertex/europe)",
   "legal.subprocessors.s01.tgoogle.purpose":
-    "Runs the AI model for comment themes and discussion guides on a zero-retention endpoint. A request can include Question text, Question and Dimension scores and changes, whether a change is larger than usual, redacted comment text tied to a Question position, and redacted titles of open Actions. It does not include a name, a Person, a Team, a Round or a time.",
+    "Runs the AI model for comment themes and discussion guides on a zero-retention endpoint. A request can include Question text, each Question's dimension, Question and Dimension scores and changes, whether a change is larger than usual, redacted comment text tied to a Question position, and redacted titles of open Actions. It does not include a name, a Person, a Team, a Round or a time.",
   "legal.subprocessors.s01.tgoogle.location": "European Union",
   "legal.subprocessors.s01.tgoogle.basis": "Stays in the EU, so no transfer.",
   "legal.subprocessors.s01.taws.name": "Amazon Web Services (amazon-bedrock/eu-west-1)",
