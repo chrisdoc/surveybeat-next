@@ -8,17 +8,23 @@ export const PERSON_AUTH_COLUMN = "auth_user_id";
 export const needsPersonColumnRename = (columns: readonly string[]): boolean =>
   columns.includes(LEGACY_PERSON_COLUMN) && !columns.includes(PERSON_AUTH_COLUMN);
 
-const hasPersonColumn = (sql: SqliteClient.SqliteClient, column: string) =>
-  sql`SELECT ${sql(column)} FROM person LIMIT 0`.pipe(
+const succeeds = <A, E, R>(probe: Effect.Effect<A, E, R>) =>
+  probe.pipe(
     Effect.as(true),
     Effect.orElseSucceed(() => false),
   );
 
+const hasLegacyColumn = (sql: SqliteClient.SqliteClient) =>
+  succeeds(sql`SELECT person.workos_user_id FROM person LIMIT 0`);
+
+const hasAuthColumn = (sql: SqliteClient.SqliteClient) =>
+  succeeds(sql`SELECT person.auth_user_id FROM person LIMIT 0`);
+
 export const renameLegacyPersonColumn = (sql: SqliteClient.SqliteClient) =>
   Effect.gen(function* () {
     const columns = [
-      ...((yield* hasPersonColumn(sql, LEGACY_PERSON_COLUMN)) ? [LEGACY_PERSON_COLUMN] : []),
-      ...((yield* hasPersonColumn(sql, PERSON_AUTH_COLUMN)) ? [PERSON_AUTH_COLUMN] : []),
+      ...((yield* hasLegacyColumn(sql)) ? [LEGACY_PERSON_COLUMN] : []),
+      ...((yield* hasAuthColumn(sql)) ? [PERSON_AUTH_COLUMN] : []),
     ];
 
     if (!needsPersonColumnRename(columns)) {

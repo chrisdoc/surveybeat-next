@@ -14,8 +14,11 @@ const migrationsDir = new URL("../../migrations/", import.meta.url);
 // An Organization object created before #200 applied the original 0003_person.sql, whose column is
 // `workos_user_id`. #200 renamed it inside 0003, which the migration ledger never re-runs, so such an
 // object still has the old name. Production's Organization is one of these.
+// workerd's SQLite, unlike node:sqlite's default, reads a double-quoted name that matches no column as
+// a string literal. A quoted probe therefore "found" auth_user_id in production (2026-11-20 00:35Z), so
+// these tests run with that behaviour on.
 const legacyDatabase = () => {
-  const db = migratedDatabase(migrationsDir);
+  const db = migratedDatabase(migrationsDir, { doubleQuotedStringLiterals: true });
   db.exec("ALTER TABLE person RENAME COLUMN auth_user_id TO workos_user_id");
   db.exec(`
     INSERT INTO organization (id, name) VALUES ('org-1', 'Acme');
@@ -88,7 +91,7 @@ describe("renameLegacyPersonColumn", () => {
 
   it.effect("leaves an object made from the current migrations alone, and is idempotent", () =>
     Effect.gen(function* () {
-      const db = migratedDatabase(migrationsDir);
+      const db = migratedDatabase(migrationsDir, { doubleQuotedStringLiterals: true });
       const sql = yield* clientFor(db);
 
       assert.isFalse(yield* renameLegacyPersonColumn(sql));
