@@ -2,31 +2,17 @@ import { Policy } from "@surveybeat/domain";
 import type { Locale } from "@surveybeat/domain";
 import type { KeysWithoutParams, KeysWithParams, Params } from "../messages/index.ts";
 import { messagesFor } from "../messages/locale.ts";
+import { APP_PATH, brandMark, escape, FAVICON, secondaryButton, siteFooter, wrap } from "./chrome.ts";
 
 const OG_LOCALES = { en: "en_GB" } satisfies Record<Locale, string>;
 
-const APP_PATH = "/app";
-
-const escape = (text: string): string =>
-  text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
-
-const wrap = "mx-auto w-full max-w-[1120px] px-6 sm:px-8";
-
 const primaryButton =
   "site-press inline-flex min-h-11 items-center justify-center rounded-control bg-primary px-5 py-2 font-semibold text-on-primary hover:bg-primary-hover";
-
-const secondaryButton =
-  "site-press inline-flex min-h-11 items-center justify-center rounded-control border border-line bg-surface px-4 py-2 font-semibold text-ink hover:bg-subtle";
 
 const textLink =
   "site-underline inline-flex min-h-11 items-center font-semibold text-primary hover:text-primary-hover";
 
 const sectionTitle = "font-display text-[36px] leading-[1.08] font-normal tracking-tight sm:text-[48px]";
-
-const brandMark = (size: number): string =>
-  `<svg width="${size}" height="${size}" viewBox="0 0 28 28" aria-hidden="true"><rect width="28" height="28" rx="8" fill="#0E2A24"/><path d="M6 14h4l2-5 4 10 2-5h4" fill="none" stroke="#9FD6CB" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-
-const FAVICON = `data:image/svg+xml,${encodeURIComponent(brandMark(28).replace(' aria-hidden="true"', ' xmlns="http://www.w3.org/2000/svg"'))}`;
 
 const icons = {
   storage:
@@ -261,12 +247,6 @@ export const renderSitePage = (locale: Locale, shell: string): string => {
   </div>
 </section>`;
 
-  const footer = `<footer class="border-t border-line">
-  <div class="${wrap} flex flex-col gap-4 py-8 text-[15px] text-muted sm:flex-row sm:items-center sm:justify-between">
-    <span class="flex items-center gap-2.5">${brandMark(22)}<span>${t("site.footer.copyright")}</span></span>
-  </div>
-</footer>`;
-
   const body = `<a href="#main" class="sr-only z-50 rounded-control bg-primary px-4 py-2 font-semibold text-on-primary focus:not-sr-only focus:fixed focus:top-3 focus:left-3">${t("site.skip")}</a>
 ${header}
 <main id="main">
@@ -276,7 +256,7 @@ ${privacy}
 ${results}
 ${close}
 </main>
-${footer}`;
+${siteFooter(locale)}`;
 
   const head = `<meta name="description" content="${description}" />
     <meta property="og:type" content="website" />

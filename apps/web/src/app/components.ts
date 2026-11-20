@@ -1,5 +1,5 @@
 import { Button, Checkbox, Input, Select, Textarea } from "@foldkit/ui";
-import { Policy } from "@surveybeat/domain";
+import { legalPages, legalUrl, Policy } from "@surveybeat/domain";
 import { Option } from "effect";
 import type { Attribute, Html, HtmlBuilder } from "foldkit/html";
 import { message } from "../messages/locale.ts";
@@ -53,6 +53,14 @@ export const brandMark = <Message>(h: HtmlBuilder<Message>): Html =>
     ],
   );
 
+export const legalLinks = <Message>(
+  h: HtmlBuilder<Message>,
+  className = "inline-flex min-h-11 items-center font-medium text-muted hover:text-ink",
+): readonly Html[] =>
+  legalPages.map((page) =>
+    h.a([h.Href(legalUrl(page)), h.Class(className)], [message(`legal.link.${page}`)]),
+  );
+
 export const pageShell = <Message>(
   config: {
     readonly header?: readonly Child[] | undefined;
@@ -91,7 +99,11 @@ export const pageShell = <Message>(
         [h.Class("border-t border-line bg-surface")],
         [
           h.div(
-            [h.Class(`mx-auto flex w-full px-6 py-2 text-sm sm:px-8 ${width}`)],
+            [
+              h.Class(
+                `mx-auto flex w-full flex-wrap items-center gap-x-6 px-6 py-2 text-sm sm:px-8 ${width}`,
+              ),
+            ],
             [
               h.a(
                 [
@@ -105,6 +117,7 @@ export const pageShell = <Message>(
                 ],
                 [message("nav.privacy")],
               ),
+              ...legalLinks(h),
             ],
           ),
         ],
@@ -614,6 +627,11 @@ export const signOutView = <Message>(h: HtmlBuilder<Message>, inMenu = false): H
 export const privacyContent = <Message>(h: HtmlBuilder<Message>): readonly Child[] => [
   pageTitle(message("privacy.title"), h),
   h.p([h.Class("mt-4")], [h.a([h.Href(teamsHref()), h.Class(linkClass)], [message("privacy.back")])]),
+  h.p([h.Class("mt-4 leading-relaxed text-muted")], [message("legal.intro")]),
+  h.ul(
+    [h.Class("mt-2 flex flex-wrap gap-x-6")],
+    legalLinks(h, linkClass).map((link) => h.li([], [link])),
+  ),
   panel(
     [
       h.div(

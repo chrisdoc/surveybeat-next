@@ -23,7 +23,11 @@ test("the header and footer fit a phone and pass axe on the sign-in and Privacy 
   ] as const) {
     await open(page, path);
     await expect(page.getByRole("heading", { name: heading, level: 1 })).toBeVisible();
-    await expect(page.getByRole("contentinfo").getByRole("link", { name: "Privacy" })).toBeVisible();
+    // The footer also links the public "Privacy Notice". The role name is a substring, so exact
+    // keeps this on the in-app Privacy link.
+    await expect(
+      page.getByRole("contentinfo").getByRole("link", { name: "Privacy", exact: true }),
+    ).toBeVisible();
 
     const axe = await new AxeBuilder({ page })
       .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])

@@ -151,13 +151,13 @@ No stage other than `production` can send real mail. To try real sending elsewhe
 
 ## The site Worker
 
-`SiteWorker` serves the prerendered landing page from `apps/web/dist-site` (ADR 0020) with `htmlHandling: "auto-trailing-slash"`. `/app` and `/app/` answer a 302 to the app origin on a GET, and anything the assets do not match answers 404. Production serves the apex only while `APEX_SERVED_BY_SITE` is on, with `www` redirecting to it; staging and PR stages get `<stage>.surveybeat.app`. `EmailConfig.test.ts` pins the redirect rule and both asset directories.
+`SiteWorker` serves the prerendered landing page and the legal pages `/privacy`, `/terms`, `/dpa` and `/subprocessors` (issue #305) from `apps/web/dist-site` (ADR 0020) with `htmlHandling: "auto-trailing-slash"`. `/app` and `/app/` answer a 302 to the app origin on a GET, and anything the assets do not match answers 404. Production serves the apex only while `APEX_SERVED_BY_SITE` is on, with `www` redirecting to it; staging and PR stages get `<stage>.surveybeat.app`. `EmailConfig.test.ts` pins the redirect rule and both asset directories.
 
 ## Compliance documentation
 
 GDPR governance records live under `docs/compliance/`:
 
-- [Record of Processing Activities (`docs/compliance/ropa.md`)](compliance/ropa.md) — Art. 30 controller/processor table mapped to exact D1 and Organization Durable Object schemas, retention (`Policy.ts`), and the Recital 26 non-personal analysis of anonymous `submission`/`answer` rows.
+- [Record of Processing Activities (`docs/compliance/ropa.md`)](compliance/ropa.md) — Art. 30 controller/processor table mapped to exact D1 and Organization Durable Object schemas, retention (`Policy.ts`), and the Recital 26 analysis of anonymity and residual identifiability for `submission` and `answer` rows.
 - [Data Protection Impact Assessment (`docs/compliance/dpia.md`)](compliance/dpia.md) — Art. 35 necessity/proportionality and risk register tied to ADRs 0003, 0004, 0005, 0009, and 0015.
 - [Breach Response Runbook (`docs/compliance/breach-response-runbook.md`)](compliance/breach-response-runbook.md) — Art. 33–34 detection channels (`check:observability`, `canary-sweep.ts`, `[OPERATOR_ALERT]` logs, sub-processor advisories), 72-hour timeline, and notification templates.
 - [Vendor DPA Register & LIA Template (`docs/compliance/vendor-dpa-register.md`)](compliance/vendor-dpa-register.md) — Art. 28 sub-processor register (Cloudflare, OpenRouter, Google Cloud Vertex EU, AWS Bedrock `eu-west-1`) and reusable customer Legitimate Interest Assessment template.

@@ -1,6 +1,10 @@
 export const catalog = {
   "layout.brand": "SurveyBeat",
   "layout.signature": "SurveyBeat helps teams check in on how they are doing, a few questions at a time.",
+  "layout.legal.privacy": "Privacy Notice",
+  "layout.legal.terms": "Terms",
+  "layout.legal.dpa": "Data Processing Agreement",
+  "layout.legal.subprocessors": "Sub-processors",
 
   "addedToTeam.subject": "You've been added to {team}",
   "addedToTeam.preview": "{lead} added you to {team} on SurveyBeat.",

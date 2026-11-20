@@ -1,4 +1,6 @@
 import { answerCatalog } from "./answer.ts";
+import { legalAgreementsCatalog } from "./legalAgreements.ts";
+import { legalPrivacyCatalog } from "./legalPrivacy.ts";
 
 export const catalog = {
   "app.title": "SurveyBeat",
@@ -455,6 +457,17 @@ export const catalog = {
   "error.Invalid": "Check what you entered and try again.",
   "error.Unavailable": "Something went wrong. Try again in a moment.",
   ...answerCatalog,
+  ...legalPrivacyCatalog,
+  ...legalAgreementsCatalog,
+  "legal.link.privacy": "Privacy Notice",
+  "legal.link.terms": "Terms",
+  "legal.link.dpa": "Data Processing Agreement",
+  "legal.link.subprocessors": "Sub-processors",
+  "legal.pageTitle": "{page} · SurveyBeat",
+  "legal.contact": "Questions about this page? Write to {email}.",
+  "legal.home": "SurveyBeat home",
+  "legal.intro":
+    "The full Privacy Notice, Terms, Data Processing Agreement and list of Sub-processors are on the SurveyBeat website.",
   "privacy.title": "Privacy at SurveyBeat",
   "privacy.back": "Back",
   "privacy.groupSize.title": "Nothing shown below the minimum group size",
@@ -474,7 +487,7 @@ export const catalog = {
     "Database backups are kept for up to {days} days point-in-time strictly for disaster recovery. Backups are encrypted at rest and purged permanently after {days} days.",
   "privacy.editKey.title": "Changing your answers",
   "privacy.editKey.body":
-    "When you submit answers, an anonymous Edit key is stored solely in your local browser. Losing or clearing the Edit key means answers cannot be changed.",
+    "The Edit key is kept in this browser. The first Answer sends only its hash. Later Answers and edits send the Edit key over HTTPS, and SurveyBeat stores only the hash. Losing or clearing the Edit key means answers cannot be changed.",
   "privacy.restoreTrigger.title": "Who can trigger a restore",
   "privacy.restoreTrigger.body":
     "Only authorized infrastructure operators with verified credentials can initiate a disaster recovery restore. Organization admins and Leads cannot inspect raw backups or trigger restores.",
@@ -582,4 +595,5 @@ export const catalog = {
   "site.close.lede":
     "SurveyBeat speaks English and German. Sign in with your work email and start from the Template.",
   "site.footer.copyright": "© 2026 SurveyBeat",
+  "site.footer.label": "Legal and contact",
 } as const;
