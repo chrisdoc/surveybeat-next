@@ -1,0 +1,13 @@
+how to setup this repo to auto-merge on green ci?
+
+---
+
+also lets skip coderabbit in this repo for now
+
+---
+
+is it pushed to main?
+
+---
+
+yes create on
