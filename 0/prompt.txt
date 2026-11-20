@@ -1,0 +1,51 @@
+[T3 Code: the agent in T3 thread "21f5518c-c5d4-4b47-a316-a65f2211559d" sent this message, not the user.]
+
+Act as the implementation sub-agent for this task.
+
+Implement GitHub issue 307 for chrisdoc/surveybeat-next and open one pull request. Do not merge, do not enable auto-merge, do not comment on GitHub, and do not spawn subagents.
+
+Your checkout is not main. Start from the commit that just shipped the personal-data export:
+
+git fetch https://github.com/chrisdoc/surveybeat-next.git main
+git checkout -B gdpr-307-erasure FETCH_HEAD
+
+Stop if git merge-base --is-ancestor ab76626e0a67c70ba65fadf2c04ff6ebc2d6cd6c HEAD fails. That squash is "GDPR 306: export a Person's personal data". Branch only from that main. Push only gdpr-307-erasure. Never push main. Never use --no-verify. Never change git configuration, and never mention or set core.hooksPath.
+
+Issue: https://github.com/chrisdoc/surveybeat-next/issues/307
+Title the pull request and the squash-facing commit subject: GDPR 307: erase a Person's personal data
+Open with: gh pr create --repo chrisdoc/surveybeat-next --base main
+If gh fails because the remote is entire://, pass --repo chrisdoc/surveybeat-next. If git push is rejected once, retry git push -u origin HEAD:gdpr-307-erasure. The pre-commit hook runs the full fence (typecheck, ledger, comments, format, lint, unit tests, privacy tests). Let it run. Fix failures and commit again. Do not skip it.
+
+Read SPEC.md, GLOSSARY.md, docs/adr/, docs/agents/issue-tracker.md, and AGENTS.md before changing behavior. Use glossary terms: Pulse, Person, Round, Submission, Answer, Invitation, Edit key, Organization, Team, Membership, Lead, Organization admin. Do not write User, Response, or Respondent.
+
+The issue's "today" section is partly stale. On current main, Remove from Organization is a soft delete: the Organization sets person.removed_at, and D1 person_index.removed_at stays set so an access export can still find that Person. Sign-in queries require removed_at IS NULL. Do not turn that soft delete into erasure. Erasure is a separate irreversible operation.
+
+Decisions already made:
+- Keep the existing remove-from-Organization behavior for people who are removed but not erased, including the export finding them through person_index.
+- Erasure scrubs one Person inside one Organization. Full account deletion in D1 happens only when that human has no remaining Organization membership and no remaining non-erased person_index row, or when they explicitly erase the sign-in account and every Organization is already erased.
+- Tombstone the Organization person.email as erased-<personId>@erased.invalid. Set auth_user_id, time_zone, locale, and detected_locale to null, organization_admin to 0, and set removed_at. Add erased_at in a new migration if the column does not exist. Do not edit a migration that is already on main. Add the new file's SHA-256 to the matching lock file. MigrationHistory.test.ts must pass.
+- End active memberships. Delete participation, round_member, invitation, pulse_reminder_opt_out, and test_send rows for that person_id. Delete the matching D1 invitation_index and person_index rows for that organization and person. Scrub email_send rows for that Person so recipient and content no longer hold an address or a body.
+- Action rows may keep owner_id for history. The UI must show a former-member label and must not show the tombstone address.
+- Do not delete or alter submission, answer, or round_result rows. Anonymous Submissions stay unlinkable (ADR 0005).
+- After erasure, signing in again with the same email must create or link a new Person. It must not revive the tombstone.
+- Refuse erasure when the Person is the sole Lead of a Team or the sole Organization admin. The role has to be transferred first. Do not build Organization deletion in this pull request.
+- Provide two callers: the signed-in Person erases their own data, and an Organization admin erases a Person in that Organization, including a removed Person who never signed in. Both require an explicit confirmation. A single click is not confirmation.
+- Self-service belongs on the existing privacy screen, next to the personal-data export. Admin erasure belongs on the existing people-management screen. All visible strings come from apps/web/src/messages/catalog.ts. HTML shells stay free of visible text.
+- On a confirmed self-service erasure, that browser may clear its own sb_answers_ and sb_edit_ entries. Do not change the normal /history behavior: /history still clears kept answers only and leaves Edit keys until the person clears site data. Do not edit the shipped legal pages (legalPrivacy.ts, legalAgreements.ts) or invent a company name, a street address, or a personal name.
+- New API endpoints take no caller-supplied user id for the self-service path. The handler uses the authenticated session and requireSameOrigin, matching the export handler. Classify every new endpoint in packages/api/src/PrivacyRegistry.ts.
+- Add *.privacy.test.ts proof that after erasure the email, auth user id, sessions, invitation tokens and hashes, participation, and email bodies are gone from D1 and the Organization database, while a seeded anonymous submission, answer, and round result remain. Also prove that signing in again does not reconnect to the erased Person.
+- If this contradicts an ADR, add the next ADR under docs/adr/ (0027 or the next free number). Do not silently override an ADR. Do not build Slack, Teams, or MCP.
+- Effect is 4.x. Copy import style from neighboring files. No Date.now() inside Effect code. No type assertions outside tests. No prose comments in non-test source (the no-comments lint). Put a blank line before a new const after a statement. relative imports use .ts extensions.
+- Do not start issues 308, 309, 310, 311, or 312.
+
+When the pull request is open, stop. Report the pull request URL and the head SHA. Do not merge it.
+
+---
+
+<task-notification>
+<task-id>blnpg43d6</task-id>
+<tool-use-id>toolu_01LMxws5q3JwpYKPeu2n2kP7</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-a8ee3d6c-d7235b7fd75f3ffb/b7ef8038-f13a-44c7-a4dd-5fb8a4f6f04f/tasks/blnpg43d6.output</output-file>
+<status>completed</status>
+<summary>Background command "cd /home/ubuntu/.t3/worktrees/surveybeat-next/t3-a8ee3d6c-d7235b7fd75f3ffb &amp;&amp; timeout 590 pnpm test 2&gt;&amp;1 | grep -v "^ *✓\|^$" | tail -50" completed (exit code 0)</summary>
+</task-notification>
