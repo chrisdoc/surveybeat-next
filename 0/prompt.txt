@@ -1,0 +1,207 @@
+[T3 Code: the agent in T3 thread "21f5518c-c5d4-4b47-a316-a65f2211559d" sent this message, not the user.]
+
+Implement GitHub issue 308 on chrisdoc/surveybeat-next. Read SPEC.md, GLOSSARY.md, docs/adr/0003, 0004, 0005, and 0027 before editing. The design below is locked. Do not reopen it, and do not implement issues 309-312.
+
+Your checkout may not be main. From that checkout run:
+git fetch origin main
+git merge-base --is-ancestor 0d2150a43e52588080f08fa68117f8cc7c58db39 origin/main
+git checkout -B gdpr-308-offboarding origin/main
+Stop if the ancestor check fails. Do not commit on any other branch. Do not change git config. Do not use --no-verify. Do not edit or delete a migration that is already on main. Do not edit apps/web/src/messages/legalPrivacy.ts or legalAgreements.ts.
+
+Glossary: Pulse, Person, Round, Submission, Answer, Invitation, Organization, Team, Lead. Not User, Response, or Respondent.
+
+## Decision, write it as docs/adr/0028-offboarding-returns-no-results.md
+
+Article 28(3)(g) return of data does not give an Organization admin every Team's Results. ADR 0003 stands: the admin role grants no access to Results, comments, or Actions without a Membership. ADR 0014 is unchanged. The offboarding export contains only records an Organization admin can already administer:
+- Organization id, name, minimum group size, AI processing flag, default locale
+- Teams: id, name, time zone
+- People: id, email, organizationAdmin, locale, time zone, removedAt, erasedAt. An erased Person already has the tombstone email. Do not recover an original address.
+- Memberships, including ended ones: id, team id, person id, role, startedAt, endedAt
+- Pulses and their Questions (wording and settings), because team.viewPulses and team.editPulse already include admin
+
+The export contains no Result, comment, theme, Action, Note, Submission, Answer, participation, Invitation token, token hash, Edit key, email body, auth user id, or session. Anonymous aggregates are destroyed with the tenant, not handed to an admin who has no Membership. A Lead downloads nothing new here; they use the product before offboarding.
+
+Deletion is irreversible and is allowed when the caller is the sole Organization admin. It is not LastAdmin and not LastLead. Cloudflare PITR copies are not deleted by the app. The confirmation UI says they expire after Policy.backupRetentionDays (30). Say that in the ADR.
+
+## API
+
+Add two endpoints on the directory group in packages/api/src/index.ts:
+- GET /api/organization/offboarding-export, success schema OrganizationOffboardingExport in packages/domain. Admin only.
+- POST /api/organization/offboarding, payload { confirmation: string }, no success body. confirmation must equal the Organization's stored name exactly. Wrong name is the existing ErasureNotConfirmed 422 and changes nothing. Same-origin via requireSameOrigin, same as erasure.
+
+Classify both in packages/api/src/PrivacyRegistry.ts as NoResultData, with a why that says the export has no Results, Submissions, or Answers, and the delete returns no content. registry.privacy.test.ts must agree.
+
+Permission: add organization.offboard to packages/domain/src/people/Permissions.ts, granted only to admin. Export and delete both use it. A Lead or member gets 403. Do not accept the caller's own Person as a substitute.
+
+## Durable Object wipe
+
+On the Organization class in packages/cloudflare/src/Organization.ts, add an RPC method that does only this, in order:
+1. state.raw.storage.deleteAlarm()
+2. state.raw.storage.deleteAll()
+
+Do not follow it with SQL. deleteAll is the wipe, so a new table cannot be missed. It must be safe to call when storage is already empty.
+
+## Crash order
+
+D1 migration packages/cloudflare/d1-migrations/0012_organization_offboarding.sql. New file. Add its SHA-256 to d1-migrations.lock.json. MigrationHistory.test.ts prints the lock line if the hash is wrong.
+
+CREATE TABLE organization_offboarding (
+  organization_id TEXT NOT NULL PRIMARY KEY,
+  actor_user_id TEXT NOT NULL,
+  confirmed_at INTEGER NOT NULL
+);
+
+Handler order:
+1. Resolve the session and the Organization the way currentMember does.
+2. If the Durable Object still has this Person and they are an Organization admin, require the typed name, then insert organization_offboarding for that auth user id. If the row exists, it must be the same auth user id.
+3. If the Durable Object no longer has the Person, continue only when organization_offboarding.actor_user_id is the session user. Do not ask for the name again.
+4. Anyone else is Forbidden. A wrong name does not write the row and does not delete anything.
+5. Delete this Organization's D1 invitation_index, test_invitation_index, test_submission_index, submission_index, and auth_session_organization. Tokens and Edit keys then fail closed in PageRoutes and SubmissionRoutes.
+6. Call the Durable Object wipe.
+7. Read person_index.auth_user_id for this Organization before deleting those rows. Delete captured_email where message_id is in this Organization's email_message rows, then delete those email_message rows. Never delete captured_email by recipient. Then delete person_index, organization_claim, organization_offboarding, and organization_index for this Organization.
+8. For each collected auth user id, call the existing eraseAccount path. It already keeps the account when any person_index row remains, including removed_at set. Do not copy that SQL.
+
+Do not delete auth_organization, auth_member, or auth_invitation. Those are unused Better Auth plugin tables (ADR 0022), not SurveyBeat Organizations.
+
+A crash after the wipe and before the D1 person_index delete must be finishable by the same admin, because the offboarding row remains and the Durable Object wipe is idempotent. A crash before the offboarding row writes nothing. Another Organization's rows and the other Organization's Durable Object stay. Person erasure behavior stays as ADR 0027.
+
+## UI
+
+On the Organization settings screen (apps/web/src/app/directory.ts, near the existing erasure controls), add a danger zone that uses confirmDialog or the existing danger panel in apps/web/src/app/components.ts. All visible text comes from apps/web/src/messages/catalog.ts. The zone:
+- downloads the export as a file before deletion is offered
+- then asks the admin to type the Organization name
+- states that deletion cannot be undone and that backups expire after 30 days, using Policy.backupRetentionDays so the number cannot drift
+- does not add a new required field to the existing settings response. infra/tests/e2e/signed-in.ts SETTINGS must keep decoding. Do not weaken an e2e spec.
+
+Add a scene or story test in the style of the erasure UI tests.
+
+## Tests that must fail if the guarantee is broken
+
+packages/cloudflare/src/OrganizationOffboarding.privacy.test.ts, named so the privacy project runs it. Follow PersonErasure.privacy.test.ts: real migrations, node sqlite, not a memory double.
+- Export JSON contains an admin-visible person email, team, and question, and does not contain a seeded Result number, comment, Action title, Note, Answer value, token, or token hash.
+- After offboarding, this Organization has zero rows in the D1 tables listed above, and a seeded second Organization still has its person_index, invitation_index, submission_index, and captured_email.
+- An auth user who only belonged to the deleted Organization is gone. An auth user who still has a person_index row in the other Organization, including removed_at set, keeps the account and that row.
+- A wrong confirmation leaves every row in place and writes no organization_offboarding row.
+- A member cannot offboard.
+- After the token indexes are deleted, the invitation lookup used by PageRoutes or SubmissionRoutes finds nothing.
+- Calling the D1 finish again after success changes nothing.
+
+Also extend the HTTP tests in DirectoryApi.test.ts for 403 and the wrong name.
+
+Update docs/compliance/ropa.md only where a retention sentence still says Organization data is kept for the Organization's lifetime with no offboarding. One accurate sentence for ADR 0028. Do not rewrite the pack.
+
+## Finish
+
+Commit through the hook. Suggested subject: GDPR 308: offboard an Organization. The body states that the export excludes Results so ADR 0003 stands, and that deletion wipes the Durable Object and the D1 index.
+Push the branch gdpr-308-offboarding. If the first push is rejected, retry with git push -v origin HEAD:gdpr-308-offboarding, then git push https://github.com/chrisdoc/surveybeat-next.git gdpr-308-offboarding:gdpr-308-offboarding. Do not force-push.
+Open the pull request with gh pr create --base main. Title: GDPR 308: offboard an Organization. Body starts with Closes #308. Do not merge and do not pass --auto.
+
+In your final message include the pull request URL and the full head SHA. Do not post review comments.
+
+---
+
+<task-notification>
+<task-id>a730abca590bfb4bd</task-id>
+<tool-use-id>toolu_01CyfoSSc9CqApMBoonD3n8x</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-ae08fbf6-1c2adf97687a0134/cac64b0d-d0e5-45a2-8e85-5fcc47413a51/tasks/a730abca590bfb4bd.output</output-file>
+<status>completed</status>
+<summary>Agent "Web UI for Organization offboarding" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>The Organization deletion UI is in place on the settings screen, with a download-first gate, a name-confirmation step, and scene and story tests. The web tests, lint, format, build, and typecheck all pass. I did not commit, push, or touch anything outside `apps/web`.
+
+## Changes
+
+- `apps/web/src/app/directory.ts`: new `dangerZoneView` panel at the bottom of `settingsScreenView`. It shows the explanation, a "Download a copy first" link (`href="/api/organization/offboarding-export"`, `download`, `OnClick` dispatches `OffboardingDownloaded`), and, only after the download, the "Delete this Organization" start button. Opening it shows a text field labelled "Type the Organization name to confirm", the `{days}` line from `Policy.backupRetentionDays`, the failure, and the "Delete permanently" and Cancel buttons. The OrganizationSettings schema is unchanged.
+- `apps/web/src/app/App.ts`:
+  - Model fields `offboardingDownloaded: Boolean` and `offboarding: { open, confirmation, busy, failure }`.
+  - Messages `OffboardingDownloaded`, `OffboardingOpened`, `OffboardingConfirmationChanged`, `OffboardingDismissed`, `OffboardingSubmitted`, `OffboardedOrganization`.
+  - Command `OffboardOrganization({ confirmation })`, which calls `api.directory.offboardOrganization`. A server `ErasureNotConfirmed` is mapped to the new `OrganizationNotConfirmed` failure.
+  - Success reuses `LeaveAfterErasureCmd`, the same as self-erasure. `Unauthenticated` reloads the session.
+  - Opening is ignored until the download flag is set, and submit is ignored when the field is empty or busy.
+- `apps/web/src/app/api.ts`: new `Failure` literal `OrganizationNotConfirmed`, mapped to `error.OrganizationNotConfirmed`.
+- `apps/web/src/messages/catalog.ts`: keys `offboarding.title`, `offboarding.body`, `offboarding.download.body`, `offboarding.download`, `offboarding.start`, `offboarding.confirm.label`, `offboarding.confirm.body` (uses `{days}`), `offboarding.confirm.action`, and `error.OrganizationNotConfirmed`.
+- `apps/web/src/app/App.scene.test.ts`: new "Deleting the Organization (GDPR 308)" describe with four scenes. They cover no deletion before download, the delete control after the download click, the POST with the typed name and then leaving, and the name mismatch followed by cancel.
+- `apps/web/src/app/App.story.test.ts`: new describe with four stories. They cover the closed state before download, the exact command args and success, the mismatch failure and dismiss, and the expired session path.
+
+## Validation
+
+- `pnpm test apps/web`: pass, 18 files and 341 tests. Run after the final edits.
+- `pnpm lint`: no findings in `apps/web` after one fix. The remaining findings are in `packages/domain` and belong to your concurrent work.
+- `pnpm exec oxfmt --check apps/web`: pass.
+- `pnpm --filter @surveybeat/web build`: pass.
+- `pnpm typecheck`: exit 0. All 12 projects are ok, including `apps/web` with 0 diagnostics.
+
+## Notes
+
+- The success path follows self-erasure exactly. It clears browser data and navigates to `/`, so the signed-out screen appears after the reload rather than by changing the model session. The erasure path does the same.
+- The story and scene tests resolve `OffboardOrganization` with `OrganizationNotConfirmed` directly. The `ErasureNotConfirmed` to `OrganizationNotConfirmed` mapping lives inside the command's `execute` and is not unit-tested, because the harness does not run `execute`.
+- The confirmation is sent exactly as typed, without trimming. The server compares it to the name exactly, so a stray space produces the mismatch message. The submit button is disabled only while the field is blank.
+- The download flag is per session. It resets on reload, so the user must download again before deleting.
+- The E2E specs in `infra/tests/e2e` were not touched or run.</result>
+<usage><subagent_tokens>128121</subagent_tokens><tool_uses>53</tool_uses><duration_ms>313316</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>a61f6505267bdd63e</task-id>
+<tool-use-id>toolu_015erdeGYU6pPiy6nhjYy7vE</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-ae08fbf6-1c2adf97687a0134/cac64b0d-d0e5-45a2-8e85-5fcc47413a51/tasks/a61f6505267bdd63e.output</output-file>
+<status>completed</status>
+<summary>Agent "Review offboarding diff" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>**Verdict: no BLOCKER or MAJOR defects found.** The implementation matches the locked design. I ran `OrganizationOffboarding.privacy.test.ts` (14 tests, in the privacy project), `Offboarding.test.ts` and `Permissions.test.ts`. They all pass. I did not run the web scene/story tests or the typecheck and lint.
+
+**Matches the design**
+- **Permission:** `organization.offboard` is granted only to `admin` (`Permissions.ts`).
+  - Export and delete both go through `offboardingAccess`.
+  - A Lead or member gets Forbidden, and `begin` is never reached.
+- **Confirmation:** `offboardingConfirmation` compares the typed name to `state.organizationName` with strict `!==`. A wrong name returns `ErasureNotConfirmed` (422) before any D1 write.
+- **Same origin:** both routes call `requireSameOrigin` first. `PrivacyRegistry.ts` classifies both as `NoResultData`.
+- **Crash order** in `DirectoryFlow.ts` `offboardOrganization`:
+  - With a Member, it checks the name, then `begin`. An existing row for another account gives Forbidden.
+  - With no Member, it continues only if `pending(userId)` finds a row, and does not ask for the name again. Otherwise it is Forbidden.
+  - Then `revokeAccess`, then `wipe`, then `removeIndex`, then `eraseAccount` per collected account.
+- **`D1OrganizationOffboarding.ts`:**
+  - `revokeAccess` deletes exactly the 4 token indexes plus `auth_session_organization`, each by `organization_id`.
+  - `removeIndex` reads `person_index.auth_user_id` before deleting.
+  - It deletes `captured_email` by `message_id` subselect on `email_message`, never by recipient. A privacy test keeps the `captured-sign-in` row to prove this.
+  - It deletes `email_message`, `person_index`, `organization_claim`, `organization_offboarding` and `organization_index`.
+  - It does not touch `auth_organization`, `auth_member` or `auth_invitation`.
+- **DO wipe:** `wipeOrganization` is `deleteAlarm()` then `deleteAll()` and nothing after. It is wired in `Organization.ts` and `MainWorker.ts`.
+- **Migration:** `0012` is new, and its SHA is in `d1-migrations.lock.json`. No merged migration was edited.
+- **Export contents:** `offboardingExportOf` emits only the allowed fields.
+  - It has no auth user id, tokens, Results, Answers or Notes.
+  - The privacy test seeds marker strings for each forbidden item and asserts none appear.
+- **UI:**
+  - The danger zone shows download first, then a name field.
+  - It says deletion cannot be undone, and the backup days come from `Policy.backupRetentionDays`.
+  - Text is in `catalog.ts`.
+  - No settings-response field was added.
+  - `legalPrivacy.ts` and `legalAgreements.ts` are unchanged, and `infra/` has no diff.
+- **Tests:**
+  - `OrganizationOffboarding.privacy.test.ts` runs on real migrations over node sqlite.
+  - Its tests would fail if a delete were dropped, if deletion were by recipient, if the other Organization were touched, or if the account were erased despite a remaining (including removed) Person.
+
+**Findings (all MINOR)**
+
+1. `packages/cloudflare/src/auth/D1OrganizationOffboarding.ts` (`removeIndex`) can leak an auth account on retry. `person_index` is deleted before `organization_offboarding` and `organization_index`, and the statements are not batched.
+   - If the Worker stops after the `person_index` delete, the offboarding row remains and the same admin can retry.
+   - The retry reads zero auth user ids, so `eraseAccount` is never called for accounts that only belonged here.
+   - ADR 0028 acknowledges the 7-to-8 window but not this one.
+   - Fix: delete `organization_offboarding` and `organization_index` before `person_index`, or issue the deletes as one D1 `batch`. A crash would then leave either everything or nothing of the index.
+
+2. `packages/domain/src/people/DirectoryFlow.ts` (`offboardOrganization`, `onSome` branch) strands a pending offboarding in one case. If the admin has a pending row for Organization A but the session resolves to a Member of Organization B, the code takes the Member branch and never consults `pending`. Organization A can then only be finished after the session no longer resolves to B. This is an edge case. A fix would be to prefer `pending(userId)` when it names an Organization other than `member.organization.id`.
+
+3. `apps/web/src/app/directory.ts` (`dangerZoneView`) marks the copy as downloaded on a click of the `&lt;a download&gt;` link, not on a successful download. A failed GET (403, network error) still unlocks the delete control. This is only a UI nudge, because the server enforces nothing about it. It is acceptable, but worth knowing that "download first" is advisory.
+
+4. `packages/cloudflare/src/DirectoryApi.test.ts` (export test) asserts `not.toMatch(/result|submission|answer|token/i)` on the body. That is a weak check. The strong marker-based check is in the privacy test, so this is not blocking.
+
+5. Style: `packages/cloudflare/src/OrganizationOffboarding.privacy.test.ts` uses `as unknown as` casts, which is allowed in `*.test.ts`. The prose comment in `Offboarding.ts` (the JSDoc above `OrganizationOffboardingExport` and the `OrganizationOffboardingShape` member docs) conflicts with the `no-comments/no-comments` rule, which runs at `error` for non-test code. `pnpm lint` will probably flag these. I did not run lint. If it does, move the reason into the ADR and names.
+
+**Missing from your list**
+- Nothing required is missing.
+- No new web scene/story assertions for the wrong-name 422 path were checked in depth.
+- I did not run the e2e specs. `infra/` is unchanged, so none are weakened.</result>
+<usage><subagent_tokens>74720</subagent_tokens><tool_uses>10</tool_uses><duration_ms>77668</duration_ms></usage>
+</task-notification>

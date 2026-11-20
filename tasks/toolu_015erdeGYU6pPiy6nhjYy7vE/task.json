@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_015erdeGYU6pPiy6nhjYy7vE",
+  "agent_id": "a61f6505267bdd63e",
+  "subagent_type": "reviewer",
+  "task_description": "Review offboarding diff",
+  "token_usage": {
+    "input_tokens": 18,
+    "cache_creation_tokens": 72299,
+    "cache_read_tokens": 426137,
+    "output_tokens": 7379,
+    "api_call_count": 9
+  },
+  "started_at": "2026-11-20T17:47:50.689999693Z",
+  "completed_at": "2026-11-20T17:49:08.145404462Z"
+}

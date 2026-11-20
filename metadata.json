@@ -1,0 +1,75 @@
+{
+  "cli_version": "0.13.4",
+  "checkpoint_id": "01M7X1PPXZGKNPFS958MNWCS5R",
+  "strategy": "manual-commit",
+  "branch": "gdpr-308-offboarding",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "apps/web/src/app/App.scene.test.ts",
+    "apps/web/src/app/App.story.test.ts",
+    "apps/web/src/app/App.ts",
+    "apps/web/src/app/api.ts",
+    "apps/web/src/app/directory.ts",
+    "apps/web/src/messages/catalog.ts",
+    "docs/adr/0028-offboarding-returns-no-results.md",
+    "docs/compliance/ropa.md",
+    "packages/api/src/PrivacyRegistry.ts",
+    "packages/api/src/index.ts",
+    "packages/cloudflare/d1-migrations.lock.json",
+    "packages/cloudflare/d1-migrations/0012_organization_offboarding.sql",
+    "packages/cloudflare/src/DirectoryApi.test.ts",
+    "packages/cloudflare/src/DirectoryHandlers.ts",
+    "packages/cloudflare/src/MainWorker.ts",
+    "packages/cloudflare/src/Organization.ts",
+    "packages/cloudflare/src/OrganizationOffboarding.privacy.test.ts",
+    "packages/cloudflare/src/auth/D1OrganizationOffboarding.ts",
+    "packages/cloudflare/src/auth/DurableObjectPeople.ts",
+    "packages/cloudflare/src/organization/Offboarding.ts",
+    "packages/cloudflare/src/testing.ts",
+    "packages/domain/src/people/Directory.ts",
+    "packages/domain/src/people/DirectoryFlow.ts",
+    "packages/domain/src/people/Offboarding.test.ts",
+    "packages/domain/src/people/Offboarding.ts",
+    "packages/domain/src/people/Permissions.test.ts",
+    "packages/domain/src/people/Permissions.ts",
+    "packages/domain/src/people/index.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 152,
+    "cache_creation_tokens": 292363,
+    "cache_read_tokens": 15370349,
+    "output_tokens": 76589,
+    "api_call_count": 76,
+    "subagent_tokens": {
+      "input_tokens": 106,
+      "cache_creation_tokens": 222574,
+      "cache_read_tokens": 3968388,
+      "output_tokens": 57029,
+      "api_call_count": 53
+    },
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 5,
+    "layers": {
+      "betterleaks": 4,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 1,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
