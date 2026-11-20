@@ -1,0 +1,78 @@
+[T3 Code: the agent in T3 thread "21f5518c-c5d4-4b47-a316-a65f2211559d" sent this message, not the user.]
+
+Act as the implementation sub-agent for this task.
+
+Implement the email-rectification slice of GitHub issue #309 in chrisdoc/surveybeat-next. Do not spawn subagents. Do not merge, do not enable auto-merge, and do not close issue 309.
+
+Your starting checkout may be branch t3/handover-to-other-model-agents. That is the wrong base. Fetch https://github.com/chrisdoc/surveybeat-next.git main and confirm FETCH_HEAD is 8b8202d661a60451f0f539a2012eaf725b7c0920 (it contains GDPR 308 squash b8cb178). Create branch gdpr-309-email-rectification at that commit and do all work there. Do not create another worktree. Do not change git config or core.hooksPath. Never pass --no-verify.
+
+This pull request is only Article 16 email rectification. Do not implement Article 18 processing restriction or Article 21 invitation objection. Do not edit apps/web/src/messages/legalPrivacy.ts, legalAgreements.ts, or site HTML.
+
+Read before editing: AGENTS.md, GLOSSARY.md, SPEC.md line about data rights, docs/adr/0022-better-auth-owns-sign-in-sessions.md, docs/adr/0023-sign-in-port-answers-who-not-where.md, docs/adr/0027-erasure-is-separate-from-removal.md, packages/auth/src/options.ts, packages/domain/src/people/Identity.ts, packages/cloudflare/src/auth/D1PeopleIndex.ts, packages/cloudflare/src/organization/Directory.ts linkPerson, packages/api/src/PrivacyRegistry.ts, and the erasure HTTP handlers so the new routes match that shape. Glossary terms: Pulse, Person, Round, Submission. An Organization admin is not a Lead.
+
+Decision, already locked. Record it as docs/adr/0029-email-rectification-follows-the-account.md in the same short style as ADR 0027. Verify 0029 is the next number on this branch.
+
+A signed-in Person changes their own address. Better Auth email OTP proves they control the new address. Enable emailOTP changeEmail: { enabled: true } and do not set verifyCurrentEmail. Today sendVerificationOTP drops every type other than sign-in (packages/auth/src/options.ts). Deliver type change-email through the existing code-email path with its own message, not the sign-in wording. Leave sign-in, email-verification, and forget-password behavior alone.
+
+Endpoints, both same-origin, both NoResultData in PrivacyRegistry, both 204 on success:
+- POST /api/me/email-change { email } sends the OTP.
+- POST /api/me/email-change/confirm { email, otp } applies it.
+- POST /api/organization/people/:personId/email { email } is Organization-admin only.
+
+Normalize with normaliseEmail. The stored value must satisfy the SQL check email = lower(trim(email)) and EmailAddress. Also require printable ASCII after normalization, so the address stays emailMatchable. Put that rule next to normaliseEmail and test it.
+
+Collisions are an explicit error, never Better Auth's silent success. Before request-email-change or an admin write, reject when the normalized address is already auth_user.email of another account, or already person_index.email on a row whose auth_user_id is not this account. An unlinked person_index row (auth_user_id NULL) is a collision for a signed-in change. The caller's own person_index rows are not a collision.
+
+Confirm order, crash-safe:
+1. Same-origin session. Normalize. Reject the current address and collisions.
+2. Upsert one D1 row per account, new migration after the latest d1-migrations file (0012_organization_offboarding.sql on 308; recheck on this main). Suggested table email_rectification (auth_user_id primary key, old_email, new_email). Add its SHA-256 to d1-migrations.lock.json. Do not edit a merged migration.
+3. Call Better Auth POST /email-otp/change-email with the session so it verifies the OTP, sets auth_user.email and emailVerified, and Set-Cookie carries the new email. Forward that Set-Cookie to the browser the same way sign-in does.
+4. Update every person_index row for this auth_user_id, including rows with removed_at set.
+5. In every Organization Durable Object those rows name, set person.email where auth_user_id matches and erased_at IS NULL. Idempotent. Do not touch a tombstone.
+6. Delete the email_rectification row.
+If the worker dies after step 3, a later confirm of the same address sees auth_user.email already equal to the pending new email and finishes steps 4 to 6 without a second OTP. A wrong OTP must leave no pending row and change nothing. A pending row for a different new address is replaced only while auth_user.email is still the old address. While auth_user.email is already the pending address, a request for a different address is refused until that pending change finishes.
+
+Better Auth's sensitive session check stays. If it refuses a stale session, return a typed error the UI can show as sign in again. Do not set freshAge to 0.
+
+Admin correction: only a Person in this Organization with auth_user_id IS NULL and erased_at NULL, including a removed Person. Update that person.email and that person_index row only. Refuse a linked Person (they use the self-service routes). Refuse when the address is any auth_user.email or any person_index.email with a non-null auth_user_id. Another unlinked person_index row in a different Organization may already use the address; that is how one human is added twice before sign-in, so allow it. Inside this Organization the address must be unique among non-erased People.
+
+Do not rewrite historical email_send or email_message bodies. Do not change linkPerson. Do not delete change-email OTP rows except by the existing erasure path.
+
+UI, strings only from apps/web/src/messages/catalog.ts. On the account surface next to export and erasure: new email, send code, enter code, confirm. On Organization settings, an admin can correct the email of a Person who has not signed in. A signed-in Person's row has no admin email control. Add scene tests in the style of the erasure scenes. No dev server.
+
+SPEC.md data-rights sentence currently says a person can export and delete. Add that they can correct their email address. Do not mention restriction or objection. Add one clause to docs/compliance/ropa.md that rectification updates the live address on the account, the index, and the Person, and does not rewrite past sends.
+
+Tests that must fail if the propagation is partial: domain collisions and the admin rules; a privacy test that a confirmed change updates auth_user.email, every linked person_index row including a removed one, and person.email in two Organization databases, while another Person and another account stay put; a privacy test that a crash after auth_user is updated resumes onto a stale Durable Object without a new OTP; a privacy test that a collision and a wrong OTP write nothing; a privacy test that the admin route updates one unlinked Person and refuses a linked one. Register every new endpoint or pnpm typecheck fails. Follow packages/cloudflare/src/PersonErasure.privacy.test.ts for the D1-plus-node:sqlite shape.
+
+Commit through the pre-commit fence. Subject: GDPR 309: rectify a Person's email. The fence runs typecheck, the diagnostics ledger (must stay 80), comment debt (0 prose comments; no-comments is error outside tests), oxfmt, oxlint, unit tests, and privacy tests. No type assertions. Relative imports use .ts. import type for types. Blank line before a new const after a statement. Only one unit gate at a time because Organization.test.ts binds ports 1337 and 1338.
+
+Push only branch gdpr-309-email-rectification. If the entire remote rejects the push, retry git push https://github.com/chrisdoc/surveybeat-next.git HEAD:gdpr-309-email-rectification. Open the pull request with gh pr create --repo chrisdoc/surveybeat-next --base main. Title is the commit subject. Body: issue #309, this pull request is email rectification only, objection and restriction follow, and the crash resume. Do not close the issue.
+
+Return the pull request URL, the full HEAD sha, and any fence or push failure.
+
+---
+
+<task-notification>
+<task-id>bg3kopge8</task-id>
+<tool-use-id>toolu_01ApXHAjJ5Lnnv9xBCQohFFQ</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-52713c90-94cde4318b77aa6f/ba85cfb9-b584-438d-9f30-3945ee4af4eb/tasks/bg3kopge8.output</output-file>
+<status>completed</status>
+<summary>Background command "timeout 590 pnpm test 2&gt;&amp;1 | tail -30" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>bl7352h3l</task-id>
+<tool-use-id>toolu_01HPfmrmDVMYdKpzxEifBPva</tool-use-id>
+<output-file>/tmp/claude-1001/-home-ubuntu--t3-worktrees-surveybeat-next-t3-52713c90-94cde4318b77aa6f/ba85cfb9-b584-438d-9f30-3945ee4af4eb/tasks/bl7352h3l.output</output-file>
+<status>completed</status>
+<summary>Monitor "wait for unit test output" stream ended</summary>
+<event>$ vitest run --project unit
+RUN  v5.1.0 /home/ubuntu/.t3/worktrees/surveybeat-next/t3-52713c90-94cde4318b77aa6f
+Test Files  94 passed (94)
+Tests  1655 passed (1655)
+Start at  19:25:18
+Duration  175.77s (tests 54%, import 44%, transform 2%)
+[exited with code 0]</event>
+</task-notification>
