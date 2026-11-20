@@ -13,9 +13,9 @@
 | **Data Processor** (Art. 33(2)) | Any Personal Data Breach affecting customer `Organization` data (`person`, `membership`, `email_send`, `round_member`, `invitation`, `participation`, `action`, `round_note`, `person_index`, `invitation_index`, or compromised `SubmissionWorker` logs). | **Without undue delay** — **Internal SLA: <= 24 hours** from awareness (gives customer Controllers time to meet their 72-hour Art. 33(1) clock). | Affected `Organization admin`(s) / designated customer security & privacy contacts. |
 | **Data Controller** (Art. 33(1)) | Personal Data Breach affecting SurveyBeat-controlled data (`auth_user`, `auth_session`, `auth_account`, `auth_verification`, `auth_passkey`, `organization_claim`, `ORG_CREATION_ALLOWLIST`), **unless** unlikely to result in a risk to rights and freedoms. | **Without undue delay and <= 72 hours** after becoming aware (phased info permitted under Art. 33(4) if full forensics take longer). | Competent EU/EEA Supervisory Authority (and UK ICO / Swiss FDPIC where applicable). |
 | **Data Controller** (Art. 34) | Controller-scope breach **likely to result in a high risk** to the rights and freedoms of natural persons (unless Art. 34(3) exemptions apply, e.g., strong encryption with uncompromised keys). | **Without undue delay** after triage confirms high risk. | Affected individuals (`Person`s / sign-in account holders), in clear and plain language. |
-| **Internal Register** (Art. 33(5)) | **Every** confirmed Personal Data Breach or near-miss security incident, regardless of whether notification is required. | Logged immediately upon closure (preserved for audit). | Internal Breach Register (§7.4). |
+| **Internal Register** (Art. 33(5)) | **Every** confirmed Personal Data Breach or near-miss security incident, regardless of whether notification is required. | Logged immediately upon closure (preserved for audit). | Internal Breach Register (§6.4). |
 
-> **Note on Recital 26 Anonymous Data:** Intact `submission` and `answer` rows without correlation paths are non-personal data (`ropa.md` §3). However, **if a breach exposes correlation metadata** (e.g., `SubmissionWorker` logging was accidentally turned on, or a PITR WAL replay occurred without authorization alongside `participation`), treat the affected `Round`s as **personal data** for breach classification and notification purposes.
+> **Note on stored `Submission`s:** A stored `submission` or `answer` row has no `Person` column (`ropa.md` §3). A comment that identifies its author is still personal data. **If a breach exposes correlation metadata** (for example `SubmissionWorker` logging was turned on, or an unauthorized PITR replay sat beside `participation`), treat the affected `Round`s as personal data for breach classification and notification.
 
 ---
 
@@ -25,13 +25,13 @@ Incident detection relies on the following concrete mechanisms built into Survey
 
 1. **Observability & Canary Privacy Gates (`SubmissionWorker`):**
    - `pnpm check:observability --stage <stage>` ([`infra/scripts/check-observability.ts`](../../infra/scripts/check-observability.ts)): Queries Cloudflare Workers settings API (`GET /accounts/{id}/workers/workers`) and fails if `observability.enabled`, `logs.enabled`, `traces.enabled`, `logpush`, or `tail_consumers` is enabled on `SubmissionWorker`.
-   - `pnpm test:preview-privacy` ([`infra/tests/privacy/canary-sweep.ts`](../../infra/tests/privacy/canary-sweep.ts)): Sends 1,000 canary requests to `MainWorker` (positive control) and `SubmissionWorker` and fails if any `SubmissionWorker` event or canary string appears in Workers Logs.
+   - `pnpm test:preview-privacy` ([`infra/tests/privacy/canary-sweep.ts`](../../infra/tests/privacy/canary-sweep.ts)): Sends 1,000 canary requests to `MainWorker` (positive control) and `SubmissionWorker` and fails if any `SubmissionWorker` event or canary string appears in Workers Logs. Run without arguments, it exits 2. It needs `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `--stage`, the Main Worker URL, and the Submission Worker URL. Production: `pnpm test:preview-privacy --stage production https://dashboard.surveybeat.app https://submit.surveybeat.app`.
    - Executed automatically in `.github/workflows/preview.yml` (`preview-privacy`) and `.github/workflows/deploy.yml` (`staging-privacy` blocking `production` deploy).
 2. **Worker & Durable Object Operator Alerts (`[OPERATOR_ALERT]`):**
    - `Organization.ts` (`ALARM_FAILED`) and `organization/RoundJobs.ts` (`ROUND_JOB_FAILED`, results computation failures) emit `[OPERATOR_ALERT]` structured `Effect.logError` events to Cloudflare Workers Logs (`MainWorker`).
-   - Dead-letter queue consumers (`JobsDlq`, `EmailDlq` in `MainWorker.ts`) emit `JOB_DEAD_LETTERED` and `EMAIL_DEAD_LETTERED` error logs (error codes / `sendId` only, never message bodies).
+   - `JobsDlq` is consumed in `MainWorker.ts` and logs `JOB_DEAD_LETTERED`. `EmailDlq` is consumed from `MainWorker.ts` and `handleDeadLetter` logs `EMAIL_DEAD_LETTERED` in `EmailDelivery.ts` (error code and `sendId` only, never the message body).
 3. **Cloudflare Platform & Audit Monitoring:**
-   - Cloudflare Account Audit Logs (API token usage, `alchemy deploy` changes, D1/DO/R2 access, manual PITR restore triggers—restricted to named operators per ADR 0005).
+   - Cloudflare Account Audit Logs (API token usage, `alchemy deploy` changes, D1 and Durable Object access, manual PITR restore triggers—restricted to named operators per ADR 0005). SPEC §6.2 names R2 backups. No R2 bucket is declared in `infra/alchemy.run.ts`.
    - Cloudflare Workers/D1/DO error-rate alerts and Email Sending bounce/complaint spikes (`EmailEvents` queue).
 4. **Authentication & Access Anomaly Signals:**
    - `ORG_CREATION_ALLOWLIST` diffs (`infra/org-creation-allowlist.yaml`).
@@ -65,13 +65,14 @@ flowchart TD
     B --> C{"Confirmed security incident affecting confidentiality, integrity, or availability?"}
     C -- No --> D["Close as false positive / operational defect; document"]
     C -- Yes --> E{"Involves Personal Data? (Includes correlated anonymous Submissions if SubmissionWorker logged or PITR replayed)"}
-    E -- "No (strictly intact Recital 26 aggregates/non-personal rows only)" --> F["Log in internal security register; remediate"]
+    E -- "No (no Person column, and no comment that identifies someone)" --> F["Log in internal security register; remediate"]
     E -- Yes --> G["Start 72h Art. 33 clock ('Awareness' = reasonable certainty of breach)"]
     G --> H{"Affects customer Organization data (Processor role)?"}
     H -- Yes --> I["Notify affected Organization admin(s) within <= 24h (Art. 33(2))"]
     H -- No --> J["Controller-only scope (auth_user / auth_session / Site)"]
     I --> K{"Affects SurveyBeat Controller data (auth / index)?"}
     J --> K
+    K -- No --> R["Customer data only. Processor notice already sent (Art. 33(2)). Do not file Art. 33(1). The customer Controller decides Art. 34. Log §6.4."]
     K -- Yes --> L{"Unlikely to result in risk to rights & freedoms?"}
     L -- Yes --> M["Document non-notification rationale in Art. 33(5) register"]
     L -- No --> N["Submit Art. 33(1) notice to Supervisory Authority <= 72h (Art. 33(4) phased if ongoing)"]
@@ -80,6 +81,7 @@ flowchart TD
     O -- No --> Q["Post-incident remediation, regression test & Art. 33(5) register entry"]
     P --> Q
     M --> Q
+    R --> Q
 ```
 
 ### 4.2 Time-Boxed Action Checklist
@@ -87,9 +89,9 @@ flowchart TD
 | Window | Owner | Required Actions |
 | --- | --- | --- |
 | **T+0h – T+2h** | On-call Operator | **Contain immediately:** preserve logs/evidence first, then isolate the vector (see §5 Containment Playbook). Open incident channel and assign Incident Commander (IC). |
-| **T+2h – T+6h** | IC & Engineering | **Triage & Scope:** determine exact tables/DOs/stages affected, count affected `Organization`s and `Person`s, check whether `SubmissionWorker` observability or AI endpoints were affected, assign Severity (`P1–P4`). |
-| **T+6h – T+24h** | IC & Privacy/Legal | **Processor Notification (Art. 33(2)):** send initial written notice to all affected customer `Organization`s (`<= 24h` SLA) using Template §6.1, even if root-cause forensics are still underway. |
-| **T+24h – T+48h** | Privacy/Legal & IC | **Authority & Individual Risk Assessment:** if SurveyBeat Controller data is affected (`auth_*`, `person_index`, `organization_claim`), draft Supervisory Authority report (§6.2) and evaluate Art. 34 high-risk threshold. |
+| **T+2h – T+6h** | IC & Engineering | **Triage & Scope:** determine exact tables/DOs/stages affected, count affected `Organization`s and `Person`s, check whether `SubmissionWorker` observability or AI endpoints were affected, assign Severity (`P1–P4`). If high risk to individuals is already apparent, start the Art. 34 assessment in this window. Do not wait until T+24. |
+| **T+6h – T+24h** | IC & Privacy/Legal | **Processor Notification (Art. 33(2)):** send initial written notice to all affected customer `Organization`s (`<= 24h` SLA) using Template §6.1, even if root-cause forensics are still underway. A customer-only breach (no SurveyBeat Controller data) ends SurveyBeat's external notices here; the customer Controller owns Art. 33(1) and Art. 34. |
+| **T+24h – T+48h** | Privacy/Legal & IC | **Authority report:** if SurveyBeat Controller data is affected (`auth_*`, `person_index`, `organization_claim`), draft the Supervisory Authority report (§6.2). Finish the Art. 34 assessment here only when triage did not already show high risk. |
 | **<= T+72h** | Privacy/Legal | **Supervisory Authority Filing (Art. 33(1)):** file complete report (or initial phased report under Art. 33(4)) with the lead supervisory authority. Issue Art. 34 individual notices (§6.3) without undue delay if high risk applies. |
 | **Post-Incident (<= 14d)** | Engineering & Privacy | Add permanent regression test (unit / `*.privacy.test.ts` / CI gate), update `dpia.md` if threat model shifted, and complete Art. 33(5) Breach Register entry (§6.4). |
 
@@ -99,10 +101,11 @@ flowchart TD
 
 Execute only the steps matching the confirmed vector, preserving forensic timestamps before mutating state:
 
-- **`SubmissionWorker` logging/traces enabled:** Immediately redeploy `SubmissionWorker` via `pnpm infra:deploy --stage production` (or patch script settings via Cloudflare API) and verify `pnpm check:observability --stage production` and `pnpm test:preview-privacy` pass; audit Cloudflare Workers Logs retention window for any captured payloads.
-- **Session / Auth compromise (`auth_session`, `BETTER_AUTH_SECRET`):** Revoke affected `auth_session` rows in D1 (which cascades `auth_session_organization`), rotate `BETTER_AUTH_SECRET`, and force re-authentication.
-- **`Invitation` / `Edit key` secret compromise (`INVITATION_TOKEN_KEY`):** Rotate `INVITATION_TOKEN_KEY` in Alchemy/Cloudflare secrets, revoke unredeemed `invitation`s in affected `Organization` DOs, and purge stale `invitation_index` rows.
-- **AI sub-processor incident (`OPENROUTER_API_KEY` / EU ZDR breach):** Revoke/rotate `OPENROUTER_API_KEY` in Cloudflare Worker secrets (which causes `OpenRouterAiClient` to fail closed with `AiNotConfigured` immediately—zero further calls leave the DO), and notify affected `Organization`s with `ai_processing = 1`.
+- **`SubmissionWorker` logging/traces enabled:** Immediately redeploy `SubmissionWorker` via `pnpm infra:deploy --stage production` (or patch script settings via Cloudflare API). Then verify `pnpm check:observability --stage production` and `pnpm test:preview-privacy --stage production https://dashboard.surveybeat.app https://submit.surveybeat.app` (with `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` set). Audit the Cloudflare Workers Logs retention window for any captured payloads.
+- **Session compromise (`auth_session`):** Delete the affected `auth_session` rows in D1 (that cascades `auth_session_organization`) and force re-authentication. `BETTER_AUTH_SECRET` is not a stage secret an operator rotates in the dashboard. The Alchemy `BetterAuth` resource provisions the signing secret (ADR 0022, `docs/infra.md`). Replace that resource only when the signing secret itself is compromised; that signs every session out.
+- **`Invitation` token key (`INVITATION_TOKEN_KEY`):** Rotate the Alchemy secret, revoke unredeemed `invitation`s in the affected `Organization` Durable Objects, and purge stale `invitation_index` rows. This key derives `Invitation` and test-`Invitation` tokens only.
+- **`Edit key` exposure:** An `Edit key` is a random value generated in the browser (`apps/web/src/answer/main.ts`) and the server stores only its SHA-256 hash. There is no server secret to rotate, and rotating `INVITATION_TOKEN_KEY` does not invalidate `Edit key`s. A leaked browser key (`sb_edit_<roundId>`) can change that `Submission` while the `Round` is open. Close the `Round`, or clear that browser key.
+- **AI sub-processor incident (`OPENROUTER_API_KEY` / EU ZDR breach):** Remove or empty `OPENROUTER_API_KEY` on the Worker. `OpenRouterAiClient` returns `AiNotConfigured` only when the key is missing or `""` (`OpenRouterAiClient.ts`). A rotated non-empty key keeps sending. Notify `Organization`s with `ai_processing = 1`.
 - **Cloudflare account / API token compromise:** Revoke `CLOUDFLARE_API_TOKEN` in Cloudflare dashboard, audit `alchemy-state-store` and Cloudflare Audit Logs for any unauthorized `Organization` DO PITR restores or code deployments.
 
 ---
