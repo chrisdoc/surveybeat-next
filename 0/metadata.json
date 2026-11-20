@@ -1,0 +1,44 @@
+{
+  "cli_version": "0.13.4",
+  "checkpoint_id": "01M7VZ9NRKT4FWRNG71CA8XH2Y",
+  "session_id": "3e195b60-17ea-4e17-97e5-db0bc62cebd9",
+  "strategy": "manual-commit",
+  "created_at": "2026-11-20T07:56:24.089508121Z",
+  "branch": "t3/r3-297-vercel-chat-research",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/research/r3-vercel-chat-adapters.md"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-5-5",
+  "turn_id": "f9f4b189f1f7",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 110,
+    "cache_creation_tokens": 228598,
+    "cache_read_tokens": 9983694,
+    "output_tokens": 52669,
+    "api_call_count": 54
+  },
+  "session_token_usage": {
+    "input_tokens": 110,
+    "cache_creation_tokens": 228598,
+    "cache_read_tokens": 9983694,
+    "output_tokens": 52669,
+    "api_call_count": 54
+  },
+  "redaction": {
+    "replacements": 57,
+    "layers": {
+      "betterleaks": 11,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 21,
+      "credentialed_uri": 0,
+      "entropy": 30,
+      "key_context": 1,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}

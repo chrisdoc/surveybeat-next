@@ -1,0 +1,22 @@
+Act as the research sub-agent for this task.
+
+Write the research note for GitHub issue #297. You are already in an isolated checkout of origin/main (2a58b095). Do not create another checkout. Do not spawn subagents. Do not add a dependency, do not implement a Channel sender, and do not edit SPEC.md or docs/adr (issue #296 owns the SPEC edit; ADR numbers 0027+ are reserved).
+
+Read `gh issue view 297`, SPEC.md §6 (Cloudflare-only), ADR 0005, ADR 0007, ADR 0008, and the current email invitation path so the recommendation fits this repo. The note must answer every question in the issue, including the 2026-11-20 additions:
+- Can vercel/chat (`chat`, `@chat-adapter/slack`, `@chat-adapter/teams`) run on Cloudflare Workers with Alchemy and Effect 4.1.x (nodejs_compat), or should SurveyBeat use thin custom Effect adapters?
+- Workerd compatibility and bundle footprint.
+- Webhook signature verification and stateless handling on MainWorker.
+- Whether vercel/chat needs Redis or another external store. A third-party store breaks SPEC §6. Say whether a Durable Object SQLite StateAdapter is required.
+- Card fidelity for Invitation cards (Slack Block Kit and Teams Adaptive Cards): 1-tap Answer links, reminders, shared Results summaries.
+- Slack app and Teams bot registration and per-Organization OAuth install.
+- Teams proactive messages: Azure Bot registration and where a conversation reference lives (D1 global index vs Organization Durable Object). D1 must not hold survey content.
+- Microsoft Teams Safe Links and whether the answer URL fragment `#t=…&v=…` survives. If you cannot run a live Safe Links test, say so and cite primary docs; do not invent a test result.
+- Slack: plain message links (no Block Kit buttons) must not send block_actions to our request URL. Confirm from Slack docs.
+
+Use primary sources (upstream repos, Cloudflare docs, Slack/Teams docs). Write docs/research/r3-vercel-chat-adapters.md. Recommendation first, then evidence, constraints the Channel ADR must keep, and what you could not verify. Glossary terms: Pulse, Person, Round, Submission.
+
+Version control: GitButler (`but`) only. Branch: r3-297-chat-adapter-research. Commit subject: `R3 297: vercel/chat research note`. If `but commit -b` is refused in a linked worktree, commit on the checked-out branch and report its name. Let the pre-commit hook run. Do not use --no-verify.
+
+Open the PR with `but pr new <branch>`. Title: `R3 297: vercel/chat research note`. Body includes `Closes #297` and the recommendation in two sentences. Do not merge and do not enable auto-merge.
+
+Return: PR URL, head SHA, branch name, the recommendation, and any check you could not run.

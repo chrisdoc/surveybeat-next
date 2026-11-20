@@ -1,0 +1,40 @@
+{
+  "cli_version": "0.13.4",
+  "checkpoint_id": "01M7VZ9NRKT4FWRNG71CA8XH2Y",
+  "strategy": "manual-commit",
+  "branch": "t3/r3-297-vercel-chat-research",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/research/r3-vercel-chat-adapters.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 110,
+    "cache_creation_tokens": 228598,
+    "cache_read_tokens": 9983694,
+    "output_tokens": 52669,
+    "api_call_count": 54
+  },
+  "redaction": {
+    "replacements": 57,
+    "layers": {
+      "betterleaks": 11,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 21,
+      "credentialed_uri": 0,
+      "entropy": 30,
+      "key_context": 1,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
