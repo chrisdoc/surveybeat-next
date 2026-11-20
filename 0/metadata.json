@@ -1,0 +1,39 @@
+{
+  "cli_version": "0.13.4",
+  "checkpoint_id": "01M7W2W7PRV19CGF49GNX7QSF0",
+  "session_id": "01a1f819-6450-7542-ad3c-9f40cde399b5",
+  "strategy": "manual-commit",
+  "created_at": "2026-11-20T08:58:55.79403587Z",
+  "branch": "t3/r3-slack-only",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "SPEC.md"
+  ],
+  "agent": "Claude Code",
+  "model": "",
+  "turn_id": "38c7e7836785",
+  "token_usage": {
+    "input_tokens": 0,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 0,
+    "output_tokens": 0,
+    "api_call_count": 0
+  },
+  "redaction": {
+    "replacements": 2,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 2,
+      "credentialed_uri": 0,
+      "entropy": 0,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  },
+  "session_metrics": {
+    "turn_count": 2
+  }
+}

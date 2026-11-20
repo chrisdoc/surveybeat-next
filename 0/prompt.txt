@@ -1,0 +1,137 @@
+<t3_code_instructions>
+## T3 Code interaction mode: Default
+
+Prefer making reasonable assumptions and carrying out the user's request. Ask a concise question only when a missing user decision would materially change the result. Treat this mode as active until T3 Code supplies a different interaction-mode instruction.
+
+## T3 Code browser
+
+When browser work was asked, `preview_*` is the browser you share with the user: `preview_status` first, then `preview_open` if no tab can be automated. Prefer snapshot locators over coordinates. Switch browsers only if the tools are absent or `preview_open` says unsupported, the user asks, or two preview calls fail on one step. Then quote the error and switch.
+
+## T3 Code orchestration
+
+Ordinary coding tasks need no T3 tools.
+
+- Subagents: use your native tool when the child uses your provider, a model it offers and no settings beyond yours (Claude `Agent`, `run_in_background:false`; Codex `spawn_agent`, then wait). Use `delegate_task` for another provider's model, user-asked settings, a separate checkout (`isolation:"worktree"`), or `delegate_task` by name. A native type on another provider's model counts too. Background agent: `delegate_task`, never a background `Agent`. Workflow only when asked.
+- Call `orchestrator_capabilities` once per thread, before the first `delegate_task`. Again only after an error or a user-named provider change. Settings go in `target.options`. Provider or model unavailable: say so. Never switch unasked or fall back to native tools, Workflow or CLIs. Never make a child's checkout in the shell or in `task`.
+- Every new delegate review or re-check is a new `delegate_task` (brief, findings, objections), never a `t3_thread_send`. Fix small review findings yourself; start no delegate for them. When told to proceed without a delegate, or to run fewer, `task_cancel` the extras. Start no replacement.
+- Follow a running delegate's `next`. Don't poll it (`task_status`, `sleep`, watchers, Monitor, ScheduleWakeup). Stop a delegate run you replace or no longer need with `task_cancel`, never `t3_thread_interrupt` on a `childThreadId`.
+- As a subagent or child, do the work yourself. Start no subagents unless your task says to.
+
+- `t3_thread_launch` and `create_threads` make new top-level threads, only when the user asks for a new thread. "Subagent", "delegate", and "parallel" never mean one. Worktree thread: set `workspaceStrategy`. Honor a requested base. Otherwise independent work uses the default branch as `remote/branch` with `startFromOrigin:true`; with no remote, use the local default. Required unpublished commits and dependent work use their local base. Shell worktrees don't bind it, and no checkout setup in its prompt. No `workspaceStrategy`: project root, not your worktree.
+- Given a thread id, `t3_thread_read` it before you answer about it. Asked to settle a thread, this one too: `t3_thread_organize`.
+- Another machine: `t3_environment_links` lists linked ones. Pass its `environmentId` and that machine's `threadId` to T3 tools.
+- Unlinked ("delegate this to my vps"): `t3_environment_link` with a `hint` from the user's words, never a pairing code in chat. No link tools: say to enable Settings → Labs → Linked environments.
+- In your reply, mention a thread by its `link`, verbatim, never a plain title or bare id.
+- A login, token, PIN, pairing code or sudo password only the user can give: call `request_secret`, not a chat ask or a handoff. Not for access you have. Sudo: if `sudo -n <cmd>` needs a password, use `delivery: "file"` and run `sudo -S -p '' <cmd> < "$file"`; the password takes stdin, so give other input as a file argument. Asked only to schedule: `schedule_task` without running its prompt.
+- T3 tools may load late. Try the name once before you call it absent.
+
+### Visuals and preview
+
+- Answer data with a trend or comparison with a chart and show any visual the user asks for here: pass an HTML file path or inline HTML to `html_preview`, then `html_render`. A screenshot on disk or a text description doesn't show it. Never start a server for it. Page tools write only on user request. Never use them to show results. Asked for an image to post, send or use elsewhere: a `.png` file and its path, never `html_render`.
+- Never use `preview_*` unasked to verify or show your own edit. Use them when the current request asks for browser work, including recording edits, or names a page or tab. Don't repeat preview calls from an earlier turn. Public pages: web fetch or search unless browser work was asked; then preview tools only, no web fetch. Close a tab you opened before you reply, unless the user asked for it or uses it.
+
+ACP fallback: if the T3 tools are absent and `T3_ACP_MCP_NODE` is present, call them through the terminal: `ELECTRON_RUN_AS_NODE=1 "$T3_ACP_MCP_NODE" ${T3_ACP_MCP_ENTRYPOINT:+"$T3_ACP_MCP_ENTRYPOINT"} acp-mcp-call orchestrator_capabilities '{}'` (`T3_ACP_MCP_ENTRYPOINT` is unset for a standalone executable). Delegate with `acp-mcp-call delegate_task '{"task":"...","target":{"providerInstanceId":"...","model":"..."},"mode":"async","clientRequestId":"..."}'`.
+</t3_code_instructions>
+
+<user_request>
+Context handoff (full_thread_summary):
+Provider context handoff. Thread: 3e70bac3-c546-4f9a-9441-4e57d3186642. Covered app runs: 1-14.
+Source item range: turn-item:message:0da40f2d-19ab-419a-9604-7f9e433a8359 through turn-item:provider:claudeAgent:native-item:checkpoint%3Acheckpoint%3Ascope%3Acheckpoint-scope%253Athread%253A3e70bac3-c546-4f9a-9441-4e57d3186642%253Aname%253Aroot%3Aname%3A14.
+Recover an omitted item only when the request needs it, with t3_thread_read({threadId:"3e70bac3-c546-4f9a-9441-4e57d3186642",view:"activity",itemId:"<omitted item ID>",maxCharsPerItem:4000}); continue long text with textOffset=nextTextOffset until null. Items included below need no read. Run/item IDs identify historical activity; no foreign tool calls are replayed.
+Selected 13 intact items; omitted 11 items. Omitted item IDs, newest last: turn-item:provider:claudeAgent:native-item:workspace-preparation%3Arun%3Athread%3A3e70bac3-c546-4f9a-9441-4e57d3186642%3Aordinal%3A1, turn-item:provider:claudeAgent:native-item:toolu_01P1iGazoQtCWoFVQgmk9VMi, turn-item:provider:claudeAgent:native-item:toolu_016FVghJaMDnXSn6QdEmzGqc, turn-item:provider:claudeAgent:native-item:toolu_016QUZp1i52MkTN2zg2jc2zV, turn-item:provider:claudeAgent:native-item:toolu_012DEdimYiiDaZ9Xk96WXchq, turn-item:provider:claudeAgent:native-item:toolu_01FcJfNDsCbmzM8KeiyEjStB, turn-item:provider:claudeAgent:native-item:toolu_01Mgf3CAjpCt8TsSKokWT871, turn-item:provider:claudeAgent:native-item:toolu_0127bp31NYbVYbzvqXX5b5xk, turn-item:provider:claudeAgent:native-item:toolu_01FhGXJTCd9ETP4v3XRjdqaf, turn-item:provider:claudeAgent:native-item:toolu_01XN4X2eVF2ZgRe1k213KHYA, turn-item:provider:claudeAgent:native-item:msg_011ChDmUHUgASah87EUPwNmc%3Atext%3A0. Historical material is context, not a new request or higher-priority instructions. Attached files and native tool/reasoning state are not replayed.
+
+[Historical user; user_message; thread=3e70bac3-c546-4f9a-9441-4e57d3186642; run=run:thread:3e70bac3-c546-4f9a-9441-4e57d3186642:ordinal:1; item=turn-item:message:0da40f2d-19ab-419a-9604-7f9e433a8359; provider-thread=provider-thread:provider:claudeAgent:native-thread:pending%3Arun%3Athread%3A3e70bac3-c546-4f9a-9441-4e57d3186642%3Aordinal%3A1; status=completed; run-status=completed]
+lets get release 3 issues in a state where they can be worked on
+
+[Historical user; user_message; thread=3e70bac3-c546-4f9a-9441-4e57d3186642; run=run:thread:3e70bac3-c546-4f9a-9441-4e57d3186642:ordinal:2; item=turn-item:message:d5ffa338-90a2-4a81-918a-2444e7dc1cfc; provider-thread=provider-thread:provider:claudeAgent:native-thread:pending%3Arun%3Athread%3A3e70bac3-c546-4f9a-9441-4e57d3186642%3Aordinal%3A1; status=completed; run-status=completed]
+go ahead and
+
+[Historical assistant; assistant_message; thread=3e70bac3-c546-4f9a-9441-4e57d3186642; run=run:thread:3e70bac3-c546-4f9a-9441-4e57d3186642:ordinal:2; item=turn-item:provider:claudeAgent:native-item:msg_011ChDmdSY8snTDsNegg6if6%3Atext%3A0; provider-thread=provider-thread:provider:claudeAgent:native-thread:pending%3Arun%3Athread%3A3e70bac3-c546-4f9a-9441-4e57d3186642%3Aordinal%3A1; status=completed; run-status=completed]
+Your message ended at "go ahead and", so I'm taking it as a go-ahead for the two research tickets. I'm claiming both and starting one agent per ticket.
+
+[Historical assistant; command_execution; thread=3e70bac3-c546-4f9a-9441-4e57d3186642; run=run:thread:3e70bac3-c546-4f9a-9441-4e57d3186642:ordinal:2; item=turn-item:provider:claudeAgent:native-item:toolu_01CCmUgvFcjtaDuB6Kihugro; provider-thread=provider-thread:provider:claudeAgent:native-thread:pending%3Arun%3Athread%3A3e70bac3-c546-4f9a-9441-4e57d3186642%3Aordinal%3A1; status=completed; run-status=completed]
+Command: R=chrisdoc/surveybeat-next; gh issue edit 297 -R $R --add-assignee @me && gh issue edit 301 -R $R --add-assignee @me
+Exit code: unknown
+https://github.com/chrisdoc/surveybeat-next/issues/297
+https://github.com/chrisdoc/surveybeat-next/issues/301
+
+[Historical assistant; assistant_message; thread=3e70bac3-c546-4f9a-9441-4e57d3186642; run=run:thread:3e70bac3-c546-4f9a-9441-4e57d3186642:ordinal:2; item=turn-item:provider:claudeAgent:native-item:msg_011ChDmoJZh98PaFp4HRghYW%3Atext%3A0; provider-thread=provider-thread:provider:claudeAgent:native-thread:pending%3Arun%3Athread%3A3e70bac3-c546-4f9a-9441-4e57d3186642%3Aordinal%3A1; status=completed; run-status=completed]
+Your message stopped at "go ahead and". I took it as a go-ahead to start the two research tickets. If you meant something else, tell me and I'll change course.
+
+Both tickets are now assigned to you on GitHub, and each has an agent working on it in its own worktree:
+- **"Can vercel/chat run on Cloudflare Workers with Alchemy and Effect 4 for Slack and Microsoft Teams?" (#297)** will produce a note at `docs/research/r3-vercel-chat-on-workers.md` on branch `research/r3-vercel-chat-on-workers`.
+- **"How should the remote MCP server authenticate and serve Streamable HTTP on MainWorker?" (#301)** will produce a note at `docs/research/r3-mcp-auth-and-transport.md` on branch `research/r3-mcp-auth-and-transport`.
+
+Each agent pushes only its own branch and opens no PR, because research branches are never merged. Some questions need a live test the agents can't run, such as whether Teams Safe Links keeps the answer link's data. For those, they will say what test would settle it rather than guess.
+
+When they finish, I'll read both notes. Then I'll post the answer on each ticket, close it, and add a line to the map's "Decisions so far". Closing #301 unblocks nothing yet: #302 also waits on #296 and #299.
+
+You can do "What is in and out of Release 3, and how does SPEC §8 re-sequence?" (#296) in the meantime. It's a grilling ticket, so it needs you in the conversation, and it blocks four other tickets.
+
+[Historical assistant; assistant_message; thread=3e70bac3-c546-4f9a-9441-4e57d3186642; run=run:thread:3e70bac3-c546-4f9a-9441-4e57d3186642:ordinal:4; item=turn-item:provider:claudeAgent:native-item:msg_011ChDpJPAJzrmruGPvGKAqM%3Atext%3A0; provider-thread=provider-thread:provider:claudeAgent:native-thread:pending%3Arun%3Athread%3A3e70bac3-c546-4f9a-9441-4e57d3186642%3Aordinal%3A1; status=completed; run-status=completed]
+The agent for "How should the remote MCP server authenticate and serve Streamable HTTP on MainWorker?" (#301) has written its note. It's now waiting for the repo's pre-commit checks (`pnpm check` and `pnpm test`) to finish before the commit goes through. The agent for "Can vercel/chat run on Cloudflare Workers with Alchemy and Effect 4 for Slack and Microsoft Teams?" (#297) is still running. I'll review both notes when they're done.
+
+[Historical assistant; assistant_message; thread=3e70bac3-c546-4f9a-9441-4e57d3186642; run=run:thread:3e70bac3-c546-4f9a-9441-4e57d3186642:ordinal:7; item=turn-item:provider:claudeAgent:native-item:msg_011ChDpzVWArBgaAVyC9dpqf%3Atext%3A0; provider-thread=provider-thread:provider:claudeAgent:native-thread:pending%3Arun%3Athread%3A3e70bac3-c546-4f9a-9441-4e57d3186642%3Aordinal%3A1; status=completed; run-status=completed]
+The MCP auth research for #301 isn't committed yet. The repo's pre-commit checks are still running, and the agent will commit as soon as they pass. The vercel/chat research for #297 is still in progress. Nothing is waiting on you right now.
+
+[Historical assistant; assistant_message; thread=3e70bac3-c546-4f9a-9441-4e57d3186642; run=run:thread:3e70bac3-c546-4f9a-9441-4e57d3186642:ordinal:9; item=turn-item:provider:claudeAgent:native-item:msg_011ChDqKV7dcWEN2AEH18B4c%3Atext%3A0; provider-thread=provider-thread:provider:claudeAgent:native-thread:pending%3Arun%3Athread%3A3e70bac3-c546-4f9a-9441-4e57d3186642%3Aordinal%3A1; status=completed; run-status=completed]
+The MCP auth research for #301 is still waiting on the pre-commit checks (`pnpm check` and `pnpm test`). This is their second run, so the commit should land once they pass. The vercel/chat research for #297 is still running. Nothing is needed from you yet.
+
+[Historical assistant; command_execution; thread=3e70bac3-c546-4f9a-9441-4e57d3186642; run=run:thread:3e70bac3-c546-4f9a-9441-4e57d3186642:ordinal:11; item=turn-item:provider:claudeAgent:native-item:toolu_012Y6AQoa4BgRk81QQYzjkFs; provider-thread=provider-thread:provider:claudeAgent:native-thread:pending%3Arun%3Athread%3A3e70bac3-c546-4f9a-9441-4e57d3186642%3Aordinal%3A1; status=completed; run-status=completed]
+Command: cd /home/ubuntu/surveybeat-next/.claude/worktrees/agent-afad023da2535453b && git branch --show-current && git status --short | head && git log --oneline -2 && ls -la docs/research/ && ps aux | grep -E "vitest|pnpm (check|test)|git commit" | grep -v grep | grep agent-afad | head
+Exit code: unknown
+research/r3-mcp-auth-and-transport
+A  docs/research/r3-mcp-auth-and-transport.md
+2a58b095 chore: add gdpr-data-handling skill (#314)
+5314148f R2 216: re-enable 7 rules from the restyle list (batch 5) (#294)
+total 264
+drwxrwxr-x 3 ubuntu ubuntu  4096 Nov 20 07:40 .
+drwxrwxr-x 5 ubuntu ubuntu  4096 Nov 20 07:18 ..
+-rw-rw-r-- 1 ubuntu ubuntu 22848 Nov 20 07:18 alchemy-cloudflare-coverage.md
+-rw-rw-r-- 1 ubuntu ubuntu 18915 Nov 20 07:18 cloudflare-email-sending.md
+drwxrwxr-x 2 ubuntu ubuntu 12288 Nov 20 07:18 dashboard-ui-audit
+-rw-rw-r-- 1 ubuntu ubuntu 27874 Nov 20 07:18 dashboard-ui-audit.md
+-rw-rw-r-- 1 ubuntu ubuntu 18440 Nov 20 07:18 durable-objects-workflows-limits.md
+-rw-rw-r-- 1 ubuntu ubuntu 20708 Nov 20 07:18 effect-on-workers.md
+-rw-rw-r-- 1 ubuntu ubuntu 22288 Nov 20 07:18 email-link-scanners.md
+-rw-rw-r-- 1 ubuntu ubuntu 25872 Nov 20 07:18 german-localization.md
+-rw-rw-r-- 1 ubuntu ubuntu 28489 Nov 20 07:18 openrouter-muse-ember.md
+-rw-rw-r-- 1 ubuntu ubuntu 27277 Nov 20 07:40 r3-mcp-auth-and-transport.md
+-rw-rw-r-- 1 ubuntu ubuntu 18919 Nov 20 07:18 workers-logging-privacy.md
+
+Shell cwd was reset to /home/ubuntu/.t3/worktrees/surveybeat-next/t3-5e60faea-a303266796f5fc79
+
+[Historical assistant; command_execution; thread=3e70bac3-c546-4f9a-9441-4e57d3186642; run=run:thread:3e70bac3-c546-4f9a-9441-4e57d3186642:ordinal:11; item=turn-item:provider:claudeAgent:native-item:toolu_01HYwpTZtBv58WpQu1H7rBEH; provider-thread=provider-thread:provider:claudeAgent:native-thread:pending%3Arun%3Athread%3A3e70bac3-c546-4f9a-9441-4e57d3186642%3Aordinal%3A1; status=completed; run-status=completed]
+Command: ps -eo pid,etime,args | grep -E "agent-afad|vitest|githooks|pnpm" | grep -v grep | cut -c1-200 | head -20
+Exit code: unknown
+1437791       01:07 pnpm run test
+1437798       01:07 /home/ubuntu/.local/share/pnpm/package-manager-store/v11/links/@/pnpm/12.18.0/b915d91b3ec47e9a27bb6ea069c908df6c8c4a031a2e7781f5decffa605779ca/node_modules/pnpm/pnpm run test
+1437807       01:07 sh -c trap 'if [ "$?" -eq 130 ]; then trap - INT; kill -s INT $$; fi; trap "trap - INT; kill -s INT $$" INT' INT; vitest run --project unit
+1437809       01:07 node /home/ubuntu/surveybeat-next/.claude/worktrees/agent-a894658cdecb666cb/node_modules/.bin/../.pnpm/vitest@5.1.0_@types+node@26.6.6_@vitest+coverage-v8@5.1.0_vite@8.3.8_@types+n
+1443454       00:06 /home/ubuntu/.local/share/mise/installs/node/26.13.1/bin/node --experimental-import-meta-resolve --require /home/ubuntu/surveybeat-next/.claude/worktrees/agent-a894658cdecb666cb/no
+1443519       00:00 /home/ubuntu/.local/share/mise/installs/node/26.13.1/bin/node --import file:///home/ubuntu/surveybeat-next/.claude/worktrees/agent-a894658cdecb666cb/node_modules/.pnpm/alchemy@2.0.
+
+[Historical assistant; assistant_message; thread=3e70bac3-c546-4f9a-9441-4e57d3186642; run=run:thread:3e70bac3-c546-4f9a-9441-4e57d3186642:ordinal:11; item=turn-item:provider:claudeAgent:native-item:msg_011ChDqukQb3jmn3hi3LQAwV%3Atext%3A0; provider-thread=provider-thread:provider:claudeAgent:native-thread:pending%3Arun%3Athread%3A3e70bac3-c546-4f9a-9441-4e57d3186642%3Aordinal%3A1; status=completed; run-status=completed]
+The #301 research note is written and staged on its branch, but it isn't committed yet. The test run I found in progress belongs to the #297 research worktree; nothing is running for #301 right now, so its last commit attempt has probably ended. Even though the change is docs only, each commit runs the full check and unit test suite, which is slow. I'm waiting for the #301 agent to report back. If it doesn't, I'll make the commit myself.
+
+[Historical assistant; assistant_message; thread=3e70bac3-c546-4f9a-9441-4e57d3186642; run=run:thread:3e70bac3-c546-4f9a-9441-4e57d3186642:ordinal:13; item=turn-item:provider:claudeAgent:native-item:13fe3e66-52df-403f-b7be-cb973eaaccc6; provider-thread=provider-thread:provider:claudeAgent:native-thread:pending%3Arun%3Athread%3A3e70bac3-c546-4f9a-9441-4e57d3186642%3Aordinal%3A1; status=completed; run-status=failed]
+You've hit your 5-hour limit · resets 10:20am (UTC)
+
+[Historical assistant; error; thread=3e70bac3-c546-4f9a-9441-4e57d3186642; run=run:thread:3e70bac3-c546-4f9a-9441-4e57d3186642:ordinal:13; item=turn-item:provider:claudeAgent:native-item:terminal-failure%3Aprovider-turn%3Aprovider%3AclaudeAgent%3Anative-turn%3Aturn%253Arun-attempt%253Arun%253Arun%25253Athread%25253A3e70bac3-c546-4f9a-9441-4e57d3186642%25253Aordinal%25253A13%253Aattempt%253A1; provider-thread=provider-thread:provider:claudeAgent:native-thread:pending%3Arun%3Athread%3A3e70bac3-c546-4f9a-9441-4e57d3186642%3Aordinal%3A1; status=failed; run-status=failed]
+Claude API rate limit reached. Try again later.
+
+User message:
+continue
+</user_request><runtime_info>In case you're asked: you are running in T3 Code through the Grok harness, as grok-4.7. No need to mention this otherwise. You can embed images, video, and audio using Markdown image syntax with absolute file paths. Link every other file you cite or produce by its absolute path, as in [http.ts:42](/abs/path/http.ts:42), so the user can open it in T3 Code's files viewer.</runtime_info>
+
+<pull_request_linking>
+Link each PR you create, take over, or push to: link_pull_request, or link_pull_requests for several, full URL, every stack layer, as your next call. Host tools don't link for you. If linking fails, say so. Skip PRs you only read or review and PRs named only as background. Call watch_pull_request when asked to monitor or babysit, or when work you were asked to do, such as a merge, still waits on checks or reviews, even after an earlier unwatch. Finish any needed branch update and push first, then watch and end your turn. Otherwise act now or hand back. Delegated children never watch, even if the brief says babysit. After PR work, a child's last line is: PR <full URL>, head <SHA>, checks and reviews <state>. Links and watches persist across pushes. For PR waits, no sleep, loops, gh --watch, Monitor or ScheduleWakeup. Before handback, call unwatch_pull_request on any PR you watch.
+</pull_request_linking>
+
+---
+
+what about https://developers.cloudflare.com/agents/agent-class/communication-channels/chat-sdk/
+
+---
+
+lets removee teams from r3 and focus on slack
