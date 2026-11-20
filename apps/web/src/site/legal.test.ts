@@ -77,6 +77,11 @@ describe("privacy notice content", () => {
     expect(text).toContain("Question text is sent as written");
     expect(text).toContain("erasing that record is not available yet");
     expect(text).toContain("changes the code to start logging");
+    expect(text).toContain("does not grant access to any Team's Results");
+    expect(text).toContain("only if they have a Membership in that Team");
+    expect(text).not.toContain("An Organization admin sees no Team's Results");
+    expect(text).toContain("Invitation tokens and Edit keys are stored only as hashes");
+    expect(text).not.toContain("Tokens are stored only as hashes");
   });
 });
 

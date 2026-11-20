@@ -95,7 +95,7 @@ export const legalPrivacyCatalog = {
     "SurveyBeat makes no decision about you based only on automated processing that has legal or similarly significant effects (Article 22).",
   "legal.privacy.s07.title": "Who receives data",
   "legal.privacy.s07.p1":
-    "Your Organization's Leads and admins see what their role allows. A Lead sees combined Results, never who answered what. An Organization admin sees no Team's Results.",
+    "Your Organization's Leads and admins see what their role allows. A Lead sees combined Results, never who answered what. Being an Organization admin does not grant access to any Team's Results. An admin sees a Team's Results only if they have a Membership in that Team.",
   "legal.privacy.s07.p2":
     "SurveyBeat uses processors to run the service: Cloudflare, Inc. for hosting, storage and email delivery, and, only when an Organization admin turns on AI processing, OpenRouter, Inc., which routes the call to Google Cloud (google-vertex/europe) or Amazon Web Services (amazon-bedrock/eu-west-1). The Sub-processors page names each one, with its purpose, location and transfer basis.",
   "legal.privacy.s08.title": "Transfers outside the EU and EEA",
@@ -148,7 +148,7 @@ export const legalPrivacyCatalog = {
     "You can complain to a data protection supervisory authority, in particular in the EU Member State where you live or work or where you think the GDPR was breached. The European Data Protection Board lists the authorities at edpb.europa.eu. We would like to hear from you first, so we can put it right.",
   "legal.privacy.s12.title": "Security",
   "legal.privacy.s12.p1":
-    "Each Organization's data sits in its own Durable Object, and Organizations never share records. Tokens are stored only as hashes. Traffic is encrypted in transit and storage is encrypted at rest by Cloudflare. Nothing below the minimum group size is shown. It is {groupSize} by default and an Organization can raise it, never below {minimum}. The Data Processing Agreement lists the measures in full.",
+    "Each Organization's data sits in its own Durable Object, and Organizations never share records. Invitation tokens and Edit keys are stored only as hashes. Traffic is encrypted in transit and storage is encrypted at rest by Cloudflare. Nothing below the minimum group size is shown. It is {groupSize} by default and an Organization can raise it, never below {minimum}. The Data Processing Agreement lists the measures in full.",
   "legal.privacy.s13.title": "Changes to this notice",
   "legal.privacy.s13.p1":
     "When we change this notice in a way that matters to you, we update the date above and tell Organization admins by email before the change takes effect.",
