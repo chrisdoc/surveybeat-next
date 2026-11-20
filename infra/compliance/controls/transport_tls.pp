@@ -169,7 +169,9 @@ control "zone_hsts_enabled" {
         z.id,
         z.name,
         case
-          when s.value is not null and s.value ~ '^\\s*\\{' then s.value::jsonb -> 'strict_transport_security'
+          when s.value is null then null
+          when s.value ~ '^\s*\{"' then s.value::jsonb -> 'strict_transport_security'
+          when s.value ~ 'StrictTransportSecurity:\{raw:\{' then substring(s.value from 'StrictTransportSecurity:\{raw:(\{[^}]+\})')::jsonb
           else null
         end as hsts
       from

@@ -2,7 +2,14 @@
 
 import * as Cloudflare from "@alchemy.run/cloudflare";
 import { SurveyBeatApi } from "@surveybeat/api";
-import { Database, MainWorker, ProductionEmail, SiteWorker, SubmissionWorker } from "@surveybeat/cloudflare";
+import {
+  Database,
+  MainWorker,
+  ProductionEmail,
+  SiteWorker,
+  SubmissionWorker,
+  ZoneSecurity,
+} from "@surveybeat/cloudflare";
 import * as Alchemy from "alchemy";
 import * as Secrets from "alchemy/Secrets";
 import { Stack } from "alchemy/Stack";
@@ -40,6 +47,7 @@ export default Alchemy.Stack(
     const site = yield* SiteWorker;
 
     const sending = yield* ProductionEmail;
+    yield* ZoneSecurity;
 
     return {
       databaseId: database.databaseId,

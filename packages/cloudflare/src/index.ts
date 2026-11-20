@@ -9,3 +9,5 @@ export { default as SiteWorker } from "./SiteWorker.ts";
 export { default as SubmissionWorker } from "./SubmissionWorker.ts";
 
 export { ProductionEmail } from "./Email.ts";
+
+export { ZoneSecurity } from "./ZoneSecurity.ts";
