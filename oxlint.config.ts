@@ -208,6 +208,7 @@ export default defineConfig({
     "no-comments/no-comments": "error",
     "no-comments/directive-reason": "error",
     "landmines-style/no-comments": "off",
+    "max-lines": ["error", { max: 1000, skipBlankLines: false, skipComments: false }],
     "typescript/no-floating-promises": "error",
     "typescript/no-misused-promises": "error",
     "typescript/no-explicit-any": "error",
