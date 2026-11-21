@@ -14,7 +14,7 @@ const address = "person@example.com";
 const sessionValue = (response: Response): string => {
   const pair = (response.headers.get("set-cookie") ?? "").split(";")[0] ?? "";
 
-  return pair.slice(`${SESSION_COOKIE}=`.length);
+  return decodeURIComponent(pair.slice(`${SESSION_COOKIE}=`.length));
 };
 
 const signedIn = () =>
@@ -87,6 +87,15 @@ describe("Better Auth identity provider", () => {
     Effect.gen(function* () {
       const { provider } = yield* signedIn();
       const refused = yield* provider.authenticate(Redacted.make("not-a-session-token")).pipe(Effect.flip);
+      expect(refused._tag).toBe("Unauthenticated");
+    }),
+  );
+
+  it.effect("refuses a still-URL-encoded cookie value", () =>
+    Effect.gen(function* () {
+      const { provider, value } = yield* signedIn();
+      const stillEncoded = encodeURIComponent(value);
+      const refused = yield* provider.authenticate(Redacted.make(stillEncoded)).pipe(Effect.flip);
       expect(refused._tag).toBe("Unauthenticated");
     }),
   );

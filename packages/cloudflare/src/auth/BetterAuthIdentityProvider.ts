@@ -17,13 +17,16 @@ import * as Redacted from "effect/Redacted";
 
 const authOrigin = "http://localhost:5173";
 
+const cookieHeader = (cookie: Redacted.Redacted): string =>
+  `${SESSION_COOKIE}=${encodeURIComponent(Redacted.value(cookie))}`;
+
 const authRequest = (path: string, body: unknown, cookie?: Redacted.Redacted) =>
   new Request(`${authOrigin}${path}`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
       origin: authOrigin,
-      ...(cookie === undefined ? {} : { cookie: `${SESSION_COOKIE}=${Redacted.value(cookie)}` }),
+      ...(cookie === undefined ? {} : { cookie: cookieHeader(cookie) }),
     },
     body: JSON.stringify(body),
   });
@@ -97,7 +100,7 @@ export const betterAuthIdentityProvider = (params: {
       Effect.tryPromise({
         try: () =>
           params.auth.api.getSession({
-            headers: new Headers({ cookie: `${SESSION_COOKIE}=${Redacted.value(cookie)}` }),
+            headers: new Headers({ cookie: cookieHeader(cookie) }),
           }),
         catch: () => new AuthUnavailable(),
       }).pipe(
