@@ -43,6 +43,7 @@ import {
   subSectionTitle,
   textField,
   breadcrumbs,
+  loadingView,
 } from "./components.ts";
 import type { LoadedTeam } from "./directory.ts";
 import { dimensionName } from "./pulses.ts";
@@ -82,7 +83,7 @@ export const LoadedNote = defineTaggedUnion({
 
 export type LoadedNote = typeof LoadedNote.Type;
 
-const smallHeading = "text-[13px] font-semibold text-muted";
+const smallHeading = "text-xs font-semibold tracking-[0.04em] text-muted uppercase";
 
 export const GuideCopy = Schema.Literals(["idle", "copied", "failed"]);
 
@@ -136,7 +137,7 @@ export const resultsScreenView = <Message>(
   h: HtmlBuilder<Message>,
 ): Html => {
   if (state.results._tag === "Loading") {
-    return h.p([h.Class("text-muted")], [message("app.loading")]);
+    return loadingView(h, "results");
   }
 
   if (state.results._tag === "Failed") {
@@ -168,9 +169,9 @@ export const resultsScreenView = <Message>(
       ],
       h,
     ),
-    h.div([h.Class("mt-4")], [pageTitle(message("results.title"), h)]),
+    h.div([h.Class("mt-1")], [pageTitle(message("results.title"), h)]),
     h.p(
-      [h.Class("mt-1 text-muted")],
+      [h.Class("-mt-2 text-muted")],
       [
         result.pulseName === undefined
           ? teamName
@@ -221,7 +222,11 @@ export const resultsScreenView = <Message>(
   if (summary !== null) {
     children.push(
       h.p(
-        [h.Class("mt-6 font-display text-[26px] leading-[1.25] tracking-tight text-ink sm:text-[32px]")],
+        [
+          h.Class(
+            "max-w-none rounded-panel border border-line border-l-4 border-l-primary bg-surface px-5 py-4 font-display text-[19px] leading-[1.4] font-medium tracking-[-0.01em] text-ink shadow-card sm:text-[21px]",
+          ),
+        ],
         [summary],
       ),
     );
@@ -500,7 +505,7 @@ export const resultsScreenView = <Message>(
   }
 
   const actionsNode = h.section(
-    [h.Class("mt-8")],
+    [h.Class("mt-6")],
     [
       darkPanel(
         [
@@ -594,59 +599,63 @@ export const resultsScreenView = <Message>(
   if (result.dimensions.length > 0) {
     children.push(
       h.section(
-        [h.Class("mt-8 flex flex-col gap-4")],
+        [h.Class("mt-6 flex flex-col gap-4")],
         [
           sectionTitle(message("results.dimensionsTitle"), h),
-          ...result.dimensions.map((dim: DimensionResult) => {
-            const dimKey = `dim-${dim.dimension}`;
-            const isTable = state.showTable[dimKey] ?? false;
+          h.div(
+            [h.Class("grid gap-4 md:grid-cols-2")],
+            result.dimensions.map((dim: DimensionResult) => {
+              const dimKey = `dim-${dim.dimension}`;
+              const isTable = state.showTable[dimKey] ?? false;
 
-            const shown =
-              dim.meetsMinimumGroupSize && dim.contributors !== undefined && dim.contributors !== null;
+              const shown =
+                dim.meetsMinimumGroupSize && dim.contributors !== undefined && dim.contributors !== null;
 
-            return panel(
-              [
-                h.div(
-                  [h.Class("flex items-baseline justify-between gap-4")],
-                  [
-                    subSectionTitle(dimensionName(dim.dimension), h),
-                    scoreView(
-                      dim.score !== null ? scoreOfFive(dim.score) : message("results.subNPlaceholder"),
-                      h,
-                    ),
-                  ],
-                ),
-                dim.contributors !== undefined && dim.contributors !== null
-                  ? shown
-                    ? protectionLine(dim.contributors, minimum, h)
-                    : h.p(
-                        [h.Class("text-[13px] text-muted")],
-                        [pluralMessage("results.contributors", dim.contributors)],
-                      )
-                  : null,
-                changeView(dim.change, h),
-                highlightBadge(dim.change?.highlight ?? null, dim.typicalChange, h),
-                baselineNote(dim.typicalChange, h),
-                h.div(
-                  [h.Class("mt-4 rounded-control bg-subtle p-4")],
-                  [
-                    h.div(
-                      [h.Class("flex items-center justify-between")],
-                      [
-                        h.h4([h.Class(smallHeading)], [trendTitle(dim.trend.length)]),
-                        toggleButton(isTable, callbacks.onToggleTable(dimKey), h),
-                      ],
-                    ),
-                    isTable
-                      ? trendTable(dim.trend, h)
-                      : trendChart(dim.trend, h, dim.change?.highlight?.isLargerThanUsual === true),
-                  ],
-                ),
-              ].filter(Predicate.isNotNull),
-              h,
-              "flex flex-col gap-2",
-            );
-          }),
+              return panel(
+                [
+                  h.div(
+                    [h.Class("flex items-baseline justify-between gap-4")],
+                    [
+                      subSectionTitle(dimensionName(dim.dimension), h),
+                      scoreView(
+                        dim.score !== null ? scoreOfFive(dim.score) : message("results.subNPlaceholder"),
+                        h,
+                        dim.score !== null,
+                      ),
+                    ],
+                  ),
+                  dim.contributors !== undefined && dim.contributors !== null
+                    ? shown
+                      ? protectionLine(dim.contributors, minimum, h)
+                      : h.p(
+                          [h.Class("text-[13px] text-muted")],
+                          [pluralMessage("results.contributors", dim.contributors)],
+                        )
+                    : null,
+                  changeView(dim.change, h),
+                  highlightBadge(dim.change?.highlight ?? null, dim.typicalChange, h),
+                  baselineNote(dim.typicalChange, h),
+                  h.div(
+                    [h.Class("mt-auto rounded-control bg-subtle px-3 pt-2 pb-3")],
+                    [
+                      h.div(
+                        [h.Class("flex items-center justify-between")],
+                        [
+                          h.h4([h.Class(smallHeading)], [trendTitle(dim.trend.length)]),
+                          toggleButton(isTable, callbacks.onToggleTable(dimKey), h),
+                        ],
+                      ),
+                      isTable
+                        ? trendTable(dim.trend, h)
+                        : trendChart(dim.trend, h, dim.change?.highlight?.isLargerThanUsual === true),
+                    ],
+                  ),
+                ].filter(Predicate.isNotNull),
+                h,
+                "flex flex-col gap-2",
+              );
+            }),
+          ),
         ],
       ),
     );
@@ -655,7 +664,7 @@ export const resultsScreenView = <Message>(
   if (result.questions.length > 0) {
     children.push(
       h.section(
-        [h.Class("mt-8 flex flex-col gap-4")],
+        [h.Class("mt-6 flex flex-col gap-4")],
         [
           sectionTitle(message("results.questionsTitle"), h),
           ...result.questions.map((q: QuestionResult) => {
@@ -671,9 +680,9 @@ export const resultsScreenView = <Message>(
             return panel(
               [
                 h.div(
-                  [h.Class("flex items-start justify-between gap-4")],
+                  [h.Class("flex flex-col items-start gap-2 sm:flex-row sm:justify-between sm:gap-6")],
                   [
-                    subSectionTitle(q.text, h),
+                    h.div([h.Class("min-w-0 flex-1")], [subSectionTitle(q.text, h)]),
                     scoreView(
                       q.score !== null
                         ? scoreOfFive(q.score)
@@ -681,6 +690,7 @@ export const resultsScreenView = <Message>(
                           ? message("results.dash")
                           : message("results.subNQuestion", { n: String(minimum) }),
                       h,
+                      q.score !== null || q.meetsMinimumGroupSize,
                     ),
                   ],
                 ),
@@ -694,33 +704,43 @@ export const resultsScreenView = <Message>(
                 highlightBadge(q.change?.highlight ?? null, q.typicalChange, h),
                 baselineNote(q.typicalChange, h),
 
-                q.distribution !== null && q.distribution.length > 0
-                  ? h.div(
-                      [h.Class("mt-2 rounded-control bg-subtle p-4")],
-                      [
-                        h.h4([h.Class(`mb-1 ${smallHeading}`)], [message("results.distributionTitle")]),
-                        isTable ? distributionTable(q.distribution, h) : distributionChart(q.distribution, h),
-                      ],
-                    )
-                  : null,
-
-                q.type._tag === "Rating" && q.trend.length > 0
-                  ? h.div(
-                      [h.Class("mt-2 rounded-control bg-subtle p-4")],
-                      [
-                        h.div(
-                          [h.Class("flex items-center justify-between")],
+                h.div(
+                  [h.Class("mt-2 grid gap-3 md:grid-cols-2")],
+                  [
+                    q.distribution !== null && q.distribution.length > 0
+                      ? h.div(
+                          [h.Class("rounded-control bg-subtle p-3")],
                           [
-                            h.h4([h.Class(smallHeading)], [trendTitle(q.trend.length)]),
-                            toggleButton(isTable, callbacks.onToggleTable(qKey), h),
+                            h.h4(
+                              [h.Class(`mb-2 min-h-11 content-center ${smallHeading}`)],
+                              [message("results.distributionTitle")],
+                            ),
+                            isTable
+                              ? distributionTable(q.distribution, h)
+                              : distributionChart(q.distribution, h),
                           ],
-                        ),
-                        isTable
-                          ? trendTable(q.trend, h)
-                          : trendChart(q.trend, h, q.change?.highlight?.isLargerThanUsual === true),
-                      ],
-                    )
-                  : null,
+                        )
+                      : null,
+
+                    q.type._tag === "Rating" && q.trend.length > 0
+                      ? h.div(
+                          [h.Class("rounded-control bg-subtle px-3 pt-0 pb-3")],
+                          [
+                            h.div(
+                              [h.Class("flex items-center justify-between")],
+                              [
+                                h.h4([h.Class(smallHeading)], [trendTitle(q.trend.length)]),
+                                toggleButton(isTable, callbacks.onToggleTable(qKey), h),
+                              ],
+                            ),
+                            isTable
+                              ? trendTable(q.trend, h)
+                              : trendChart(q.trend, h, q.change?.highlight?.isLargerThanUsual === true),
+                          ],
+                        )
+                      : null,
+                  ].filter(Predicate.isNotNull),
+                ),
                 answers.length > 0
                   ? h.div(
                       [h.Class("mt-2 flex flex-col gap-2")],
@@ -730,7 +750,7 @@ export const resultsScreenView = <Message>(
                           h.blockquote(
                             [
                               h.Class(
-                                "m-0 rounded-[16px] border border-line bg-surface px-4 py-3 text-[15px] leading-relaxed",
+                                "m-0 rounded-control border border-line bg-subtle px-4 py-3 text-[15px] leading-relaxed",
                               ),
                             ],
                             [answer.text],
@@ -762,17 +782,17 @@ export const resultsScreenView = <Message>(
   if (remainingComments.length > 0) {
     children.push(
       h.section(
-        [h.Class("mt-8 flex flex-col gap-3")],
+        [h.Class("mt-6 flex flex-col gap-3")],
         [
           sectionTitle(message("results.commentsTitle"), h),
-          h.p([h.Class("text-muted")], [message("results.commentsIntro")]),
+          h.p([h.Class("text-sm text-muted")], [message("results.commentsIntro")]),
           h.div(
-            [h.Class("mt-2 flex flex-col gap-3")],
+            [h.Class("mt-1 grid gap-3 sm:grid-cols-2")],
             remainingComments.map((c: { readonly questionVersionId: string; readonly text: string }) =>
               h.blockquote(
                 [
                   h.Class(
-                    "m-0 rounded-[16px] border border-line bg-surface px-6 py-5 text-[17px] leading-relaxed",
+                    "m-0 rounded-panel border border-line border-l-4 border-l-mint bg-surface px-4 py-3 text-[15px] leading-relaxed shadow-card",
                   ),
                 ],
                 [c.text],

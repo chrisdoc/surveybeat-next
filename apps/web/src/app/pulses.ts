@@ -25,12 +25,14 @@ import { formatDuration, formatNumber, formatRoundDate, message, pluralMessage }
 import { Failure } from "./api.ts";
 import {
   appButton,
+  backLink,
   badge,
   buttonClass,
   checkboxField,
   emptyState,
   dangerLinkButton,
-  linkButton,
+  cardLinkClass,
+  loadingView,
   pageTitle,
   problemView,
   secondaryButtonClass,
@@ -39,7 +41,6 @@ import {
   textField,
   textareaField,
   breadcrumbs,
-  linkClass,
 } from "./components.ts";
 import type { Child } from "./components.ts";
 import { pulseHref, roundsHref, teamHref } from "./routes.ts";
@@ -247,9 +248,7 @@ export const pulsesScreenView = <Message>(
   },
   h: HtmlBuilder<Message>,
 ): Html => {
-  const children: Child[] = [
-    h.a([h.Href(teamHref(state.teamId)), h.Class(linkClass)], [message("pulses.back")]),
-  ];
+  const children: Child[] = [backLink(teamHref(state.teamId), message("pulses.back"), h)];
 
   if (state.pulses._tag === "Failed") {
     children.push(problemView(state.pulses.failure, h));
@@ -281,7 +280,7 @@ export const pulsesScreenView = <Message>(
                 [
                   h.Href(pulseHref(state.teamId, pulse.id)),
                   h.Class(
-                    "flex min-h-11 flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-panel border border-line bg-surface px-6 py-4 font-semibold hover:border-primary",
+                    `flex-wrap items-center justify-between gap-x-4 gap-y-1 px-5 py-4 font-semibold ${cardLinkClass}`,
                   ),
                 ],
                 [
@@ -318,7 +317,13 @@ export const pulsesScreenView = <Message>(
                           ),
                     ].filter(Predicate.isNotNull),
                   ),
-                  h.span([h.AriaHidden(true), h.Class("text-xl text-muted")], ["›"]),
+                  h.span(
+                    [
+                      h.AriaHidden(true),
+                      h.Class("text-xl text-muted transition-transform group-hover:translate-x-0.5"),
+                    ],
+                    ["›"],
+                  ),
                 ],
               ),
             ],
@@ -377,7 +382,9 @@ export const questionFormView = <Message>(
 ): Html =>
   h.form(
     [
-      h.Class("mt-4 flex flex-col gap-4 rounded-panel border border-line bg-subtle p-6"),
+      h.Class(
+        "mt-4 flex flex-col gap-4 rounded-panel border border-primary/30 bg-surface p-5 shadow-raised sm:p-6",
+      ),
       h.OnSubmit(actions.onSubmit),
     ],
     [
@@ -574,17 +581,21 @@ export const pulseEditorView = <Message>(
   }
 
   if (state.pulse._tag !== "Loaded") {
+    children.push(loadingView(h));
+
     return h.section([], children);
   }
 
   const { detail } = state.pulse;
   children.push(
-    h.div([h.Class("mt-4")], [pageTitle(detail.settings.name, h)]),
-    h.p([h.Class("mt-2 text-muted")], [detail.team.name]),
+    h.div([h.Class("mt-1")], [pageTitle(detail.settings.name, h)]),
+    h.p([h.Class("mt-1 text-muted")], [detail.team.name]),
   );
 
   if (detail.team.yourRole === "lead") {
-    const tabClass = "inline-flex min-h-11 items-center border-b-2 px-3 text-sm font-semibold";
+    const tabClass =
+      "-mb-px inline-flex min-h-11 items-center border-b-2 px-4 text-sm font-semibold transition-colors";
+
     children.push(
       h.nav(
         [h.Class("mt-4 flex gap-1 border-b border-line")],
@@ -627,7 +638,11 @@ export const pulseEditorView = <Message>(
         [h.Class("mt-3 flex flex-col gap-2")],
         detail.warnings.map((warning) =>
           h.li(
-            [h.Class("rounded-control bg-brass-soft px-4 py-3 text-sm text-brass")],
+            [
+              h.Class(
+                "rounded-control border border-brass/20 bg-brass-soft px-4 py-3 text-sm font-medium text-brass",
+              ),
+            ],
             [warningMessage(warning)],
           ),
         ),
@@ -635,7 +650,15 @@ export const pulseEditorView = <Message>(
     );
   }
 
-  children.push(h.div([h.Class("mt-8")], [subSectionTitle(message("pulse.questions"), h, 2)]));
+  children.push(
+    h.div(
+      [h.Class("mt-8 flex items-baseline gap-2 border-b border-line pb-3")],
+      [
+        subSectionTitle(message("pulse.questions"), h, 2),
+        h.span([h.Class("text-sm text-muted tabular-nums")], [String(detail.questions.length)]),
+      ],
+    ),
+  );
   const orderLength = detail.questions.length;
   children.push(
     h.ol(
@@ -645,10 +668,10 @@ export const pulseEditorView = <Message>(
           Option.isSome(state.editingQuestionId) && state.editingQuestionId.value === question.questionId;
 
         return h.li(
-          [h.Class("rounded-panel border border-line bg-surface px-6 py-4")],
+          [h.Class("rounded-panel border border-line bg-surface px-4 py-3 shadow-card sm:px-5")],
           [
             h.p(
-              [h.Class("font-medium")],
+              [h.Class("pt-1 font-semibold")],
               [message("pulse.question.numbered", { number: index + 1, text: question.text })],
             ),
             h.p(
@@ -662,14 +685,15 @@ export const pulseEditorView = <Message>(
               ],
             ),
             h.div(
-              [h.Class("mt-1 flex flex-wrap gap-x-4")],
+              [h.Class("mt-1 -ml-2.5 flex flex-wrap gap-x-1")],
               [
                 appButton(
                   {
                     text: message("pulse.question.up"),
                     icon: "↑",
                     isDisabled: state.actionBusy || index === 0,
-                    className: linkButton,
+                    className:
+                      "inline-flex min-h-11 items-center gap-1 rounded-control px-2.5 text-sm font-semibold text-muted transition-colors hover:bg-subtle hover:text-ink disabled:opacity-40",
                     onClick: actions.onMoveQuestion(index, -1),
                   },
                   h,
@@ -679,7 +703,8 @@ export const pulseEditorView = <Message>(
                     text: message("pulse.question.down"),
                     icon: "↓",
                     isDisabled: state.actionBusy || index === orderLength - 1,
-                    className: linkButton,
+                    className:
+                      "inline-flex min-h-11 items-center gap-1 rounded-control px-2.5 text-sm font-semibold text-muted transition-colors hover:bg-subtle hover:text-ink disabled:opacity-40",
                     onClick: actions.onMoveQuestion(index, 1),
                   },
                   h,
@@ -691,7 +716,8 @@ export const pulseEditorView = <Message>(
                         text: message("pulse.question.edit"),
                         icon: "✎",
                         isDisabled: state.actionBusy,
-                        className: linkButton,
+                        className:
+                          "inline-flex min-h-11 items-center gap-1 rounded-control px-2.5 text-sm font-semibold text-muted transition-colors hover:bg-subtle hover:text-ink disabled:opacity-40",
                         onClick: actions.onToggleEditQuestion(
                           isEditing ? Option.none() : Option.some(question.questionId),
                         ),
@@ -749,19 +775,22 @@ export const pulseEditorView = <Message>(
 
   if (detail.templateQuestions.length > 0) {
     children.push(
-      h.div([h.Class("mt-8")], [subSectionTitle(message("pulse.template.title"), h, 2)]),
+      h.div(
+        [h.Class("mt-8 border-b border-line pb-3")],
+        [subSectionTitle(message("pulse.template.title"), h, 2)],
+      ),
       h.ul(
         [h.Class("mt-3 flex flex-col gap-3")],
         detail.templateQuestions.map((templateQ) =>
           h.li(
             [
               h.Class(
-                "flex items-center justify-between gap-4 rounded-panel border border-line bg-surface px-6 py-3",
+                "flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-panel border border-dashed border-line bg-surface/60 px-4 py-2 sm:px-5",
               ),
             ],
             [
               h.span(
-                [h.Class("flex flex-col")],
+                [h.Class("flex min-w-0 flex-1 flex-col py-1")],
                 [
                   templateQ.text,
                   h.span([h.Class("text-sm text-muted")], [dimensionName(templateQ.dimension)]),
@@ -770,8 +799,9 @@ export const pulseEditorView = <Message>(
               appButton(
                 {
                   text: message("pulse.template.add"),
+                  icon: "+",
                   isDisabled: state.actionBusy,
-                  className: linkButton,
+                  className: secondaryButtonClass,
                   onClick: actions.onAddFromTemplate(templateQ.key),
                 },
                 h,
@@ -817,7 +847,8 @@ export const pulseEditorView = <Message>(
       appButton(
         {
           text: message("pulse.write.title"),
-          className: `mt-6 ${secondaryButtonClass}`,
+          icon: "+",
+          className: `mt-4 ${secondaryButtonClass}`,
           onClick: actions.onToggleWriting(true),
         },
         h,
@@ -827,7 +858,11 @@ export const pulseEditorView = <Message>(
 
   children.push(
     h.div(
-      [h.Class("mt-8 flex flex-col gap-3")],
+      [
+        h.Class(
+          "mt-8 flex flex-col items-start gap-2 rounded-panel border border-line bg-primary-soft/50 p-5 sm:p-6",
+        ),
+      ],
       [
         appButton(
           {
@@ -851,7 +886,9 @@ export const pulseEditorView = <Message>(
     ),
     h.form(
       [
-        h.Class("mt-8 flex flex-col gap-4 rounded-panel border border-line bg-surface p-6 sm:p-8"),
+        h.Class(
+          "mt-8 flex flex-col gap-4 rounded-panel border border-line bg-surface p-5 shadow-card sm:p-6",
+        ),
         h.OnSubmit(actions.onSubmitSettings),
       ],
       [

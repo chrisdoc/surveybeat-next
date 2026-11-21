@@ -6,7 +6,12 @@ import { formatDate, formatRoundDate, message, pluralMessage } from "../messages
 import type { Failure } from "./api.ts";
 import {
   appButton,
+  backLink,
   badge,
+  buttonClass,
+  cardLinkClass,
+  eyebrowClass,
+  loadingView,
   confirmDialog,
   dangerLinkButton,
   emailAddress,
@@ -37,13 +42,25 @@ const attentionView = <Message>(items: readonly AttentionItem[], h: HtmlBuilder<
         h,
       )
     : h.ul(
-        [h.Class("mt-3 flex flex-col gap-2")],
+        [h.Class("mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3")],
         items.map((item) =>
           h.li(
-            [h.Class("flex flex-wrap items-baseline gap-x-3 gap-y-1")],
             [
-              h.span([h.Class("text-sm font-semibold text-muted")], [item.label]),
-              h.a([h.Href(item.href), h.Class(`break-words ${linkClass}`)], [item.text]),
+              h.Class(
+                `relative flex-col gap-1.5 border-l-4 border-l-primary p-4 focus-within:ring-2 focus-within:ring-primary ${cardLinkClass}`,
+              ),
+            ],
+            [
+              h.span([h.Class(eyebrowClass)], [item.label]),
+              h.a(
+                [
+                  h.Href(item.href),
+                  h.Class(
+                    "flex min-h-11 items-center text-base font-semibold break-words text-ink after:absolute after:inset-0 after:content-[''] group-hover:text-primary",
+                  ),
+                ],
+                [item.text],
+              ),
               h.span([h.Class("text-sm text-muted")], [item.detail]),
             ],
           ),
@@ -73,11 +90,33 @@ export const teamsScreenView = <Message>(
 ): Html => {
   const children: Child[] = [
     pageTitle(message("home.attention.title"), h),
+    h.p([h.Class("mt-2 max-w-[65ch] text-muted")], [message("home.intro")]),
     attentionView(state.attention, h),
   ];
 
+  const createOpenButton =
+    state.organizationAdmin && !state.createOpen
+      ? appButton(
+          {
+            text: message("teams.create.open"),
+            onClick: actions.onToggleCreate,
+            className: secondaryButtonClass,
+          },
+          h,
+        )
+      : null;
+
   if (state.teams._tag === "Loaded" && state.teams.teams.length > 0) {
-    children.push(h.div([h.Class("mt-8")], [subSectionTitle(message("home.teams.title"), h, 2)]));
+    children.push(
+      h.div(
+        [h.Class("mt-10 flex flex-wrap items-center justify-between gap-3 border-b border-line pb-3")],
+        [subSectionTitle(message("home.teams.title"), h, 2), createOpenButton].filter(Predicate.isNotNull),
+      ),
+    );
+  }
+
+  if (state.teams._tag === "Loading") {
+    children.push(loadingView(h, "list"));
   }
 
   if (state.teams._tag === "Failed") {
@@ -88,7 +127,7 @@ export const teamsScreenView = <Message>(
     } else {
       children.push(
         h.ul(
-          [h.Class("mt-6 flex flex-col gap-3")],
+          [h.Class("mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3")],
           state.teams.teams.map((team) =>
             h.keyed("li")(
               team.id,
@@ -97,16 +136,18 @@ export const teamsScreenView = <Message>(
                 h.a(
                   [
                     h.Href(teamHref(team.id)),
-                    h.Class(
-                      "flex min-h-11 items-center justify-between gap-4 rounded-panel border border-line bg-surface px-6 py-4 hover:border-primary",
-                    ),
+                    h.Class(`h-full items-center justify-between gap-4 px-5 py-4 ${cardLinkClass}`),
                   ],
                   [
                     h.span(
                       [h.Class("flex min-w-0 flex-col gap-1")],
                       [
                         h.span(
-                          [h.Class("flex flex-wrap items-center gap-2 text-lg font-semibold")],
+                          [
+                            h.Class(
+                              "flex flex-wrap items-center gap-2 text-base font-semibold group-hover:text-primary",
+                            ),
+                          ],
                           [
                             h.span([h.Class("min-w-0 break-words")], [team.name]),
                             team.yourRole === "lead"
@@ -137,7 +178,15 @@ export const teamsScreenView = <Message>(
                         ),
                       ],
                     ),
-                    h.span([h.AriaHidden(true), h.Class("text-xl text-muted")], ["›"]),
+                    h.span(
+                      [
+                        h.AriaHidden(true),
+                        h.Class(
+                          "text-xl text-muted transition-transform group-hover:translate-x-0.5 group-hover:text-primary",
+                        ),
+                      ],
+                      ["›"],
+                    ),
                   ],
                 ),
               ],
@@ -148,22 +197,8 @@ export const teamsScreenView = <Message>(
     }
   }
 
-  if (state.organizationAdmin && !state.createOpen) {
-    children.push(
-      h.div(
-        [h.Class("mt-6")],
-        [
-          appButton(
-            {
-              text: message("teams.create.open"),
-              onClick: actions.onToggleCreate,
-              className: secondaryButtonClass,
-            },
-            h,
-          ),
-        ],
-      ),
-    );
+  if (createOpenButton !== null && !(state.teams._tag === "Loaded" && state.teams.teams.length > 0)) {
+    children.push(h.div([h.Class("mt-6")], [createOpenButton]));
   }
 
   if (state.organizationAdmin && state.createOpen) {
@@ -234,31 +269,73 @@ export const teamsScreenView = <Message>(
   return h.section([], children);
 };
 
-const firstRunChecklistView = <Message>(steps: readonly ChecklistStep[], h: HtmlBuilder<Message>): Html =>
-  h.section(
-    [h.Class("mt-8 rounded-panel border border-line bg-surface p-6")],
+const firstRunChecklistView = <Message>(steps: readonly ChecklistStep[], h: HtmlBuilder<Message>): Html => {
+  const done = steps.filter((step) => step.done).length;
+
+  return h.section(
+    [h.Class("mt-6 rounded-panel border border-primary/30 bg-surface p-5 shadow-card sm:p-6")],
     [
-      subSectionTitle(message("team.checklist.title"), h, 2),
+      h.div(
+        [h.Class("flex flex-wrap items-center justify-between gap-3")],
+        [
+          subSectionTitle(message("team.checklist.title"), h, 2),
+          h.span(
+            [h.Class("text-sm font-semibold text-muted tabular-nums")],
+            [message("team.checklist.progress", { done: String(done), total: String(steps.length) })],
+          ),
+        ],
+      ),
+      h.div(
+        [h.AriaHidden(true), h.Class("mt-3 h-1.5 overflow-hidden rounded-full bg-subtle")],
+        [
+          h.div([
+            h.Class("h-full rounded-full bg-primary transition-[width]"),
+            h.Style({ width: `${Math.round((done / Math.max(1, steps.length)) * 100)}%` }),
+          ]),
+        ],
+      ),
       h.ol(
-        [h.Class("mt-3 flex flex-col gap-3")],
+        [h.Class("mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4")],
         steps.map((step, index) =>
           h.li(
-            [h.Class("flex flex-wrap items-baseline gap-x-3 gap-y-1")],
             [
-              h.span([h.Class("text-sm font-semibold text-muted")], [`${index + 1}.`]),
+              h.Class(
+                `relative flex flex-col gap-1.5 rounded-control border p-4 ${
+                  step.done ? "border-line bg-subtle" : "border-line bg-surface"
+                }`,
+              ),
+            ],
+            [
+              h.span(
+                [h.Class("flex items-center gap-2")],
+                [
+                  h.span(
+                    [
+                      h.AriaHidden(true),
+                      h.Class(
+                        `inline-flex size-6 items-center justify-center rounded-full text-xs font-bold ${
+                          step.done ? "bg-primary text-on-primary" : "border border-line text-muted"
+                        }`,
+                      ),
+                    ],
+                    [step.done ? "✓" : String(index + 1)],
+                  ),
+                  badge(
+                    step.done ? "success" : "neutral",
+                    [message(step.done ? "team.checklist.done" : "team.checklist.todo")],
+                    h,
+                  ),
+                ],
+              ),
               h.a([h.Href(step.href), h.Class(`break-words ${linkClass}`)], [step.text]),
               ...(step.detail === undefined ? [] : [h.span([h.Class("text-sm text-muted")], [step.detail])]),
-              badge(
-                step.done ? "primary" : "neutral",
-                [message(step.done ? "team.checklist.done" : "team.checklist.todo")],
-                h,
-              ),
             ],
           ),
         ),
       ),
     ],
   );
+};
 
 export const teamScreenView = <Message>(
   state: {
@@ -304,7 +381,7 @@ export const teamScreenView = <Message>(
   overview: Html,
   h: HtmlBuilder<Message>,
 ): Html => {
-  const children: Child[] = [h.a([h.Href(teamsHref()), h.Class(linkClass)], [message("team.back")])];
+  const children: Child[] = [backLink(teamsHref(), message("team.back"), h)];
 
   if (state.team._tag === "Failed") {
     children.push(problemView(state.team.failure, h));
@@ -313,53 +390,62 @@ export const teamScreenView = <Message>(
   }
 
   if (state.team._tag !== "Loaded") {
+    children.push(loadingView(h));
+
     return h.section([], children);
   }
 
   const { detail } = state.team;
-  children.push(h.div([h.Class("mt-4")], [pageTitle(detail.team.name, h)]));
+
+  children.push(
+    h.div(
+      [h.Class("mt-1 flex flex-wrap items-end justify-between gap-4")],
+      [
+        h.div(
+          [h.Class("min-w-0")],
+          [
+            pageTitle(detail.team.name, h),
+            h.p(
+              [h.Class("mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted")],
+              [
+                detail.team.yourRole === null ? null : badge("primary", [roleName(detail.team.yourRole)], h),
+                h.span([], [message("team.timeZone", { timeZone: detail.team.timeZone })]),
+              ].filter(Predicate.isNotNull),
+            ),
+          ],
+        ),
+        h.div(
+          [h.Class("flex flex-wrap gap-2")],
+          [
+            detail.may.update && !state.renameOpen
+              ? appButton(
+                  {
+                    text: message("team.rename.open"),
+                    onClick: actions.onToggleRename,
+                    className: secondaryButtonClass,
+                  },
+                  h,
+                )
+              : null,
+            detail.may.managePulses
+              ? h.a([h.Href(pulsesHref(detail.team.id)), h.Class(buttonClass)], [message("team.pulses")])
+              : null,
+          ].filter(Predicate.isNotNull),
+        ),
+      ],
+    ),
+  );
 
   if (state.checklist !== null) {
     children.push(firstRunChecklistView(state.checklist, h));
   }
 
-  children.push(
-    h.p([h.Class("mt-2 text-muted")], [message("team.timeZone", { timeZone: detail.team.timeZone })]),
-  );
-
   if (detail.team.yourRole === null) {
     children.push(h.p([h.Class("mt-2 text-muted")], [message("team.noResultsAccess")]));
   }
 
-  if (detail.may.managePulses) {
-    children.push(
-      h.a(
-        [h.Href(pulsesHref(detail.team.id)), h.Class(`mt-4 inline-block ${linkClass}`)],
-        [message("team.pulses")],
-      ),
-    );
-  }
-
   if (detail.may.viewResults) {
     children.push(h.div([h.Class("mt-8")], [overview]));
-  }
-
-  if (detail.may.update && !state.renameOpen) {
-    children.push(
-      h.div(
-        [h.Class("mt-6")],
-        [
-          appButton(
-            {
-              text: message("team.rename.open"),
-              onClick: actions.onToggleRename,
-              className: secondaryButtonClass,
-            },
-            h,
-          ),
-        ],
-      ),
-    );
   }
 
   if (detail.may.update && state.renameOpen) {
@@ -416,10 +502,49 @@ export const teamScreenView = <Message>(
     );
   }
 
+  const addMemberOpenButton =
+    detail.may.manageMembers && !state.addMemberOpen
+      ? appButton(
+          {
+            text: message("team.addMember.open"),
+            onClick: actions.onToggleAddMember,
+            className: secondaryButtonClass,
+          },
+          h,
+        )
+      : null;
+
+  const assignLeadOpenButton =
+    detail.may.manageLeads && !state.assignLeadOpen
+      ? appButton(
+          {
+            text: message("team.assignLead.open"),
+            onClick: actions.onToggleAssignLead,
+            className: secondaryButtonClass,
+          },
+          h,
+        )
+      : null;
+
   children.push(
-    h.div([h.Class("mt-8")], [subSectionTitle(message("team.roster"), h, 2)]),
+    h.div(
+      [h.Class("mt-10 flex flex-wrap items-center justify-between gap-3 border-b border-line pb-3")],
+      [
+        h.div(
+          [h.Class("flex items-baseline gap-2")],
+          [
+            subSectionTitle(message("team.roster"), h, 2),
+            h.span([h.Class("text-sm text-muted tabular-nums")], [String(detail.roster.length)]),
+          ],
+        ),
+        h.div(
+          [h.Class("flex flex-wrap gap-2")],
+          [addMemberOpenButton, assignLeadOpenButton].filter(Predicate.isNotNull),
+        ),
+      ],
+    ),
     h.ul(
-      [h.Class("mt-3 rounded-panel border border-line bg-surface px-6")],
+      [h.Class("mt-4 rounded-panel border border-line bg-surface px-4 shadow-card sm:px-5")],
       detail.roster.map((entry) => {
         const isLead = entry.role === "lead";
         const mayRemove = isLead ? detail.may.manageLeads : detail.may.manageMembers;
@@ -491,24 +616,6 @@ export const teamScreenView = <Message>(
     children.push(problemView(state.rosterFailure, h));
   }
 
-  if (detail.may.manageMembers && !state.addMemberOpen) {
-    children.push(
-      h.div(
-        [h.Class("mt-6")],
-        [
-          appButton(
-            {
-              text: message("team.addMember.open"),
-              onClick: actions.onToggleAddMember,
-              className: secondaryButtonClass,
-            },
-            h,
-          ),
-        ],
-      ),
-    );
-  }
-
   if (detail.may.manageMembers && state.addMemberOpen) {
     children.push(
       h.form(
@@ -551,24 +658,6 @@ export const teamScreenView = <Message>(
             ],
           ),
         ].filter(Predicate.isNotNull),
-      ),
-    );
-  }
-
-  if (detail.may.manageLeads && !state.assignLeadOpen) {
-    children.push(
-      h.div(
-        [h.Class("mt-6")],
-        [
-          appButton(
-            {
-              text: message("team.assignLead.open"),
-              onClick: actions.onToggleAssignLead,
-              className: secondaryButtonClass,
-            },
-            h,
-          ),
-        ],
       ),
     );
   }

@@ -122,7 +122,7 @@ export const roundsScreenView = <Message>(
       ],
       h,
     ),
-    h.div([h.Class("mt-4")], [pageTitle(message("rounds.title"), h)]),
+    h.div([h.Class("mt-1")], [pageTitle(message("rounds.title"), h)]),
   ];
 
   if (state.team._tag === "Failed") {
@@ -190,7 +190,9 @@ export const roundsScreenView = <Message>(
           state.skipOpen
             ? h.form(
                 [
-                  h.Class("flex flex-col gap-4 rounded-panel border border-line bg-surface p-6"),
+                  h.Class(
+                    "flex flex-col gap-4 rounded-panel border border-line bg-surface p-5 shadow-card sm:p-6",
+                  ),
                   h.OnSubmit(actions.onSubmitSkipDate),
                 ],
                 [
@@ -245,7 +247,7 @@ export const roundsScreenView = <Message>(
 
   children.push(
     h.ul(
-      [h.Class("mt-8 flex flex-col gap-3")],
+      [h.Class("mt-8 grid gap-3 md:grid-cols-2")],
       rounds.map((round) => {
         const detail = state.details[round.id];
         const rate = state.rates[round.id];
@@ -254,7 +256,7 @@ export const roundsScreenView = <Message>(
 
         return h.keyed("li")(
           round.id,
-          [h.Class("flex flex-col gap-2 rounded-panel border border-line bg-surface px-6 py-4")],
+          [h.Class("flex flex-col gap-2 rounded-panel border border-line bg-surface px-5 py-4 shadow-card")],
           [
             h.div(
               [h.Class("flex items-center justify-between gap-4")],
@@ -283,7 +285,7 @@ export const roundsScreenView = <Message>(
                   [
                     h.Href(roundResultsHref(state.teamId, round.id)),
                     h.Class(
-                      "inline-flex min-h-11 items-center rounded-control bg-primary px-4 text-sm font-semibold text-on-primary hover:opacity-90",
+                      "inline-flex min-h-11 items-center rounded-control bg-primary px-4 text-sm font-semibold text-on-primary shadow-card transition-colors hover:bg-primary-hover active:translate-y-px",
                     ),
                   ],
                   [message("rounds.reviewShare")],
