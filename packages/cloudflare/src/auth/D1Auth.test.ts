@@ -411,7 +411,7 @@ describe("Better Auth identity provider over D1", () => {
       );
 
       const cookie = (signedIn.headers.get("set-cookie") ?? "").split(";")[0] ?? "";
-      const value = cookie.slice(`${SESSION_COOKIE}=`.length);
+      const value = decodeURIComponent(cookie.slice(`${SESSION_COOKIE}=`.length));
 
       const provider = betterAuthIdentityProvider({
         auth,
@@ -742,7 +742,7 @@ describe("Better Auth plugin tables in D1", () => {
 
         expect(verifyAuth.status).toBe(200);
         const passkeyCookie = (verifyAuth.headers.get("set-cookie") ?? "").split(";")[0] ?? "";
-        const passkeyToken = passkeyCookie.slice(`${SESSION_COOKIE}=`.length);
+        const passkeyToken = decodeURIComponent(passkeyCookie.slice(`${SESSION_COOKIE}=`.length));
 
         const provider = betterAuthIdentityProvider({
           auth,

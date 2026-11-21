@@ -202,7 +202,7 @@ const world = () =>
 
         const pair = (response.headers.get("set-cookie") ?? "").split(";")[0] ?? "";
 
-        return Redacted.make(pair.slice(`${SESSION_COOKIE}=`.length));
+        return Redacted.make(decodeURIComponent(pair.slice(`${SESSION_COOKIE}=`.length)));
       });
 
     const ada = yield* signIn("ada@example.com");

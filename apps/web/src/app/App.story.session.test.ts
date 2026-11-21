@@ -355,6 +355,37 @@ describe("App Stories", () => {
           AddPasskeyCmd,
           Message.AddedPasskey({
             cancelled: false,
+            outcome: { _tag: "Failure", failure: "Unauthenticated" },
+          }),
+        ),
+        Story.Command.expectHas(LoadSession),
+        Story.model((m) => {
+          expect(m.passkeys.busy).toBe(false);
+          expect(m.passkeys.failure).toMatchObject({ _tag: "Some", value: "Unauthenticated" });
+        }),
+        Story.Command.resolve(
+          LoadSession,
+          Message.GotSession({
+            result: {
+              _tag: "SignedIn",
+              organization: { id: decodeOrgId("org-1"), name: "Acme" },
+              organizationAdmin: true,
+              locale: null,
+              detectedLocale: null,
+              organizationLocale: "en",
+            },
+          }),
+        ),
+        Story.Command.expectHas(ListPasskeysCmd),
+        Story.Command.resolve(
+          ListPasskeysCmd,
+          Message.GotPasskeys({ outcome: { _tag: "Success", passkeys: [] } }),
+        ),
+        Story.message(Message.AddPasskeyClicked()),
+        Story.Command.resolve(
+          AddPasskeyCmd,
+          Message.AddedPasskey({
+            cancelled: false,
             outcome: { _tag: "Success" },
           }),
         ),

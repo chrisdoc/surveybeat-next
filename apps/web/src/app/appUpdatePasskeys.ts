@@ -10,6 +10,23 @@ import {
   RenamePasskeyCmd,
 } from "./appCommands.ts";
 
+import type { Failure } from "./api.ts";
+
+const passkeyMutationFailed = (model: Model, failure: Failure): Update.Return<Model, Message> => {
+  const nextModel: Model = {
+    ...model,
+    passkeys: {
+      ...model.passkeys,
+      busy: false,
+      failure: Option.some(failure),
+    },
+  };
+
+  return failure === "Unauthenticated"
+    ? { model: nextModel, commands: [LoadSession()] }
+    : { model: nextModel };
+};
+
 export type PasskeyMessage = Extract<
   Message,
   {
@@ -98,20 +115,7 @@ export const updatePasskeys = (model: Model, message: PasskeyMessage): Update.Re
         };
       }
 
-      if (message.outcome.failure === "Unauthenticated") {
-        return { model, commands: [LoadSession()] };
-      }
-
-      return {
-        model: {
-          ...model,
-          passkeys: {
-            ...model.passkeys,
-            busy: false,
-            failure: Option.some(message.outcome.failure),
-          },
-        },
-      };
+      return passkeyMutationFailed(model, message.outcome.failure);
     }
 
     case "PasskeyRenameStarted": {
@@ -194,20 +198,7 @@ export const updatePasskeys = (model: Model, message: PasskeyMessage): Update.Re
         };
       }
 
-      if (message.outcome.failure === "Unauthenticated") {
-        return { model, commands: [LoadSession()] };
-      }
-
-      return {
-        model: {
-          ...model,
-          passkeys: {
-            ...model.passkeys,
-            busy: false,
-            failure: Option.some(message.outcome.failure),
-          },
-        },
-      };
+      return passkeyMutationFailed(model, message.outcome.failure);
     }
 
     case "PasskeyDeleteRequested": {
@@ -265,20 +256,7 @@ export const updatePasskeys = (model: Model, message: PasskeyMessage): Update.Re
         };
       }
 
-      if (message.outcome.failure === "Unauthenticated") {
-        return { model, commands: [LoadSession()] };
-      }
-
-      return {
-        model: {
-          ...model,
-          passkeys: {
-            ...model.passkeys,
-            busy: false,
-            failure: Option.some(message.outcome.failure),
-          },
-        },
-      };
+      return passkeyMutationFailed(model, message.outcome.failure);
     }
   }
 };
