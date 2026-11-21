@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_013ELFSi5RTcmeG1VUxJdWim",
+  "agent_id": "a894658cdecb666cb",
+  "subagent_type": "general-purpose",
+  "task_description": "Research vercel/chat on Workers",
+  "token_usage": {
+    "input_tokens": 218,
+    "cache_creation_tokens": 1080502,
+    "cache_read_tokens": 17798977,
+    "output_tokens": 58073,
+    "api_call_count": 106
+  },
+  "started_at": "2026-11-20T07:18:40.9095746Z",
+  "completed_at": "2026-11-20T08:16:41.718871133Z"
+}
