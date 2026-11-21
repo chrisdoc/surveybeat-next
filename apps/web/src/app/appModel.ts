@@ -44,6 +44,8 @@ import {
 import { LoadedHistory } from "./history.ts";
 import { KeptAnswers } from "./keptAnswers.ts";
 import { LoadedOverview } from "./overview.ts";
+import { PasskeyCapabilities, PasskeyItem } from "./passkeyClient.ts";
+import { LoadedPasskeys } from "./passkeysView.ts";
 import { LoadedPulse, LoadedPulses, TestSendResult } from "./pulses.ts";
 import { GuideCopy, LoadedActions, LoadedNote, LoadedResults } from "./results.ts";
 import { LoadedRounds, RoundConfirm } from "./rounds.ts";
@@ -56,6 +58,17 @@ export const Model = Schema.Struct({
   session: SessionModel,
 
   browserLocale: Schema.Option(Locale),
+  passkeyCapabilities: PasskeyCapabilities,
+  passkeySignInBusy: Schema.Boolean,
+  passkeys: Schema.Struct({
+    list: LoadedPasskeys,
+    busy: Schema.Boolean,
+    notice: Schema.NullOr(Schema.String),
+    failure: Schema.Option(Failure),
+    editingId: Schema.Option(Schema.String),
+    editingName: Schema.String,
+    pendingDeleteId: Schema.Option(Schema.String),
+  }),
 
   navMenu: Popover.Model,
   accountMenu: Popover.Model,
@@ -301,6 +314,11 @@ export const OutcomeVoid = Schema.Union([
   Schema.TaggedStruct("Failure", { failure: Failure }),
 ]);
 
+export const OutcomePasskeys = Schema.Union([
+  Schema.TaggedStruct("Success", { passkeys: Schema.Array(PasskeyItem) }),
+  Schema.TaggedStruct("Failure", { failure: Failure }),
+]);
+
 export const Message = defineMessageUnion({
   UrlRequested: { request: Navigation.UrlRequest },
   UrlChanged: { url: Url },
@@ -308,6 +326,9 @@ export const Message = defineMessageUnion({
 
   GotSession: { result: SessionResult },
   RetrySession: {},
+  GotPasskeyCapabilities: { capabilities: PasskeyCapabilities },
+  SignInWithPasskeyClicked: {},
+  PasskeySignedIn: { verified: Schema.Boolean },
   SignInEmailChanged: { email: Schema.String },
   SignInCodeChanged: { code: Schema.String },
   SubmitSignInEmail: {},
@@ -409,6 +430,19 @@ export const Message = defineMessageUnion({
   OffboardingSubmitted: {},
   FinishPendingOffboarding: {},
   OffboardedOrganization: { outcome: OutcomeVoid },
+
+  GotPasskeys: { outcome: OutcomePasskeys },
+  AddPasskeyClicked: {},
+  AddedPasskey: { cancelled: Schema.Boolean, outcome: OutcomeVoid },
+  PasskeyRenameStarted: { id: Schema.String, name: Schema.String },
+  PasskeyRenameChanged: { value: Schema.String },
+  PasskeyRenameSaved: {},
+  PasskeyRenameCancelled: {},
+  PasskeyRenamed: { outcome: OutcomeVoid },
+  PasskeyDeleteRequested: { id: Schema.String },
+  PasskeyDeleteConfirmed: {},
+  PasskeyDeleteCancelled: {},
+  PasskeyDeleted: { outcome: OutcomeVoid },
 
   GotPulses: { outcome: OutcomePulses },
   CreatePulseClicked: {},

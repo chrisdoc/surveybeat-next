@@ -1,11 +1,13 @@
 import * as Story from "foldkit/story";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  AddPasskeyCmd,
   ChooseOrganization,
   CreateOrganization,
   CreateTeam,
   initialModel,
   ListActionsCmd,
+  ListPasskeysCmd,
   ListPulses,
   ListTeams,
   LoadSession,
@@ -275,6 +277,97 @@ describe("App Stories", () => {
         }),
         Story.Command.expectHas(Navigate),
         Story.Command.resolve(Navigate, Message.Navigated()),
+      );
+    });
+  });
+
+  describe("Passkey state transitions", () => {
+    it("updates capabilities and maps add passkey outcomes cleanly", () => {
+      const signedInPrivacy = {
+        ...initialModel(makeUrl("https://app.surveybeat.com/privacy"), []),
+        session: {
+          _tag: "SignedIn" as const,
+          organization: { id: decodeOrgId("org-1"), name: "Acme" },
+          organizationAdmin: true,
+          locale: null,
+          detectedLocale: null,
+          organizationLocale: "en" as const,
+        },
+      };
+
+      Story.story(
+        update,
+        Story.given(signedInPrivacy),
+        Story.message(
+          Message.GotPasskeyCapabilities({
+            capabilities: {
+              supported: true,
+              conditionalGet: true,
+              platformAuthenticator: true,
+            },
+          }),
+        ),
+        Story.model((m) => {
+          expect(m.passkeyCapabilities.supported).toBe(true);
+        }),
+        Story.message(Message.AddPasskeyClicked()),
+        Story.model((m) => {
+          expect(m.passkeys.busy).toBe(true);
+        }),
+        Story.Command.resolve(
+          AddPasskeyCmd,
+          Message.AddedPasskey({
+            cancelled: true,
+            outcome: { _tag: "Failure", failure: "Unavailable" },
+          }),
+        ),
+        Story.model((m) => {
+          expect(m.passkeys.busy).toBe(false);
+          expect(m.passkeys.notice).toBeNull();
+          expect(m.passkeys.failure).toMatchObject({ _tag: "None" });
+        }),
+        Story.message(Message.AddPasskeyClicked()),
+        Story.Command.resolve(
+          AddPasskeyCmd,
+          Message.AddedPasskey({
+            cancelled: false,
+            outcome: { _tag: "Failure", failure: "PasskeyAlreadyExists" },
+          }),
+        ),
+        Story.model((m) => {
+          expect(m.passkeys.busy).toBe(false);
+          expect(m.passkeys.failure).toMatchObject({ _tag: "Some", value: "PasskeyAlreadyExists" });
+        }),
+        Story.message(Message.AddPasskeyClicked()),
+        Story.Command.resolve(
+          AddPasskeyCmd,
+          Message.AddedPasskey({
+            cancelled: false,
+            outcome: { _tag: "Failure", failure: "PasskeySignInAgainRequired" },
+          }),
+        ),
+        Story.model((m) => {
+          expect(m.passkeys.busy).toBe(false);
+          expect(m.passkeys.failure).toMatchObject({ _tag: "Some", value: "PasskeySignInAgainRequired" });
+        }),
+        Story.message(Message.AddPasskeyClicked()),
+        Story.Command.resolve(
+          AddPasskeyCmd,
+          Message.AddedPasskey({
+            cancelled: false,
+            outcome: { _tag: "Success" },
+          }),
+        ),
+        Story.Command.expectHas(ListPasskeysCmd),
+        Story.model((m) => {
+          expect(m.passkeys.busy).toBe(false);
+          expect(m.passkeys.failure).toMatchObject({ _tag: "None" });
+          expect(m.passkeys.notice).toBe("Passkey added.");
+        }),
+        Story.Command.resolve(
+          ListPasskeysCmd,
+          Message.GotPasskeys({ outcome: { _tag: "Success", passkeys: [] } }),
+        ),
       );
     });
   });

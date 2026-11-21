@@ -20,6 +20,8 @@ export const Failure = Schema.Literals([
   "EmailChangePending",
   "WrongEmailCode",
   "SignInAgainRequired",
+  "PasskeySignInAgainRequired",
+  "PasskeyAlreadyExists",
   "PersonHasAccount",
   "TeamNameTaken",
   "QuestionAlreadyInPulse",
@@ -91,6 +93,14 @@ export const failureMessage = (failure: Failure): string => {
 
     case "SignInAgainRequired": {
       return message("error.SignInAgainRequired");
+    }
+
+    case "PasskeySignInAgainRequired": {
+      return message("error.PasskeySignInAgainRequired");
+    }
+
+    case "PasskeyAlreadyExists": {
+      return message("error.PasskeyAlreadyExists");
     }
 
     case "PersonHasAccount": {

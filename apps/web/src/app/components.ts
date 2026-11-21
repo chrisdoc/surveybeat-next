@@ -559,6 +559,9 @@ export const textField = <Message>(
     readonly type?: "text" | "email" | "number" | "time" | undefined;
     readonly isDisabled?: boolean | undefined;
     readonly maxLength?: number | undefined;
+    readonly autocomplete?: string | undefined;
+    readonly autofocus?: boolean | undefined;
+    readonly ariaDescribedBy?: string | undefined;
   },
   h: HtmlBuilder<Message>,
 ): Html =>
@@ -575,6 +578,9 @@ export const textField = <Message>(
             h.input([
               ...input,
               ...(config.maxLength !== undefined ? [h.Maxlength(config.maxLength)] : []),
+              ...(config.autocomplete !== undefined ? [h.Autocomplete(config.autocomplete)] : []),
+              ...(config.autofocus === true ? [h.Autofocus(true)] : []),
+              ...(config.ariaDescribedBy !== undefined ? [h.AriaDescribedBy(config.ariaDescribedBy)] : []),
               h.Class(inputClass),
             ]),
           ],

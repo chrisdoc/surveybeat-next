@@ -1,10 +1,14 @@
 import { Popover } from "@foldkit/ui";
 import { browserLocale } from "@surveybeat/domain";
-import { Option } from "effect";
+import { Option, Schema, Stream } from "effect";
+import { Subscription } from "foldkit";
 import type { Update } from "foldkit";
 import type { Url } from "foldkit/url";
-import type { Model, Message } from "./appModel.ts";
-import { LoadSession } from "./appCommands.ts";
+import type { Model } from "./appModel.ts";
+import { Message } from "./appModel.ts";
+import { DetectPasskeyCapabilities, LoadSession } from "./appCommands.ts";
+import { authenticateWithPasskey, defaultPasskeyCapabilities } from "./passkeyClient.ts";
+import { updatePasskeys } from "./appUpdatePasskeys.ts";
 import { updateSession } from "./appUpdateSession.ts";
 import { updateTeams } from "./appUpdateTeams.ts";
 import { updateSettings } from "./appUpdateSettings.ts";
@@ -33,11 +37,18 @@ export {
   OutcomeFailedEmails,
   OutcomeFailedEmailStatus,
   OutcomeVoid,
+  OutcomePasskeys,
   Message,
 } from "./appModel.ts";
 
 export {
   LoadSession,
+  DetectPasskeyCapabilities,
+  SignInWithPasskey,
+  ListPasskeysCmd,
+  AddPasskeyCmd,
+  RenamePasskeyCmd,
+  DeletePasskeyCmd,
   SendSignInCode,
   VerifySignInCode,
   CreateOrganization,
@@ -114,6 +125,17 @@ export const initialModel = (url: Url, languages: readonly string[]): Model => {
     route,
     session: { _tag: "Loading" },
     browserLocale: Option.fromNullishOr(browserLocale(languages)),
+    passkeyCapabilities: defaultPasskeyCapabilities,
+    passkeySignInBusy: false,
+    passkeys: {
+      list: { _tag: "Idle" },
+      busy: false,
+      notice: null,
+      failure: Option.none(),
+      editingId: Option.none(),
+      editingName: "",
+      pendingDeleteId: Option.none(),
+    },
     navMenu: Popover.init({ id: "nav-menu" }),
     accountMenu: Popover.init({ id: "account-menu" }),
     teams: { _tag: "Loading" },
@@ -229,8 +251,39 @@ export const initialModel = (url: Url, languages: readonly string[]): Model => {
 
 export const init = (url: Url): Update.Return<Model, Message> => ({
   model: initialModel(url, typeof navigator === "undefined" ? [] : navigator.languages),
-  commands: [LoadSession()],
+  commands: [LoadSession(), DetectPasskeyCapabilities()],
 });
+
+export const subscriptions = Subscription.make<Model, Message>()((entry) => ({
+  conditionalPasskey: entry(
+    { active: Schema.Boolean },
+    {
+      modelToDependencies: (model) => ({
+        active:
+          model.session._tag === "SignedOut" &&
+          model.session.stage === "email" &&
+          !model.session.busy &&
+          !model.passkeySignInBusy &&
+          model.passkeyCapabilities.conditionalGet,
+      }),
+      dependenciesToStream: ({ active }) => {
+        if (!active) {
+          return Stream.empty;
+        }
+
+        return Stream.fromEffect(authenticateWithPasskey({ conditional: true })).pipe(
+          Stream.flatMap((outcome) => {
+            if (outcome._tag === "Cancelled") {
+              return Stream.empty;
+            }
+
+            return Stream.succeed(Message.PasskeySignedIn({ verified: outcome._tag === "Verified" }));
+          }),
+        );
+      },
+    },
+  ),
+}));
 
 export const update = (model: Model, message: Message): Update.Return<Model, Message> => {
   switch (message._tag) {
@@ -239,6 +292,9 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     case "Navigated":
     case "GotSession":
     case "RetrySession":
+    case "GotPasskeyCapabilities":
+    case "SignInWithPasskeyClicked":
+    case "PasskeySignedIn":
     case "SignInEmailChanged":
     case "SignInCodeChanged":
     case "SubmitSignInEmail":
@@ -332,6 +388,21 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     case "FinishPendingOffboarding":
     case "OffboardedOrganization": {
       return updateSettings(model, message, update);
+    }
+
+    case "GotPasskeys":
+    case "AddPasskeyClicked":
+    case "AddedPasskey":
+    case "PasskeyRenameStarted":
+    case "PasskeyRenameChanged":
+    case "PasskeyRenameSaved":
+    case "PasskeyRenameCancelled":
+    case "PasskeyRenamed":
+    case "PasskeyDeleteRequested":
+    case "PasskeyDeleteConfirmed":
+    case "PasskeyDeleteCancelled":
+    case "PasskeyDeleted": {
+      return updatePasskeys(model, message);
     }
 
     case "GotPulses":

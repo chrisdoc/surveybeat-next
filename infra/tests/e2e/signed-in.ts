@@ -104,6 +104,13 @@ export const stubSignedIn = async (page: Page): Promise<void> => {
       body: JSON.stringify(SESSION),
     });
   });
+  await page.route("**/auth/passkey/list-user-passkeys", (route) => {
+    void route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify([]),
+    });
+  });
   await page.route("**/api/**", (route) => {
     const body = answerFor(new URL(route.request().url()).pathname);
     void route.fulfill({

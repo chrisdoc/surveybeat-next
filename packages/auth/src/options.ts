@@ -80,6 +80,11 @@ export const authPlugins = (delivery: CodeDelivery): BetterAuthPlugin[] => [
   }),
   passkey({
     rpName: "SurveyBeat",
+    authenticatorSelection: {
+      residentKey: "required",
+      requireResidentKey: true,
+      userVerification: "preferred",
+    },
     schema: { passkey: { modelName: AUTH_TABLES.passkey } },
   }),
 ];
@@ -94,6 +99,8 @@ export const authOptions = (
     "https://*.surveybeat.app",
     "http://localhost:5173",
     "http://127.0.0.1:5173",
+    "http://localhost:1337",
+    "http://127.0.0.1:1337",
   ],
   session: {
     expiresIn: SESSION_TTL_SECONDS,

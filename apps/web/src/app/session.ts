@@ -103,6 +103,8 @@ export interface SignInState {
   readonly code: string;
   readonly busy: boolean;
   readonly notice: string | null;
+  readonly passkeySupported: boolean;
+  readonly passkeyBusy: boolean;
 }
 
 export interface SignInActions<Message> {
@@ -110,6 +112,7 @@ export interface SignInActions<Message> {
   readonly onCode: (code: string) => Message;
   readonly onSubmitEmail: Message;
   readonly onSubmitCode: Message;
+  readonly onSignInWithPasskey: Message;
 }
 
 export const signInView = <Message>(
@@ -128,7 +131,7 @@ export const signInView = <Message>(
             [
               pageTitle(message("signIn.title"), h),
               h.p([h.Class("mt-3 text-lg text-ink")], [message("signIn.framing")]),
-              h.p([h.Class("mt-2 text-sm text-muted")], [message("signIn.intro")]),
+              h.p([h.Id("sign-in-intro"), h.Class("mt-2 text-sm text-muted")], [message("signIn.intro")]),
               state.failed ? alertView(message("signIn.failed"), h) : null,
               state.notice === null ? null : h.p([h.Class("mt-4 text-sm text-ink")], [state.notice]),
               h.form(
@@ -141,7 +144,10 @@ export const signInView = <Message>(
                       type: "email",
                       value: state.email,
                       maxLength: 254,
-                      isDisabled: state.busy || state.stage === "code",
+                      autocomplete: "email webauthn",
+                      autofocus: true,
+                      ariaDescribedBy: "sign-in-intro",
+                      isDisabled: state.busy || state.passkeyBusy || state.stage === "code",
                       onInput: actions.onEmail,
                     },
                     h,
@@ -151,7 +157,7 @@ export const signInView = <Message>(
                         {
                           text: message("signIn.emailAction"),
                           type: "submit",
-                          isDisabled: state.busy || state.email.trim() === "",
+                          isDisabled: state.busy || state.passkeyBusy || state.email.trim() === "",
                           className: `mt-4 w-full ${buttonClass}`,
                         },
                         h,
@@ -159,6 +165,26 @@ export const signInView = <Message>(
                     : null,
                 ],
               ),
+              state.stage === "email" && state.passkeySupported
+                ? h.div(
+                    [h.Class("mt-4 flex flex-col gap-3")],
+                    [
+                      h.p(
+                        [h.Class("text-xs font-semibold tracking-wider text-muted uppercase")],
+                        [message("signIn.passkeyDivider")],
+                      ),
+                      appButton(
+                        {
+                          text: message(state.passkeyBusy ? "signIn.passkeyBusy" : "signIn.passkeyAction"),
+                          isDisabled: state.busy || state.passkeyBusy,
+                          onClick: actions.onSignInWithPasskey,
+                          className: `w-full ${secondaryButtonClass}`,
+                        },
+                        h,
+                      ),
+                    ],
+                  )
+                : null,
               state.stage === "code"
                 ? h.form(
                     [h.Class("mt-4 text-left"), h.OnSubmit(actions.onSubmitCode)],

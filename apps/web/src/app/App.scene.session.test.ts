@@ -8,9 +8,11 @@ import {
   initialModel,
   LeaveAfterErasureCmd,
   ListTeams,
+  LoadSession,
   Message,
   Navigate,
   OffboardOrganization,
+  SignInWithPasskey,
   update,
   view,
 } from "./App.ts";
@@ -56,6 +58,42 @@ describe("App Scenes", () => {
         Scene.expect(Scene.role("heading", { name: "Sign in to SurveyBeat" })).toExist(),
         Scene.expect(Scene.role("textbox", { name: "Your email" })).toExist(),
         Scene.expect(Scene.role("button", { name: "Email me a code" })).toExist(),
+        Scene.expect(Scene.role("button", { name: "Sign in with a passkey" })).toBeAbsent(),
+      );
+    });
+
+    it("shows the passkey sign-in option when supported and signs in cleanly", () => {
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...initialModel(makeUrl("https://app.surveybeat.com/"), []),
+          passkeyCapabilities: {
+            supported: true,
+            conditionalGet: true,
+            platformAuthenticator: true,
+          },
+          session: {
+            _tag: "SignedOut",
+            failed: false,
+            stage: "email",
+            email: "",
+            code: "",
+            busy: false,
+            notice: null,
+          },
+        }),
+        Scene.expect(Scene.role("textbox", { name: "Your email" })).toHaveAttr(
+          "autocomplete",
+          "email webauthn",
+        ),
+        Scene.click(Scene.role("button", { name: "Sign in with a passkey" })),
+        Scene.Command.expectHas(SignInWithPasskey),
+        Scene.Command.resolve(SignInWithPasskey, Message.PasskeySignedIn({ verified: false })),
+        Scene.expect(Scene.text("Passkey sign-in did not work. Try again or use an email code.")).toExist(),
+        Scene.click(Scene.role("button", { name: "Sign in with a passkey" })),
+        Scene.Command.resolve(SignInWithPasskey, Message.PasskeySignedIn({ verified: true })),
+        Scene.Command.expectHas(LoadSession),
+        Scene.Command.resolve(LoadSession, Message.GotSession({ result: { _tag: "SignedOut" } })),
       );
     });
 
