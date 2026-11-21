@@ -8,6 +8,8 @@ import {
   LoadSession,
   SendSignInCode,
   VerifySignInCode,
+  SignInWithPasskey,
+  ListPasskeysCmd,
   CreateOrganization,
   ChooseOrganization,
   Navigate,
@@ -26,6 +28,9 @@ type SessionMessage = Extract<
       | "Navigated"
       | "GotSession"
       | "RetrySession"
+      | "GotPasskeyCapabilities"
+      | "SignInWithPasskeyClicked"
+      | "PasskeySignedIn"
       | "SignInEmailChanged"
       | "SignInCodeChanged"
       | "SubmitSignInEmail"
@@ -114,6 +119,21 @@ export const updateSession = (model: Model, message: SessionMessage): Update.Ret
         noteEditing: false,
         noteBusy: false,
         noteFailure: Option.none(),
+        passkeySignInBusy: false,
+        passkeys: {
+          ...model.passkeys,
+          ...(route._tag === "Privacy" &&
+          (model.session._tag === "SignedIn" ||
+            model.session._tag === "CreateOrganization" ||
+            model.session._tag === "NotInOrganization")
+            ? { list: { _tag: "Loading" } }
+            : {}),
+          notice: null,
+          failure: Option.none(),
+          editingId: Option.none(),
+          editingName: "",
+          pendingDeleteId: Option.none(),
+        },
       };
 
       const closed = closeHeaderMenus(nextModel);
@@ -122,6 +142,16 @@ export const updateSession = (model: Model, message: SessionMessage): Update.Ret
         return {
           model: closed.model,
           commands: [...(closed.commands ?? []), ...loadActiveRouteCommand(route)],
+        };
+      }
+
+      if (
+        route._tag === "Privacy" &&
+        (model.session._tag === "CreateOrganization" || model.session._tag === "NotInOrganization")
+      ) {
+        return {
+          model: closed.model,
+          commands: [...(closed.commands ?? []), ListPasskeysCmd()],
         };
       }
 
@@ -164,11 +194,16 @@ export const updateSession = (model: Model, message: SessionMessage): Update.Ret
         }
 
         case "CreateOrganization": {
+          const loadingPasskeys = model.route._tag === "Privacy";
+
           return {
             model: {
               ...model,
+              passkeySignInBusy: false,
               session: { _tag: "CreateOrganization", name: "", busy: false },
+              ...(loadingPasskeys ? { passkeys: { ...model.passkeys, list: { _tag: "Loading" } } } : {}),
             },
+            ...(loadingPasskeys ? { commands: [ListPasskeysCmd()] } : {}),
           };
         }
 
@@ -176,6 +211,7 @@ export const updateSession = (model: Model, message: SessionMessage): Update.Ret
           return {
             model: {
               ...model,
+              passkeySignInBusy: false,
               session: {
                 _tag: "ChooseOrganization",
                 organizations: sessionResult.organizations,
@@ -188,6 +224,7 @@ export const updateSession = (model: Model, message: SessionMessage): Update.Ret
         case "SignedIn": {
           const nextModel: Model = {
             ...model,
+            passkeySignInBusy: false,
             session: {
               _tag: "SignedIn",
               organization: sessionResult.organization,
@@ -196,17 +233,25 @@ export const updateSession = (model: Model, message: SessionMessage): Update.Ret
               detectedLocale: sessionResult.detectedLocale,
               organizationLocale: sessionResult.organizationLocale,
             },
+            ...(model.route._tag === "Privacy"
+              ? { passkeys: { ...model.passkeys, list: { _tag: "Loading" } } }
+              : {}),
           };
 
           return { model: nextModel, commands: loadActiveRouteCommand(model.route) };
         }
 
         case "NotInOrganization": {
+          const loadingPasskeys = model.route._tag === "Privacy";
+
           return {
             model: {
               ...model,
+              passkeySignInBusy: false,
               session: { _tag: "NotInOrganization" },
+              ...(loadingPasskeys ? { passkeys: { ...model.passkeys, list: { _tag: "Loading" } } } : {}),
             },
+            ...(loadingPasskeys ? { commands: [ListPasskeysCmd()] } : {}),
           };
         }
       }
@@ -218,6 +263,53 @@ export const updateSession = (model: Model, message: SessionMessage): Update.Ret
       return {
         model: { ...model, session: { _tag: "Loading" } },
         commands: [LoadSession()],
+      };
+    }
+
+    case "GotPasskeyCapabilities": {
+      return {
+        model: { ...model, passkeyCapabilities: message.capabilities },
+      };
+    }
+
+    case "SignInWithPasskeyClicked": {
+      if (
+        model.session._tag !== "SignedOut" ||
+        model.session.busy ||
+        model.passkeySignInBusy ||
+        !model.passkeyCapabilities.supported
+      ) {
+        return { model };
+      }
+
+      return {
+        model: {
+          ...model,
+          passkeySignInBusy: true,
+          session: { ...model.session, notice: null },
+        },
+        commands: [SignInWithPasskey()],
+      };
+    }
+
+    case "PasskeySignedIn": {
+      if (model.session._tag !== "SignedOut") {
+        return { model: { ...model, passkeySignInBusy: false } };
+      }
+
+      if (message.verified) {
+        return {
+          model: { ...model, passkeySignInBusy: false, session: { ...model.session, notice: null } },
+          commands: [LoadSession()],
+        };
+      }
+
+      return {
+        model: {
+          ...model,
+          passkeySignInBusy: false,
+          session: { ...model.session, notice: translate("signIn.passkeyFailed") },
+        },
       };
     }
 

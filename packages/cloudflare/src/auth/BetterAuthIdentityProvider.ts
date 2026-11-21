@@ -30,8 +30,13 @@ const authRequest = (path: string, body: unknown, cookie?: Redacted.Redacted) =>
 
 const sessionTokenFromCookie = (header: string): string => {
   const pair = header.split(";")[0] ?? "";
+  const raw = Option.getOrElse(Option.fromNullishOr(pair.split("=").slice(1).join("=")), () => "");
 
-  return Option.getOrElse(Option.fromNullishOr(pair.split("=").slice(1).join("=")), () => "");
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
 };
 
 const WRONG_CODE_ERRORS = new Set(["INVALID_OTP", "OTP_EXPIRED", "TOO_MANY_ATTEMPTS"]);

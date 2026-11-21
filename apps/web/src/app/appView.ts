@@ -13,6 +13,7 @@ import { selfErasureView } from "./erasure.ts";
 import { settingsScreenView, shellView, teamScreenView, teamsScreenView } from "./directory.ts";
 import { historyView } from "./history.ts";
 import { teamOverviewView } from "./overview.ts";
+import { passkeysView } from "./passkeysView.ts";
 import { pulseEditorView, pulsesScreenView } from "./pulses.ts";
 import { resultsScreenView } from "./results.ts";
 import { roundsScreenView } from "./rounds.ts";
@@ -76,6 +77,31 @@ const emailChangeOf = (model: Model, h: HtmlBuilder<Message>): Child =>
     h,
   );
 
+const passkeysOf = (model: Model, h: HtmlBuilder<Message>): Child =>
+  passkeysView(
+    {
+      list: model.passkeys.list,
+      supported: model.passkeyCapabilities.supported,
+      busy: model.passkeys.busy,
+      notice: model.passkeys.notice,
+      failure: Option.getOrUndefined(model.passkeys.failure),
+      editingId: Option.getOrUndefined(model.passkeys.editingId),
+      editingName: model.passkeys.editingName,
+      pendingDeleteId: Option.getOrUndefined(model.passkeys.pendingDeleteId),
+    },
+    {
+      onAdd: Message.AddPasskeyClicked(),
+      onStartRename: (id, name) => Message.PasskeyRenameStarted({ id, name }),
+      onRenameChange: (value) => Message.PasskeyRenameChanged({ value }),
+      onSaveRename: Message.PasskeyRenameSaved(),
+      onCancelRename: Message.PasskeyRenameCancelled(),
+      onAskDelete: (id) => Message.PasskeyDeleteRequested({ id }),
+      onConfirmDelete: Message.PasskeyDeleteConfirmed(),
+      onCancelDelete: Message.PasskeyDeleteCancelled(),
+    },
+    h,
+  );
+
 export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
   setLocale(localeOf(model));
 
@@ -87,7 +113,11 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
       title: message("privacy.title"),
       body: pageShell(
         { privacyCurrent: true },
-        privacyContent(h, true, [emailChangeOf(model, h), selfErasureOf(model, "account", h)]),
+        privacyContent(h, true, [
+          passkeysOf(model, h),
+          emailChangeOf(model, h),
+          selfErasureOf(model, "account", h),
+        ]),
         h,
       ),
     };
@@ -118,12 +148,15 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
           code: model.session.code,
           busy: model.session.busy,
           notice: model.session.notice,
+          passkeySupported: model.passkeyCapabilities.supported,
+          passkeyBusy: model.passkeySignInBusy,
         },
         {
           onEmail: (email) => Message.SignInEmailChanged({ email }),
           onCode: (code) => Message.SignInCodeChanged({ code }),
           onSubmitEmail: Message.SubmitSignInEmail(),
           onSubmitCode: Message.SubmitSignInCode(),
+          onSignInWithPasskey: Message.SignInWithPasskeyClicked(),
         },
         h,
       ),
@@ -270,7 +303,11 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
     case "Privacy": {
       screenContent = h.div(
         [],
-        privacyContent(h, true, [emailChangeOf(model, h), selfErasureOf(model, "person", h)]),
+        privacyContent(h, true, [
+          passkeysOf(model, h),
+          emailChangeOf(model, h),
+          selfErasureOf(model, "person", h),
+        ]),
       );
       break;
     }

@@ -6,9 +6,12 @@ import { setup } from "foldkit/test/vitest";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   ConfirmEmailChange,
+  DeletePasskeyCmd,
   initialModel,
+  ListPasskeysCmd,
   localeOf,
   Message,
+  RenamePasskeyCmd,
   RequestEmailChange,
   update,
   view,
@@ -476,7 +479,143 @@ describe("App Scenes", () => {
         Scene.expect(Scene.role("link", { name: "Privacy", current: "page" })).toExist(),
         Scene.expect(Scene.role("link", { name: "Teams", current: "page" })).toBeAbsent(),
         ...openAccountMenu("Acme"),
+        Scene.expect(Scene.role("link", { name: "Passkeys & privacy" })).toExist(),
         Scene.expect(Scene.role("button", { name: "Sign out" })).toExist(),
+      );
+    });
+
+    it("lists passkeys with provider labels and supports renaming on Privacy", () => {
+      const base = initialModel(makeUrl("https://app.surveybeat.com/privacy"), []);
+
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...base,
+          session: signedInAdmin,
+          passkeyCapabilities: {
+            supported: true,
+            conditionalGet: true,
+            platformAuthenticator: true,
+          },
+          passkeys: {
+            ...base.passkeys,
+            list: {
+              _tag: "Loaded",
+              passkeys: [
+                {
+                  id: "pk-1",
+                  name: "MacBook Pro",
+                  credentialID: "cred-1",
+                  deviceType: "multiDevice",
+                  backedUp: true,
+                  createdAt: "2026-11-20T12:00:00.000Z",
+                  aaguid: "fbfc3007-154e-4ecc-8c0b-6e020557d7bd",
+                },
+                {
+                  id: "pk-2",
+                  name: null,
+                  credentialID: "cred-2",
+                  deviceType: "singleDevice",
+                  backedUp: false,
+                  createdAt: "2026-11-20T12:00:00.000Z",
+                  aaguid: "ea9b8d66-4d01-1d21-3ce4-b6b48cb575d4",
+                },
+              ],
+            },
+          },
+        }),
+        Scene.expect(Scene.role("heading", { name: "Passkeys" })).toExist(),
+        Scene.expect(Scene.text("MacBook Pro")).toExist(),
+        Scene.expect(Scene.text("Synced")).toExist(),
+        Scene.expect(Scene.text("Google Password Manager")).toExist(),
+        Scene.expect(Scene.text("This device")).toExist(),
+        Scene.expect(Scene.role("button", { name: "Add a passkey" })).toExist(),
+      );
+    });
+
+    it("renames and removes a passkey on Privacy and hides Add when unsupported", () => {
+      const base = initialModel(makeUrl("https://app.surveybeat.com/privacy"), []);
+
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...base,
+          session: signedInAdmin,
+          passkeyCapabilities: {
+            supported: true,
+            conditionalGet: true,
+            platformAuthenticator: true,
+          },
+          passkeys: {
+            ...base.passkeys,
+            list: {
+              _tag: "Loaded",
+              passkeys: [
+                {
+                  id: "pk-1",
+                  name: null,
+                  credentialID: "cred-1",
+                  deviceType: "multiDevice",
+                  backedUp: true,
+                  createdAt: "2026-11-20T12:00:00.000Z",
+                  aaguid: "fbfc3007-154e-4ecc-8c0b-6e020557d7bd",
+                },
+              ],
+            },
+          },
+        }),
+        Scene.expect(Scene.text("Apple Passwords")).toExist(),
+        Scene.click(Scene.role("button", { name: "Rename" })),
+        Scene.type(Scene.label("Passkey name"), "Work laptop"),
+        Scene.click(Scene.role("button", { name: "Save" })),
+        Scene.Command.expectHas(RenamePasskeyCmd),
+        Scene.Command.resolve(RenamePasskeyCmd, Message.PasskeyRenamed({ outcome: { _tag: "Success" } })),
+        Scene.Command.expectHas(ListPasskeysCmd),
+        Scene.Command.resolve(
+          ListPasskeysCmd,
+          Message.GotPasskeys({
+            outcome: {
+              _tag: "Success",
+              passkeys: [
+                {
+                  id: "pk-1",
+                  name: "Work laptop",
+                  credentialID: "cred-1",
+                  deviceType: "multiDevice",
+                  backedUp: true,
+                  createdAt: "2026-11-20T12:00:00.000Z",
+                  aaguid: "fbfc3007-154e-4ecc-8c0b-6e020557d7bd",
+                },
+              ],
+            },
+          }),
+        ),
+        Scene.click(Scene.role("button", { name: "Remove" })),
+        Scene.expect(Scene.role("alertdialog", { name: "Remove passkey" })).toExist(),
+        Scene.click(Scene.role("button", { name: "Remove" })),
+        Scene.Command.expectHas(DeletePasskeyCmd),
+        Scene.Command.resolve(DeletePasskeyCmd, Message.PasskeyDeleted({ outcome: { _tag: "Success" } })),
+        Scene.Command.expectHas(ListPasskeysCmd),
+        Scene.Command.resolve(
+          ListPasskeysCmd,
+          Message.GotPasskeys({ outcome: { _tag: "Success", passkeys: [] } }),
+        ),
+      );
+
+      Scene.scene(
+        { update, view },
+        Scene.given({
+          ...base,
+          session: signedInAdmin,
+          passkeys: {
+            ...base.passkeys,
+            list: { _tag: "Loaded", passkeys: [] },
+          },
+        }),
+        Scene.expect(
+          Scene.text("This browser does not support passkeys. You can still sign in with an email code."),
+        ).toExist(),
+        Scene.expect(Scene.role("button", { name: "Add a passkey" })).toBeAbsent(),
       );
     });
 

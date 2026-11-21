@@ -7,6 +7,7 @@ import { EmailAddress, OrganizationId, PersonId, AuthUserId } from "@surveybeat/
 import { RuntimeContext } from "alchemy/RuntimeContext";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
+import { createHash, generateKeyPairSync, randomBytes, sign as signCrypto } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import * as Redacted from "effect/Redacted";
 import { DatabaseSync } from "node:sqlite";
@@ -522,5 +523,259 @@ describe("Better Auth plugin tables in D1", () => {
 
       expect(user.role).toBe("user");
     }),
+  );
+
+  it.effect(
+    "registers, authenticates, renames, and deletes a passkey in D1 and authenticates the session",
+    () =>
+      Effect.gen(function* () {
+        const { sqlite, database } = betterAuthDatabase();
+        const codes: string[] = [];
+
+        const delivery = {
+          sendSignInCode: ({ otp }: { readonly email: string; readonly otp: string }) =>
+            Effect.sync(() => {
+              codes.push(otp);
+            }),
+          sendEmailChangeCode: () => Effect.void,
+          sendMagicLink: () => Effect.void,
+        };
+
+        const d1 = database as unknown as NonNullable<Parameters<typeof createAuth>[0]["database"]>;
+        const auth = createAuth({ settings: authSettings, delivery, database: d1 });
+
+        yield* Effect.promise(() =>
+          auth.handler(
+            authPost("/auth/email-otp/send-verification-otp", { email: authAddress, type: "sign-in" }),
+          ),
+        );
+
+        const signedIn = yield* Effect.promise(() =>
+          auth.handler(authPost("/auth/sign-in/email-otp", { email: authAddress, otp: codes[0] ?? "" })),
+        );
+
+        const sessionCookie = (signedIn.headers.get("set-cookie") ?? "").split(";")[0] ?? "";
+
+        const cborBytes = (buf: Buffer): Buffer =>
+          buf.length < 24
+            ? Buffer.concat([Buffer.from([0x40 + buf.length]), buf])
+            : Buffer.concat([Buffer.from([0x58, buf.length]), buf]);
+
+        const cborText = (text: string): Buffer => {
+          const buf = Buffer.from(text, "utf8");
+
+          return Buffer.concat([Buffer.from([0x60 + buf.length]), buf]);
+        };
+
+        const cborInt = (n: number): Buffer => {
+          if (n >= 0 && n < 24) {
+            return Buffer.from([n]);
+          }
+
+          if (n < 0 && n >= -24) {
+            return Buffer.from([0x20 + (-1 - n)]);
+          }
+
+          throw new Error(`Unsupported CBOR int ${n}`);
+        };
+
+        const credId = randomBytes(16);
+        const credIdB64 = credId.toString("base64url");
+        const { publicKey, privateKey } = generateKeyPairSync("ec", { namedCurve: "P-256" });
+        const jwk = publicKey.export({ format: "jwk" }) as { x: string; y: string };
+
+        const coseKey = Buffer.concat([
+          Buffer.from([0xa5]),
+          cborInt(1),
+          cborInt(2),
+          cborInt(3),
+          cborInt(-7),
+          cborInt(-1),
+          cborInt(1),
+          cborInt(-2),
+          cborBytes(Buffer.from(jwk.x, "base64url")),
+          cborInt(-3),
+          cborBytes(Buffer.from(jwk.y, "base64url")),
+        ]);
+
+        const regOptRes = yield* Effect.promise(() =>
+          auth.handler(
+            new Request(`${authOrigin}/auth/passkey/generate-register-options`, {
+              headers: { cookie: sessionCookie, origin: authOrigin },
+            }),
+          ),
+        );
+
+        expect(regOptRes.status).toBe(200);
+        const regCookie = (regOptRes.headers.get("set-cookie") ?? "").split(";")[0] ?? "";
+
+        const regOpts = (yield* Effect.promise(() => regOptRes.json())) as {
+          challenge: string;
+          rp: { id: string };
+        };
+
+        const credLen = Buffer.alloc(2);
+        credLen.writeUInt16BE(credId.length);
+
+        const regAuthData = Buffer.concat([
+          createHash("sha256").update(regOpts.rp.id).digest(),
+          Buffer.from([0x45]),
+          Buffer.alloc(4),
+          Buffer.from("ea9b8d664d011d213ce4b6b48cb575d4", "hex"),
+          credLen,
+          credId,
+          coseKey,
+        ]);
+
+        const attObj = Buffer.concat([
+          Buffer.from([0xa3]),
+          cborText("fmt"),
+          cborText("none"),
+          cborText("attStmt"),
+          Buffer.from([0xa0]),
+          cborText("authData"),
+          cborBytes(regAuthData),
+        ]);
+
+        const verifyReg = yield* Effect.promise(() =>
+          auth.handler(
+            new Request(`${authOrigin}/auth/passkey/verify-registration`, {
+              method: "POST",
+              headers: {
+                "content-type": "application/json",
+                origin: authOrigin,
+                cookie: `${sessionCookie}; ${regCookie}`,
+              },
+              body: JSON.stringify({
+                response: {
+                  id: credIdB64,
+                  rawId: credIdB64,
+                  type: "public-key",
+                  authenticatorAttachment: "platform",
+                  response: {
+                    clientDataJSON: Buffer.from(
+                      JSON.stringify({
+                        type: "webauthn.create",
+                        challenge: regOpts.challenge,
+                        origin: authOrigin,
+                      }),
+                    ).toString("base64url"),
+                    attestationObject: attObj.toString("base64url"),
+                    transports: ["internal"],
+                  },
+                },
+                name: "Office laptop",
+              }),
+            }),
+          ),
+        );
+
+        expect(verifyReg.status).toBe(200);
+        const created = (yield* Effect.promise(() => verifyReg.json())) as { id: string };
+
+        const storedPasskey = sqlite
+          .prepare("SELECT name, credentialID, aaguid FROM auth_passkey WHERE id = ?")
+          .get(created.id) as { name: string; credentialID: string; aaguid: string };
+
+        expect(storedPasskey).toEqual({
+          name: "Office laptop",
+          credentialID: credIdB64,
+          aaguid: "ea9b8d66-4d01-1d21-3ce4-b6b48cb575d4",
+        });
+
+        const authOptRes = yield* Effect.promise(() =>
+          auth.handler(
+            new Request(`${authOrigin}/auth/passkey/generate-authenticate-options`, {
+              headers: { origin: authOrigin },
+            }),
+          ),
+        );
+
+        expect(authOptRes.status).toBe(200);
+        const authChallengeCookie = (authOptRes.headers.get("set-cookie") ?? "").split(";")[0] ?? "";
+
+        const authOpts = (yield* Effect.promise(() => authOptRes.json())) as {
+          challenge: string;
+          rpId: string;
+        };
+
+        const authClientData = Buffer.from(
+          JSON.stringify({ type: "webauthn.get", challenge: authOpts.challenge, origin: authOrigin }),
+        );
+
+        const authData = Buffer.concat([
+          createHash("sha256").update(authOpts.rpId).digest(),
+          Buffer.from([0x05]),
+          Buffer.from([0, 0, 0, 1]),
+        ]);
+
+        const signature = signCrypto(
+          "sha256",
+          Buffer.concat([authData, createHash("sha256").update(authClientData).digest()]),
+          privateKey,
+        );
+
+        const verifyAuth = yield* Effect.promise(() =>
+          auth.handler(
+            new Request(`${authOrigin}/auth/passkey/verify-authentication`, {
+              method: "POST",
+              headers: {
+                "content-type": "application/json",
+                origin: authOrigin,
+                cookie: authChallengeCookie,
+              },
+              body: JSON.stringify({
+                response: {
+                  id: credIdB64,
+                  rawId: credIdB64,
+                  type: "public-key",
+                  response: {
+                    clientDataJSON: authClientData.toString("base64url"),
+                    authenticatorData: authData.toString("base64url"),
+                    signature: signature.toString("base64url"),
+                  },
+                },
+              }),
+            }),
+          ),
+        );
+
+        expect(verifyAuth.status).toBe(200);
+        const passkeyCookie = (verifyAuth.headers.get("set-cookie") ?? "").split(";")[0] ?? "";
+        const passkeyToken = passkeyCookie.slice(`${SESSION_COOKIE}=`.length);
+
+        const provider = betterAuthIdentityProvider({
+          auth,
+          chosenOrganization: () => Effect.succeedNone,
+          rememberOrganization: () => Effect.void,
+          deleteSession: () => Effect.void,
+        });
+
+        const identity = yield* provider.authenticate(Redacted.make(passkeyToken));
+        expect(identity.identity.email).toBe(authAddress);
+        expect(identity.identity.emailVerified).toBe(true);
+
+        const deleteRes = yield* Effect.promise(() =>
+          auth.handler(
+            new Request(`${authOrigin}/auth/passkey/delete-passkey`, {
+              method: "POST",
+              headers: {
+                "content-type": "application/json",
+                origin: authOrigin,
+                cookie: passkeyCookie,
+              },
+              body: JSON.stringify({ id: created.id }),
+            }),
+          ),
+        );
+
+        expect(deleteRes.status).toBe(200);
+
+        const countRow = sqlite.prepare("SELECT COUNT(*) AS count FROM auth_passkey").get() as {
+          count: number;
+        };
+
+        expect(countRow.count).toBe(0);
+      }),
   );
 });

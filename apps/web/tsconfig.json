@@ -14,7 +14,11 @@
         "allowedUnstableApis": [
           "@effect/vitest#it",
           "effect/http-api/HttpApiClient#make",
-          "effect/http/FetchHttpClient#layer"
+          "effect/http/FetchHttpClient#layer",
+          "effect/http/HttpClient#HttpClient",
+          "effect/http/HttpClientRequest#get",
+          "effect/http/HttpClientRequest#post",
+          "effect/http/HttpClientRequest#bodyJsonUnsafe"
         ]
       }
     ]

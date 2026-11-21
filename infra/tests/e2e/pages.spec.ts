@@ -133,3 +133,78 @@ test("a wrong code is refused and leaves the visitor signed out", async ({ page 
   await expect(page.getByText("Signing in did not work. Please try again.")).toBeVisible();
   expect((await page.request.get("/auth/session")).status(), "GET /auth/session").toBe(401);
 });
+
+test("a visitor can add, rename, sign in with, and remove a passkey using a virtual authenticator", async ({
+  page,
+  pageErrors,
+}) => {
+  test.skip(!hasCapturedEmailRoute, "the __test/email route is registered only on the local test_ stage");
+
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("WebAuthn.enable");
+  await cdp.send("WebAuthn.addVirtualAuthenticator", {
+    options: {
+      protocol: "ctap2",
+      transport: "internal",
+      hasResidentKey: true,
+      hasUserVerification: true,
+      isUserVerified: true,
+      automaticPresenceSimulation: true,
+    },
+  });
+
+  const email = "e2e-passkey@example.com";
+  await open(page, "/");
+
+  await page.getByRole("textbox", { name: "Your email" }).fill(email);
+  await page.getByRole("button", { name: "Email me a code" }).click();
+  await expect(page.getByText(`We sent a 6-digit code to ${email}.`)).toBeVisible();
+
+  let code = "";
+  await expect
+    .poll(async () => {
+      const response = await page.request.get(`/__test/email?recipient=${encodeURIComponent(email)}`);
+      const body = (await response.json()) as { text: string | null };
+      code = body.text?.match(sixDigits)?.[1] ?? "";
+      return code;
+    })
+    .toMatch(/^\d{6}$/);
+
+  await page.getByRole("textbox", { name: "Sign-in code" }).fill(code);
+  await page.getByRole("button", { name: "Sign in with this code" }).click();
+  await expect(page.getByRole("heading", { name: "You're not part of an Organization yet" })).toBeVisible();
+
+  await open(page, "/privacy");
+  await expect(page.getByRole("heading", { name: "Passkeys" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Add a passkey" }).click();
+  await expect(page.getByText("Passkey added.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Rename" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Rename" }).click();
+  await page.getByRole("textbox", { name: "Passkey name" }).fill("Work laptop");
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("Passkey renamed.")).toBeVisible();
+  await expect(page.getByText("Work laptop")).toBeVisible();
+
+  await open(page, "/");
+  await page.getByRole("button", { name: "Sign out" }).click();
+  await expect(page.getByRole("heading", { name: "Sign in to SurveyBeat" })).toBeVisible();
+
+  await expect(page.getByRole("button", { name: "Sign in with a passkey" })).toBeVisible();
+  await page.getByRole("button", { name: "Sign in with a passkey" }).click();
+  await expect(page.getByRole("heading", { name: "You're not part of an Organization yet" })).toBeVisible();
+
+  const session = await page.request.get("/auth/session");
+  expect(session.status(), "GET /auth/session after passkey sign-in").toBe(200);
+
+  await open(page, "/privacy");
+  await expect(page.getByText("Work laptop")).toBeVisible();
+  await page.getByRole("button", { name: "Remove" }).first().click();
+  await expect(page.getByRole("alertdialog", { name: "Remove passkey" })).toBeVisible();
+  await page.getByRole("button", { name: "Remove" }).last().click();
+  await expect(page.getByText("Passkey removed.")).toBeVisible();
+  await expect(page.getByText("No passkeys added yet.")).toBeVisible();
+
+  expect(pageErrors).toEqual([]);
+});

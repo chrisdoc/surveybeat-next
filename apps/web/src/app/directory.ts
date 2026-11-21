@@ -2,9 +2,9 @@ import { Nav, Popover } from "@foldkit/ui";
 import { Predicate } from "effect";
 import type { ChildAttribute, Html, HtmlBuilder } from "foldkit/html";
 import { message } from "../messages/locale.ts";
-import { downloadPersonalDataView, pageShell, signOutView } from "./components.ts";
+import { downloadPersonalDataView, pageShell, secondaryButtonClass, signOutView } from "./components.ts";
 import type { Child } from "./components.ts";
-import { historyHref, settingsHref, teamsHref } from "./routes.ts";
+import { historyHref, privacyHref, settingsHref, teamsHref } from "./routes.ts";
 import type { NavSection, ShellHeader } from "./directoryModel.ts";
 
 export {
@@ -173,7 +173,19 @@ export const shellView = <Message>(
   const accountPanel = (attributes: readonly ChildAttribute[]): Html =>
     h.div(
       [...attributes, h.Class(menuPanelClass)],
-      [h.div([h.Class("flex flex-col gap-3")], [downloadPersonalDataView(h, true), signOutView(h, true)])],
+      [
+        h.div(
+          [h.Class("flex flex-col gap-3")],
+          [
+            h.a(
+              [h.Href(privacyHref()), h.Class(`${secondaryButtonClass} w-full`)],
+              [message("nav.accountPrivacy")],
+            ),
+            downloadPersonalDataView(h, true),
+            signOutView(h, true),
+          ],
+        ),
+      ],
     );
 
   const menuButton = (attributes: readonly ChildAttribute[]): Html =>
@@ -199,6 +211,10 @@ export const shellView = <Message>(
           [h.Class("mt-4 flex flex-col gap-3 border-t border-line-soft pt-4")],
           [
             h.p([h.Class("break-words text-sm font-semibold text-muted")], [header.organizationName]),
+            h.a(
+              [h.Href(privacyHref()), h.Class(`${secondaryButtonClass} w-full`)],
+              [message("nav.accountPrivacy")],
+            ),
             downloadPersonalDataView(h, true),
             signOutView(h, true),
           ],

@@ -144,6 +144,7 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
     );
 
     const { stage } = yield* Stack;
+    const appHostname = hostnameFor(stage, "app");
     const database = yield* Cloudflare.D1.QueryDatabase(yield* Database);
     const emailQueue = yield* EmailQueue;
     const emailDlq = yield* EmailQueueDlq;
@@ -156,6 +157,7 @@ export default class MainWorker extends Cloudflare.Worker<MainWorker>()(
 
     const authInstance = yield* BetterAuth({
       ...authOptions(signInCodeDelivery(signInEmail.send)),
+      ...(appHostname === undefined ? {} : { baseURL: `https://${appHostname}` }),
       id: "Auth",
       migrate: false,
     });

@@ -26,6 +26,14 @@ import { runApi } from "./api.ts";
 import type { FailedEmailResend } from "./directory.ts";
 import { FAILED_EMAIL_POLL_INTERVAL } from "./directory.ts";
 import { browserStorage, clearKeptAnswers, clearOwnBrowserData, readKeptAnswers } from "./keptAnswers.ts";
+import {
+  authenticateWithPasskey,
+  deleteUserPasskey,
+  detectPasskeyCapabilities,
+  listUserPasskeys,
+  registerPasskey,
+  renameUserPasskey,
+} from "./passkeyClient.ts";
 import { TEST_SEND_POLL_INTERVAL } from "./pulses.ts";
 import type { AppRoute } from "./routes.ts";
 import { runSessionCall } from "./session.ts";
@@ -35,6 +43,85 @@ export const LoadSession = Command.define("LoadSession", {
   execute: Effect.suspend(() =>
     runSessionCall((api) => api.auth.session()).pipe(Effect.map((result) => Message.GotSession({ result }))),
   ),
+});
+
+export const DetectPasskeyCapabilities = Command.define("DetectPasskeyCapabilities", {
+  messages: [Message.GotPasskeyCapabilities],
+  execute: Effect.suspend(() =>
+    detectPasskeyCapabilities.pipe(
+      Effect.map((capabilities) => Message.GotPasskeyCapabilities({ capabilities })),
+    ),
+  ),
+});
+
+export const SignInWithPasskey = Command.define("SignInWithPasskey", {
+  messages: [Message.PasskeySignedIn],
+  execute: Effect.suspend(() =>
+    authenticateWithPasskey({ conditional: false }).pipe(
+      Effect.map((outcome) => Message.PasskeySignedIn({ verified: outcome._tag === "Verified" })),
+    ),
+  ),
+});
+
+export const ListPasskeysCmd = Command.define("ListPasskeysCmd", {
+  messages: [Message.GotPasskeys],
+  execute: Effect.suspend(() =>
+    listUserPasskeys.pipe(
+      Effect.map((outcome) =>
+        outcome._tag === "Success"
+          ? Message.GotPasskeys({ outcome: { _tag: "Success", passkeys: [...outcome.passkeys] } })
+          : Message.GotPasskeys({ outcome: { _tag: "Failure", failure: outcome.failure } }),
+      ),
+    ),
+  ),
+});
+
+export const AddPasskeyCmd = Command.define("AddPasskeyCmd", {
+  messages: [Message.AddedPasskey],
+  execute: Effect.suspend(() =>
+    registerPasskey().pipe(
+      Effect.map((outcome) => {
+        if (outcome._tag === "Success") {
+          return Message.AddedPasskey({ cancelled: false, outcome: { _tag: "Success" } });
+        }
+
+        if (outcome._tag === "Cancelled") {
+          return Message.AddedPasskey({ cancelled: true, outcome: { _tag: "Success" } });
+        }
+
+        return Message.AddedPasskey({
+          cancelled: false,
+          outcome: { _tag: "Failure", failure: outcome.failure },
+        });
+      }),
+    ),
+  ),
+});
+
+export const RenamePasskeyCmd = Command.define("RenamePasskeyCmd", {
+  args: { id: Schema.String, name: Schema.String },
+  messages: [Message.PasskeyRenamed],
+  execute: ({ id, name }) =>
+    renameUserPasskey(id, name).pipe(
+      Effect.map((outcome) =>
+        outcome._tag === "Success"
+          ? Message.PasskeyRenamed({ outcome: { _tag: "Success" } })
+          : Message.PasskeyRenamed({ outcome: { _tag: "Failure", failure: outcome.failure } }),
+      ),
+    ),
+});
+
+export const DeletePasskeyCmd = Command.define("DeletePasskeyCmd", {
+  args: { id: Schema.String },
+  messages: [Message.PasskeyDeleted],
+  execute: ({ id }) =>
+    deleteUserPasskey(id).pipe(
+      Effect.map((outcome) =>
+        outcome._tag === "Success"
+          ? Message.PasskeyDeleted({ outcome: { _tag: "Success" } })
+          : Message.PasskeyDeleted({ outcome: { _tag: "Failure", failure: outcome.failure } }),
+      ),
+    ),
 });
 
 export const SendSignInCode = Command.define("SendSignInCode", {
@@ -819,7 +906,10 @@ export const loadActiveRouteCommand = (route: AppRoute) => {
       ];
     }
 
-    case "Privacy":
+    case "Privacy": {
+      return [ListPasskeysCmd()];
+    }
+
     case "NotFound": {
       return [];
     }

@@ -1,7 +1,7 @@
 import { Runtime } from "foldkit";
 import type { Navigation } from "foldkit";
 import type { Url } from "foldkit/url";
-import { init, Message, Model, update, view } from "./App.ts";
+import { init, Message, Model, subscriptions, update, view } from "./App.ts";
 import "./app.css";
 
 const container = typeof document !== "undefined" ? document.getElementById("root") : null;
@@ -11,6 +11,7 @@ const application = Runtime.makeApplication({
   init,
   update,
   view,
+  subscriptions,
   container,
   routing: {
     onUrlRequest: (request: Navigation.UrlRequest) => Message.UrlRequested({ request }),
