@@ -1,0 +1,45 @@
+{
+  "cli_version": "0.13.4",
+  "checkpoint_id": "01M7YWKVVNVVJ32D9BHYHGJ957",
+  "session_id": "01a1f7b5-26dc-79e3-bb58-6f8e8940497a",
+  "strategy": "manual-commit",
+  "created_at": "2026-11-21T11:07:15.734610325Z",
+  "branch": "t3/issue-230-work",
+  "checkpoints_count": 4,
+  "files_touched": [
+    ".github/workflows/preview.yml",
+    "docs/adr/0026-preview-stage-gates.md",
+    "docs/infra.md",
+    "scripts/ci/runner-minutes.mjs",
+    "scripts/ci/runner-minutes.test.ts",
+    "scripts/ci/select.mjs",
+    "scripts/ci/select.test.ts"
+  ],
+  "agent": "Claude Code",
+  "model": "",
+  "turn_id": "fbfafdaa3b31",
+  "token_usage": {
+    "input_tokens": 0,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 0,
+    "output_tokens": 0,
+    "api_call_count": 0
+  },
+  "redaction": {
+    "replacements": 18,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 18,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  },
+  "session_metrics": {
+    "turn_count": 4
+  }
+}
