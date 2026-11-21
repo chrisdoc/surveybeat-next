@@ -1,6 +1,7 @@
 import { Clock, Effect, Option } from "effect";
 import type { Redacted } from "effect";
 import type { EmailAddress } from "../email/Email.ts";
+import { resumeEmailChange } from "./EmailRectification.ts";
 import { normaliseEmail } from "./Identity.ts";
 import type { OrganizationCreationAllowlist, PersonId } from "./Identity.ts";
 import type { Locale } from "./Locale.ts";
@@ -185,6 +186,8 @@ export const sessionState = Effect.fnUntraced(function* (
   allowlist: OrganizationCreationAllowlist,
 ) {
   const { session } = checked;
+
+  yield* resumeEmailChange(session);
 
   if (Option.isSome(checked.member)) {
     return signedIn(session, checked.member.value);

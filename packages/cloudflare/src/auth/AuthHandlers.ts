@@ -11,8 +11,10 @@ import {
   Unauthenticated,
 } from "@surveybeat/domain";
 import type {
+  EmailRectification,
   NewIds,
   OrganizationCreationAllowlist,
+  OrganizationDirectory,
   OrganizationPeople,
   PeopleIndex,
   SessionOutcome,
@@ -33,7 +35,13 @@ const SESSION_MAX_AGE = Duration.days(Policy.signIn.sessionDays);
 
 const cookieOptions = { path: "/", httpOnly: true, secure: true, sameSite: "lax" } as const;
 
-export type AuthServices = SessionIdentityProvider | PeopleIndex | OrganizationPeople | NewIds;
+export type AuthServices =
+  | SessionIdentityProvider
+  | PeopleIndex
+  | OrganizationPeople
+  | NewIds
+  | EmailRectification
+  | OrganizationDirectory;
 
 export interface AuthHandlerOptions<R> {
   readonly services: Effect.Effect<Context.Context<AuthServices>, never, R>;

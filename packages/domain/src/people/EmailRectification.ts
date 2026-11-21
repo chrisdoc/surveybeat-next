@@ -52,6 +52,15 @@ const finishChange = Effect.fnUntraced(function* (userId: AuthUserId, email: Ema
   yield* rectification.finish(userId);
 });
 
+export const resumeEmailChange = Effect.fnUntraced(function* (session: SignedInSession) {
+  const rectification = yield* EmailRectification;
+  const pending = yield* rectification.pending(session.identity.userId);
+
+  if (Option.isSome(pending) && pending.value.newEmail === session.identity.email) {
+    yield* finishChange(session.identity.userId, session.identity.email);
+  }
+});
+
 export const requestEmailChange = Effect.fnUntraced(function* (
   cookie: Redacted.Redacted,
   session: SignedInSession,
@@ -61,14 +70,17 @@ export const requestEmailChange = Effect.fnUntraced(function* (
   const rectification = yield* EmailRectification;
   const { userId } = session.identity;
   const current = session.identity.email;
-  const pending = yield* rectification.pending(userId);
-
-  if (Option.isSome(pending) && pending.value.newEmail === current && email !== current) {
-    return yield* new EmailChangePending();
-  }
 
   if (email === current) {
+    yield* resumeEmailChange(session);
+
     return yield* new EmailUnchanged();
+  }
+
+  const pending = yield* rectification.pending(userId);
+
+  if (Option.isSome(pending) && pending.value.newEmail === current) {
+    return yield* new EmailChangePending();
   }
 
   if (yield* rectification.takenByAnotherAccount(userId, email)) {
