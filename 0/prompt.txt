@@ -1,0 +1,70 @@
+/taste-skill:design-taste-frontend 
+
+<pasted_content id="91bb">
+Use the design-taste-frontend skill to redesign the dashboard and survey screens in this project.
+
+Scope: redesign: deal a new direction and rebuild the sections
+Must stay: the stack and styling method, the routes, the forms and what they send
+What is wrong today: hard to read, not optimized for mobile, lacks enterprise design, not intuitive enough to use, hard to get onboarded
+
+
+Record the before first: inspect the running page into .taste-skill/before and lint the source. Then work in the skill's order (type, colour, the frame, states, stock components), inspect again into .taste-skill/after, click through every link, form and menu that worked before, and report the before and after measurements side by side.
+</pasted_content id="91bb">
+
+---
+
+<task-notification>
+<task-id>b2mw9hm9x</task-id>
+<tool-use-id>toolu_01PzDGboHB8muU5Qs9cMFHNh</tool-use-id>
+<output-file>/private/tmp/claude-501/-Users-chrisdoc-fun-surveybeat-next/3671b9a7-ae5b-4702-a812-fd642b80c996/tasks/b2mw9hm9x.output</output-file>
+<status>failed</status>
+<summary>Background command "Start fixture server for the before build" failed with exit code 143</summary>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>b34941ps9</task-id>
+<tool-use-id>toolu_0159JXjfun2cUmCusdJ1y3Lg</tool-use-id>
+<output-file>/private/tmp/claude-501/-Users-chrisdoc-fun-surveybeat-next/3671b9a7-ae5b-4702-a812-fd642b80c996/tasks/b34941ps9.output</output-file>
+<status>completed</status>
+<summary>Background command "Run the click-through on both builds side by side" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>b7i88d0e6</task-id>
+<tool-use-id>toolu_01KDd3DUgmTcWdyq1HvYkEfn</tool-use-id>
+<output-file>/private/tmp/claude-501/-Users-chrisdoc-fun-surveybeat-next/3671b9a7-ae5b-4702-a812-fd642b80c996/tasks/b7i88d0e6.output</output-file>
+<status>failed</status>
+<summary>Background command "Restart before server on the saved before build" failed with exit code 143</summary>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>b928bf4cb</task-id>
+<tool-use-id>toolu_01JvuEUrwySWefLvKC3zjySB</tool-use-id>
+<output-file>/private/tmp/claude-501/-Users-chrisdoc-fun-surveybeat-next/3671b9a7-ae5b-4702-a812-fd642b80c996/tasks/b928bf4cb.output</output-file>
+<status>failed</status>
+<summary>Background command "Start fixture server for the after build" failed with exit code 143</summary>
+</task-notification>
+
+---
+
+Close the gate
+
+---
+
+<task-notification>
+<task-id>b2h15c26z</task-id>
+<tool-use-id>toolu_01LNr9JTYUSbPEyfNMAFtZ6i</tool-use-id>
+<output-file>/private/tmp/claude-501/-Users-chrisdoc-fun-surveybeat-next/3671b9a7-ae5b-4702-a812-fd642b80c996/tasks/b2h15c26z.output</output-file>
+<status>failed</status>
+<summary>Background command "Start fixture server for the gate" failed with exit code 143</summary>
+</task-notification>
+
+---
+
+push it
