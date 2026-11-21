@@ -326,18 +326,18 @@ describe("answer and delivery links follow the email's locale", () => {
 describe("theme", () => {
   it("keeps the light palette in step with the app theme", () => {
     expect(colors).toEqual({
-      page: "#F3F4F1",
+      page: "#F7F9F8",
       card: "#FFFFFF",
-      border: "#E1E5E1",
-      rowBorder: "#ECEFEC",
-      text: "#0E2A24",
-      muted: "#3D554F",
-      accent: "#0B5D55",
-      button: "#0E2A24",
+      border: "#D9E2E0",
+      rowBorder: "#E8EEEC",
+      text: "#10292D",
+      muted: "#3F6166",
+      accent: "#06525C",
+      button: "#06525C",
       buttonText: "#FFFFFF",
-      panel: "#0E2A24",
+      panel: "#06525C",
       panelText: "#DCE9E5",
-      mint: "#9FD6CB",
+      mint: "#A8DCD9",
       ratingBorder: "#768C85",
     });
   });

@@ -352,6 +352,12 @@ importers:
       '@fontsource-variable/figtree':
         specifier: 5.3.0
         version: 5.3.0
+      '@fontsource-variable/funnel-display':
+        specifier: 5.3.0
+        version: 5.3.0
+      '@fontsource-variable/funnel-sans':
+        specifier: 5.3.0
+        version: 5.3.0
       '@fontsource-variable/newsreader':
         specifier: 5.3.0
         version: 5.3.0
@@ -1242,6 +1248,12 @@ packages:
 
   '@fontsource-variable/figtree@5.3.0':
     resolution: {integrity: sha512-VRVodD7OiG7apQwE8/2fMjaqpY/a0qRJqL5HtYj8CKIVps+9amaFcdfKmDIf7iqYQx6iPLlArVXAfKeIZmVcNQ==}
+
+  '@fontsource-variable/funnel-display@5.3.0':
+    resolution: {integrity: sha512-o/12lyrfflx5QAQFa+hAl0uBeWoBUAm5w71j+KssBseo++XJT3tnveDSg5IAnAdiclQHfFuEZiL5Wn2BjuFxtw==}
+
+  '@fontsource-variable/funnel-sans@5.3.0':
+    resolution: {integrity: sha512-NOgHy3KWMAJdl33XSESit33nI8vlFZh8/0E3tLD7z5jJA5gQoLeUkFcZtxehVVkyYpAZ747tF8O/kAHXXa96ZA==}
 
   '@fontsource-variable/newsreader@5.3.0':
     resolution: {integrity: sha512-rrzYi43qMpbzwuFtf9OkWH8sxAPVPcQQQEwXpPtwaKYeJ8yVg5aLs5kawmo1f2Q1t1M38TLmEKCkGVDsYwgdFw==}
@@ -4381,6 +4393,10 @@ snapshots:
       - utf-8-validate
 
   '@fontsource-variable/figtree@5.3.0': {}
+
+  '@fontsource-variable/funnel-display@5.3.0': {}
+
+  '@fontsource-variable/funnel-sans@5.3.0': {}
 
   '@fontsource-variable/newsreader@5.3.0': {}
 

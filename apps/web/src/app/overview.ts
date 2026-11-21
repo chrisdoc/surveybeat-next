@@ -11,7 +11,7 @@ import type { ChartPoint } from "./charts.ts";
 import {
   dataTable,
   emptyState,
-  linkClass,
+  buttonClass,
   panel,
   problemView,
   sectionTitle,
@@ -202,7 +202,15 @@ const dimensionPanel = <Message>(
 
   return panel(
     [
-      subSectionTitle(name, h),
+      h.div(
+        [h.Class("flex items-baseline justify-between gap-3")],
+        [
+          subSectionTitle(name, h),
+          ...(latest === null
+            ? []
+            : [h.span([h.Class("font-display text-xl font-semibold tabular-nums")], [formatScore(latest)])]),
+        ],
+      ),
       plotBox(
         [
           h.div(
@@ -293,13 +301,18 @@ const latestResults = <Message>(overview: TeamOverview, h: HtmlBuilder<Message>)
     [
       subSectionTitle(message("overview.latest.title"), h, 2),
       h.p([h.Class("text-sm text-muted")], [roundName(latest)]),
-      h.a(
-        [h.Href(roundResultsHref(overview.teamId, latest.roundId)), h.Class(`mt-2 ${linkClass}`)],
-        [message("overview.latest.action")],
+      h.div(
+        [h.Class("mt-auto pt-3")],
+        [
+          h.a(
+            [h.Href(roundResultsHref(overview.teamId, latest.roundId)), h.Class(buttonClass)],
+            [message("overview.latest.action")],
+          ),
+        ],
       ),
     ],
     h,
-    "flex flex-col gap-1",
+    "flex flex-col gap-1 border-l-4 border-l-primary",
   );
 };
 
@@ -308,7 +321,7 @@ const recentRounds = <Message>(overview: TeamOverview, h: HtmlBuilder<Message>):
     [
       subSectionTitle(message("overview.recent.title"), h, 2),
       h.ul(
-        [h.Class("mt-1 flex flex-col")],
+        [h.Class("mt-1 flex flex-col divide-y divide-line-soft")],
         [...overview.rounds]
           .toReversed()
           .slice(0, RECENT_ROUNDS)
@@ -319,9 +332,11 @@ const recentRounds = <Message>(overview: TeamOverview, h: HtmlBuilder<Message>):
                 h.a(
                   [
                     h.Href(roundResultsHref(overview.teamId, round.roundId)),
-                    h.Class(`inline-flex min-h-11 items-center ${linkClass}`),
+                    h.Class(
+                      "flex min-h-11 items-center justify-between gap-3 text-[15px] font-medium text-ink transition-colors hover:text-primary",
+                    ),
                   ],
-                  [roundName(round)],
+                  [roundName(round), h.span([h.AriaHidden(true), h.Class("text-muted")], ["›"])],
                 ),
               ],
             ),
@@ -329,7 +344,7 @@ const recentRounds = <Message>(overview: TeamOverview, h: HtmlBuilder<Message>):
       ),
     ],
     h,
-    "mt-4 flex flex-col gap-1",
+    "flex flex-col gap-1",
   );
 
 export const teamOverviewView = <Message>(
@@ -339,7 +354,17 @@ export const teamOverviewView = <Message>(
   h: HtmlBuilder<Message>,
 ): Html => {
   if (state._tag === "Loading") {
-    return h.p([h.Class("text-muted")], [message("overview.loading")]);
+    return h.div(
+      [h.Role("status"), h.Class("flex flex-col gap-3")],
+      [
+        h.span([h.Class("sr-only")], [message("overview.loading")]),
+        h.div([h.AriaHidden(true), h.Class("skeleton h-8 w-64")]),
+        h.div(
+          [h.AriaHidden(true), h.Class("grid gap-4 lg:grid-cols-2")],
+          [h.div([h.Class("skeleton h-56")]), h.div([h.Class("skeleton h-56")])],
+        ),
+      ],
+    );
   }
 
   if (state._tag === "Failed") {
@@ -367,11 +392,26 @@ export const teamOverviewView = <Message>(
 
   const latest = latestResults(overview, h);
 
+  const charts: Html[] = [];
+
   const children: Html[] = [
-    sectionTitle(message("overview.title"), h),
-    h.p([h.Class("text-muted")], [message("overview.intro")]),
-    ...(latest === null ? [recentRounds(overview, h)] : [latest, recentRounds(overview, h)]),
-    h.div([h.Class("flex justify-end")], [toggleButton(isTable, onToggleTable, h)]),
+    h.div(
+      [h.Class("grid items-start gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]")],
+      latest === null ? [recentRounds(overview, h)] : [latest, recentRounds(overview, h)],
+    ),
+    h.div(
+      [h.Class("mt-4 flex flex-wrap items-end justify-between gap-3 border-b border-line pb-3")],
+      [
+        h.div(
+          [h.Class("min-w-0")],
+          [
+            sectionTitle(message("overview.title"), h),
+            h.p([h.Class("mt-1 max-w-[70ch] text-sm text-muted")], [message("overview.intro")]),
+          ],
+        ),
+        toggleButton(isTable, onToggleTable, h),
+      ],
+    ),
   ];
 
   if (isTable) {
@@ -382,10 +422,14 @@ export const teamOverviewView = <Message>(
     }
   } else {
     overview.dimensions.forEach((dimension, index) => {
-      children.push(
+      charts.push(
         dimensionPanel(dimension, overview.rounds, xByRound, overview.markers, markerXs, index === 0, h),
       );
     });
+
+    if (charts.length > 0) {
+      children.push(h.div([h.Class("grid gap-4 lg:grid-cols-2")], charts));
+    }
 
     if (overview.dimensions.length === 0 && overview.markers.length > 0) {
       children.push(

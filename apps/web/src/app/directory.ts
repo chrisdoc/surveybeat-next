@@ -76,10 +76,10 @@ const sectionNav = <Message>(
   });
 
 const desktopLinkClass = (isCurrent: boolean): string =>
-  `inline-flex min-h-11 items-center border-b-2 ${
+  `inline-flex min-h-11 items-center rounded-control px-3 transition-colors ${
     isCurrent
-      ? "border-primary font-semibold text-ink"
-      : "border-transparent font-medium text-muted hover:text-ink"
+      ? "bg-primary-soft font-semibold text-primary"
+      : "font-medium text-muted hover:bg-subtle hover:text-ink"
   }`;
 
 const phoneLinkClass = (isCurrent: boolean): string =>
@@ -88,7 +88,7 @@ const phoneLinkClass = (isCurrent: boolean): string =>
   }`;
 
 const menuPanelClass =
-  "z-50 w-[min(20rem,calc(100vw-2rem))] rounded-panel border border-line bg-surface p-4 shadow-lg";
+  "z-50 w-[min(20rem,calc(100vw-2rem))] rounded-panel border border-line bg-surface p-4 shadow-raised";
 
 const chevronIcon = <Message>(h: HtmlBuilder<Message>): Html =>
   h.svg(
@@ -158,7 +158,7 @@ export const shellView = <Message>(
       [
         ...attributes,
         h.Class(
-          "inline-flex min-h-11 max-w-[16rem] items-center gap-2 rounded-control px-3 font-semibold text-ink hover:bg-subtle",
+          "inline-flex min-h-11 max-w-[16rem] items-center gap-2 rounded-control border border-line bg-surface px-3 text-[15px] font-semibold text-ink shadow-card transition-colors hover:bg-subtle",
         ),
       ],
       [
@@ -215,13 +215,13 @@ export const shellView = <Message>(
           {
             sections,
             current: header.section,
-            className: "hidden min-w-0 items-center gap-x-6 text-[15px] lg:ml-auto lg:flex",
+            className: "hidden min-w-0 items-center gap-x-1 text-[15px] lg:flex",
             linkClass: desktopLinkClass,
           },
           h,
         ),
         h.div(
-          [h.Class("hidden lg:block")],
+          [h.Class("ml-auto hidden lg:block")],
           [
             headerMenu(
               header.accountMenu,

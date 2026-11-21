@@ -36,11 +36,11 @@ const MIN_SCORE = 1;
 
 const MAX_SCORE = 5;
 
-const LABEL_SIZE = "9";
+const LABEL_SIZE = "11";
 
 const LABEL_CLASS = "fill-muted";
 
-const OVERLAY_LABEL_CLASS = "absolute leading-none text-muted text-[9px] whitespace-nowrap";
+const OVERLAY_LABEL_CLASS = "absolute leading-none text-muted text-[11px] tabular-nums whitespace-nowrap";
 
 export const CHART_PAD = { left: 24, right: 16, top: 16, bottom: 24 } as const;
 

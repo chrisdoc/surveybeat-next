@@ -551,7 +551,11 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
       },
       [screenContent],
       h,
-      model.route._tag === "RoundResults",
+      model.route._tag === "RoundResults" ||
+        model.route._tag === "Teams" ||
+        model.route._tag === "Team" ||
+        model.route._tag === "Rounds" ||
+        model.route._tag === "History",
     ),
   };
 };

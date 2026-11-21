@@ -126,32 +126,28 @@ export const distributionChart = <Message>(
   const maxCount = Math.max(...distribution.map((d) => d.count), 1);
 
   return h.div(
-    [h.Class("flex w-full flex-col gap-3"), h.Role("img"), h.AriaLabel(message("results.distributionTitle"))],
-    distribution.map((d) =>
+    [
+      h.Class(
+        "grid w-full grid-cols-[minmax(0,max-content)_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2",
+      ),
+      h.Role("img"),
+      h.AriaLabel(message("results.distributionTitle")),
+    ],
+    distribution.flatMap((d) => [
+      h.span([h.Class("max-w-[10rem] text-sm break-words text-ink tabular-nums")], [String(d.option)]),
       h.div(
-        [h.Class("flex flex-col gap-1")],
+        [h.Class("h-2.5 min-w-0 overflow-hidden rounded-full bg-line-soft")],
         [
-          h.span([h.Class("text-sm break-words text-ink")], [String(d.option)]),
-          h.div(
-            [h.Class("flex items-center gap-3")],
-            [
-              h.div(
-                [h.Class("min-w-0 flex-1")],
-                [
-                  d.count > 0
-                    ? h.div([
-                        h.Class("h-5 rounded bg-primary"),
-                        h.Style({ width: `${(d.count / maxCount) * 100}%`, minWidth: "2px" }),
-                      ])
-                    : null,
-                ],
-              ),
-              h.span([h.Class("text-xs text-muted tabular-nums")], [String(d.count)]),
-            ],
-          ),
+          d.count > 0
+            ? h.div([
+                h.Class("h-full rounded-full bg-primary"),
+                h.Style({ width: `${(d.count / maxCount) * 100}%`, minWidth: "4px" }),
+              ])
+            : null,
         ],
       ),
-    ),
+      h.span([h.Class("w-5 text-right text-sm text-muted tabular-nums")], [String(d.count)]),
+    ]),
   );
 };
 
@@ -298,9 +294,15 @@ const baselineNote = <Message>(typical: TypicalChange | null, h: HtmlBuilder<Mes
   );
 };
 
-const scoreView = <Message>(text: string, h: HtmlBuilder<Message>): Html =>
+const scoreView = <Message>(text: string, h: HtmlBuilder<Message>, isScore = true): Html =>
   h.span(
-    [h.Class("font-display text-[30px] leading-none font-medium whitespace-nowrap tabular-nums")],
+    [
+      h.Class(
+        isScore
+          ? "shrink-0 font-display text-[26px] leading-none font-semibold tracking-[-0.02em] whitespace-nowrap tabular-nums"
+          : "rounded-full bg-subtle px-2.5 py-1 text-[13px] font-semibold text-muted sm:max-w-[18rem] sm:text-right",
+      ),
+    ],
     [text],
   );
 
@@ -344,7 +346,7 @@ const protectsPanel = <Message>(result: RoundResult, h: HtmlBuilder<Message>): H
       ),
     ],
     h,
-    "p-6 sm:p-6",
+    "p-5 sm:p-5",
   );
 
 const resultsLayout = <Message>(
@@ -355,11 +357,11 @@ const resultsLayout = <Message>(
   const showStats = result.status !== "open" && result.meetsMinimumGroupSize;
 
   return h.div(
-    [h.Class("flex flex-wrap gap-12")],
+    [h.Class("grid gap-8 lg:grid-cols-[minmax(0,1fr)_300px]")],
     [
-      h.div([h.Class("flex max-w-[720px] min-w-0 flex-[999_1_600px] flex-col gap-4")], main),
+      h.div([h.Class("flex min-w-0 flex-col gap-4")], main),
       h.aside(
-        [h.Class("flex min-w-0 flex-[1_1_260px] flex-col gap-4")],
+        [h.Class("flex min-w-0 flex-col gap-4 lg:sticky lg:top-20 lg:self-start")],
         [
           protectsPanel(result, h),
           showStats
@@ -380,7 +382,7 @@ const resultsLayout = <Message>(
                   ),
                 ],
                 h,
-                "p-6 sm:p-6",
+                "p-5 sm:p-5",
               )
             : null,
         ].filter(Predicate.isNotNull),

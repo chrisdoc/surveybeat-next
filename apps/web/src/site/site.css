@@ -1,5 +1,14 @@
-/* The landing page uses the app's theme as is: the same tokens, fonts and light/dark switch. */
+/* The landing page uses the app's colour tokens and light/dark switch, and keeps its own fonts and radii. */
 @import "../app/app.css";
+@import "@fontsource-variable/figtree";
+@import "@fontsource-variable/newsreader";
+
+@theme {
+  --font-sans: "Figtree Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Newsreader Variable", Georgia, serif;
+  --radius-panel: 20px;
+  --radius-control: 12px;
+}
 
 @source "./";
 
