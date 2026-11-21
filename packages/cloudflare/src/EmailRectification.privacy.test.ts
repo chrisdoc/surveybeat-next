@@ -10,14 +10,17 @@ import {
   EmailAddress,
   EmailRectification,
   makeSendStore,
+  OrganizationCreationAllowlist,
   OrganizationDirectory,
   OrganizationId,
+  OrganizationPeople,
   PeopleIndex,
   PersonId,
   requestEmailChange,
   SessionIdentityProvider,
+  sessionState,
 } from "@surveybeat/domain";
-import type { Member } from "@surveybeat/domain";
+import type { Member, SignedInSession } from "@surveybeat/domain";
 import { migratedDatabase, SqliteStorage } from "@surveybeat/testing";
 import { RuntimeContext } from "alchemy/RuntimeContext";
 import * as Effect from "effect/Effect";
@@ -440,6 +443,35 @@ const failureTag = (exit: Exit.Exit<unknown, { readonly _tag: string }>): string
 
 const NEW = "ada.lovelace@example.com";
 
+const idlePeople = OrganizationPeople.of({
+  activePerson: () => Effect.succeedNone,
+  linkPerson: () => Effect.succeed(false),
+  createWithAdmin: () => Effect.void,
+});
+
+const resumedBySession = <EAuth>(
+  authenticate: (cookie: Redacted.Redacted) => Effect.Effect<SignedInSession, EAuth>,
+  run: <A, E>(
+    effect: Effect.Effect<
+      A,
+      E,
+      EmailRectification | OrganizationDirectory | PeopleIndex | SessionIdentityProvider
+    >,
+  ) => Effect.Effect<A, E>,
+  adminMember: (organizationAdmin: boolean) => Member,
+  cookie: Redacted.Redacted,
+) =>
+  Effect.gen(function* () {
+    const session = yield* authenticate(cookie);
+
+    return yield* run(
+      sessionState(
+        { session, member: Option.some(adminMember(false)) },
+        new OrganizationCreationAllowlist(""),
+      ).pipe(Effect.provideService(OrganizationPeople, idlePeople)),
+    );
+  });
+
 describe("rectifying a Person's email (GDPR 309)", () => {
   it.effect(
     "moves the account, every linked index row, and the Person in each Organization, and leaves everyone else",
@@ -663,6 +695,66 @@ describe("rectifying a Person's email (GDPR 309)", () => {
 
       assert.strictEqual(w.pendingRows(), 0);
     }),
+  );
+
+  it.effect("finishes a change that stopped after the account moved when the session is read", () =>
+    Effect.gen(function* () {
+      const w = yield* world();
+      yield* w.request(w.ada, NEW);
+      w.crash.rectify = GLOBEX;
+
+      const stopped = yield* w.confirm(w.ada, NEW, w.changeCodes.get(NEW) ?? "");
+
+      assert.strictEqual(failureTag(stopped), "Defect");
+      assert.strictEqual(w.accountEmail(w.adaId), NEW);
+      assert.strictEqual(w.pendingRows(), 1);
+      assert.strictEqual(w.personEmail(GLOBEX, "globex-ada"), "ada@example.com");
+
+      yield* resumedBySession(w.provider.authenticate, w.run, w.adminMember, w.ada);
+
+      for (const [organizationId, personId] of [
+        ["acme", "acme-ada"],
+        ["globex", "globex-ada"],
+        ["initech", "initech-ada"],
+      ] as const) {
+        assert.strictEqual(w.indexEmail(organizationId, personId), NEW);
+        assert.strictEqual(w.personEmail(OrganizationId.make(organizationId), personId), NEW);
+      }
+
+      assert.strictEqual(w.pendingRows(), 0);
+      assert.deepStrictEqual(w.sentChangeCodes, [NEW]);
+    }),
+  );
+
+  it.effect(
+    "finishes a change that stopped before the index followed the account when the session is read",
+    () =>
+      Effect.gen(function* () {
+        const w = yield* world();
+        yield* w.request(w.ada, NEW);
+        w.crash.moveIndex = true;
+
+        const stopped = yield* w.confirm(w.ada, NEW, w.changeCodes.get(NEW) ?? "");
+
+        assert.strictEqual(failureTag(stopped), "Defect");
+        assert.strictEqual(w.accountEmail(w.adaId), NEW);
+        assert.strictEqual(w.indexEmail("acme", "acme-ada"), "ada@example.com");
+        assert.strictEqual(w.personEmail(ACME, "acme-ada"), "ada@example.com");
+
+        yield* resumedBySession(w.provider.authenticate, w.run, w.adminMember, w.ada);
+
+        for (const [organizationId, personId] of [
+          ["acme", "acme-ada"],
+          ["globex", "globex-ada"],
+          ["initech", "initech-ada"],
+        ] as const) {
+          assert.strictEqual(w.indexEmail(organizationId, personId), NEW);
+          assert.strictEqual(w.personEmail(OrganizationId.make(organizationId), personId), NEW);
+        }
+
+        assert.strictEqual(w.pendingRows(), 0);
+        assert.deepStrictEqual(w.sentChangeCodes, [NEW]);
+      }),
   );
 
   it.effect("writes nothing when the address belongs to another account or to an unlinked Person", () =>

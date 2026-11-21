@@ -12,12 +12,20 @@ import {
   requestEmailChange,
 } from "./EmailRectification.ts";
 import type { PendingEmailChange } from "./EmailRectification.ts";
-import { AuthUserId, identityOf, parseRectifiedEmail, PersonId, SessionId } from "./Identity.ts";
+import {
+  AuthUserId,
+  identityOf,
+  OrganizationCreationAllowlist,
+  parseRectifiedEmail,
+  PersonId,
+  SessionId,
+} from "./Identity.ts";
 import { OrganizationId } from "./Organization.ts";
 import { SessionIdentityProvider } from "./SessionIdentity.ts";
-import { PeopleIndex } from "./SignInPorts.ts";
+import { OrganizationPeople, PeopleIndex } from "./SignInPorts.ts";
 import type { SessionIdentityProviderShape, SignedInSession } from "./SessionIdentity.ts";
-import type { Member } from "./SignInFlow.ts";
+import { sessionState } from "./SignInFlow.ts";
+import type { CheckedSession, Member } from "./SignInFlow.ts";
 
 const ADA = AuthUserId.make("user_ada");
 
@@ -112,7 +120,7 @@ const run = <A, E>(
   effect: Effect.Effect<
     A,
     E,
-    EmailRectification | SessionIdentityProvider | OrganizationDirectory | PeopleIndex
+    EmailRectification | SessionIdentityProvider | OrganizationDirectory | PeopleIndex | OrganizationPeople
   >,
 ) => {
   const rectification = EmailRectification.of({
@@ -205,6 +213,14 @@ const run = <A, E>(
     Effect.provideService(SessionIdentityProvider, sessions as unknown as SessionIdentityProviderShape),
     Effect.provideService(OrganizationDirectory, directory as unknown as OrganizationDirectory["Service"]),
     Effect.provideService(PeopleIndex, {} as unknown as PeopleIndex["Service"]),
+    Effect.provideService(
+      OrganizationPeople,
+      OrganizationPeople.of({
+        activePerson: () => Effect.succeedNone,
+        linkPerson: () => Effect.succeed(false),
+        createWithAdmin: () => Effect.void,
+      }),
+    ),
     Effect.exit,
   );
 };
@@ -288,6 +304,31 @@ describe("asking for a code to change the address", () => {
     }),
   );
 
+  it.effect(
+    "finishes propagation when asked for the address the account already holds, and sends no code",
+    () =>
+      Effect.gen(function* () {
+        const world = newWorld();
+        world.pending = Option.some({
+          oldEmail: email("ada@example.com"),
+          newEmail: email("new@example.com"),
+        });
+
+        const exit = yield* run(
+          world,
+          requestEmailChange(COOKIE, sessionWith("new@example.com"), " NEW@example.com "),
+        );
+
+        expect(failureTag(exit)).toBe("EmailUnchanged");
+        expect(world.calls).toEqual([
+          "moveIndex new@example.com",
+          "rectify acme new@example.com",
+          "rectify globex new@example.com",
+          "finish",
+        ]);
+      }),
+  );
+
   it.effect("tells the Person to sign in again when Better Auth finds the session stale", () =>
     Effect.gen(function* () {
       const world = newWorld();
@@ -300,6 +341,73 @@ describe("asking for a code to change the address", () => {
 
       expect(failureTag(exit)).toBe("SignInAgainRequired");
     }),
+  );
+});
+
+const member = (organizationAdmin: boolean): Member => ({
+  organization: { id: ACME, name: "Acme" },
+  personId: PersonId.make("acme-admin"),
+  organizationAdmin,
+  locale: null,
+  detectedLocale: null,
+  organizationLocale: "en",
+});
+
+describe("reading the session while a change is unfinished", () => {
+  const allowlist = new OrganizationCreationAllowlist("");
+
+  const checked = (address: string): CheckedSession => ({
+    session: sessionWith(address),
+    member: Option.some(member(true)),
+  });
+
+  it.effect(
+    "finishes propagation when the pending address is already the session address, and returns the same outcome",
+    () =>
+      Effect.gen(function* () {
+        const address = "new@example.com";
+        const settled = newWorld();
+        const interrupted = newWorld();
+        interrupted.pending = Option.some({
+          oldEmail: email("ada@example.com"),
+          newEmail: email(address),
+        });
+
+        const plain = yield* run(settled, sessionState(checked(address), allowlist));
+        const resumed = yield* run(interrupted, sessionState(checked(address), allowlist));
+
+        expect(resumed).toEqual(plain);
+        expect(Exit.isSuccess(resumed)).toBe(true);
+        expect(interrupted.calls).toEqual([
+          "moveIndex new@example.com",
+          "rectify acme new@example.com",
+          "rectify globex new@example.com",
+          "finish",
+        ]);
+        expect(settled.calls).toEqual([]);
+      }),
+  );
+
+  it.effect(
+    "does not propagate when there is no pending change, or the pending address is not the session address",
+    () =>
+      Effect.gen(function* () {
+        const address = "new@example.com";
+        const absent = newWorld();
+        const different = newWorld();
+        different.pending = Option.some({
+          oldEmail: email("ada@example.com"),
+          newEmail: email("other@example.com"),
+        });
+
+        const missing = yield* run(absent, sessionState(checked(address), allowlist));
+        const other = yield* run(different, sessionState(checked(address), allowlist));
+
+        expect(Exit.isSuccess(missing)).toBe(true);
+        expect(other).toEqual(missing);
+        expect(absent.calls).toEqual([]);
+        expect(different.calls).toEqual([]);
+      }),
   );
 });
 
@@ -461,15 +569,6 @@ describe("confirming the new address", () => {
       expect(world.calls[0]).toBe("begin ada@example.com new@example.com");
     }),
   );
-});
-
-const member = (organizationAdmin: boolean): Member => ({
-  organization: { id: ACME, name: "Acme" },
-  personId: PersonId.make("acme-admin"),
-  organizationAdmin,
-  locale: null,
-  detectedLocale: null,
-  organizationLocale: "en",
 });
 
 describe("an Organization admin correcting an address", () => {

@@ -1,6 +1,7 @@
 import type * as Cloudflare from "@alchemy.run/cloudflare";
 import {
   EmailAddress,
+  EmailRectification,
   identityOf,
   MembershipId,
   OrganizationCreationAllowlist,
@@ -27,6 +28,7 @@ import * as Redacted from "effect/Redacted";
 import { HttpServerRequest } from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import type { Organizations } from "../EmailDelivery.ts";
+import { d1EmailRectification } from "./D1EmailRectification.ts";
 import { d1PeopleIndex } from "./D1PeopleIndex.ts";
 import { durableObjectDirectory, durableObjectPeople } from "./DurableObjectPeople.ts";
 
@@ -38,6 +40,7 @@ export const peopleTestRoutes = (organizations: Organizations, database: Cloudfl
     const run = new URL(request.url, "http://localhost").searchParams.get("run") ?? "";
     const people = durableObjectPeople(organizations);
     const index = yield* d1PeopleIndex(database);
+    const rectification = yield* d1EmailRectification(database);
     const organization = { id: OrganizationId.make(`people-${run}`), name: "Acme" };
     const admin = PersonId.make(`admin-${run}`);
     const adminUser = AuthUserId.make(`user_admin_${run}`);
@@ -94,6 +97,7 @@ export const peopleTestRoutes = (organizations: Organizations, database: Cloudfl
       Context.add(PeopleIndex, index),
       Context.add(OrganizationPeople, people),
       Context.add(OrganizationDirectory, durableObjectDirectory(organizations)),
+      Context.add(EmailRectification, rectification),
     );
 
     const member: Member = {
