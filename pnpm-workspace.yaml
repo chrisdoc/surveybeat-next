@@ -21,7 +21,7 @@ catalog:
   "@effect/platform-node": 4.1.4
   "@effect/vitest": 4.1.4
   typescript: 7.0.2
-  "@effect/tsgo": 0.69.0
+  "@effect/tsgo": 0.73.2
   "@yielded/effect-tsrs": 0.2.3
   tsrs: 0.23.0-ts7.1.0-beta
   oxlint: 1.93.0
